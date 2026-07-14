@@ -1,0 +1,18 @@
+[submodule "refs/codex"]
+	path = refs/codex
+	url = https://github.com/openai/codex.git
+[submodule "refs/pi"]
+	path = refs/pi
+	url = https://github.com/earendil-works/pi.git
+[submodule "refs/pi-subagents"]
+	path = refs/pi-subagents
+	url = https://github.com/tintinweb/pi-subagents.git
+[submodule "refs/pi-web-access"]
+	path = refs/pi-web-access
+	url = https://github.com/nicobailon/pi-web-access.git
+[submodule "refs/pi-mcp-adapter"]
+	path = refs/pi-mcp-adapter
+	url = https://github.com/nicobailon/pi-mcp-adapter.git
+[submodule "refs/gpui-component"]
+	path = refs/gpui-component
+	url = https://github.com/longbridge/gpui-component.git

@@ -1,0 +1,11 @@
+data: {"type":"response.created","response":{"id":"response_fixture"}}
+
+data: {"type":"response.output_item.added","output_index":0,"item":{"id":"item_fixture","type":"message"}}
+
+data: {"type":"response.output_text.delta","output_index":0,"delta":"fixture"}
+
+data: {"type":"response.output_item.done","output_index":0,"item":{"id":"item_fixture","type":"message","content":[{"type":"output_text","text":"fixture"}]}}
+
+data: {"type":"response.completed","response":{"id":"response_fixture","status":"completed"}}
+
+data: [DONE]

@@ -1,0 +1,5 @@
+{
+  "access_token": "synthetic.header.signature",
+  "refresh_token": "synthetic-refresh-value",
+  "expires_in": 3600
+}
