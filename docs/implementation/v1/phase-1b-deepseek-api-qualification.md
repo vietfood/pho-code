@@ -1,6 +1,6 @@
 # Phase 1B: Pivot to and qualify the DeepSeek API
 
-- Status: **VERIFICATION GAP — deterministic implementation passes; live/manual hard gate pending** ([record](../../qualification/deepseek-2026-07-14.md))
+- Status: **PASS — 2026-07-15** ([record](../../qualification/deepseek-2026-07-15.md))
 - Depends on: [Phase 0 pass](phase-0-foundation.md) and the recorded [ChatGPT Phase 1 stop](phase-1-chatgpt-codex-qualification.md)
 - Produces: Qualified DeepSeek credential/backend profile, provider-neutral assistant-phase seam, stable initial `pho` commands, sanitized fixtures, and a dated go/stop record
 - Next: [Phase 2](phase-2-headless-harness.md)

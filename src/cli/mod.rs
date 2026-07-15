@@ -11,6 +11,7 @@ use crate::auth::SecretText;
 use crate::auth::api_key::{CredentialActor, DeepSeekCredentialValidator};
 use crate::backend::deepseek::DeepSeekBackend;
 use crate::backend::sse::SseLimits;
+use crate::tools::{ApprovalDecision, Phase3ToolRuntime, StaticApprovalPolicy};
 
 use command::{Command, PromptSource};
 use renderer::Renderer;
@@ -56,15 +57,40 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         .map_err(|_| CliError::Runtime)?;
     #[cfg(target_os = "macos")]
     let store: Arc<dyn crate::auth::keychain::CredentialStore> = {
-        let development = cfg!(debug_assertions)
+        let memory = cfg!(debug_assertions)
+            .then(|| std::env::var("PHO_CODE_TEST_MEMORY_CREDENTIALS").ok())
+            .flatten();
+        let use_memory = memory.is_some();
+        let development = (!use_memory && cfg!(debug_assertions))
             .then(|| std::env::var("PHO_CODE_TEST_KEYCHAIN_SUFFIX").ok())
             .flatten();
-        match development {
-            Some(suffix) => Arc::new(
-                crate::auth::keychain::MacKeychainStore::development(&suffix)
-                    .map_err(|_| CliError::Runtime)?,
-            ),
-            None => Arc::new(crate::auth::keychain::MacKeychainStore::production()),
+        if let Some(state) = memory {
+            let store = Arc::new(crate::auth::keychain::MemoryCredentialStore::empty());
+            if state == "ready" {
+                use crate::auth::keychain::CredentialStore as _;
+                store
+                    .replace(
+                        &crate::auth::CredentialRecord::new(
+                            "process-test-key".into(),
+                            crate::backend::profile::PROFILE_REVISION,
+                            0,
+                            "process-test-model-set".into(),
+                        )
+                        .map_err(|_| CliError::Runtime)?,
+                    )
+                    .map_err(|_| CliError::Runtime)?;
+            } else if state != "missing" {
+                return Err(CliError::Runtime);
+            }
+            store
+        } else {
+            match development {
+                Some(suffix) => Arc::new(
+                    crate::auth::keychain::MacKeychainStore::development(&suffix)
+                        .map_err(|_| CliError::Runtime)?,
+                ),
+                None => Arc::new(crate::auth::keychain::MacKeychainStore::production()),
+            }
         }
     };
     #[cfg(not(target_os = "macos"))]
@@ -72,25 +98,45 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
     let validator = Arc::new(DeepSeekCredentialValidator::new().map_err(|_| CliError::Runtime)?);
     let credentials =
         Arc::new(CredentialActor::new(&guard, store, validator).map_err(|_| CliError::Runtime)?);
-    let backend = Arc::new(
-        DeepSeekBackend::new(credentials.clone(), SseLimits::default())
-            .map_err(|_| CliError::Runtime)?,
-    );
+    let backend = Arc::new(deepseek_backend(credentials.clone())?);
     let config = Arc::new(RuntimeConfig::default());
-    let mut application = ApplicationCoordinator::new(credentials, backend, config).await;
-    let mut renderer = Renderer::stdio();
+    let mut application = ApplicationCoordinator::new_with_services(
+        credentials,
+        backend,
+        Arc::new(Phase3ToolRuntime::default()),
+        Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
+        config,
+    )
+    .await;
+    let mut renderer = Renderer::stdio().map_err(|_| CliError::Runtime)?;
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
+    #[cfg(unix)]
+    let signal_task = {
+        let mut interrupts =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+                .map_err(|_| CliError::Runtime)?;
+        tokio::spawn(async move {
+            if interrupts.recv().await.is_some() {
+                signal_cancellation.cancel();
+            }
+        })
+    };
+    #[cfg(not(unix))]
     let signal_task = tokio::spawn(async move {
         if tokio::signal::ctrl_c().await.is_ok() {
             signal_cancellation.cancel();
         }
     });
+    if cfg!(debug_assertions) && std::env::var_os("PHO_CODE_TEST_INPUT_READY").is_some() {
+        eprintln!("pho-test-input-ready");
+    }
 
     let intent = match command {
         Command::Login => {
-            let value = terminal::read_secret("DeepSeek API key: ", 4096)
-                .map_err(|_| CliError::Usage("a controlling terminal is required for login"))?;
+            let value = terminal::read_secret("DeepSeek API key: ", 4096, &cancellation).map_err(
+                |error| input_error(error, "a controlling terminal is required for login"),
+            )?;
             Intent::InstallCredential {
                 candidate: SecretText::new(value),
             }
@@ -102,8 +148,8 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
                 return Err(CliError::MissingCredential);
             }
             let text = match source {
-                PromptSource::ControllingTerminal => terminal::read_prompt(256 * 1024).map_err(|_| CliError::Usage("a controlling terminal is required; use `pho chat --stdin` for explicit stdin input"))?,
-                PromptSource::Stdin => terminal::read_stdin_prompt(256 * 1024).map_err(|_| CliError::Usage("stdin prompt is empty, invalid UTF-8, or too large"))?,
+                PromptSource::ControllingTerminal => terminal::read_prompt(256 * 1024, &cancellation).map_err(|error| input_error(error, "a controlling terminal is required; use `pho chat --stdin` for explicit stdin input"))?,
+                PromptSource::Stdin => terminal::read_stdin_prompt(256 * 1024, &cancellation).map_err(|error| input_error(error, "stdin prompt is empty, invalid UTF-8, or too large"))?,
             };
             Intent::SendEphemeralPrompt { text }
         }
@@ -133,6 +179,27 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         _ => CliError::Runtime,
     })?;
     renderer.finish().map_err(|_| CliError::Cancelled)
+}
+
+fn deepseek_backend(credentials: Arc<CredentialActor>) -> Result<DeepSeekBackend, CliError> {
+    #[cfg(debug_assertions)]
+    if let Some(endpoint) = std::env::var_os("PHO_CODE_TEST_CHAT_ENDPOINT") {
+        if std::env::var_os("PHO_CODE_TEST_MEMORY_CREDENTIALS").is_none() {
+            return Err(CliError::Runtime);
+        }
+        let endpoint = endpoint.into_string().map_err(|_| CliError::Runtime)?;
+        return DeepSeekBackend::new_loopback_fixture(SseLimits::default(), &endpoint)
+            .map_err(|_| CliError::Runtime);
+    }
+    DeepSeekBackend::new(credentials, SseLimits::default()).map_err(|_| CliError::Runtime)
+}
+
+fn input_error(error: std::io::Error, usage: &'static str) -> CliError {
+    if error.kind() == std::io::ErrorKind::Interrupted {
+        CliError::Cancelled
+    } else {
+        CliError::Usage(usage)
+    }
 }
 
 #[derive(Debug)]

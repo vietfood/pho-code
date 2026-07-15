@@ -47,6 +47,53 @@ pub enum TurnStatus {
     Uncertain,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ToolStatus {
+    Requested,
+    Validated,
+    AwaitingApproval,
+    Running,
+    Completed,
+    Denied,
+    Failed,
+    Cancelled,
+    Uncertain,
+}
+
+impl ToolStatus {
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            Self::Completed | Self::Denied | Self::Failed | Self::Cancelled | Self::Uncertain
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum ApprovalStatus {
+    Pending,
+    Approved,
+    Denied,
+    Unavailable,
+    Invalidated,
+}
+
+impl ApprovalStatus {
+    pub fn is_terminal(self) -> bool {
+        self != Self::Pending
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum TerminalReason {
+    Completed,
+    Failed,
+    Cancelled,
+    Interrupted,
+    Uncertain,
+    LimitExceeded,
+}
+
 impl TurnStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(

@@ -1,11 +1,12 @@
 # DeepSeek API backend architecture
 
-- Status: Normative V1 backend contract; live compatibility not yet established
-- Last updated: 2026-07-14
+- Status: Normative V1 backend contract; initial profile live-qualified on 2026-07-15
+- Last updated: 2026-07-15
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System context: [Native harness system architecture](native-harness-system.md)
-- Implementation phase: [Phase 1B](../implementation/v1/phase-1b-deepseek-api-qualification.md)
-- External contract reviewed: DeepSeek API documentation and Open Platform terms on 2026-07-14
+- Qualification phase: [Phase 1B](../implementation/v1/phase-1b-deepseek-api-qualification.md)
+- Harness integration phase: [Phase 3](../implementation/v1/phase-3-live-backend.md)
+- External contract reviewed: DeepSeek API documentation on 2026-07-15 and Open Platform terms on 2026-07-14
 - Platform: macOS only
 
 ## Purpose
@@ -20,7 +21,7 @@ The backend supplies normalized model events and accepts complete model-visible 
 
 The official [DeepSeek quick start](https://api-docs.deepseek.com/) documents bearer API-key authentication, the `https://api.deepseek.com` OpenAI-format base URL, and streamed chat completions. The [Chat Completions reference](https://api-docs.deepseek.com/api/create-chat-completion/) documents messages, thinking controls, tool calls, SSE chunks, finish reasons, and usage fields. The [Thinking Mode guide](https://api-docs.deepseek.com/guides/thinking_mode/) documents the special replay requirement for reasoning content associated with tool calls.
 
-The [model and pricing page](https://api-docs.deepseek.com/quick_start/pricing/) is volatile operational evidence. On 2026-07-14 it listed `deepseek-v4-flash` and `deepseek-v4-pro`, both with thinking and tool support, and announced removal of the `deepseek-chat` and `deepseek-reasoner` aliases on 2026-07-24. Pho Code therefore qualifies explicit current model IDs and never treats a documented price, context length, maximum output, or model alias as permanent.
+The [model and pricing page](https://api-docs.deepseek.com/quick_start/pricing/) is volatile operational evidence. On 2026-07-15 it listed `deepseek-v4-flash` and `deepseek-v4-pro`, both with thinking and tool support, and announced removal of the `deepseek-chat` and `deepseek-reasoner` aliases on 2026-07-24. Pho Code therefore qualifies explicit current model IDs and never treats a documented price, context length, maximum output, or model alias as permanent.
 
 DeepSeek's [Open Platform terms](https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html) require developers to protect API keys and disclose applicable downstream personal-data processing. Architecture records the technical boundary and release checks; it does not claim a legal interpretation or permanent provider policy.
 
@@ -310,7 +311,7 @@ If transport fails after any content, reasoning, or tool delta, the turn retains
 
 ## Usage and estimated cost
 
-When `stream_options.include_usage` is enabled, the backend accepts one usage-bearing chunk under the qualified shape. It maps prompt tokens, cache-hit tokens, cache-miss tokens, completion tokens, reasoning tokens when supplied, and total tokens into checked nonnegative integers. Arithmetic overflow, impossible relationships, conflicting duplicate usage, or usage after `[DONE]` is a protocol error or bounded diagnostic according to whether terminal accounting remains unambiguous.
+When `stream_options.include_usage` is enabled, the backend accepts one usage value either on an ordinary completion chunk or on the documented additional empty-choice chunk. The 2026-07-15 live qualification observed the former even though the first-party reference described the latter, so both bounded shapes are accepted and conflicting duplicates fail. The backend maps prompt tokens, cache-hit tokens, cache-miss tokens, completion tokens, reasoning tokens when supplied, and total tokens into checked nonnegative integers. Arithmetic overflow, impossible relationships, or usage after `[DONE]` is a protocol error or bounded diagnostic according to whether terminal accounting remains unambiguous.
 
 Missing usage does not rewrite a successful text/tool result into failure if the qualification profile explicitly allows absence, but every presentation marks cost unknown. Phase 1B must decide whether usage is required for the initial profile.
 
@@ -323,6 +324,8 @@ cache_hit_tokens * observed_cache_hit_rate
 ```
 
 Reasoning tokens are not double-counted when already included in completion tokens. Every amount is labeled `estimated`, names the currency and price observation date, and uses checked decimal arithmetic. Pho Code does not infer remaining account balance or claim a spending cap. The provider account ledger is authoritative.
+
+The V1 estimator refuses to produce an amount when the price observation is more than 30 UTC days old or the system clock precedes that observation. Presentations retain usage, mark cost unknown, and identify the stale or invalid-clock price profile instead of applying old rates silently.
 
 ## Error taxonomy
 

@@ -8,10 +8,12 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 
-use crate::auth::api_key::{CredentialActor, CredentialLease};
+use crate::auth::SecretText;
+use crate::auth::api_key::CredentialActor;
 
 use super::profile::{CHAT_ENDPOINT, MAXIMUM_OUTPUT_TOKENS, MODEL, PROFILE_REVISION};
 use super::sse::{SseDecoder, SseLimits};
+use super::strict_json::parse_strict_object;
 use super::{
     AssistantPhase, BackendError, BackendMessage, BackendRequest, ModelBackend, ModelEvent,
 };
@@ -19,6 +21,10 @@ use super::{
 const MAXIMUM_REQUEST_BYTES: usize = 8 * 1024 * 1024;
 const MAXIMUM_MESSAGES: usize = 4096;
 const MAXIMUM_MESSAGE_BYTES: usize = 2 * 1024 * 1024;
+const MAXIMUM_TOOL_ARGUMENT_BYTES: usize = 64 * 1024;
+const MAXIMUM_TOOL_SCHEMA_BYTES: usize = 64 * 1024;
+const MAXIMUM_TOOL_DESCRIPTION_BYTES: usize = 4096;
+const MAXIMUM_IDENTITY_BYTES: usize = 256;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
 const BYTE_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const SEMANTIC_TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -26,8 +32,15 @@ const TOTAL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 pub struct DeepSeekBackend {
     client: reqwest::Client,
-    credentials: Arc<CredentialActor>,
+    credential_source: CredentialSource,
     sse_limits: SseLimits,
+    chat_endpoint: String,
+}
+
+enum CredentialSource {
+    Production(Arc<CredentialActor>),
+    #[cfg(debug_assertions)]
+    LoopbackFixture(SecretText),
 }
 
 impl DeepSeekBackend {
@@ -42,8 +55,46 @@ impl DeepSeekBackend {
             .map_err(|_| BackendError::Transport("HTTP client initialization failed"))?;
         Ok(Self {
             client,
-            credentials,
+            credential_source: CredentialSource::Production(credentials),
             sse_limits,
+            chat_endpoint: CHAT_ENDPOINT.into(),
+        })
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn new_loopback_fixture(
+        sse_limits: SseLimits,
+        endpoint: &str,
+    ) -> Result<Self, BackendError> {
+        let endpoint = url::Url::parse(endpoint).map_err(|_| BackendError::RequestInvalid)?;
+        let loopback = match endpoint.host() {
+            Some(url::Host::Ipv4(address)) => address.is_loopback(),
+            Some(url::Host::Ipv6(address)) => address.is_loopback(),
+            Some(url::Host::Domain(_)) => false,
+            None => false,
+        };
+        if endpoint.scheme() != "http"
+            || !loopback
+            || endpoint.path() != "/chat/completions"
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return Err(BackendError::RequestInvalid);
+        }
+        let client = reqwest::Client::builder()
+            .redirect_policy(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(15))
+            .build()
+            .map_err(|_| BackendError::Transport("HTTP client initialization failed"))?;
+        Ok(Self {
+            client,
+            credential_source: CredentialSource::LoopbackFixture(SecretText::new(
+                "loopback-fixture-key".into(),
+            )),
+            sse_limits,
+            chat_endpoint: endpoint.into(),
         })
     }
 
@@ -54,18 +105,24 @@ impl DeepSeekBackend {
         cancellation: CancellationToken,
     ) -> Result<(), BackendError> {
         let encoded = encode_request(&request)?;
-        let lease = self
-            .credentials
-            .lease()
-            .await
-            .map_err(|_| BackendError::AuthorizationRejected)?;
-        if lease.profile_revision != PROFILE_REVISION {
-            return Err(BackendError::AuthorizationRejected);
-        }
+        let api_key = match &self.credential_source {
+            CredentialSource::Production(credentials) => {
+                let lease = credentials
+                    .lease()
+                    .await
+                    .map_err(|_| BackendError::AuthorizationRejected)?;
+                if lease.profile_revision != PROFILE_REVISION {
+                    return Err(BackendError::AuthorizationRejected);
+                }
+                lease.api_key
+            }
+            #[cfg(debug_assertions)]
+            CredentialSource::LoopbackFixture(api_key) => api_key.clone(),
+        };
         let pending = self
             .client
-            .post(CHAT_ENDPOINT)
-            .headers(request_headers(&lease)?)
+            .post(&self.chat_endpoint)
+            .headers(request_headers(&api_key)?)
             .body(encoded)
             .send();
         let response = tokio::select! {
@@ -78,8 +135,10 @@ impl DeepSeekBackend {
                 Ok(Err(_)) | Err(_) => return Err(BackendError::DeliveryUnknown),
             }
         };
-        if response.status().as_u16() == 401 {
-            self.credentials.invalidate().await;
+        if response.status().as_u16() == 401
+            && let CredentialSource::Production(credentials) = &self.credential_source
+        {
+            credentials.invalidate().await;
         }
         if !response.status().is_success() {
             return Err(classify_status(response.status().as_u16()));
@@ -98,7 +157,7 @@ impl DeepSeekBackend {
         let total_deadline = tokio::time::Instant::now() + TOTAL_TIMEOUT;
         let mut semantic_deadline = tokio::time::Instant::now() + SEMANTIC_TIMEOUT;
         let mut stream = response.bytes_stream();
-        let mut decoder = Some(SseDecoder::new(self.sse_limits.clone()));
+        let mut decoder = Some(SseDecoder::new(self.sse_limits.clone(), request.request_id));
         let mut semantic_event_seen = false;
         loop {
             let now = tokio::time::Instant::now();
@@ -290,9 +349,7 @@ fn to_wire_request(request: &BackendRequest) -> Result<WireRequest<'_>, BackendE
 
 fn assistant_message(phase: &AssistantPhase) -> Result<WireMessage<'_>, BackendError> {
     if phase.reasoning_required_for_replay && phase.reasoning.is_none() {
-        return Err(BackendError::Protocol(
-            "required reasoning replay is missing",
-        ));
+        return Err(BackendError::ReplayStateMissing);
     }
     let tool_calls = phase
         .tool_calls
@@ -318,12 +375,10 @@ fn validate_request(request: &BackendRequest) -> Result<(), BackendError> {
         return Err(BackendError::ModelUnavailable);
     }
     if request.messages.is_empty() || request.messages.len() > MAXIMUM_MESSAGES {
-        return Err(BackendError::Protocol("message count is invalid"));
+        return Err(BackendError::RequestInvalid);
     }
     if request.system_instructions.len() > MAXIMUM_MESSAGE_BYTES {
-        return Err(BackendError::Protocol(
-            "system instruction byte limit exceeded",
-        ));
+        return Err(BackendError::RequestInvalid);
     }
     for message in &request.messages {
         let valid = match message {
@@ -331,10 +386,14 @@ fn validate_request(request: &BackendRequest) -> Result<(), BackendError> {
                 !user.text.is_empty() && user.text.len() <= MAXIMUM_MESSAGE_BYTES
             }
             BackendMessage::Assistant(phase) => {
-                phase
-                    .text
-                    .as_ref()
-                    .is_none_or(|text| text.len() <= MAXIMUM_MESSAGE_BYTES)
+                !phase.provider_completion_id.is_empty()
+                    && phase.provider_completion_id.len() <= MAXIMUM_IDENTITY_BYTES
+                    && phase.compatibility.model == MODEL
+                    && phase.tool_calls.len() <= 32
+                    && phase
+                        .text
+                        .as_ref()
+                        .is_none_or(|text| text.len() <= MAXIMUM_MESSAGE_BYTES)
                     && phase
                         .reasoning
                         .as_ref()
@@ -345,11 +404,25 @@ fn validate_request(request: &BackendRequest) -> Result<(), BackendError> {
             }
         };
         if !valid {
-            return Err(BackendError::Protocol("message field is invalid"));
+            return Err(BackendError::RequestInvalid);
         }
     }
     if request.tools.len() > 32 {
-        return Err(BackendError::Protocol("tool definition count exceeded"));
+        return Err(BackendError::RequestInvalid);
+    }
+    let mut tool_names = std::collections::HashSet::new();
+    for tool in &request.tools {
+        let schema_bytes = serde_json::to_vec(&tool.schema)
+            .map_err(|_| BackendError::RequestInvalid)?
+            .len();
+        if !valid_tool_name(&tool.name)
+            || !tool_names.insert(tool.name.as_str())
+            || tool.description.len() > MAXIMUM_TOOL_DESCRIPTION_BYTES
+            || schema_bytes > MAXIMUM_TOOL_SCHEMA_BYTES
+            || !tool.schema.is_object()
+        {
+            return Err(BackendError::RequestInvalid);
+        }
     }
     validate_replay(&request.messages)?;
     Ok(())
@@ -363,53 +436,55 @@ fn validate_replay(messages: &[BackendMessage]) -> Result<(), BackendError> {
         match message {
             BackendMessage::Assistant(phase) => {
                 if !expected.is_empty() {
-                    return Err(BackendError::Protocol(
-                        "assistant phase precedes required tool results",
-                    ));
+                    return Err(BackendError::ReplayStateMissing);
                 }
                 if phase.reasoning_required_for_replay && phase.reasoning.is_none() {
-                    return Err(BackendError::Protocol(
-                        "required reasoning replay is missing",
-                    ));
+                    return Err(BackendError::ReplayStateMissing);
                 }
                 for call in &phase.tool_calls {
-                    if !seen.insert(call.provider_call_id.as_str()) {
-                        return Err(BackendError::Protocol(
-                            "duplicate provider tool call identity",
-                        ));
+                    if call.provider_call_id.is_empty()
+                        || call.provider_call_id.len() > MAXIMUM_IDENTITY_BYTES
+                        || !valid_tool_name(&call.name)
+                        || parse_strict_object(&call.arguments, MAXIMUM_TOOL_ARGUMENT_BYTES, 32)
+                            .is_err()
+                        || !seen.insert(call.provider_call_id.as_str())
+                    {
+                        return Err(BackendError::ReplayStateMissing);
                     }
                     expected.push_back((&call.tool_call_id, &call.provider_call_id));
                 }
             }
             BackendMessage::Tool(result) => {
                 let Some((local, provider)) = expected.pop_front() else {
-                    return Err(BackendError::Protocol("tool result has no preceding call"));
+                    return Err(BackendError::ReplayStateMissing);
                 };
                 if local != &result.tool_call_id || provider != result.provider_call_id {
-                    return Err(BackendError::Protocol(
-                        "tool result identity or order mismatch",
-                    ));
+                    return Err(BackendError::ReplayStateMissing);
                 }
             }
             BackendMessage::User(_) if !expected.is_empty() => {
-                return Err(BackendError::Protocol(
-                    "user message precedes required tool results",
-                ));
+                return Err(BackendError::ReplayStateMissing);
             }
             BackendMessage::User(_) => {}
         }
     }
     if !expected.is_empty() {
-        return Err(BackendError::Protocol(
-            "assistant calls are missing tool results",
-        ));
+        return Err(BackendError::ReplayStateMissing);
     }
     Ok(())
 }
 
-fn request_headers(lease: &CredentialLease) -> Result<HeaderMap, BackendError> {
+fn valid_tool_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn request_headers(api_key: &SecretText) -> Result<HeaderMap, BackendError> {
     let mut headers = HeaderMap::new();
-    let authorization = Zeroizing::new(format!("Bearer {}", lease.api_key.expose()));
+    let authorization = Zeroizing::new(format!("Bearer {}", api_key.expose()));
     headers.insert(
         AUTHORIZATION,
         HeaderValue::from_str(&authorization).map_err(|_| BackendError::AuthorizationRejected)?,
@@ -422,7 +497,8 @@ fn request_headers(lease: &CredentialLease) -> Result<HeaderMap, BackendError> {
 
 fn classify_status(status: u16) -> BackendError {
     match status {
-        400 | 422 => BackendError::RequestRejected,
+        400 => BackendError::RequestInvalid,
+        422 => BackendError::RequestRejected,
         401 => BackendError::AuthorizationRejected,
         402 => BackendError::InsufficientBalance,
         404 => BackendError::ModelUnavailable,

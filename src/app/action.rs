@@ -1,6 +1,8 @@
-use crate::agent::types::TurnId;
+use crate::agent::loop_runtime::LimitKind;
+use crate::agent::types::{ApprovalId, ToolCallId, TurnId};
 use crate::auth::{CredentialState, SecretText};
 use crate::backend::{AssistantPhase, Usage};
+use crate::tools::ApprovalDecision;
 
 pub enum Intent {
     InstallCredential { candidate: SecretText },
@@ -28,7 +30,7 @@ impl std::fmt::Debug for Intent {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum RuntimeEvent {
     StartupReady {
         credentials: CredentialState,
@@ -54,6 +56,46 @@ pub enum RuntimeEvent {
         turn_id: TurnId,
         phase: AssistantPhase,
     },
+    ToolValidated {
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+        name: String,
+        mutating: bool,
+    },
+    ApprovalRequested {
+        turn_id: TurnId,
+        approval_id: ApprovalId,
+        tool_call_id: ToolCallId,
+        effect_digest: String,
+        summary: String,
+    },
+    ApprovalResolved {
+        turn_id: TurnId,
+        approval_id: ApprovalId,
+        tool_call_id: ToolCallId,
+        effect_digest: String,
+        decision: ApprovalDecision,
+    },
+    ToolStarted {
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+        name: String,
+    },
+    ToolCompleted {
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+        name: String,
+        output: String,
+        executed: bool,
+    },
+    ContinuationStarted {
+        turn_id: TurnId,
+        index: usize,
+    },
+    LimitReached {
+        turn_id: TurnId,
+        limit: LimitKind,
+    },
     UsageUpdated {
         turn_id: TurnId,
         usage: Usage,
@@ -68,4 +110,29 @@ pub enum RuntimeEvent {
     TurnCancelled {
         turn_id: TurnId,
     },
+}
+
+impl std::fmt::Debug for RuntimeEvent {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::StartupReady { .. } => "StartupReady",
+            Self::CredentialChanged { .. } => "CredentialChanged",
+            Self::TurnPrepared { .. } => "TurnPrepared",
+            Self::ModelStreamStarted { .. } => "ModelStreamStarted",
+            Self::ReasoningDelta { .. } => "ReasoningDelta([REDACTED])",
+            Self::TextDelta { .. } => "TextDelta([REDACTED])",
+            Self::AssistantPhaseCompleted { .. } => "AssistantPhaseCompleted([REDACTED])",
+            Self::ToolValidated { .. } => "ToolValidated",
+            Self::ApprovalRequested { .. } => "ApprovalRequested",
+            Self::ApprovalResolved { .. } => "ApprovalResolved",
+            Self::ToolStarted { .. } => "ToolStarted",
+            Self::ToolCompleted { .. } => "ToolCompleted([REDACTED])",
+            Self::ContinuationStarted { .. } => "ContinuationStarted",
+            Self::LimitReached { .. } => "LimitReached",
+            Self::UsageUpdated { .. } => "UsageUpdated",
+            Self::TurnCompleted { .. } => "TurnCompleted",
+            Self::TurnFailed { .. } => "TurnFailed",
+            Self::TurnCancelled { .. } => "TurnCancelled",
+        })
+    }
 }

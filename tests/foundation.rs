@@ -27,7 +27,9 @@ async fn loopback_fixture_can_fragment_and_disconnect() {
 #[tokio::test]
 async fn headless_scripted_target_needs_no_gpui_application() {
     let backend = ScriptedBackend::new([vec![ModelEvent::ResponseCompleted {
+        request_id: BackendRequestId::new(),
         provider_completion_id: "fixture".into(),
+        model: "scripted".into(),
         finish: FinishClass::Stop,
     }]]);
     let (sender, mut receiver) = mpsc::channel(4);

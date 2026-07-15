@@ -1,6 +1,6 @@
 # Phase 3: Connect the live backend to the harness
 
-- Status: Planned
+- Status: **PASS — 2026-07-15** ([evidence](../evidence/phase-3-2026-07-15.md))
 - Depends on: [Phase 2](phase-2-headless-harness.md)
 - Produces: Headless live agent turn using the owned loop
 - Next: [Phase 4](phase-4-tools.md)

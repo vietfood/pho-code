@@ -1,6 +1,6 @@
 # Phase 2: Deterministic headless harness
 
-- Status: Blocked until Phase 1B passes
+- Status: **PASS — 2026-07-15** ([evidence](../evidence/phase-2-2026-07-15.md))
 - Depends on: [Phase 1B pass](phase-1b-deepseek-api-qualification.md#hard-gate)
 - Produces: Provider-neutral tool-continuation loop proven with `ScriptedBackend` through the shared command/runtime boundary
 - Next: [Phase 3](phase-3-live-backend.md)

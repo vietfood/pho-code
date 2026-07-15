@@ -1,39 +1,82 @@
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write as _};
 use std::os::fd::AsRawFd as _;
+use std::time::Duration;
 
-pub fn read_secret(prompt: &str, maximum_bytes: usize) -> io::Result<String> {
+use tokio_util::sync::CancellationToken;
+
+pub fn read_secret(
+    prompt: &str,
+    maximum_bytes: usize,
+    cancellation: &CancellationToken,
+) -> io::Result<String> {
     let mut terminal = open_terminal()?;
     terminal.write_all(prompt.as_bytes())?;
     terminal.flush()?;
     let guard = EchoGuard::disable(&terminal)?;
-    let result = read_bounded(&mut terminal, maximum_bytes);
+    let result = read_bounded_cancellable(&mut terminal, maximum_bytes, cancellation);
     drop(guard);
     terminal.write_all(b"\n")?;
     terminal.flush()?;
     result
 }
 
-pub fn read_prompt(maximum_bytes: usize) -> io::Result<String> {
+pub fn read_prompt(maximum_bytes: usize, cancellation: &CancellationToken) -> io::Result<String> {
     let mut terminal = open_terminal()?;
     terminal.write_all(b"Prompt: ")?;
     terminal.flush()?;
-    read_bounded(&mut terminal, maximum_bytes)
+    read_bounded_cancellable(&mut terminal, maximum_bytes, cancellation)
 }
 
-pub fn read_stdin_prompt(maximum_bytes: usize) -> io::Result<String> {
-    read_bounded(&mut io::stdin().lock(), maximum_bytes)
+pub fn read_stdin_prompt(
+    maximum_bytes: usize,
+    cancellation: &CancellationToken,
+) -> io::Result<String> {
+    let mut input = OpenOptions::new().read(true).open("/dev/stdin")?;
+    read_bounded_cancellable(&mut input, maximum_bytes, cancellation)
 }
 
 fn open_terminal() -> io::Result<File> {
     OpenOptions::new().read(true).write(true).open("/dev/tty")
 }
 
+#[cfg(test)]
 fn read_bounded(reader: &mut impl Read, maximum_bytes: usize) -> io::Result<String> {
+    read_bounded_with(reader, maximum_bytes, || false)
+}
+
+fn read_bounded_cancellable(
+    reader: &mut File,
+    maximum_bytes: usize,
+    cancellation: &CancellationToken,
+) -> io::Result<String> {
+    let _nonblocking = NonblockingGuard::enable(reader)?;
+    read_bounded_with(reader, maximum_bytes, || cancellation.is_cancelled())
+}
+
+fn read_bounded_with(
+    reader: &mut impl Read,
+    maximum_bytes: usize,
+    cancelled: impl Fn() -> bool,
+) -> io::Result<String> {
     let mut bytes = Vec::with_capacity(maximum_bytes.min(4096));
     let mut one = [0_u8; 1];
     loop {
-        let count = reader.read(&mut one)?;
+        if cancelled() {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "input cancelled",
+            ));
+        }
+        let count = match reader.read(&mut one) {
+            Ok(count) => count,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(10));
+                continue;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
         if count == 0 || one[0] == b'\n' {
             break;
         }
@@ -53,6 +96,41 @@ fn read_bounded(reader: &mut impl Read, maximum_bytes: usize) -> io::Result<Stri
     }
     String::from_utf8(bytes)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "input is not UTF-8"))
+}
+
+struct NonblockingGuard {
+    descriptor: i32,
+    original_flags: i32,
+}
+
+impl NonblockingGuard {
+    fn enable(file: &File) -> io::Result<Self> {
+        let descriptor = file.as_raw_fd();
+        // SAFETY: fcntl observes and updates flags on the live descriptor owned by `file`.
+        let original_flags = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+        if original_flags < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: the descriptor remains live for the guard lifetime and the flag mask preserves
+        // all existing status flags while adding nonblocking reads.
+        if unsafe { libc::fcntl(descriptor, libc::F_SETFL, original_flags | libc::O_NONBLOCK) } < 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(Self {
+            descriptor,
+            original_flags,
+        })
+    }
+}
+
+impl Drop for NonblockingGuard {
+    fn drop(&mut self) {
+        // SAFETY: restoration targets the same live descriptor before its owning file is dropped.
+        unsafe {
+            libc::fcntl(self.descriptor, libc::F_SETFL, self.original_flags);
+        }
+    }
 }
 
 struct EchoGuard {

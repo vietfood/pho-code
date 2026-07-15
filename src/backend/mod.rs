@@ -158,10 +158,32 @@ pub struct Usage {
     pub total_tokens: Option<u64>,
 }
 
+impl Usage {
+    pub fn checked_add(&self, other: &Self) -> Option<Self> {
+        fn add(left: Option<u64>, right: Option<u64>) -> Option<Option<u64>> {
+            match (left, right) {
+                (Some(left), Some(right)) => left.checked_add(right).map(Some),
+                _ => Some(None),
+            }
+        }
+
+        Some(Self {
+            prompt_tokens: add(self.prompt_tokens, other.prompt_tokens)?,
+            cache_hit_tokens: add(self.cache_hit_tokens, other.cache_hit_tokens)?,
+            cache_miss_tokens: add(self.cache_miss_tokens, other.cache_miss_tokens)?,
+            output_tokens: add(self.output_tokens, other.output_tokens)?,
+            reasoning_tokens: add(self.reasoning_tokens, other.reasoning_tokens)?,
+            total_tokens: add(self.total_tokens, other.total_tokens)?,
+        })
+    }
+}
+
 #[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ModelEvent {
     ResponseStarted {
+        request_id: BackendRequestId,
         provider_completion_id: Option<String>,
+        model: String,
     },
     ReasoningDelta {
         text: String,
@@ -182,11 +204,13 @@ pub enum ModelEvent {
         usage: Usage,
     },
     ResponseCompleted {
+        request_id: BackendRequestId,
         provider_completion_id: String,
+        model: String,
         finish: FinishClass,
     },
     ResponseIncomplete {
-        reason: String,
+        reason: IncompleteReason,
     },
     ResponseFailed {
         code: String,
@@ -194,6 +218,12 @@ pub enum ModelEvent {
     ResponseCancelled {
         stage: CancellationStage,
         transport_terminated: bool,
+    },
+    OptionalExtension {
+        name: String,
+    },
+    RequiredExtension {
+        name: String,
     },
 }
 
@@ -210,8 +240,31 @@ impl std::fmt::Debug for ModelEvent {
             Self::ResponseIncomplete { .. } => "ResponseIncomplete",
             Self::ResponseFailed { .. } => "ResponseFailed",
             Self::ResponseCancelled { .. } => "ResponseCancelled",
+            Self::OptionalExtension { .. } => "OptionalExtension",
+            Self::RequiredExtension { .. } => "RequiredExtension",
         };
         formatter.write_str(name)
+    }
+}
+
+impl ModelEvent {
+    pub(crate) fn bind_request_identity(&mut self, request_id: BackendRequestId, model: &str) {
+        match self {
+            Self::ResponseStarted {
+                request_id: event_request_id,
+                model: event_model,
+                ..
+            }
+            | Self::ResponseCompleted {
+                request_id: event_request_id,
+                model: event_model,
+                ..
+            } => {
+                *event_request_id = request_id;
+                *event_model = model.into();
+            }
+            _ => {}
+        }
     }
 }
 
@@ -219,6 +272,13 @@ impl std::fmt::Debug for ModelEvent {
 pub enum FinishClass {
     Stop,
     ToolCalls,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum IncompleteReason {
+    Length,
+    ContentFiltered,
+    InsufficientSystemResource,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -250,6 +310,8 @@ pub enum BackendError {
     ModelUnavailable,
     #[error("backend rejected the request")]
     RequestRejected,
+    #[error("backend request is invalid")]
+    RequestInvalid,
     #[error("backend rate limit was reached")]
     RateLimited,
     #[error("backend service is unavailable")]
@@ -258,6 +320,28 @@ pub enum BackendError {
     StreamTimedOut,
     #[error("backend stream ended ambiguously")]
     InterruptedAmbiguous,
+    #[error("backend output stopped at the configured length")]
+    OutputLimit,
+    #[error("backend filtered the response")]
+    ContentFiltered,
+    #[error("backend generation was interrupted by insufficient system resources")]
+    ResourceInterrupted,
+    #[error("backend cancellation was not acknowledged by transport termination")]
+    CancellationUnacknowledged,
+    #[error("backend SSE was malformed: {0}")]
+    SseMalformed(&'static str),
+    #[error("backend SSE exceeded a bound: {0}")]
+    SseOversized(&'static str),
+    #[error("backend stream ended before authoritative completion")]
+    StreamEndedEarly,
+    #[error("backend response choice is incompatible")]
+    ChoiceIncompatible,
+    #[error("backend finish reason is missing or incompatible")]
+    FinishReasonMissing,
+    #[error("backend event is incompatible: {0}")]
+    EventIncompatible(&'static str),
+    #[error("backend replay state is missing or inconsistent")]
+    ReplayStateMissing,
     #[error("backend internal invariant failed")]
     InternalInvariantViolation,
 }

@@ -70,7 +70,7 @@ Documentation is not a permanent service guarantee. DeepSeek model names, limits
 - Pi source: `0e6909f050eeb15e8f6c05185511f3788357ddb3`
 - `fff-search` documentation observed: `0.9.6`
 - Locally inspected Codex CLI during the audit: `codex-cli 0.144.1`
-- DeepSeek API, pricing, Open Platform terms, and linked privacy material reviewed: `2026-07-14`
+- DeepSeek API and pricing reviewed: `2026-07-15`; Open Platform terms and linked privacy material last reviewed: `2026-07-14`
 
 The checked-out repositories under `refs/**` are evidence, not extension points. Codex is Apache-2.0 and Pi is MIT; copied source requires applicable review and notices.
 
@@ -80,4 +80,4 @@ ADRs are append-only in intent. Supersede a changed decision instead of erasing 
 
 ## Current status
 
-[V1 Phase 0](implementation/v1/phase-0-foundation.md) passed on 2026-07-14 with [recorded evidence](implementation/evidence/phase-0-2026-07-14.md). [ChatGPT Phase 1](implementation/v1/phase-1-chatgpt-codex-qualification.md) ended `STOP — FROZEN` on 2026-07-14 without a live request. [V1 Phase 1B](implementation/v1/phase-1b-deepseek-api-qualification.md) now has a passing deterministic implementation and a [recorded live/manual verification gap](qualification/deepseek-2026-07-14.md). Phase 2 remains blocked until the dated DeepSeek qualification says `PASS`; the implemented slice is usable through `pho` for qualification.
+[V1 Phase 0](implementation/v1/phase-0-foundation.md) passed on 2026-07-14 with [recorded evidence](implementation/evidence/phase-0-2026-07-14.md). [ChatGPT Phase 1](implementation/v1/phase-1-chatgpt-codex-qualification.md) ended `STOP — FROZEN` on 2026-07-14 without a live request. [V1 Phase 1B](implementation/v1/phase-1b-deepseek-api-qualification.md) passed on 2026-07-15 with [live model, usage, tool-replay, cancellation, credential-lifecycle, and command evidence](qualification/deepseek-2026-07-15.md). [Phase 2](implementation/v1/phase-2-headless-harness.md) passed on 2026-07-15 with [deterministic headless evidence](implementation/evidence/phase-2-2026-07-15.md). [Phase 3](implementation/v1/phase-3-live-backend.md) passed on 2026-07-15 with [live-loop, cancellation, denial, usage, and command evidence](implementation/evidence/phase-3-2026-07-15.md); Phase 4 is ready.

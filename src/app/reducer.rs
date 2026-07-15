@@ -1,8 +1,8 @@
-use crate::agent::types::{TurnId, TurnStatus};
+use crate::agent::types::{ApprovalStatus, ToolStatus, TurnId, TurnStatus};
 use crate::auth::CredentialState;
 
 use super::action::{Intent, RuntimeEvent};
-use super::state::{ActiveTurn, AppState, StartupState};
+use super::state::{ActiveTurn, AppState, ApprovalProjection, StartupState, ToolProjection};
 
 #[derive(Debug)]
 pub enum Effect {
@@ -79,8 +79,11 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
                     status: TurnStatus::Preparing,
                     streamed_reasoning: String::new(),
                     streamed_text: String::new(),
-                    completed_phase: None,
+                    completed_phases: Vec::new(),
                     usage: None,
+                    tools: Vec::new(),
+                    pending_approval: None,
+                    continuations: 0,
                 });
             }
         }
@@ -98,7 +101,123 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
             with_live_turn(state, turn_id, |turn| turn.streamed_text.push_str(&text));
         }
         RuntimeEvent::AssistantPhaseCompleted { turn_id, phase } => {
-            with_live_turn(state, turn_id, |turn| turn.completed_phase = Some(phase));
+            with_live_turn(state, turn_id, |turn| turn.completed_phases.push(phase));
+        }
+        RuntimeEvent::ToolValidated {
+            turn_id,
+            tool_call_id,
+            name,
+            mutating,
+        } => {
+            with_live_turn(state, turn_id, |turn| {
+                turn.tools.push(ToolProjection {
+                    tool_call_id,
+                    name,
+                    status: ToolStatus::Validated,
+                    mutating,
+                });
+            });
+        }
+        RuntimeEvent::ApprovalRequested {
+            turn_id,
+            approval_id,
+            tool_call_id,
+            effect_digest,
+            ..
+        } => {
+            with_live_turn(state, turn_id, |turn| {
+                turn.status = TurnStatus::AwaitingApproval;
+                turn.pending_approval = Some(ApprovalProjection {
+                    approval_id,
+                    tool_call_id,
+                    effect_digest,
+                    status: ApprovalStatus::Pending,
+                });
+                if let Some(tool) = turn
+                    .tools
+                    .iter_mut()
+                    .find(|tool| tool.tool_call_id == tool_call_id)
+                {
+                    tool.status = ToolStatus::AwaitingApproval;
+                }
+            });
+        }
+        RuntimeEvent::ApprovalResolved {
+            turn_id,
+            approval_id,
+            tool_call_id,
+            effect_digest,
+            decision,
+        } => {
+            let mut stale = false;
+            with_live_turn(state, turn_id, |turn| {
+                let Some(approval) = turn.pending_approval.as_mut() else {
+                    stale = true;
+                    return;
+                };
+                if approval.approval_id != approval_id
+                    || approval.tool_call_id != tool_call_id
+                    || approval.effect_digest != effect_digest
+                {
+                    stale = true;
+                    return;
+                }
+                approval.status = match decision {
+                    crate::tools::ApprovalDecision::Approved => ApprovalStatus::Approved,
+                    crate::tools::ApprovalDecision::Denied => ApprovalStatus::Denied,
+                    crate::tools::ApprovalDecision::Unavailable => ApprovalStatus::Unavailable,
+                };
+            });
+            if stale {
+                state.diagnose("stale_approval");
+            }
+        }
+        RuntimeEvent::ToolStarted {
+            turn_id,
+            tool_call_id,
+            ..
+        } => {
+            with_live_turn(state, turn_id, |turn| {
+                turn.status = TurnStatus::RunningTool;
+                turn.pending_approval = None;
+                if let Some(tool) = turn
+                    .tools
+                    .iter_mut()
+                    .find(|tool| tool.tool_call_id == tool_call_id)
+                {
+                    tool.status = ToolStatus::Running;
+                }
+            });
+        }
+        RuntimeEvent::ToolCompleted {
+            turn_id,
+            tool_call_id,
+            executed,
+            ..
+        } => {
+            with_live_turn(state, turn_id, |turn| {
+                turn.pending_approval = None;
+                if let Some(tool) = turn
+                    .tools
+                    .iter_mut()
+                    .find(|tool| tool.tool_call_id == tool_call_id)
+                {
+                    tool.status = if executed {
+                        ToolStatus::Completed
+                    } else {
+                        ToolStatus::Denied
+                    };
+                }
+            });
+        }
+        RuntimeEvent::ContinuationStarted { turn_id, index } => {
+            with_live_turn(state, turn_id, |turn| {
+                turn.status = TurnStatus::ContinuingModel;
+                turn.continuations = index;
+            });
+        }
+        RuntimeEvent::LimitReached { turn_id, .. } => {
+            with_live_turn(state, turn_id, |_| {});
         }
         RuntimeEvent::UsageUpdated { turn_id, usage } => {
             with_live_turn(state, turn_id, |turn| turn.usage = Some(usage));
@@ -135,7 +254,21 @@ fn with_live_turn(
 }
 
 fn terminal(state: &mut AppState, turn_id: TurnId, status: TurnStatus) -> bool {
-    with_live_turn(state, turn_id, |turn| turn.status = status)
+    with_live_turn(state, turn_id, |turn| {
+        turn.status = status.clone();
+        if let Some(approval) = turn.pending_approval.as_mut() {
+            approval.status = ApprovalStatus::Invalidated;
+        }
+        for tool in &mut turn.tools {
+            if !tool.status.is_terminal() {
+                tool.status = match &status {
+                    TurnStatus::Cancelled => ToolStatus::Cancelled,
+                    TurnStatus::Uncertain => ToolStatus::Uncertain,
+                    _ => ToolStatus::Failed,
+                };
+            }
+        }
+    })
 }
 
 #[cfg(test)]
@@ -191,5 +324,52 @@ mod tests {
             },
         );
         assert!(state.active_turn.unwrap().streamed_text.is_empty());
+    }
+
+    #[test]
+    fn stale_approval_cannot_change_pending_effect() {
+        let mut state = AppState::new(8);
+        let turn_id = TurnId::new();
+        let call_id = crate::agent::types::ToolCallId::new();
+        let approval_id = crate::agent::types::ApprovalId::new();
+        reduce(&mut state, RuntimeEvent::TurnPrepared { turn_id });
+        reduce(
+            &mut state,
+            RuntimeEvent::ToolValidated {
+                turn_id,
+                tool_call_id: call_id,
+                name: "phase2_mutate".into(),
+                mutating: true,
+            },
+        );
+        reduce(
+            &mut state,
+            RuntimeEvent::ApprovalRequested {
+                turn_id,
+                approval_id,
+                tool_call_id: call_id,
+                effect_digest: "effect".into(),
+                summary: "summary".into(),
+            },
+        );
+        reduce(
+            &mut state,
+            RuntimeEvent::ApprovalResolved {
+                turn_id,
+                approval_id: crate::agent::types::ApprovalId::new(),
+                tool_call_id: call_id,
+                effect_digest: "effect".into(),
+                decision: crate::tools::ApprovalDecision::Approved,
+            },
+        );
+        let approval = state
+            .active_turn
+            .as_ref()
+            .unwrap()
+            .pending_approval
+            .as_ref()
+            .unwrap();
+        assert_eq!(approval.status, ApprovalStatus::Pending);
+        assert_eq!(state.diagnostics.back(), Some(&"stale_approval"));
     }
 }

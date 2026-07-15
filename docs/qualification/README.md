@@ -1,6 +1,6 @@
 # Compatibility qualification records
 
-- Status: No live Pho Code qualification has passed yet
+- Status: DeepSeek Phase 1B live qualification passed on 2026-07-15
 - Owner: Implementation evidence, not architecture
 - Current producer: [V1 Phase 1B](../implementation/v1/phase-1b-deepseek-api-qualification.md)
 
@@ -17,10 +17,10 @@ A `PASS` updates both pointers. A `STOP`, expiry, or invalidation updates only t
 
 ## DeepSeek API
 
-- Latest observation/status: **VERIFICATION GAP on 2026-07-14 — deterministic implementation passes, but live and manual hard-gate checks have not run.** See the [current DeepSeek record](deepseek-2026-07-14.md).
-- Latest passing profile: **None.**
+- Latest observation/status: **PASS on 2026-07-15.** See the [current DeepSeek record](deepseek-2026-07-15.md).
+- Latest passing profile: **`deepseek-v4-flash`, thinking enabled, reasoning effort high, streamed Chat Completions — 2026-07-15.**
 
-The first record will qualify the concrete `deepseek-v4-flash`, thinking-enabled/high profile through `pho`. Model availability or a successful `/models` response alone does not establish a passing profile.
+The passing record qualifies the concrete profile through `pho`; model availability or a successful `/models` response alone would not establish it.
 
 ## Frozen ChatGPT Codex attempt
 

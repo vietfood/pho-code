@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use crate::agent::types::{ItemId, ToolCallId};
+use crate::agent::types::{BackendRequestId, ItemId, ToolCallId};
 use crate::backend::profile::MODEL;
 
 use super::{
-    AssistantPhase, BackendError, CompletedToolCall, FinishClass, ModelEvent,
+    AssistantPhase, BackendError, CompletedToolCall, FinishClass, IncompleteReason, ModelEvent,
     ProviderCompatibility, Usage,
 };
 
@@ -43,6 +43,7 @@ struct ToolSlot {
 
 pub struct SseDecoder {
     limits: SseLimits,
+    request_id: BackendRequestId,
     line: Vec<u8>,
     data_lines: Vec<Vec<u8>>,
     frame_bytes: usize,
@@ -61,9 +62,10 @@ pub struct SseDecoder {
 }
 
 impl SseDecoder {
-    pub fn new(limits: SseLimits) -> Self {
+    pub fn new(limits: SseLimits, request_id: BackendRequestId) -> Self {
         Self {
             limits,
+            request_id,
             line: Vec::new(),
             data_lines: Vec::new(),
             frame_bytes: 0,
@@ -91,7 +93,7 @@ impl SseDecoder {
             .checked_add(bytes.len())
             .ok_or_else(|| protocol("response byte count overflow"))?;
         if self.response_bytes > self.limits.maximum_response_bytes {
-            return Err(protocol("response byte limit exceeded"));
+            return Err(BackendError::SseOversized("response byte limit exceeded"));
         }
         let mut events = Vec::new();
         for &byte in bytes {
@@ -104,7 +106,7 @@ impl SseDecoder {
             } else {
                 self.line.push(byte);
                 if self.line.len() > self.limits.maximum_line_bytes {
-                    return Err(protocol("SSE line byte limit exceeded"));
+                    return Err(BackendError::SseOversized("SSE line byte limit exceeded"));
                 }
             }
         }
@@ -122,7 +124,7 @@ impl SseDecoder {
             events.extend(self.accept_line(b"")?);
         }
         if !self.done {
-            return Err(protocol("stream ended before [DONE]"));
+            return Err(BackendError::StreamEndedEarly);
         }
         Ok(events)
     }
@@ -165,7 +167,7 @@ impl SseDecoder {
             .checked_add(value.len())
             .ok_or_else(|| protocol("SSE frame byte count overflow"))?;
         if self.frame_bytes > self.limits.maximum_frame_bytes {
-            return Err(protocol("SSE frame byte limit exceeded"));
+            return Err(BackendError::SseOversized("SSE frame byte limit exceeded"));
         }
         self.data_lines.push(value.to_vec());
         Ok(Vec::new())
@@ -177,7 +179,7 @@ impl SseDecoder {
             .checked_add(1)
             .ok_or_else(|| protocol("event count overflow"))?;
         if self.event_count > self.limits.maximum_event_count {
-            return Err(protocol("event count limit exceeded"));
+            return Err(BackendError::SseOversized("event count limit exceeded"));
         }
         if data == b"[DONE]" {
             return self.complete();
@@ -186,32 +188,39 @@ impl SseDecoder {
             return Err(protocol("event followed stream terminator"));
         }
         let chunk: Chunk = serde_json::from_slice(data)
-            .map_err(|_| protocol("malformed chat completion chunk"))?;
+            .map_err(|_| BackendError::SseMalformed("chat completion chunk"))?;
         self.accept_chunk(chunk)
     }
 
     fn accept_chunk(&mut self, chunk: Chunk) -> Result<Vec<ModelEvent>, BackendError> {
-        if chunk.choices.is_empty() {
-            let usage = chunk
-                .usage
-                .ok_or_else(|| protocol("empty choices without usage"))?
-                .into_domain()?;
+        if let Some(wire_usage) = chunk.usage {
+            let usage = wire_usage.into_domain()?;
             if self.usage.as_ref().is_some_and(|prior| prior != &usage) {
                 return Err(protocol("conflicting usage chunks"));
             }
             self.usage = Some(usage);
+        }
+        if chunk.choices.is_empty() {
+            if self.usage.is_none() {
+                return Err(protocol("empty choices without usage"));
+            }
             return Ok(Vec::new());
         }
+        if self.finish.is_some() {
+            return Err(BackendError::EventIncompatible(
+                "semantic chunk followed finish reason",
+            ));
+        }
         if chunk.choices.len() != 1 || chunk.choices[0].index != 0 {
-            return Err(protocol("multiple or nonzero choices are unsupported"));
+            return Err(BackendError::ChoiceIncompatible);
         }
         let id = bounded_required(chunk.id, 256, "completion ID")?;
         let model = bounded_required(chunk.model, 256, "model")?;
         if model != MODEL {
-            return Err(protocol("response model differs from qualified model"));
+            return Err(BackendError::ChoiceIncompatible);
         }
         stable(&mut self.completion_id, id, "completion ID changed")?;
-        stable(&mut self.model, model, "model changed")?;
+        stable(&mut self.model, model.clone(), "model changed")?;
         if let Some(fingerprint) = chunk.system_fingerprint {
             if fingerprint.len() > 256 {
                 return Err(protocol("system fingerprint byte limit exceeded"));
@@ -226,7 +235,9 @@ impl SseDecoder {
         if !self.started {
             self.started = true;
             events.push(ModelEvent::ResponseStarted {
+                request_id: self.request_id,
                 provider_completion_id: self.completion_id.clone(),
+                model: model.clone(),
             });
         }
         let choice = chunk
@@ -297,7 +308,7 @@ impl SseDecoder {
                 "stop" => Ok(FinishClass::Stop),
                 "tool_calls" => Ok(FinishClass::ToolCalls),
                 "length" | "content_filter" | "insufficient_system_resource" => Err(reason),
-                _ => return Err(protocol("unknown finish reason")),
+                _ => return Err(BackendError::FinishReasonMissing),
             });
         }
         Ok(events)
@@ -311,8 +322,14 @@ impl SseDecoder {
         let finish = self
             .finish
             .clone()
-            .ok_or_else(|| protocol("finish reason missing"))?;
+            .ok_or(BackendError::FinishReasonMissing)?;
         if let Err(reason) = finish {
+            let reason = match reason.as_str() {
+                "length" => IncompleteReason::Length,
+                "content_filter" => IncompleteReason::ContentFiltered,
+                "insufficient_system_resource" => IncompleteReason::InsufficientSystemResource,
+                _ => return Err(BackendError::FinishReasonMissing),
+            };
             return Ok(vec![ModelEvent::ResponseIncomplete { reason }]);
         }
         let finish = finish.map_err(|_| protocol("finish mapping failed"))?;
@@ -385,7 +402,12 @@ impl SseDecoder {
             ModelEvent::AssistantPhaseCompleted { phase },
             ModelEvent::UsageUpdated { usage },
             ModelEvent::ResponseCompleted {
+                request_id: self.request_id,
                 provider_completion_id: completion_id,
+                model: self
+                    .model
+                    .clone()
+                    .ok_or_else(|| protocol("model missing"))?,
                 finish,
             },
         ])
@@ -458,21 +480,35 @@ impl WireUsage {
         {
             return Err(protocol("usage totals are inconsistent"));
         }
+        if let (Some(prompt), Some(cache_hit), Some(cache_miss)) = (
+            self.prompt_tokens,
+            self.prompt_cache_hit_tokens,
+            self.prompt_cache_miss_tokens,
+        ) && cache_hit.checked_add(cache_miss) != Some(prompt)
+        {
+            return Err(protocol("usage cache totals are inconsistent"));
+        }
+        let reasoning_tokens = self
+            .completion_tokens_details
+            .and_then(|details| details.reasoning_tokens);
+        if let (Some(reasoning), Some(completion)) = (reasoning_tokens, self.completion_tokens)
+            && reasoning > completion
+        {
+            return Err(protocol("usage reasoning tokens are inconsistent"));
+        }
         Ok(Usage {
             prompt_tokens: self.prompt_tokens,
             cache_hit_tokens: self.prompt_cache_hit_tokens,
             cache_miss_tokens: self.prompt_cache_miss_tokens,
             output_tokens: self.completion_tokens,
-            reasoning_tokens: self
-                .completion_tokens_details
-                .and_then(|details| details.reasoning_tokens),
+            reasoning_tokens,
             total_tokens: self.total_tokens,
         })
     }
 }
 
 fn protocol(message: &'static str) -> BackendError {
-    BackendError::Protocol(message)
+    BackendError::EventIncompatible(message)
 }
 
 fn stable(
@@ -529,6 +565,10 @@ fn append_bounded(
 mod tests {
     use super::*;
 
+    fn decoder() -> SseDecoder {
+        SseDecoder::new(SseLimits::default(), BackendRequestId::new())
+    }
+
     fn successful_fixture() -> Vec<u8> {
         concat!(
             ": keep-alive\r\n\r\n",
@@ -541,7 +581,7 @@ mod tests {
 
     #[test]
     fn one_byte_fragmentation_crlf_reasoning_usage_and_done() {
-        let mut decoder = SseDecoder::new(SseLimits::default());
+        let mut decoder = decoder();
         let mut events = Vec::new();
         for byte in successful_fixture() {
             events.extend(decoder.feed(&[byte]).unwrap());
@@ -563,6 +603,26 @@ mod tests {
     }
 
     #[test]
+    fn accepts_terminal_usage_on_the_finished_choice_chunk() {
+        let fixture = concat!(
+            "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":2,\"completion_tokens\":1,\"total_tokens\":3}}\n\n",
+            "data: [DONE]\n\n"
+        );
+        let mut decoder = decoder();
+        let events = decoder.feed(fixture.as_bytes()).unwrap();
+        decoder.finish().unwrap();
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ModelEvent::UsageUpdated {
+                usage: Usage {
+                    total_tokens: Some(3),
+                    ..
+                }
+            }
+        )));
+    }
+
+    #[test]
     fn tool_calls_assemble_by_index_only_after_done() {
         let fixture = concat!(
             "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"r\",\"tool_calls\":[{\"index\":0,\"id\":\"call\",\"type\":\"function\",\"function\":{\"name\":\"phase1b_echo\",\"arguments\":\"{\\\"value\\\":\"}}]},\"finish_reason\":null}]}\n\n",
@@ -570,7 +630,7 @@ mod tests {
             "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
             "data: [DONE]\n\n"
         );
-        let mut decoder = SseDecoder::new(SseLimits::default());
+        let mut decoder = decoder();
         let events = decoder.feed(fixture.as_bytes()).unwrap();
         decoder.finish().unwrap();
         let phase = events
@@ -586,14 +646,17 @@ mod tests {
 
     #[test]
     fn malformed_terminal_and_limits_fail_closed() {
-        let mut decoder = SseDecoder::new(SseLimits::default());
-        assert!(decoder.feed(b"data: [DONE]\n\n").is_err());
-        let mut decoder = SseDecoder::new(SseLimits {
-            maximum_line_bytes: 4,
-            ..SseLimits::default()
-        });
-        assert!(decoder.feed(b"12345").is_err());
-        let mut decoder = SseDecoder::new(SseLimits::default());
+        let mut done_decoder = decoder();
+        assert!(done_decoder.feed(b"data: [DONE]\n\n").is_err());
+        let mut oversized_decoder = SseDecoder::new(
+            SseLimits {
+                maximum_line_bytes: 4,
+                ..SseLimits::default()
+            },
+            BackendRequestId::new(),
+        );
+        assert!(oversized_decoder.feed(b"12345").is_err());
+        let mut decoder = decoder();
         decoder.feed(b"data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n").unwrap();
         assert!(decoder.finish().is_err());
     }
@@ -606,11 +669,33 @@ mod tests {
             "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"future\"}]}\n\n",
             "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":2,\"total_tokens\":3}}\n\n",
         ] {
-            assert!(
-                SseDecoder::new(SseLimits::default())
-                    .feed(frame.as_bytes())
-                    .is_err()
-            );
+            assert!(decoder().feed(frame.as_bytes()).is_err());
+        }
+    }
+
+    #[test]
+    fn semantic_deltas_after_finish_are_rejected() {
+        for fixture in [
+            concat!(
+                "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call\",\"type\":\"function\",\"function\":{\"name\":\"phase1b_echo\",\"arguments\":\"{\\\"value\\\":\\\"one\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":1,\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
+                "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"extra\"}}]},\"finish_reason\":null}]}\n\n",
+            ),
+            concat!(
+                "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1,\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
+                "data: {\"id\":\"c\",\"model\":\"deepseek-v4-flash\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"late\"},\"finish_reason\":null}]}\n\n",
+            ),
+        ] {
+            assert!(decoder().feed(fixture.as_bytes()).is_err());
+        }
+    }
+
+    #[test]
+    fn inconsistent_cache_and_reasoning_usage_are_rejected() {
+        for frame in [
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"prompt_cache_hit_tokens\":1,\"prompt_cache_miss_tokens\":1,\"completion_tokens\":1,\"total_tokens\":4}}\n\n",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2,\"completion_tokens_details\":{\"reasoning_tokens\":2}}}\n\n",
+        ] {
+            assert!(decoder().feed(frame.as_bytes()).is_err());
         }
     }
 }
