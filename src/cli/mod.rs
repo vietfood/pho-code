@@ -1,4 +1,5 @@
 pub mod command;
+mod context;
 pub mod renderer;
 pub mod terminal;
 pub mod tui;
@@ -31,6 +32,16 @@ pub async fn run(command: Command) -> i32 {
             println!("pho {}", env!("CARGO_PKG_VERSION"));
             return 0;
         }
+        Command::Context => match context::render() {
+            Ok(manifest) => {
+                print!("{manifest}");
+                return 0;
+            }
+            Err(_) => {
+                eprintln!("pho: context manifest failed");
+                return 1;
+            }
+        },
         _ => {}
     }
     match run_operational(command).await {
@@ -204,6 +215,7 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
             ..
         }
         | Command::Help
+        | Command::Context
         | Command::Version => return Ok(()),
     };
     let render_cancellation = cancellation.clone();

@@ -4,8 +4,9 @@ use std::time::Duration;
 use tokio::runtime::{Builder, Runtime};
 use tokio_util::sync::CancellationToken;
 
+use crate::agent::instructions::AgentInstructionProfile;
 use crate::agent::loop_runtime::{
-    AgentError, AgentEvent, AgentLimits, run_agent_turn, run_no_tool_turn,
+    AgentError, AgentEvent, AgentLimits, run_agent_turn_with_profile, run_no_tool_turn_with_profile,
 };
 use crate::auth::api_key::CredentialActor;
 use crate::backend::{BackendError, ModelBackend, ModelEvent};
@@ -39,6 +40,7 @@ pub struct ApplicationCoordinator {
     credentials: Arc<CredentialActor>,
     backend: Arc<dyn ModelBackend>,
     config: Arc<RuntimeConfig>,
+    instruction_profile: AgentInstructionProfile,
     active_cancellation: Option<CancellationToken>,
     tools: Arc<dyn ToolRuntime>,
     approvals: Arc<dyn ApprovalPolicy>,
@@ -79,6 +81,7 @@ impl ApplicationCoordinator {
             credentials,
             backend,
             config,
+            instruction_profile: AgentInstructionProfile::built_in(),
             active_cancellation: None,
             tools,
             approvals,
@@ -167,24 +170,33 @@ impl ApplicationCoordinator {
                 let tools = self.tools.clone();
                 let approvals = self.approvals.clone();
                 let config = self.config.clone();
+                let instruction_profile = self.instruction_profile.clone();
                 let tools_enabled = !tools.definitions().is_empty();
                 let state = &mut self.state;
                 let result = if !tools_enabled {
-                    run_no_tool_turn(backend, text, cancellation, queue, |model_event| {
-                        if let Some(event) = project_model_event(turn_id, model_event) {
-                            reduce(state, event.clone());
-                            sink(event);
-                        }
-                    })
+                    run_no_tool_turn_with_profile(
+                        backend,
+                        text,
+                        instruction_profile,
+                        cancellation,
+                        queue,
+                        |model_event| {
+                            if let Some(event) = project_model_event(turn_id, model_event) {
+                                reduce(state, event.clone());
+                                sink(event);
+                            }
+                        },
+                    )
                     .await
                     .map_err(AgentError::Backend)
                 } else {
-                    run_agent_turn(
+                    run_agent_turn_with_profile(
                         backend,
                         tools,
                         approvals,
                         turn_id,
                         text,
+                        instruction_profile,
                         cancellation,
                         queue,
                         AgentLimits {

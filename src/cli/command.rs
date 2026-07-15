@@ -14,6 +14,7 @@ pub enum ChatPresentation {
 pub enum Command {
     Help,
     Version,
+    Context,
     Login,
     Status,
     Logout,
@@ -23,7 +24,7 @@ pub enum Command {
     },
 }
 
-pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho chat\n  pho chat --raw\n  pho chat --stdin\n\n`pho chat` opens the interactive terminal UI. `--raw` and `--stdin` run one turn without cursor control sequences.\nPrompt text and API keys are never accepted as command arguments.\n";
+pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho context\n  pho chat\n  pho chat --raw\n  pho chat --stdin\n\n`pho context` prints the offline model-context manifest, including exact built-in system instructions and fixed tool schemas.\n`pho chat` opens the interactive terminal UI. `--raw` and `--stdin` run one turn without cursor control sequences.\nPrompt text and API keys are never accepted as command arguments.\n";
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static str> {
     let args: Vec<String> = args.into_iter().collect();
@@ -31,6 +32,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static
         [] => Ok(Command::Help),
         [single] if single == "--help" || single == "-h" => Ok(Command::Help),
         [single] if single == "--version" || single == "-V" => Ok(Command::Version),
+        [single] if single == "context" => Ok(Command::Context),
         [single] if single == "login" => Ok(Command::Login),
         [single] if single == "status" => Ok(Command::Status),
         [single] if single == "logout" => Ok(Command::Logout),
@@ -79,5 +81,7 @@ mod tests {
         );
         assert!(parse(vec!["chat".into(), "secret-prompt-marker".into()]).is_err());
         assert!(parse(vec!["login".into(), "secret-key-marker".into()]).is_err());
+        assert_eq!(parse(vec!["context".into()]), Ok(Command::Context));
+        assert!(parse(vec!["context".into(), "secret-prompt-marker".into()]).is_err());
     }
 }

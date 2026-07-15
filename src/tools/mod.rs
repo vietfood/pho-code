@@ -733,7 +733,7 @@ fn rejected_execution(prepared: &PreparedTool) -> Option<ToolExecution> {
     }
 }
 
-fn phase4_definitions() -> Vec<ToolDefinition> {
+pub(crate) fn phase4_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "search_files".into(),
@@ -752,7 +752,7 @@ fn phase4_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "apply_patch".into(),
-            description: "Apply an approved patch inside a disposable workspace. Pass one `patch` string in this exact form for a replacement: `*** Begin Patch\n*** Update File: path\n@@\n-old\n+new\n*** End Patch\n`. A hunk header may be bare `@@` or `@@ <locator>`; locator text is compatibility-only and the prefixed context/removal/addition lines are always matched exactly and uniquely. Add files use `*** Add File: path` with `+` lines; deletes use `*** Delete File: path`. Do not wrap the patch in Markdown or a shell command.".into(),
+            description: "Apply an approved patch inside a disposable workspace. Pass one `patch` string in this exact form for a replacement:\n```\n*** Begin Patch\n*** Update File: path\n@@\n-old\n+new\n*** End Patch\n```\n A hunk header may be bare `@@` or `@@ <locator>`; locator text is compatibility-only and the prefixed context/removal/addition lines are always matched exactly and uniquely. Add files use `*** Add File: path` with `+` lines; deletes use `*** Delete File: path`. Do not wrap the patch in Markdown or a shell command.".into(),
             schema: serde_json::json!({"type":"object","properties":{"patch":{"type":"string"}},"required":["patch"],"additionalProperties":false}),
         },
         ToolDefinition {

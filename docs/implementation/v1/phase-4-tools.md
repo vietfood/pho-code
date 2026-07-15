@@ -17,6 +17,8 @@
 
 The `pho` harness can inspect and change a controlled disposable workspace through the V1 tool surface owned by the tool architecture. This phase proves schemas, controlling-terminal approval, containment, execution, output shaping, command projection, and persistent-session integration boundaries. Patch and shell remain developer/test-only until Phase 5 supplies and verifies the durable writer and artifact store.
 
+The completed phase also includes a post-gate instruction/context hardening follow-up: every initial request and tool continuation carries one versioned built-in instruction snapshot, and `pho context` discloses that exact static profile plus fixed request/tool metadata without starting a turn or touching credentials. This does not start Phase 5 or enable ordinary-workspace effects.
+
 ## Work order
 
 1. Qualify and pin `fff-search`: inspect its feature graph and licenses, build it on the supported macOS architecture, measure initial scan, steady-state memory, watcher behavior, and dependency footprint, then fix named search limits from that evidence.
@@ -28,6 +30,7 @@ The `pho` harness can inspect and change a controlled disposable workspace throu
 7. Implement noninteractive `/bin/zsh -f -c`, environment policy, byte-oriented output capture, cancellation, process-group cleanup, and permanent-deletion guard from [the shell contract](../../architecture/tools.md#noninteractive-shell).
 8. Implement previews, artifact write requests/references, truncation records, and backpressure from [output policy](../../architecture/tools.md#output-artifact-requests-and-truncation) using a bounded fake artifact writer.
 9. Connect tool and approval events to the Phase 2 reducer, live Phase 3 loop, and `pho` terminal adapter behind a developer/test-only gate restricted to disposable temporary workspaces. Interactive decisions must come from a controlling terminal; stdin prompt content never doubles as approval input.
+10. Install the versioned Pho Code instruction profile as defense-in-depth guidance on every request and continuation, and expose its exact static bytes, digest, model settings, limits, and fixed tool-schema profiles through offline `pho context`. Keep dynamic prompts/history and unobservable provider-side context outside that command.
 
 Recommended ownership remains one module per tool plus shared validation and output modules, with narrow crate-private effect-recorder and artifact-writer boundaries supplied by Phase 5. Do not introduce a public tool registry, MCP, PTY, write-file tool, fallback `find`/`grep`, persistent approval rule, or ordinary-workspace mutation toggle in this phase.
 
@@ -47,6 +50,8 @@ The following checks are the canonical Phase 4 test matrix. Keep fixture, tempor
 - terminal state survives presentation-event saturation;
 - terminal state survives command renderer backpressure, broken pipe, and terminal loss;
 - model result and display details retain the same call identity.
+- no-tool, qualification-tool, and general tool-continuation requests carry the exact built-in instruction snapshot, and all requests in one turn retain identical instruction bytes;
+- instruction/profile debug formatting does not reveal instruction content, while explicit `pho context` renders the exact reviewed content without credential, workspace, prompt, history, or network access;
 
 ### Search tests
 
@@ -133,3 +138,4 @@ Phase 4 passes only when:
 14. TTY, non-TTY, explicit-stdin, broken-pipe, and signal behavior cannot bypass approval or leave an owned effect running.
 15. Fixture, temporary-workspace, live-model, and manual-macOS evidence are reported separately.
 16. Patch and shell remain unavailable to ordinary personal workspaces until the Phase 5 durability gate passes.
+17. Every request path sends the reviewed built-in instruction profile, continuations retain identical instruction bytes, and offline `pho context` truthfully separates disclosed static context from unavailable dynamic messages and unobservable provider-side context.

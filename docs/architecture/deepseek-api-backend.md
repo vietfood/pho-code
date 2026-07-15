@@ -199,6 +199,8 @@ Completed tool result -> tool message with exact tool_call_id
 
 A completed assistant phase may contain content, `reasoning_content`, and one or more completed tool calls. Those fields remain grouped in one assistant message. Flattening a tool call into a synthetic user message, inventing a call ID, or moving reasoning to a different assistant message is forbidden.
 
+The system message is the exact nonempty snapshot supplied by the Pho Code-owned instruction profile. The backend does not compose, edit, fetch, or override it. Its profile revision and digest are local inspection/pinning metadata and are not added to the provider request. The same snapshot is sent on the first request and every continuation in a turn; changing instruction bytes within a turn is incompatible context.
+
 The full retained V1 history is sent on every request. Pho Code does not rely on a provider thread, previous-response identifier, or server-stored conversation. Provider context caching may apply automatically, but it is an optimization outside correctness and never changes the local journal or replay rules.
 
 ### Reasoning replay

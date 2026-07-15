@@ -28,6 +28,7 @@ This document owns whole-system components, dependency direction, identities, ap
 11. Model-visible truncation is explicit. V1 does not silently remove history or implement native compaction.
 12. One session remains pinned to its qualified backend/model/thinking profile.
 13. Command mode and GPUI consume the same intents and canonical events; neither owns a second harness or provider path.
+14. Every request in one turn uses the same versioned Pho Code instruction-profile snapshot; instruction text guides model behavior but never grants authority or substitutes for code-enforced policy.
 
 ## System shape
 
@@ -76,6 +77,10 @@ The backend emits normalized events and cannot decide whether a tool runs. `Scri
 
 The loop owns one user turn from context snapshot to terminal outcome. It streams one backend response, accepts only completed tool calls, delegates validation/approval/execution to the tool runtime, appends results in provider order, and continues until terminal response or a configured limit.
 
+The agent layer owns one code-reviewed V1 instruction profile containing identity/persona, working method, tool guidance, and safety guidance. The profile has an explicit revision and content digest. The coordinator snapshots it before a turn, and the loop supplies the exact same bytes to the initial request and every tool continuation. Any content change requires an intentional revision update and fixture review. V1 has no environment, workspace-file, provider, or ordinary command-input override for system instructions; user-configurable instruction precedence and durable session pinning require a later explicit design.
+
+Instruction text treats workspace content and tool output as potentially untrusted data and tells the model not to bypass approval, containment, deletion, secret, output, timeout, or cancellation controls. Those statements are defense in depth only. The tool runtime, credential actor, context validator, coordinator, and presentation boundary remain authoritative even when the model ignores, misunderstands, or is induced to contradict the instructions.
+
 The shared runtime configuration names maximum model continuations per turn, tool calls per turn, tool-argument bytes, model-visible tool-result bytes, turn wall-clock duration, pending approvals, and canonical/presentation handoff capacity. The command adapter drains canonical and presentation events synchronously, so each handoff has at most one outstanding event; zero capacity fails before work starts. Its bounded renderer uses nonblocking terminal descriptors so a non-draining sink fails visibly instead of blocking the coordinator. An asynchronous adapter must place the same handoffs behind bounded channels. Backend and tool contracts add their component byte and time bounds. Exhausting a loop or renderer limit stops new requests and effects, cancels the current owner when necessary, and produces one visible terminal result; it never silently drops work or continues with a partial call/result pair.
 
 The context builder reconstructs provider-neutral model input from canonical completed phases and selects enabled fixed schema snapshots supplied by the tool runtime. It preserves assistant text/reasoning/tool grouping, exact call/result identities, and provider-required replay data, rejects inconsistent history, and reports context fit without truncating. Wire conversion remains inside the backend.
@@ -118,6 +123,7 @@ src/
     scripted.rs
     sse.rs
   agent/
+    instructions.rs
     loop.rs
     context.rs
     types.rs
@@ -242,7 +248,7 @@ Errors cross boundaries as structured categories with operation, safe identity, 
 
 ## Security boundary
 
-The model and backend stream are untrusted input. They cannot grant approval, widen a workspace, select secret environment values, or turn a read tool into a mutation. The API key remains in Keychain/in-memory credential state. First-party file operations enforce containment; approved shell remains a general process under the user's account and is not a sandbox.
+The model and backend stream are untrusted input. They cannot grant approval, widen a workspace, select secret environment values, or turn a read tool into a mutation. System instructions can guide the model but cannot expand those authorities. The API key remains in Keychain/in-memory credential state. First-party file operations enforce containment; approved shell remains a general process under the user's account and is not a sandbox.
 
 Component-specific security rules live in [backend security](deepseek-api-backend.md#security-and-privacy-requirements), [tool security](tools.md#security-and-privacy), and [session privacy](sessions.md#storage-location-and-privacy).
 
@@ -251,6 +257,8 @@ Component-specific security rules live in [backend security](deepseek-api-backen
 The transcript is an execution trace, not a flat chat list. It preserves labeled provider-exposed reasoning, assistant text, validated tool requests, approval state, running/cancelling state, bounded output, truncation/artifact metadata, and terminal completion/failure/cancellation/interruption/uncertainty.
 
 The `pho` command adapter parses bounded command input, dispatches typed intents, renders canonical events, and maps terminal domain state to a process result. It obtains secrets and approvals only from a controlling terminal, treats broken pipes and signals as cancellation inputs, and never reads Keychain, invokes a backend, or executes a tool directly. Its raw and interactive terminal projections consume the same canonical events. Before durable sessions exist, an interactive process may dispatch repeated explicitly ephemeral turns, but displayed prior turns do not enter later model context; once Phase 5 passes, ordinary chat uses the session boundary.
+
+`pho context` is an offline inspection command outside the application-operation path. It prints the exact built-in system instructions, their revision and digest, fixed model/request settings, runtime limits, and the ordinary plus disposable-debug tool schema profiles. It does not acquire the instance lock, read Keychain, select a workspace, capture a prompt/history, or send a network request. It labels dynamic per-turn messages as unavailable and service-side provider context as unobservable instead of claiming to reproduce either.
 
 GPUI views render projected state and dispatch the same typed intents. They may coalesce deltas and virtualize old rows but cannot hide lifecycle boundaries or mutate runtime actors directly. Command and GPUI rendering can differ in layout while preserving the same item kinds, approvals, truncation, and terminal truth.
 

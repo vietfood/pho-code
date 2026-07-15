@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::context::{ContextBuild, ContextError, ContextLimits, build_context};
+use crate::agent::instructions::AgentInstructionProfile;
 use crate::agent::types::{ApprovalId, BackendRequestId, ItemId, ToolCallId, ToolStatus, TurnId};
 use crate::backend::profile::MODEL;
 use crate::backend::strict_json::parse_strict_object;
@@ -122,10 +123,29 @@ pub async fn run_no_tool_turn(
     event_queue: usize,
     on_event: impl FnMut(&ModelEvent),
 ) -> Result<TurnOutcome, BackendError> {
+    run_no_tool_turn_with_profile(
+        backend,
+        prompt,
+        AgentInstructionProfile::built_in(),
+        cancellation,
+        event_queue,
+        on_event,
+    )
+    .await
+}
+
+pub async fn run_no_tool_turn_with_profile(
+    backend: Arc<dyn ModelBackend>,
+    prompt: String,
+    instruction_profile: AgentInstructionProfile,
+    cancellation: CancellationToken,
+    event_queue: usize,
+    on_event: impl FnMut(&ModelEvent),
+) -> Result<TurnOutcome, BackendError> {
     let request = BackendRequest {
         request_id: BackendRequestId::new(),
         model: MODEL.into(),
-        system_instructions: String::new(),
+        system_instructions: instruction_profile.system_instructions().into(),
         messages: vec![BackendMessage::User(UserMessage {
             item_id: ItemId::new(),
             text: prompt,
@@ -142,6 +162,34 @@ pub async fn run_agent_turn(
     approvals: Arc<dyn ApprovalPolicy>,
     turn_id: TurnId,
     prompt: String,
+    cancellation: CancellationToken,
+    event_queue: usize,
+    limits: AgentLimits,
+    on_event: impl FnMut(&AgentEvent),
+) -> Result<TurnOutcome, AgentError> {
+    run_agent_turn_with_profile(
+        backend,
+        tools,
+        approvals,
+        turn_id,
+        prompt,
+        AgentInstructionProfile::built_in(),
+        cancellation,
+        event_queue,
+        limits,
+        on_event,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn run_agent_turn_with_profile(
+    backend: Arc<dyn ModelBackend>,
+    tools: Arc<dyn ToolRuntime>,
+    approvals: Arc<dyn ApprovalPolicy>,
+    turn_id: TurnId,
+    prompt: String,
+    instruction_profile: AgentInstructionProfile,
     cancellation: CancellationToken,
     event_queue: usize,
     limits: AgentLimits,
@@ -164,7 +212,7 @@ pub async fn run_agent_turn(
         let request = match build_context(
             BackendRequestId::new(),
             MODEL,
-            String::new(),
+            instruction_profile.system_instructions().into(),
             messages.clone(),
             definitions.clone(),
             ContextLimits {
@@ -401,6 +449,7 @@ pub async fn run_qualification_tool_turn(
     event_queue: usize,
     mut on_event: impl FnMut(&ModelEvent),
 ) -> Result<TurnOutcome, BackendError> {
+    let instruction_profile = AgentInstructionProfile::built_in();
     let tool = ToolDefinition {
         name: "phase1b_echo".into(),
         description: "Return a supplied short string unchanged.".into(),
@@ -417,7 +466,7 @@ pub async fn run_qualification_tool_turn(
             BackendRequest {
                 request_id: BackendRequestId::new(),
                 model: MODEL.into(),
-                system_instructions: String::new(),
+                system_instructions: instruction_profile.system_instructions().into(),
                 messages: messages.clone(),
                 tools: vec![tool.clone()],
             },
@@ -778,7 +827,7 @@ mod tests {
             FinishClass::Stop,
         )]));
         let outcome = run_no_tool_turn(
-            backend,
+            backend.clone(),
             "prompt".into(),
             CancellationToken::new(),
             8,
@@ -787,6 +836,12 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(outcome.phase.text.as_deref(), Some("done"));
+        let requests = backend.request_snapshot().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].system_instructions,
+            AgentInstructionProfile::built_in().system_instructions()
+        );
     }
 
     #[tokio::test]
@@ -802,7 +857,7 @@ mod tests {
             script(phase(vec![]), FinishClass::Stop),
         ]));
         let outcome = run_qualification_tool_turn(
-            backend,
+            backend.clone(),
             "prompt".into(),
             CancellationToken::new(),
             8,
@@ -811,6 +866,12 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(outcome.continuations, 1);
+        let instructions = AgentInstructionProfile::built_in();
+        assert!(
+            backend.request_snapshot().unwrap().iter().all(|request| {
+                request.system_instructions == instructions.system_instructions()
+            })
+        );
     }
 
     #[tokio::test]
@@ -864,6 +925,12 @@ mod tests {
         let requests = backend.request_snapshot().unwrap();
         assert_eq!(requests.len(), 2);
         assert_eq!(requests[0].tools.len(), 2);
+        let instructions = AgentInstructionProfile::built_in();
+        assert!(
+            requests.iter().all(|request| {
+                request.system_instructions == instructions.system_instructions()
+            })
+        );
         assert!(
             matches!(requests[1].messages.as_slice(), [BackendMessage::User(_), BackendMessage::Assistant(AssistantPhase { reasoning_required_for_replay: true, .. }), BackendMessage::Tool(ToolResult { output, .. })] if output == "read:ok")
         );

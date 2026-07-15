@@ -2,6 +2,7 @@ use std::io::{self, Read as _, Write};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+use pho_code::agent::instructions::AgentInstructionProfile;
 use pho_code::agent::loop_runtime::{AgentError, AgentEvent, AgentLimits, run_agent_turn};
 use pho_code::agent::types::{ToolStatus, TurnId, TurnStatus};
 use pho_code::app::action::{Intent, RuntimeEvent};
@@ -338,29 +339,34 @@ async fn real_http_sse_adapter_runs_multiple_tools_through_coordinator_and_rende
 
     let requests = server.finish().await;
     assert_eq!(requests.len(), 2);
+    let instructions = AgentInstructionProfile::built_in();
+    assert!(requests.iter().all(|request| {
+        request["messages"][0]["role"] == "system"
+            && request["messages"][0]["content"] == instructions.system_instructions()
+    }));
     assert_eq!(requests[0]["tools"].as_array().unwrap().len(), 2);
     assert_eq!(
-        requests[1]["messages"][1]["reasoning_content"],
+        requests[1]["messages"][2]["reasoning_content"],
         "required-reasoning"
     );
     assert_eq!(
-        requests[1]["messages"][1]["tool_calls"][0]["id"],
+        requests[1]["messages"][2]["tool_calls"][0]["id"],
         "provider-call-1"
     );
     assert_eq!(
-        requests[1]["messages"][1]["tool_calls"][1]["id"],
+        requests[1]["messages"][2]["tool_calls"][1]["id"],
         "provider-call-2"
     );
-    assert_eq!(
-        requests[1]["messages"][2]["tool_call_id"],
-        "provider-call-1"
-    );
-    assert_eq!(requests[1]["messages"][2]["content"], "one");
     assert_eq!(
         requests[1]["messages"][3]["tool_call_id"],
+        "provider-call-1"
+    );
+    assert_eq!(requests[1]["messages"][3]["content"], "one");
+    assert_eq!(
+        requests[1]["messages"][4]["tool_call_id"],
         "provider-call-2"
     );
-    assert_eq!(requests[1]["messages"][3]["content"], "two");
+    assert_eq!(requests[1]["messages"][4]["content"], "two");
 
     let turn = application.state.active_turn.as_ref().unwrap();
     assert_eq!(turn.status, TurnStatus::Completed);
@@ -508,9 +514,9 @@ async fn real_http_mutation_probe_is_denied_and_continuation_is_exactly_paired()
         .await
         .unwrap();
     let requests = server.finish().await;
-    assert_eq!(requests[1]["messages"][2]["tool_call_id"], "mutation-call");
+    assert_eq!(requests[1]["messages"][3]["tool_call_id"], "mutation-call");
     assert_eq!(
-        requests[1]["messages"][2]["content"],
+        requests[1]["messages"][3]["content"],
         r#"{"status":"denied","code":"approval_denied"}"#
     );
     assert!(events.iter().any(|event| matches!(
@@ -842,11 +848,11 @@ fn pho_command_uses_live_adapter_general_loop_and_canonical_renderer() {
     assert!(stderr.contains("usage (turn total)"));
     assert_eq!(requests.len(), 2);
     assert_eq!(
-        requests[1]["messages"][1]["reasoning_content"],
+        requests[1]["messages"][2]["reasoning_content"],
         "command-required"
     );
-    assert_eq!(requests[1]["messages"][2]["tool_call_id"], "command-call");
-    assert_eq!(requests[1]["messages"][2]["content"], "command-value");
+    assert_eq!(requests[1]["messages"][3]["tool_call_id"], "command-call");
+    assert_eq!(requests[1]["messages"][3]["content"], "command-value");
 }
 
 #[test]

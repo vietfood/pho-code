@@ -63,6 +63,8 @@ pho session resume <session-id>
 
 Only commands whose owning phase has passed are available. An unavailable later-phase command fails with a clear capability message; it never falls back to an alternate implementation.
 
+The Phase 4 instruction/context hardening follow-up adds `pho context` as an offline read-only inspection command. It discloses Pho Code-owned static model context and limits without acquiring operational authority, accessing credentials or workspace content, or starting a model turn.
+
 ### Command-mode boundary
 
 The CLI parses bounded input, dispatches typed application intents, subscribes to canonical events, renders them for a terminal, and maps terminal domain state to process exit status. It does not construct provider requests, read Keychain directly, execute tools, write journals, infer completion from text deltas, or own retry policy.

@@ -2,6 +2,8 @@ use super::Usage;
 
 pub const PROFILE_REVISION: u32 = 1;
 pub const MODEL: &str = "deepseek-v4-flash";
+pub const THINKING_MODE: &str = "enabled";
+pub const REASONING_EFFORT: &str = "high";
 pub const MODELS_ENDPOINT: &str = "https://api.deepseek.com/models";
 pub const CHAT_ENDPOINT: &str = "https://api.deepseek.com/chat/completions";
 pub const MAXIMUM_OUTPUT_TOKENS: u32 = 16_384;

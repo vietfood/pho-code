@@ -4,6 +4,8 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use pho_code::agent::instructions::AgentInstructionProfile;
+
 fn pho() -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_pho"));
     command.env("PHO_CODE_TEST_MEMORY_CREDENTIALS", "missing");
@@ -19,6 +21,15 @@ fn help_version_and_invalid_command_do_not_require_runtime_startup() {
 
     let version = pho().arg("--version").env_remove("HOME").output().unwrap();
     assert!(version.status.success());
+
+    let context = pho().arg("context").env_remove("HOME").output().unwrap();
+    assert!(context.status.success());
+    assert!(context.stderr.is_empty());
+    let context = String::from_utf8(context.stdout).unwrap();
+    let instructions = AgentInstructionProfile::built_in();
+    assert!(context.contains(instructions.system_instructions()));
+    assert!(context.contains(&instructions.digest()));
+    assert!(context.contains("provider_service_context: not observable"));
 
     let invalid = pho()
         .args(["chat", "seeded-prompt-marker"])
@@ -415,7 +426,11 @@ fn raw_chat_uses_the_controlling_terminal_without_cursor_sequences() {
     assert!(status.success(), "{status:?}");
     let request = server.join().unwrap();
     let request: serde_json::Value = serde_json::from_slice(&request).unwrap();
-    assert_eq!(request["messages"][0]["content"], "raw fixture prompt");
+    assert_eq!(
+        request["messages"][0]["content"],
+        AgentInstructionProfile::built_in().system_instructions()
+    );
+    assert_eq!(request["messages"][1]["content"], "raw fixture prompt");
 
     drain_nonblocking(&mut master, &mut output);
     let rendered = String::from_utf8_lossy(&output);
@@ -537,9 +552,9 @@ fn phase4_raw_chat_approves_shell_only_through_the_controlling_terminal() {
     let requests = server.join().unwrap();
     assert_eq!(requests.len(), 2);
     let continuation: serde_json::Value = serde_json::from_slice(&requests[1]).unwrap();
-    assert_eq!(continuation["messages"][2]["tool_call_id"], "shell-call");
+    assert_eq!(continuation["messages"][3]["tool_call_id"], "shell-call");
     assert!(
-        continuation["messages"][2]["content"]
+        continuation["messages"][3]["content"]
             .as_str()
             .unwrap()
             .contains("\"exit_code\":0")
@@ -631,7 +646,7 @@ fn phase4_stdin_mode_cannot_use_stdin_as_an_approval_channel() {
     assert_eq!(requests.len(), 2);
     let continuation: serde_json::Value = serde_json::from_slice(&requests[1]).unwrap();
     assert!(
-        continuation["messages"][2]["content"]
+        continuation["messages"][3]["content"]
             .as_str()
             .unwrap()
             .contains("approval_unavailable")
@@ -773,8 +788,12 @@ fn interactive_chat_runs_repeated_independent_fixture_turns() {
         .zip(["first fixture prompt", "second fixture prompt"])
     {
         let request: serde_json::Value = serde_json::from_slice(request).unwrap();
-        assert_eq!(request["messages"].as_array().unwrap().len(), 1);
-        assert_eq!(request["messages"][0]["content"], prompt);
+        assert_eq!(request["messages"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            request["messages"][0]["content"],
+            AgentInstructionProfile::built_in().system_instructions()
+        );
+        assert_eq!(request["messages"][1]["content"], prompt);
     }
     drop(slave);
 }

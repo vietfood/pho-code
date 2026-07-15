@@ -11,7 +11,9 @@ use zeroize::Zeroizing;
 use crate::auth::SecretText;
 use crate::auth::api_key::CredentialActor;
 
-use super::profile::{CHAT_ENDPOINT, MAXIMUM_OUTPUT_TOKENS, MODEL, PROFILE_REVISION};
+use super::profile::{
+    CHAT_ENDPOINT, MAXIMUM_OUTPUT_TOKENS, MODEL, PROFILE_REVISION, REASONING_EFFORT, THINKING_MODE,
+};
 use super::sse::{SseDecoder, SseLimits};
 use super::strict_json::parse_strict_object;
 use super::{
@@ -335,8 +337,10 @@ fn to_wire_request(request: &BackendRequest) -> Result<WireRequest<'_>, BackendE
     Ok(WireRequest {
         model: MODEL,
         messages,
-        thinking: Thinking { r#type: "enabled" },
-        reasoning_effort: "high",
+        thinking: Thinking {
+            r#type: THINKING_MODE,
+        },
+        reasoning_effort: REASONING_EFFORT,
         stream: true,
         stream_options: StreamOptions {
             include_usage: true,

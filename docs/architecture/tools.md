@@ -344,7 +344,7 @@ V1 does not let the model add environment variables containing secret values. A 
 
 The approval shows a control-escaped exact command, resolved working directory, timeout class, and a warning that V1 approvals are not a sandbox. The command bytes and working-directory device/inode identity are bound during preparation; replacement of the named directory invalidates the approval before spawn. The command string is never rewritten after approval. A conservative token-aware policy rejects known permanent-deletion utilities such as `rm`, `unlink`, `rmdir`, `srm`, and `shred` in executable position, including reviewed assignment, redirection, and wrapper prefixes, and rejects unclassifiable nested-shell, `find -exec`, and `find -delete` forms. It reports `/usr/bin/trash` as the macOS alternative.
 
-Because shell syntax is compositional and arbitrary programs can delete files through other APIs, this guard does not prove deletion safety or form a sandbox. The model instruction also forbids permanent deletion, every command still requires exact approval, and every presentation adapter warns that an approved general program runs with the user's account permissions.
+Because shell syntax is compositional and arbitrary programs can delete files through other APIs, this guard does not prove deletion safety or form a sandbox. The versioned Pho Code instruction profile also forbids permanent deletion, every command still requires exact approval, and every presentation adapter warns that an approved general program runs with the user's account permissions. Prompt guidance is defense in depth and never replaces the classifier, Trash policy, approval boundary, or workspace checks.
 
 ### Output capture
 
