@@ -1,6 +1,6 @@
 # Phase 3B: Interactive terminal experience
 
-- Status: **In progress — local implementation complete; supervised live/manual qualification pending, 2026-07-15**
+- Status: **PASS — 2026-07-15** ([evidence](../evidence/phase-3b-2026-07-15.md))
 - Depends on: [Phase 3](phase-3-live-backend.md)
 - Produces: Alternate-screen interactive `pho chat` presentation over the existing reducer and coordinator
 - Next: [Phase 4](phase-4-tools.md)
@@ -25,7 +25,7 @@ The user-facing term for this Phase 3B behavior is a **dedicated full-screen ter
 
 ## Implementation checkpoint
 
-The local implementation now includes the approved normal/narrow render, a grapheme-safe bounded multiline composer, alternate-screen terminal guard and restoration, coalesced redraws over canonical events, repeated independent prompts, a bounded in-process display transcript, reasoning disclosure, tool/denial/failure/cancellation projection, cumulative usage/cost, explicit tiny/non-TTY failure, `--raw`, and preserved `--stdin`. Deterministic reducer, projection, editor, raw-mode, repeated-request, resize, alternate-screen, and macOS PTY restoration checks pass locally. The phase remains open until its supervised live TUI turns and manual visual/interaction checks are recorded.
+The implementation includes the approved normal/narrow render, a grapheme-safe bounded multiline composer, alternate-screen terminal guard and restoration, coalesced redraws over canonical events, repeated independent prompts, a bounded in-process display transcript, reasoning disclosure, tool/denial/failure/cancellation projection, cumulative usage/cost, explicit tiny/non-TTY failure, `--raw`, and preserved `--stdin`. Deterministic reducer, projection, editor, raw-mode, repeated-request, resize, alternate-screen, and macOS PTY restoration checks pass. Supervised live TUI turns and manual visual/interaction checks are recorded in the [Phase 3B evidence](../evidence/phase-3b-2026-07-15.md).
 
 ## Command contract
 

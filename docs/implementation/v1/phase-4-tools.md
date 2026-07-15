@@ -1,8 +1,8 @@
 # Phase 4: First-party tools and approvals
 
-- Status: **Deferred — selected Phase 3B precedes execution**
+- Status: **Ready — Phase 3B passed 2026-07-15**
 - Depends on: [Phase 3](phase-3-live-backend.md)
-- Selected sequencing: Complete optional [Phase 3B](phase-3b-terminal-tui.md) first
+- Selected sequencing: Optional [Phase 3B](phase-3b-terminal-tui.md) passed before execution
 - Produces: Search, read, patch, shell, approval, bounded-output runtime, and persistent-session integration seams
 - Next: [Phase 5](phase-5-sessions.md)
 

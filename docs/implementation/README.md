@@ -26,8 +26,8 @@ Every pre-GPUI phase leaves the passing functionality usable through the `pho` c
 | 1B | Live-qualified DeepSeek credential, transport, assistant-phase seam, and initial `pho` commands | [DeepSeek API qualification](v1/phase-1b-deepseek-api-qualification.md) | **PASS — 2026-07-15** ([record](../qualification/deepseek-2026-07-15.md)) |
 | 2 | Deterministic headless agent loop using a scripted backend through the same command/runtime boundary | [Headless harness](v1/phase-2-headless-harness.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-2-2026-07-15.md)) |
 | 3 | Live backend connected to the owned loop | [Live backend integration](v1/phase-3-live-backend.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-3-2026-07-15.md)) |
-| 3B | Optional alternate-screen terminal TUI with repeated independent ephemeral turns and preserved raw modes | [Interactive terminal experience](v1/phase-3b-terminal-tui.md) | **In progress — local implementation complete; supervised live/manual qualification pending, 2026-07-15** |
-| 4 | Tool runtime and controlling-terminal approvals proven in disposable workspaces through `pho` | [Tools](v1/phase-4-tools.md) | **Deferred — Phase 3B selected before execution** |
+| 3B | Optional alternate-screen terminal TUI with repeated independent ephemeral turns and preserved raw modes | [Interactive terminal experience](v1/phase-3b-terminal-tui.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-3b-2026-07-15.md)) |
+| 4 | Tool runtime and controlling-terminal approvals proven in disposable workspaces through `pho` | [Tools](v1/phase-4-tools.md) | **Ready** |
 | 5 | JSONL, persistent artifacts, crash recovery, safe tool enablement, and stable pre-GPUI command release | [Sessions](v1/phase-5-sessions.md) | Planned |
 | 6 | Usable native GPUI personal release over the proven command-mode runtime | [GPUI V1](v1/phase-6-gpui.md) | Planned |
 
