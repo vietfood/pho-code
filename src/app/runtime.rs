@@ -312,7 +312,10 @@ fn project_model_event(
     event: &ModelEvent,
 ) -> Option<RuntimeEvent> {
     match event {
-        ModelEvent::ResponseStarted { .. } => Some(RuntimeEvent::ModelStreamStarted { turn_id }),
+        ModelEvent::ResponseStarted { model, .. } => Some(RuntimeEvent::ModelStreamStarted {
+            turn_id,
+            model: model.clone(),
+        }),
         ModelEvent::ReasoningDelta { text } => Some(RuntimeEvent::ReasoningDelta {
             turn_id,
             text: text.clone(),

@@ -1,7 +1,7 @@
 # Direct dependency baseline
 
 - Status: Phase 0 implementation evidence
-- Last reviewed: 2026-07-14
+- Last reviewed: 2026-07-15
 - Manifest owner: [`Cargo.toml`](../../Cargo.toml)
 
 This record explains Pho Code's direct dependencies. `Cargo.lock` owns the exact transitive resolution; `cargo tree -e features` is the executable feature-graph evidence. New direct dependencies require an updated row and a feature/license review.
@@ -16,6 +16,7 @@ The table records the current post-Phase-1 manifest, which still compiles frozen
 | `zed-reqwest` | Revision `c15662463bda39148ba154100dd44d3fba5873a4`; `json`, `stream`, `rustls-tls-native-roots`; defaults disabled | Streamed HTTPS without adding a second active HTTP/TLS stack beside the Zed graph | MIT OR Apache-2.0 |
 | `serde`, `serde_json` | `1.0.228` with derive; `1.0.150` | Bounded provider DTOs, fixtures, credentials, and later journal records | MIT OR Apache-2.0 |
 | `bytes`, `futures-util` | `1.11.1`; `0.3.32` | Incremental response chunks and stream polling | MIT; MIT OR Apache-2.0 |
+| `ratatui`, `crossterm`, `unicode-width`, `unicode-segmentation` | `0.30.2` with defaults disabled and `crossterm_0_29`; `0.29.0` with default events/bracketed-paste plus `event-stream`; `0.2.2`; `1.13.3` | Phase 3B alternate-screen rendering, terminal restoration, asynchronous input events, and deterministic grapheme-safe Unicode wrapping/cursor geometry without a second runtime | MIT; MIT; MIT OR Apache-2.0; MIT OR Apache-2.0 |
 | `base64`, `sha2`, `getrandom` | `0.22.1`; `0.10.9`; `0.4.3` | PKCE, bounded JWT metadata decoding, and operating-system randomness | MIT OR Apache-2.0 |
 | `url` | `2.5.8`; `serde` | Strict OAuth callback and endpoint parsing | MIT OR Apache-2.0 |
 | `zeroize` | `1.9.0`; derive | Clear transient secret-owned buffers on drop | MIT OR Apache-2.0 |
@@ -26,5 +27,7 @@ The table records the current post-Phase-1 manifest, which still compiles frozen
 | `tempfile` | `3.25.0`, development only | Disposable workspaces and component fixtures | MIT OR Apache-2.0 |
 
 The active Phase 0 graph has one Zed/GPUI source revision, one Tokio version, and one Rustls family for Pho Code's HTTP path. GPUI retains its own `smol` executor internally; Pho Code does not create or use a second application runtime from it.
+
+The Phase 3B terminal graph was checked on 2026-07-15. Ratatui 0.30.2 declares Rust 1.88 and MIT; Pho Code builds it with Rust 1.95, the Crossterm 0.29 full-screen backend, and no enabled scrolling-regions, Termion, Termwiz, or Termina feature. `cargo tree -e features` reports one active Crossterm 0.29 instance and the existing single Tokio 1.52 application runtime. Crossterm's `event-stream` feature adds an asynchronous facade over its existing event source rather than another runtime. Unicode Segmentation 1.13.3 was already present transitively and is pinned directly for grapheme-safe composer edits. No Ratatui calendar, serialization, palette, or unstable feature is enabled.
 
 `gpui-component` is deliberately deferred until Phase 6. Its audited submodule revision is `b004e595cf5de98a73b6b561394a559a94ae1e2a`, but adding it now causes Cargo to resolve a second GPUI source identity because its manifest names the unqualified Zed Git URL. Phase 6 must pin or patch the dependency coherently before use rather than accepting two GPUI copies.

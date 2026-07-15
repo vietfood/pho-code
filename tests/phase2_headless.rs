@@ -15,9 +15,10 @@ use pho_code::auth::{AuthError, CredentialRecord};
 use pho_code::backend::profile::{MODEL, PROFILE_REVISION};
 use pho_code::backend::scripted::{ScriptedBackend, ScriptedResponse, ScriptedStep};
 use pho_code::backend::{
-    AssistantPhase, CompletedToolCall, FinishClass, ModelEvent, ProviderCompatibility, Usage,
+    AssistantPhase, BackendMessage, CompletedToolCall, FinishClass, ModelEvent,
+    ProviderCompatibility, Usage,
 };
-use pho_code::cli::command::{self, Command, PromptSource};
+use pho_code::cli::command::{self, ChatPresentation, Command, PromptSource};
 use pho_code::cli::renderer::Renderer;
 use pho_code::tools::{
     ApprovalDecision, ApprovalPolicy, ApprovalRequest, ApprovalResponse, ScriptedToolRuntime,
@@ -120,6 +121,47 @@ fn call(name: &str) -> CompletedToolCall {
     }
 }
 
+#[tokio::test]
+async fn repeated_ephemeral_turns_never_reuse_displayed_history_as_context() {
+    let directory = tempfile::tempdir().unwrap();
+    let backend = Arc::new(ScriptedBackend::new([
+        response(phase(Vec::new()), FinishClass::Stop, false),
+        response(phase(Vec::new()), FinishClass::Stop, false),
+    ]));
+    let mut app = ApplicationCoordinator::new_with_services(
+        ready_credentials(&directory),
+        backend.clone(),
+        Arc::new(ScriptedToolRuntime::default()),
+        Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Unavailable)),
+        Arc::new(RuntimeConfig::default()),
+    )
+    .await;
+
+    for prompt in ["first independent prompt", "second independent prompt"] {
+        app.dispatch(
+            Intent::SendEphemeralPrompt {
+                text: prompt.into(),
+            },
+            |_| {},
+        )
+        .await
+        .unwrap();
+    }
+
+    let requests = backend.request_snapshot().unwrap();
+    assert_eq!(requests.len(), 2);
+    for (request, expected) in requests
+        .iter()
+        .zip(["first independent prompt", "second independent prompt"])
+    {
+        assert_eq!(request.messages.len(), 1);
+        assert!(matches!(
+            request.messages.as_slice(),
+            [BackendMessage::User(user)] if user.text == expected
+        ));
+    }
+}
+
 #[derive(Clone, Default)]
 struct SharedWriter(Arc<Mutex<Vec<u8>>>);
 
@@ -145,13 +187,15 @@ async fn scripted_command_path_renders_and_reduces_tool_continuation() {
     assert_eq!(
         command::parse(["chat".into(), "--stdin".into()]),
         Ok(Command::Chat {
-            source: PromptSource::Stdin
+            source: PromptSource::Stdin,
+            presentation: ChatPresentation::Raw,
         })
     );
     assert_eq!(
         command::parse(["chat".into()]),
         Ok(Command::Chat {
-            source: PromptSource::ControllingTerminal
+            source: PromptSource::ControllingTerminal,
+            presentation: ChatPresentation::Interactive,
         })
     );
     assert!(command::parse(["chat".into(), "--scripted".into()]).is_err());

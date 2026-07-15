@@ -1,7 +1,7 @@
 # Native harness system architecture
 
 - Status: Normative V1 design
-- Last updated: 2026-07-14
+- Last updated: 2026-07-15
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - Delivery sequence: [Implementation roadmap](../implementation/README.md)
 - Component contracts: [DeepSeek backend](deepseek-api-backend.md), [tools](tools.md), and [sessions](sessions.md)
@@ -250,7 +250,7 @@ Component-specific security rules live in [backend security](deepseek-api-backen
 
 The transcript is an execution trace, not a flat chat list. It preserves labeled provider-exposed reasoning, assistant text, validated tool requests, approval state, running/cancelling state, bounded output, truncation/artifact metadata, and terminal completion/failure/cancellation/interruption/uncertainty.
 
-The `pho` command adapter parses bounded command input, dispatches typed intents, renders canonical events, and maps terminal domain state to a process result. It obtains secrets and approvals only from a controlling terminal, treats broken pipes and signals as cancellation inputs, and never reads Keychain, invokes a backend, or executes a tool directly. Before durable sessions exist, `pho chat` may run an explicitly ephemeral turn through the same reducer and coordinator; once Phase 5 passes, ordinary chat uses the session boundary.
+The `pho` command adapter parses bounded command input, dispatches typed intents, renders canonical events, and maps terminal domain state to a process result. It obtains secrets and approvals only from a controlling terminal, treats broken pipes and signals as cancellation inputs, and never reads Keychain, invokes a backend, or executes a tool directly. Its raw and interactive terminal projections consume the same canonical events. Before durable sessions exist, an interactive process may dispatch repeated explicitly ephemeral turns, but displayed prior turns do not enter later model context; once Phase 5 passes, ordinary chat uses the session boundary.
 
 GPUI views render projected state and dispatch the same typed intents. They may coalesce deltas and virtualize old rows but cannot hide lifecycle boundaries or mutate runtime actors directly. Command and GPUI rendering can differ in layout while preserving the same item kinds, approvals, truncation, and terminal truth.
 

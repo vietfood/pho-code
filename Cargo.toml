@@ -12,11 +12,13 @@ path = "src/main.rs"
 [dependencies]
 base64 = "=0.22.1"
 bytes = "=1.11.1"
+crossterm = { version = "=0.29.0", features = ["event-stream"] }
 futures-util = "=0.3.32"
 getrandom = "=0.4.3"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "7cf50a771f54427f76b4584030c7b3b66f4e39f5" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "7cf50a771f54427f76b4584030c7b3b66f4e39f5", features = ["font-kit"] }
 libc = "=0.2.186"
+ratatui = { version = "=0.30.2", default-features = false, features = ["crossterm_0_29"] }
 reqwest = { package = "zed-reqwest", git = "https://github.com/zed-industries/reqwest.git", rev = "c15662463bda39148ba154100dd44d3fba5873a4", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
@@ -25,6 +27,8 @@ thiserror = "=2.0.18"
 tokio = { version = "=1.52.3", features = ["io-std", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "=0.7.18", features = ["rt"] }
 url = { version = "=2.5.8", features = ["serde"] }
+unicode-width = "=0.2.2"
+unicode-segmentation = "=1.13.3"
 uuid = { version = "=1.23.5", features = ["serde", "v4"] }
 zeroize = { version = "=1.9.0", features = ["zeroize_derive"] }
 

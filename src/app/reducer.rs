@@ -35,7 +35,10 @@ pub fn reduce_intent(state: &mut AppState, intent: Intent) -> Option<Effect> {
         Intent::SendEphemeralPrompt { text } => {
             if state.startup != StartupState::Ready
                 || state.credentials != CredentialState::Ready
-                || state.active_turn.is_some()
+                || state
+                    .active_turn
+                    .as_ref()
+                    .is_some_and(|turn| !turn.status.is_terminal())
                 || text.is_empty()
                 || text.len() > 256 * 1024
             {
@@ -71,7 +74,11 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
         }
         RuntimeEvent::CredentialChanged { state: credentials } => state.credentials = credentials,
         RuntimeEvent::TurnPrepared { turn_id } => {
-            if state.active_turn.is_some() {
+            if state
+                .active_turn
+                .as_ref()
+                .is_some_and(|turn| !turn.status.is_terminal())
+            {
                 state.diagnose("turn_already_active");
             } else {
                 state.active_turn = Some(ActiveTurn {
@@ -87,7 +94,7 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
                 });
             }
         }
-        RuntimeEvent::ModelStreamStarted { turn_id } => {
+        RuntimeEvent::ModelStreamStarted { turn_id, .. } => {
             with_live_turn(state, turn_id, |turn| {
                 turn.status = TurnStatus::StreamingModel
             });
@@ -324,6 +331,49 @@ mod tests {
             },
         );
         assert!(state.active_turn.unwrap().streamed_text.is_empty());
+    }
+
+    #[test]
+    fn terminal_turn_can_be_replaced_but_live_turn_cannot() {
+        let mut state = AppState::new(8);
+        reduce(
+            &mut state,
+            RuntimeEvent::StartupReady {
+                credentials: CredentialState::Ready,
+            },
+        );
+        let first = match reduce_intent(
+            &mut state,
+            Intent::SendEphemeralPrompt {
+                text: "first".into(),
+            },
+        ) {
+            Some(Effect::StartEphemeralTurn { turn_id, .. }) => turn_id,
+            other => panic!("unexpected first effect: {other:?}"),
+        };
+        reduce(&mut state, RuntimeEvent::TurnPrepared { turn_id: first });
+        assert!(
+            reduce_intent(
+                &mut state,
+                Intent::SendEphemeralPrompt {
+                    text: "while live".into(),
+                },
+            )
+            .is_none()
+        );
+        reduce(&mut state, RuntimeEvent::TurnCompleted { turn_id: first });
+        let second = match reduce_intent(
+            &mut state,
+            Intent::SendEphemeralPrompt {
+                text: "second".into(),
+            },
+        ) {
+            Some(Effect::StartEphemeralTurn { turn_id, .. }) => turn_id,
+            other => panic!("unexpected second effect: {other:?}"),
+        };
+        assert_ne!(first, second);
+        reduce(&mut state, RuntimeEvent::TurnPrepared { turn_id: second });
+        assert_eq!(state.active_turn.as_ref().map(|turn| turn.id), Some(second));
     }
 
     #[test]

@@ -43,6 +43,7 @@ pub enum RuntimeEvent {
     },
     ModelStreamStarted {
         turn_id: TurnId,
+        model: String,
     },
     ReasoningDelta {
         turn_id: TurnId,

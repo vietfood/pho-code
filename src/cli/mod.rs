@@ -1,6 +1,7 @@
 pub mod command;
 pub mod renderer;
 pub mod terminal;
+pub mod tui;
 
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use crate::backend::deepseek::DeepSeekBackend;
 use crate::backend::sse::SseLimits;
 use crate::tools::{ApprovalDecision, Phase3ToolRuntime, StaticApprovalPolicy};
 
-use command::{Command, PromptSource};
+use command::{ChatPresentation, Command, PromptSource};
 use renderer::Renderer;
 use tokio_util::sync::CancellationToken;
 
@@ -108,6 +109,25 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         config,
     )
     .await;
+    if matches!(
+        command,
+        Command::Chat {
+            presentation: ChatPresentation::Interactive,
+            ..
+        }
+    ) {
+        if application.state.credentials != crate::auth::CredentialState::Ready {
+            return Err(CliError::MissingCredential);
+        }
+        return tui::run(application).await.map_err(|error| match error {
+            tui::TuiError::TerminalUnavailable => CliError::Usage(
+                "an interactive controlling terminal of at least 40x8 is required; use `pho chat --stdin` for explicit stdin input",
+            ),
+            tui::TuiError::MissingCredential => CliError::MissingCredential,
+            tui::TuiError::Cancelled => CliError::Cancelled,
+            tui::TuiError::Runtime => CliError::Runtime,
+        });
+    }
     let mut renderer = Renderer::stdio().map_err(|_| CliError::Runtime)?;
     let cancellation = CancellationToken::new();
     let signal_cancellation = cancellation.clone();
@@ -143,7 +163,10 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         }
         Command::Status => Intent::InspectCredentialStatus,
         Command::Logout => Intent::RemoveCredential,
-        Command::Chat { source } => {
+        Command::Chat {
+            source,
+            presentation: ChatPresentation::Raw,
+        } => {
             if application.state.credentials != crate::auth::CredentialState::Ready {
                 return Err(CliError::MissingCredential);
             }
@@ -153,7 +176,12 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
             };
             Intent::SendEphemeralPrompt { text }
         }
-        Command::Help | Command::Version => return Ok(()),
+        Command::Chat {
+            presentation: ChatPresentation::Interactive,
+            ..
+        }
+        | Command::Help
+        | Command::Version => return Ok(()),
     };
     let render_cancellation = cancellation.clone();
     let mut renderer_failed = false;

@@ -5,16 +5,25 @@ pub enum PromptSource {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChatPresentation {
+    Interactive,
+    Raw,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Command {
     Help,
     Version,
     Login,
     Status,
     Logout,
-    Chat { source: PromptSource },
+    Chat {
+        source: PromptSource,
+        presentation: ChatPresentation,
+    },
 }
 
-pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho chat\n  pho chat --stdin\n\nPrompt text and API keys are never accepted as command arguments.\n";
+pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho chat\n  pho chat --raw\n  pho chat --stdin\n\n`pho chat` opens the interactive terminal UI. `--raw` and `--stdin` run one turn without cursor control sequences.\nPrompt text and API keys are never accepted as command arguments.\n";
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static str> {
     let args: Vec<String> = args.into_iter().collect();
@@ -27,9 +36,15 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static
         [single] if single == "logout" => Ok(Command::Logout),
         [single] if single == "chat" => Ok(Command::Chat {
             source: PromptSource::ControllingTerminal,
+            presentation: ChatPresentation::Interactive,
+        }),
+        [first, second] if first == "chat" && second == "--raw" => Ok(Command::Chat {
+            source: PromptSource::ControllingTerminal,
+            presentation: ChatPresentation::Raw,
         }),
         [first, second] if first == "chat" && second == "--stdin" => Ok(Command::Chat {
             source: PromptSource::Stdin,
+            presentation: ChatPresentation::Raw,
         }),
         _ => Err("invalid command; run `pho --help`"),
     }
@@ -44,13 +59,22 @@ mod tests {
         assert_eq!(
             parse(vec!["chat".into()]),
             Ok(Command::Chat {
-                source: PromptSource::ControllingTerminal
+                source: PromptSource::ControllingTerminal,
+                presentation: ChatPresentation::Interactive,
+            })
+        );
+        assert_eq!(
+            parse(vec!["chat".into(), "--raw".into()]),
+            Ok(Command::Chat {
+                source: PromptSource::ControllingTerminal,
+                presentation: ChatPresentation::Raw,
             })
         );
         assert_eq!(
             parse(vec!["chat".into(), "--stdin".into()]),
             Ok(Command::Chat {
-                source: PromptSource::Stdin
+                source: PromptSource::Stdin,
+                presentation: ChatPresentation::Raw,
             })
         );
         assert!(parse(vec!["chat".into(), "secret-prompt-marker".into()]).is_err());
