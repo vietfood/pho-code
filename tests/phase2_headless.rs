@@ -303,6 +303,7 @@ impl ApprovalPolicy for StaleApproval {
     fn decide<'a>(
         &'a self,
         request: &'a ApprovalRequest,
+        _: CancellationToken,
     ) -> Pin<Box<dyn std::future::Future<Output = ApprovalResponse> + Send + 'a>> {
         Box::pin(async move {
             ApprovalResponse {

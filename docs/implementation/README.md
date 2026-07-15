@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-- Status: Ready for execution
+- Status: Phase 4 complete; Phase 5 not started
 - Last updated: 2026-07-15
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System boundary: [Native harness system](../architecture/native-harness-system.md)
@@ -27,8 +27,8 @@ Every pre-GPUI phase leaves the passing functionality usable through the `pho` c
 | 2 | Deterministic headless agent loop using a scripted backend through the same command/runtime boundary | [Headless harness](v1/phase-2-headless-harness.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-2-2026-07-15.md)) |
 | 3 | Live backend connected to the owned loop | [Live backend integration](v1/phase-3-live-backend.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-3-2026-07-15.md)) |
 | 3B | Optional alternate-screen terminal TUI with repeated independent ephemeral turns and preserved raw modes | [Interactive terminal experience](v1/phase-3b-terminal-tui.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-3b-2026-07-15.md)) |
-| 4 | Tool runtime and controlling-terminal approvals proven in disposable workspaces through `pho` | [Tools](v1/phase-4-tools.md) | **Ready** |
-| 5 | JSONL, persistent artifacts, crash recovery, safe tool enablement, and stable pre-GPUI command release | [Sessions](v1/phase-5-sessions.md) | Planned |
+| 4 | Tool runtime and controlling-terminal approvals proven in disposable workspaces through `pho` | [Tools](v1/phase-4-tools.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-4-2026-07-15.md)) |
+| 5 | JSONL, persistent artifacts, crash recovery, safe tool enablement, and stable pre-GPUI command release | [Sessions](v1/phase-5-sessions.md) | Planned; not started |
 | 6 | Usable native GPUI personal release over the proven command-mode runtime | [GPUI V1](v1/phase-6-gpui.md) | Planned |
 
 The accepted V1 product boundary is defined once in [ADR 0003](../decisions/0003-deepseek-api-first-backend.md#decision). Component ownership and state flow are defined once in [the system architecture](../architecture/native-harness-system.md). Phase files should link to those sections instead of copying them.

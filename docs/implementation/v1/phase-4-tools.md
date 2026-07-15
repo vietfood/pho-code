@@ -1,10 +1,10 @@
 # Phase 4: First-party tools and approvals
 
-- Status: **Ready — Phase 3B passed 2026-07-15**
+- Status: **PASS — 2026-07-15** ([evidence](../evidence/phase-4-2026-07-15.md))
 - Depends on: [Phase 3](phase-3-live-backend.md)
 - Selected sequencing: Optional [Phase 3B](phase-3b-terminal-tui.md) passed before execution
 - Produces: Search, read, patch, shell, approval, bounded-output runtime, and persistent-session integration seams
-- Next: [Phase 5](phase-5-sessions.md)
+- Next, not started: [Phase 5](phase-5-sessions.md)
 
 ## Required reading
 
@@ -22,7 +22,7 @@ The `pho` harness can inspect and change a controlled disposable workspace throu
 1. Qualify and pin `fff-search`: inspect its feature graph and licenses, build it on the supported macOS architecture, measure initial scan, steady-state memory, watcher behavior, and dependency footprint, then fix named search limits from that evidence.
 2. Implement shared tool identities, strict argument validation, lifecycle, limits, cancellation, result shape, and one-active-tool scheduling from [the common contract](../../architecture/tools.md#common-domain-contract).
 3. Implement canonical workspace/path policy and exact-effect approval binding from [workspace policy](../../architecture/tools.md#workspace-and-path-policy) and [approval model](../../architecture/tools.md#approval-model).
-4. Integrate `fff_search` for `search_files` and `search_text` exactly as specified by [indexed search](../../architecture/tools.md#indexed-file-and-content-search).
+4. Integrate the qualified safe subset of `fff_search` for `search_files` and candidate indexing, plus the containment-safe no-follow content adapter specified by [indexed search](../../architecture/tools.md#indexed-file-and-content-search). Do not enable the unsafe 0.9.6 watcher or grep reader.
 5. Implement bounded buffered `read_file` using [the read contract](../../architecture/tools.md#bounded-text-reads); do not add `io_uring`.
 6. Implement the clean-room patch parser, preflight, approval diff, per-file commit, Trash deletion, result, and in-process rollback behavior from [Apply patch](../../architecture/tools.md#apply-patch). Exercise recovery-artifact and effect-progress ordering through injected fakes; do not claim process-crash durability in this phase.
 7. Implement noninteractive `/bin/zsh -f -c`, environment policy, byte-oriented output capture, cancellation, process-group cleanup, and permanent-deletion guard from [the shell contract](../../architecture/tools.md#noninteractive-shell).
@@ -118,14 +118,14 @@ A passing unit test does not prove process-group or Trash behavior on the target
 Phase 4 passes only when:
 
 1. A scripted backend and supervised live `pho` command can search, read, request a patch, request a shell command, obtain controlling-terminal approval or denial, receive each result, and continue to a final response inside a disposable temporary workspace.
-2. File search and content search use `fff_search` without spawning `find`, `grep`, or `rg` as their implementation.
+2. File search uses the `fff_search` in-memory index and fuzzy ranking; content search uses that index plus the qualified no-follow in-process matcher, and neither implementation spawns `find`, `grep`, or `rg` or enables the unsafe 0.9.6 watcher/grep reader.
 3. Search-index startup, staleness, and failure are visible and bounded.
 4. `read_file` returns stable numbered UTF-8 windows without blocking command or GPUI presentation and without `io_uring`.
 5. Every patch and shell call requires an exact per-call user decision.
 6. Denial produces no side effect and returns a structured denied result.
 7. Path and symlink escapes fail before access.
 8. Patch preflight and stale-source checks prevent applying a different diff than the one approved.
-9. Mutation-recovery artifacts are complete and durable before effects; cap exhaustion, truncation, refusal, or digest mismatch causes zero mutation.
+9. Mutation-recovery artifact acknowledgements are complete and digest-bound before effects; cap exhaustion, truncation, refusal, or digest mismatch causes zero mutation. Phase 5 owns persistent durability before ordinary-workspace enablement.
 10. Patch cancellation before mutation is side-effect free; cancellation after commit begins stops later forward steps and reports rollback or exact uncertainty honestly.
 11. Shell timeout and cancellation terminate and reap the process group under tested conditions.
 12. Every preview and artifact write request has an explicit hard limit and truncation metadata, and writer refusal is visible.

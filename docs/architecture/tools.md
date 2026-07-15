@@ -1,7 +1,7 @@
 # V1 tool runtime and safety architecture
 
 - Status: Normative V1 design
-- Last updated: 2026-07-14
+- Last updated: 2026-07-15
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System context: [Native harness system architecture](native-harness-system.md)
 - Implementation phase: [Phase 4](../implementation/v1/phase-4-tools.md)
@@ -24,7 +24,7 @@ The tool trace remains structured from model request through final result. A she
 | Model-facing tool | Implementation | Approval | V1 result |
 | --- | --- | --- | --- |
 | `search_files` | `fff_search::file_picker` path/fuzzy index | None inside selected workspace | Ranked relative paths with pagination and index status |
-| `search_text` | `fff_search` content-search facilities | None inside selected workspace | Relative path, line, bounded snippet, match metadata, and pagination |
+| `search_text` | `fff_search` candidate index plus descriptor-safe in-process matcher | None inside selected workspace | Relative path, line, bounded snippet, match metadata, and pagination |
 | `read_file` | Background buffered text read | None inside selected workspace | Numbered line window and explicit truncation |
 | `apply_patch` | In-process parser, preflight planner, diff, and atomic-per-file writer | Required for every call | Per-file create/update/delete result and recovery reference |
 | `shell` | Noninteractive `/bin/zsh -f -c` child process | Required for every call | Exit status, stdout/stderr preview, duration, truncation, and artifact reference |
@@ -97,7 +97,7 @@ ToolResult
 
 ## Workspace and path policy
 
-The selected workspace is canonicalized before a session starts and receives a stable workspace identity. Tool paths are expressed relative to that root in model-facing schemas.
+The selected workspace is canonicalized before a session starts, receives a stable workspace identity, and retains an open directory descriptor plus device/inode identity. Tool paths are expressed relative to that root in model-facing schemas. If the canonical pathname is renamed or replaced and no longer names that retained directory, the workspace becomes stale; pathname-backed search and descriptor-backed reads are never allowed to diverge across two trees.
 
 For each structured search/read/patch path and for the shell working-directory argument:
 
@@ -151,7 +151,7 @@ Pending approvals are process-local and are never replayed after restart. A rest
 
 ### Why this dependency
 
-The package name is `fff-search` and its Rust crate name is `fff_search`. At the evaluated `0.9.6` release, its `FilePicker` performs a background tree scan, maintains a sorted file list, watches the filesystem, and provides fuzzy search; the crate also provides content search, Git metadata, optional LMDB-backed frecency and query history, memory mapping, and parallel search.
+The package name is `fff-search` and its Rust crate name is `fff_search`. At the evaluated `0.9.6` release, its `FilePicker` performs a background tree scan, maintains a sorted file list, watches the filesystem, and provides fuzzy search; the crate also provides content search, Git metadata, optional LMDB-backed frecency and query history, memory mapping, and parallel search. Phase 4 source inspection found that disabling Cargo default features does not remove the native Git, LMDB/heed, notify, mmap, Rayon, or tracing dependency surface; the accepted direct and transitive footprint is recorded in [the dependency baseline](../implementation/dependencies.md).
 
 This is a better fit for a resident harness than spawning `find` and `grep` for each model query because one workspace index can serve command mode, model tools, and later human file navigation. The cost is a larger dependency and lifecycle surface. Operational acceptance requires a pinned crate version, inspected feature graph, successful supported-macOS build, and measured initial scan, steady-state memory, and watcher behavior. [Phase 4](../implementation/v1/phase-4-tools.md) owns when and how that evidence is produced.
 
@@ -169,7 +169,14 @@ WorkspaceSearch
   generation
 ```
 
-The service uses the crate's AI-oriented picker/search configuration where it matches the documented API. Persistent frecency and query-history databases are not initialized in V1. They make ranking depend on past local interaction, add LMDB state and migrations, and are not required for deterministic agent search. Git-aware and fuzzy ranking may be used when they are supplied by the in-memory picker and remain observable in result metadata.
+The service uses the crate's AI-oriented in-memory picker and fuzzy path scoring where they satisfy the workspace contract. Persistent frecency and query-history databases are not initialized in V1. They make ranking depend on past local interaction, add LMDB state and migrations, and are not required for deterministic agent search. Git-aware and fuzzy ranking may be used when they are supplied by the in-memory picker and remain observable in result metadata.
+
+Phase 4 qualification found that `fff-search` 0.9.6's built-in watcher can add file or directory symlinks and read their targets, its grep path opens or memory-maps reconstructed paths without a no-follow descriptor walk, and watcher failures are not exposed as reliable health state. Post-filtering cannot repair a read that already crossed the workspace boundary. V1 therefore configures `FilePickerOptions.watch = false` and `follow_symlinks = false`, withholds the built-in content reader, and owns two narrow adapters:
+
+- a health-tracked `notify` event adapter that never reads event paths, schedules FFF's no-follow full rescan after workspace changes, and transitions to `Stale` if the OS watcher or rescan scheduling fails;
+- a content adapter that takes bounded candidate paths from the FFF index, opens every path component relative to the retained workspace directory descriptor with `O_NOFOLLOW`, reads bounded UTF-8 bytes, and applies pinned literal, regex, or FFF-family fuzzy matching in process.
+
+This preserves the resident FFF path index and ranking while keeping the unsafe facilities unadvertised, as required by the containment rule below. A later upstream release may replace these adapters only after the same source and race fixtures pass.
 
 The index starts outside terminal and GPUI render paths. Search before initial scan completes either waits within a short bounded deadline or returns `IndexBuilding` with progress/state; it never blocks presentation indefinitely. A workspace change cancels the old service and creates a new generation. Results from an old generation cannot enter the new session.
 
@@ -204,13 +211,13 @@ limit?: bounded integer
 cursor?: opaque pagination cursor
 ```
 
-The implementation uses `fff_search` content-search functionality rather than invoking `grep` or `rg`. Results contain repository-relative path, one-based line number when available, bounded matching text, bounded context, match kind, and pagination state.
+The implementation uses the FFF index for bounded candidate selection, then performs containment-safe in-process matching over no-follow file descriptors rather than invoking `find`, `grep`, or `rg` or calling the unsafe 0.9.6 FFF grep reader. Results contain repository-relative path, one-based line number, bounded matching text, bounded context, match kind, and pagination state. Literal search uses byte-stable smart-case behavior, regex is precompiled and rejected on error, and fuzzy line matching uses the same pinned `neo_frizbee` family as FFF.
 
 Regex compilation errors are tool validation failures. Binary files, ignored files, oversized candidates, permission failures, and files changed during search are counted or reported according to the crate's observable result; they are not silently presented as a complete repository search.
 
 ### Watcher and staleness
 
-The search service records scan and watcher health. A watcher failure does not make cached results authoritative indefinitely. The service transitions to `Stale`, reports the condition in tool results, and allows an explicit bounded rescan. The model is told when results may be incomplete.
+The search service records scan and safe-rescan-owner health. Pho Code's `notify` watcher treats events only as dirty signals and never opens event paths. Before each FFF rescan it revalidates the retained workspace identity and repeats the ignore-aware indexed-file cap preflight; a cap crossing becomes `IndexLimitExceeded` without scheduling that rescan. FFF then scans with link following disabled. A watcher, root-identity, preflight, or rescan-scheduling failure transitions the service to `Stale` and is reported in tool results. The model is also given counters for unreadable, oversized, unsupported, and concurrently changed text candidates so an incomplete search is not presented as complete.
 
 V1 does not attempt to merge unsaved editor buffers because Pho Code does not yet own an editor.
 
@@ -260,7 +267,7 @@ If the requested range exceeds the result limit, the tool returns the complete b
 
 ### Grammar choice
 
-Pho Code uses a cleanly implemented subset of the familiar `*** Begin Patch` / `*** End Patch` format with add, update, and delete file operations. Codex documents and implements the broader grammar in [`apply-patch/src/parser.rs`](../../refs/codex/codex-rs/apply-patch/src/parser.rs#L7), but Pho Code will not link the Codex workspace. Any copied implementation rather than independently written behavior requires Apache-2.0 notice review.
+Pho Code uses a cleanly implemented subset of the familiar `*** Begin Patch` / `*** End Patch` format with add, update, and delete file operations. A hunk header may be bare `@@` or Codex-compatible `@@ <locator>`; locator text is compatibility-only and never selects a location. Codex documents and implements the broader grammar in [`apply-patch/src/parser.rs`](../../refs/codex/codex-rs/apply-patch/src/parser.rs#L7), but Pho Code does not link or copy the Codex workspace. Pi's inspected edit tool uses exact old-text replacement rather than this grammar; its useful safety property is the same separation of matching from mutation.
 
 The model-facing tool accepts the patch text directly. It is not tunneled through the shell, heredocs, or an external `patch`/`git apply` executable.
 
@@ -280,12 +287,12 @@ Patch handling separates planning from mutation:
 2. Reject duplicate or contradictory operations on one path unless the grammar defines an unambiguous sequence.
 3. Resolve every source, destination, and parent inside the workspace.
 4. Read every source file and capture identity, metadata, content hash, line ending, and final-newline state.
-5. Match every hunk against one unique source location.
+5. Match every hunk body against one unique location in the original source, reject overlapping hunks, and apply the accepted replacements in descending source order.
 6. Build complete proposed output bytes for every changed file.
 7. Compute a structured diff and effect summary.
 8. Store the plan with the approval identity.
 
-Hunk matching begins exact. A limited whitespace-tolerant match may be added only with fixtures showing model compatibility and must still produce one unique location. Broad fuzzy matching is rejected because applying a plausible hunk to the wrong code is worse than asking the model to reread and retry.
+Hunk matching is exact. Header locators and line numbers are not trusted, and whitespace or fuzzy fallback is not attempted. Applying a plausible hunk to the wrong code is worse than asking the model to reread and retry.
 
 No write occurs during parsing, streamed arguments, or approval presentation.
 
@@ -297,15 +304,15 @@ Immediately before mutation, the tool verifies source identities and hashes agai
 
 ### Commit strategy
 
-For add and update output, construct bytes with the deliberate line-ending/final-newline behavior, write a sibling temporary file with restrictive permissions, apply the source POSIX permission bits for an update, flush the file, atomically rename it into place on the same volume, and flush the containing directory before recording step completion. A source with ACLs, extended attributes, flags, or other metadata the implementation cannot preserve is rejected before approval rather than silently stripped.
+For add and update output, construct bytes with the deliberate line-ending/final-newline behavior, create an unguessable sibling temporary file through the validated parent descriptor, set the source owner and POSIX permission bits for an update, flush the file, and use macOS `renameatx_np` (`RENAME_EXCL` for add and `RENAME_SWAP` for update) before flushing the containing directory and recording step completion. The displaced update source is quarantined under an unguessable descriptor-relative name before the Trash handoff. A source with hard links, ACLs, non-provenance extended attributes, flags, or other metadata the implementation cannot preserve is rejected before approval rather than silently stripped.
 
-Recovery-purpose artifacts are all-or-nothing. Preflight proves that the complete original bytes and required POSIX metadata for every update/delete fit the per-artifact and total patch recovery caps. Each artifact stores the full bytes, metadata, and digest and is durably committed before the corresponding mutation. Truncation, refusal, or digest mismatch fails before the first effect with zero mutation. Rollback restores an update/delete from that artifact through the same atomic write path; rollback of a newly added file moves it to Trash. A restored delete may leave the original Trash entry in place and reports that recoverable duplicate explicitly.
+Recovery-purpose artifacts are all-or-nothing. Preflight proves that the complete original bytes and required POSIX metadata for every update/delete fit the per-artifact and total patch recovery caps. Each recovery envelope stores a versioned magic value, relative path, full bytes, metadata, and digest. The artifact writer must acknowledge the complete byte count and digest before any mutation; truncation, refusal, or mismatch causes zero mutation. Phase 4 proves this ordering through an injected bounded writer, while Phase 5 must supply the durable artifact store before ordinary-workspace mutation is enabled. Rollback restores an update/delete through the same atomic write path; rollback of a newly added file moves it to Trash.
 
 macOS does not provide one atomic transaction across multiple files. V1 therefore preflights all operations before any mutation, commits per file, and advances only through [the session effect-progress protocol](sessions.md#durability-boundaries). Each step intent is durable before mutation and each observed completion is durable before the next step. A crash can still leave the started step uncertain, but later paths are known not to have begun. The runtime attempts rollback from recovery material when a later commit fails; rollback steps use the same progress protocol. A failed rollback produces `Uncertain` with exact affected paths, and the result never claims the complete patch succeeded.
 
 Cancellation before the first effect step produces `Cancelled` with zero mutation. After a step starts, cancellation becomes a pending intent: the runtime waits a bounded interval for that atomic/Trash operation to establish an outcome, starts no later forward step, and then attempts rollback of completed steps through the same durable progress protocol. Successful rollback produces `Cancelled`; failed rollback or an effect whose outcome cannot be established produces `Uncertain` with exact completed, rolled-back, and uncertain paths. A clicked cancel control never justifies reporting zero mutation after commit began.
 
-Delete operations invoke `/usr/bin/trash <absolute-path>` without `--`, matching the repository's recoverable-deletion policy. Failure to move a file to Trash leaves it in place and fails that operation. Pho Code never substitutes `rm`.
+Delete operations first quarantine the validated entry under an unguessable descriptor-relative name, obtain the live parent pathname with macOS `F_GETPATH`, and invoke `/usr/bin/trash <absolute-quarantine-path>` without `--`, matching the repository's recoverable-deletion policy. Failure is visible and may make the effect uncertain if quarantine already occurred. Pho Code never substitutes `rm`.
 
 ### Result
 
@@ -335,7 +342,7 @@ V1 does not let the model add environment variables containing secret values. A 
 
 ### Approval
 
-The approval shows the exact command, resolved working directory, timeout class, and a warning that V1 approvals are not a sandbox. The command string is never rewritten after approval. A conservative token-aware policy rejects known permanent-deletion utilities such as `rm`, `unlink`, `rmdir`, `srm`, and `shred` when they appear in executable position or by an obvious absolute path, and reports `/usr/bin/trash` as the macOS alternative. If the policy cannot classify a command that invokes one of those utilities, it rejects rather than guesses.
+The approval shows a control-escaped exact command, resolved working directory, timeout class, and a warning that V1 approvals are not a sandbox. The command bytes and working-directory device/inode identity are bound during preparation; replacement of the named directory invalidates the approval before spawn. The command string is never rewritten after approval. A conservative token-aware policy rejects known permanent-deletion utilities such as `rm`, `unlink`, `rmdir`, `srm`, and `shred` in executable position, including reviewed assignment, redirection, and wrapper prefixes, and rejects unclassifiable nested-shell, `find -exec`, and `find -delete` forms. It reports `/usr/bin/trash` as the macOS alternative.
 
 Because shell syntax is compositional and arbitrary programs can delete files through other APIs, this guard does not prove deletion safety or form a sandbox. The model instruction also forbids permanent deletion, every command still requires exact approval, and every presentation adapter warns that an approved general program runs with the user's account permissions.
 
@@ -462,14 +469,6 @@ Errors carry tool and turn identity, safe relative paths, retry posture, and a u
 
 Stronger sandboxing, persistent grants, file moves, interactive or parallel tools, additional workspaces, richer FFF integration, binary tools, public tool extension APIs, and cross-platform process/Trash behavior remain deferred to [the V2 roadmap](../implementation/v2/README.md).
 
-## Open decisions for implementation evidence
+## Phase 4 selected profile
 
-- Exact `fff-search` features and pinned version after macOS dependency measurements.
-- Exact tool schema field names and result limits.
-- Exact bounded-blocking semaphore capacity and whether its jobs use Tokio's blocking pool or GPUI's background executor without introducing a second async runtime.
-- macOS API used to prevent unsafe final-component symlink following.
-- Strict patch grammar subset and whether limited whitespace tolerance is needed.
-- Recovery-artifact format and retention.
-- Exact shell environment allowlist, timeout classes, and output head/tail policy.
-
-These choices affect compatibility, safety, or persisted behavior and must be recorded in tests or a follow-up decision rather than guessed inside a view.
+Phase 4 pins `fff-search` 0.9.6 without default features, caps an index at 100,000 paths, returns at most 100 matches and 48 KiB of serialized search matches, reads at most 16 MiB per file and returns a 16 KiB numbered window, accepts at most a 256 KiB/32-file patch with 1 MiB per and 4 MiB total recovery data, and captures at most 1 MiB per shell stream with 8 KiB previews. Every prepared tool declares a conservative model-result ceiling before execution, and the loop rejects a smaller configured result budget before any effect. Blocking filesystem work runs on Tokio's bounded blocking facility behind the loop's sequential tool schedule; no second application runtime is introduced. Phase 5 owns durable artifact retention and effect progress, and Phase 6 may choose the GPUI background projection without changing these headless contracts.

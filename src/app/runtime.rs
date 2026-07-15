@@ -220,6 +220,12 @@ impl ApplicationCoordinator {
                         sink(event);
                         Err(CoordinatorError::Cancelled)
                     }
+                    Err(AgentError::ToolOutcomeUncertain) => {
+                        let event = RuntimeEvent::TurnUncertain { turn_id };
+                        reduce(&mut self.state, event.clone());
+                        sink(event);
+                        Err(CoordinatorError::Agent(AgentError::ToolOutcomeUncertain))
+                    }
                     Err(error) => {
                         if matches!(
                             error,
@@ -285,12 +291,14 @@ fn project_agent_event(
             name,
             output,
             executed,
+            status,
         } => Some(RuntimeEvent::ToolCompleted {
             turn_id,
             tool_call_id: *tool_call_id,
             name: name.clone(),
             output: output.clone(),
             executed: *executed,
+            status: *status,
         }),
         AgentEvent::ContinuationStarted { index } => Some(RuntimeEvent::ContinuationStarted {
             turn_id,
@@ -372,6 +380,7 @@ fn agent_error_code(error: &AgentError) -> &'static str {
         AgentError::Context(_) => "context_invalid",
         AgentError::Tool(_) => "tool_failed",
         AgentError::StaleApproval => "stale_approval",
+        AgentError::ToolOutcomeUncertain => "tool_outcome_uncertain",
     }
 }
 

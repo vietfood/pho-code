@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::context::{ContextBuild, ContextError, ContextLimits, build_context};
-use crate::agent::types::{ApprovalId, BackendRequestId, ItemId, ToolCallId, TurnId};
+use crate::agent::types::{ApprovalId, BackendRequestId, ItemId, ToolCallId, ToolStatus, TurnId};
 use crate::backend::profile::MODEL;
 use crate::backend::strict_json::parse_strict_object;
 use crate::backend::{
@@ -14,7 +14,8 @@ use crate::backend::{
     ModelBackend, ModelEvent, ToolDefinition, ToolResult, Usage, UserMessage,
 };
 use crate::tools::{
-    ApprovalDecision, ApprovalPolicy, ApprovalRequest, ApprovalResponse, ToolError, ToolRuntime,
+    ApprovalDecision, ApprovalPolicy, ApprovalRequest, ApprovalResponse, PreparedTool, ToolError,
+    ToolRuntime,
 };
 
 #[derive(Clone, Debug)]
@@ -69,6 +70,7 @@ pub enum AgentEvent {
         name: String,
         output: String,
         executed: bool,
+        status: ToolStatus,
     },
     ContinuationStarted {
         index: usize,
@@ -107,6 +109,8 @@ pub enum AgentError {
     Tool(#[from] ToolError),
     #[error("approval response did not match the pending effect")]
     StaleApproval,
+    #[error("tool outcome is uncertain")]
+    ToolOutcomeUncertain,
     #[error("agent limit reached: {0:?}")]
     Limit(LimitKind),
 }
@@ -248,8 +252,23 @@ pub async fn run_agent_turn(
             if !executed_provider_calls.insert(call.provider_call_id.clone()) {
                 return Err(AgentError::Tool(ToolError::AlreadyExecuted));
             }
-            let candidate = tools.prepare(call)?;
-            if candidate.output.len() > limits.maximum_tool_result_bytes {
+            let candidate = tokio::select! {
+                _ = cancellation.cancelled() => {
+                    return Err(AgentError::Backend(BackendError::Cancelled));
+                }
+                candidate = tools.prepare(call, cancellation.child_token()) => candidate,
+            };
+            let candidate = match candidate {
+                Ok(candidate) => candidate,
+                Err(error @ (ToolError::InvalidArguments | ToolError::Unavailable)) => {
+                    PreparedTool::rejected(call, error)
+                }
+                Err(ToolError::Cancelled) => {
+                    return Err(AgentError::Backend(BackendError::Cancelled));
+                }
+                Err(error) => return Err(AgentError::Tool(error)),
+            };
+            if candidate.maximum_result_bytes > limits.maximum_tool_result_bytes {
                 on_event(&AgentEvent::LimitReached {
                     limit: LimitKind::ToolResultBytes,
                 });
@@ -268,7 +287,7 @@ pub async fn run_agent_turn(
             if cancellation.is_cancelled() {
                 return Err(AgentError::Backend(BackendError::Cancelled));
             }
-            let (output, executed) = if candidate.mutating {
+            let (execution, executed) = if candidate.mutating {
                 if limits.maximum_pending_approvals == 0 {
                     on_event(&AgentEvent::LimitReached {
                         limit: LimitKind::PendingApprovals,
@@ -287,7 +306,7 @@ pub async fn run_agent_turn(
                     _ = cancellation.cancelled() => {
                         return Err(AgentError::Backend(BackendError::Cancelled));
                     }
-                    response = approvals.decide(&request) => response,
+                    response = approvals.decide(&request, cancellation.child_token()) => response,
                 };
                 if response.turn_id != request.turn_id
                     || response.approval_id != request.approval_id
@@ -303,19 +322,47 @@ pub async fn run_agent_turn(
                             tool_call_id: candidate.tool_call_id,
                             name: candidate.name.clone(),
                         });
-                        (tools.execute(&candidate)?, true)
+                        let execution = tools
+                            .execute(&candidate, turn_id, cancellation.child_token())
+                            .await
+                            .map_err(|error| match error {
+                                ToolError::Cancelled => {
+                                    AgentError::Backend(BackendError::Cancelled)
+                                }
+                                error => AgentError::Tool(error),
+                            })?;
+                        (execution, true)
                     }
-                    ApprovalDecision::Denied => ("approval denied".into(), false),
-                    ApprovalDecision::Unavailable => ("approval unavailable".into(), false),
+                    ApprovalDecision::Denied => (
+                        crate::tools::ToolExecution {
+                            output: r#"{"status":"denied","code":"approval_denied"}"#.into(),
+                            status: ToolStatus::Denied,
+                        },
+                        false,
+                    ),
+                    ApprovalDecision::Unavailable => (
+                        crate::tools::ToolExecution {
+                            output: r#"{"status":"denied","code":"approval_unavailable"}"#.into(),
+                            status: ToolStatus::Denied,
+                        },
+                        false,
+                    ),
                 }
             } else {
                 on_event(&AgentEvent::ToolStarted {
                     tool_call_id: candidate.tool_call_id,
                     name: candidate.name.clone(),
                 });
-                (tools.execute(&candidate)?, true)
+                let execution = tools
+                    .execute(&candidate, turn_id, cancellation.child_token())
+                    .await
+                    .map_err(|error| match error {
+                        ToolError::Cancelled => AgentError::Backend(BackendError::Cancelled),
+                        error => AgentError::Tool(error),
+                    })?;
+                (execution, true)
             };
-            if output.len() > limits.maximum_tool_result_bytes {
+            if execution.output.len() > limits.maximum_tool_result_bytes {
                 on_event(&AgentEvent::LimitReached {
                     limit: LimitKind::ToolResultBytes,
                 });
@@ -324,14 +371,21 @@ pub async fn run_agent_turn(
             on_event(&AgentEvent::ToolCompleted {
                 tool_call_id: candidate.tool_call_id,
                 name: candidate.name.clone(),
-                output: output.clone(),
+                output: execution.output.clone(),
                 executed,
+                status: execution.status,
             });
             messages.push(BackendMessage::Tool(ToolResult {
                 tool_call_id: candidate.tool_call_id,
                 provider_call_id: candidate.provider_call_id,
-                output,
+                output: execution.output,
             }));
+            if execution.status == ToolStatus::Cancelled {
+                return Err(AgentError::Backend(BackendError::Cancelled));
+            }
+            if execution.status == ToolStatus::Uncertain {
+                return Err(AgentError::ToolOutcomeUncertain);
+            }
         }
         continuations += 1;
         on_event(&AgentEvent::ContinuationStarted {
@@ -850,13 +904,14 @@ mod tests {
         assert_eq!(results, ["first", "second"]);
 
         let mut malformed = phase2_call("phase2_read", "malformed");
-        malformed.arguments = "{\"value\":1,\"value\":2}".into();
+        malformed.arguments = "{\"value\":1}".into();
         let tools = Arc::new(ScriptedToolRuntime::default());
+        let malformed_backend = Arc::new(ScriptedBackend::new([
+            script(phase(vec![malformed]), FinishClass::ToolCalls),
+            script(phase(vec![]), FinishClass::Stop),
+        ]));
         let result = run_agent_turn(
-            Arc::new(ScriptedBackend::new([script(
-                phase(vec![malformed]),
-                FinishClass::ToolCalls,
-            )])),
+            malformed_backend.clone(),
             tools.clone(),
             Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Approved)),
             TurnId::new(),
@@ -866,12 +921,23 @@ mod tests {
             limits(),
             |_| {},
         )
-        .await;
-        assert!(matches!(
-            result,
-            Err(AgentError::Tool(ToolError::InvalidArguments))
-        ));
+        .await
+        .unwrap();
+        assert_eq!(result.continuations, 1);
         assert_eq!(tools.executed_count(), 0);
+        let requests = malformed_backend.request_snapshot().unwrap();
+        let output = requests[1]
+            .messages
+            .iter()
+            .find_map(|message| match message {
+                BackendMessage::Tool(result) => Some(result.output.as_str()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            output,
+            r#"{"status":"failed","code":"tool_arguments_invalid"}"#
+        );
     }
 
     #[tokio::test]
@@ -1112,6 +1178,7 @@ mod tests {
         fn decide<'a>(
             &'a self,
             _: &'a ApprovalRequest,
+            _: CancellationToken,
         ) -> Pin<Box<dyn Future<Output = ApprovalResponse> + Send + 'a>> {
             Box::pin(std::future::pending())
         }

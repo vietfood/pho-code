@@ -429,6 +429,245 @@ fn raw_chat_uses_the_controlling_terminal_without_cursor_sequences() {
 
 #[cfg(target_os = "macos")]
 #[test]
+fn phase4_raw_chat_approves_shell_only_through_the_controlling_terminal() {
+    use std::io::Write as _;
+    use std::os::fd::AsRawFd as _;
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let mut requests = Vec::new();
+        for body in [
+            concat!(
+                "data: {\"id\":\"phase4-tools\",\"model\":\"deepseek-v4-flash\",",
+                "\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"use shell\",",
+                "\"tool_calls\":[{\"index\":0,\"id\":\"shell-call\",\"type\":\"function\",",
+                "\"function\":{\"name\":\"shell\",\"arguments\":",
+                "\"{\\\"command\\\":\\\"printf approved > marker.txt\\\",\\\"timeout_seconds\\\":5}\"}}]},",
+                "\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":1,",
+                "\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":1,",
+                "\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
+                "data: [DONE]\n\n"
+            ),
+            concat!(
+                "data: {\"id\":\"phase4-final\",\"model\":\"deepseek-v4-flash\",",
+                "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"phase4-complete\"},",
+                "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,",
+                "\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":2,",
+                "\"completion_tokens\":1,\"total_tokens\":3}}\n\n",
+                "data: [DONE]\n\n"
+            ),
+        ] {
+            let (mut stream, _) = listener.accept().unwrap();
+            requests.push(read_http_request_body(&mut stream));
+            write!(
+                stream,
+                "HTTP/1.1 200 fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        }
+        requests
+    });
+
+    let (mut master, slave) = open_test_pty();
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let mut command = pho();
+    command
+        .args(["chat", "--raw"])
+        .env("HOME", home.path())
+        .env("PHO_CODE_TEST_MEMORY_CREDENTIALS", "ready")
+        .env("PHO_CODE_PHASE4_WORKSPACE", workspace.path())
+        .env(
+            "PHO_CODE_TEST_CHAT_ENDPOINT",
+            format!("http://{address}/chat/completions"),
+        );
+    attach_to_pty(&mut command, master.as_raw_fd(), slave.as_raw_fd());
+    let mut child = command.spawn().unwrap();
+    let flags = unsafe { libc::fcntl(master.as_raw_fd(), libc::F_GETFL) };
+    assert!(flags >= 0);
+    // SAFETY: the live PTY master retains its flags and gains nonblocking reads.
+    assert_eq!(
+        unsafe { libc::fcntl(master.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) },
+        0
+    );
+    let mut output = Vec::new();
+    wait_for_pty_text(
+        &mut master,
+        &mut child,
+        &mut output,
+        b"Prompt: ",
+        Duration::from_secs(3),
+    );
+    master.write_all(b"run the fixture shell\n").unwrap();
+    wait_for_pty_text(
+        &mut master,
+        &mut child,
+        &mut output,
+        b"Approve once? Type `yes` to approve: ",
+        Duration::from_secs(5),
+    );
+    master.write_all(b"yes\n").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(8);
+    let status = loop {
+        drain_nonblocking(&mut master, &mut output);
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            panic!(
+                "phase4 child did not exit: {}",
+                String::from_utf8_lossy(&output)
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(
+        status.success(),
+        "{status:?}: {}",
+        String::from_utf8_lossy(&output)
+    );
+    assert_eq!(
+        std::fs::read_to_string(workspace.path().join("marker.txt")).unwrap(),
+        "approved"
+    );
+    assert!(String::from_utf8_lossy(&output).contains("phase4-complete"));
+    let requests = server.join().unwrap();
+    assert_eq!(requests.len(), 2);
+    let continuation: serde_json::Value = serde_json::from_slice(&requests[1]).unwrap();
+    assert_eq!(continuation["messages"][2]["tool_call_id"], "shell-call");
+    assert!(
+        continuation["messages"][2]["content"]
+            .as_str()
+            .unwrap()
+            .contains("\"exit_code\":0")
+    );
+    drop(slave);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn phase4_stdin_mode_cannot_use_stdin_as_an_approval_channel() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let mut requests = Vec::new();
+        for body in [
+            concat!(
+                "data: {\"id\":\"phase4-denied\",\"model\":\"deepseek-v4-flash\",",
+                "\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"request shell\",\"tool_calls\":[{\"index\":0,",
+                "\"id\":\"denied-shell\",\"type\":\"function\",\"function\":{",
+                "\"name\":\"shell\",\"arguments\":",
+                "\"{\\\"command\\\":\\\"printf denied > marker.txt\\\",\\\"timeout_seconds\\\":5}\"}}]},",
+                "\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":1,",
+                "\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":1,",
+                "\"completion_tokens\":1,\"total_tokens\":2}}\n\n",
+                "data: [DONE]\n\n"
+            ),
+            concat!(
+                "data: {\"id\":\"phase4-denied-final\",\"model\":\"deepseek-v4-flash\",",
+                "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"denial-observed\"},",
+                "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,",
+                "\"prompt_cache_hit_tokens\":0,\"prompt_cache_miss_tokens\":2,",
+                "\"completion_tokens\":1,\"total_tokens\":3}}\n\n",
+                "data: [DONE]\n\n"
+            ),
+        ] {
+            let (mut stream, _) = listener.accept().unwrap();
+            requests.push(read_http_request_body(&mut stream));
+            write!(
+                stream,
+                "HTTP/1.1 200 fixture\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .unwrap();
+        }
+        requests
+    });
+
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let mut command = pho();
+    command
+        .args(["chat", "--stdin"])
+        .env("HOME", home.path())
+        .env("PHO_CODE_TEST_MEMORY_CREDENTIALS", "ready")
+        .env("PHO_CODE_PHASE4_WORKSPACE", workspace.path())
+        .env(
+            "PHO_CODE_TEST_CHAT_ENDPOINT",
+            format!("http://{address}/chat/completions"),
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // SAFETY: setsid is async-signal-safe and deliberately removes the controlling terminal.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() < 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+    }
+    let mut child = command.spawn().unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"attempt the fixture shell\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!workspace.path().join("marker.txt").exists());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("denial-observed"));
+    let requests = server.join().unwrap();
+    assert_eq!(requests.len(), 2);
+    let continuation: serde_json::Value = serde_json::from_slice(&requests[1]).unwrap();
+    assert!(
+        continuation["messages"][2]["content"]
+            .as_str()
+            .unwrap()
+            .contains("approval_unavailable")
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn wait_for_pty_text(
+    master: &mut std::fs::File,
+    child: &mut std::process::Child,
+    output: &mut Vec<u8>,
+    needle: &[u8],
+    timeout: Duration,
+) {
+    let deadline = Instant::now() + timeout;
+    loop {
+        drain_nonblocking(master, output);
+        if output.windows(needle.len()).any(|window| window == needle) {
+            return;
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!(
+                "child exited before expected terminal text {needle:?}: {status:?}: {}",
+                String::from_utf8_lossy(output)
+            );
+        }
+        assert!(
+            Instant::now() < deadline,
+            "terminal text not observed: {needle:?}"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
 fn interactive_chat_runs_repeated_independent_fixture_turns() {
     use std::io::Write as _;
     use std::os::fd::AsRawFd as _;

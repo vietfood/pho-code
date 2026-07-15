@@ -509,7 +509,10 @@ async fn real_http_mutation_probe_is_denied_and_continuation_is_exactly_paired()
         .unwrap();
     let requests = server.finish().await;
     assert_eq!(requests[1]["messages"][2]["tool_call_id"], "mutation-call");
-    assert_eq!(requests[1]["messages"][2]["content"], "approval denied");
+    assert_eq!(
+        requests[1]["messages"][2]["content"],
+        r#"{"status":"denied","code":"approval_denied"}"#
+    );
     assert!(events.iter().any(|event| matches!(
         event,
         RuntimeEvent::ApprovalResolved {
@@ -731,6 +734,7 @@ impl ApprovalPolicy for PendingApproval {
     fn decide<'a>(
         &'a self,
         _: &'a ApprovalRequest,
+        _: CancellationToken,
     ) -> Pin<Box<dyn std::future::Future<Output = ApprovalResponse> + Send + 'a>> {
         Box::pin(std::future::pending())
     }

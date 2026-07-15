@@ -69,6 +69,7 @@ pub(super) enum ToolStateView {
     Denied,
     Failed,
     Cancelled,
+    Uncertain,
 }
 
 #[derive(Clone, Copy)]
@@ -207,13 +208,15 @@ impl TerminalViewModel {
             RuntimeEvent::ToolCompleted {
                 tool_call_id,
                 output,
-                executed,
+                status,
                 ..
             } => {
-                let state = if *executed {
-                    ToolStateView::Completed
-                } else {
-                    ToolStateView::Denied
+                let state = match status {
+                    crate::agent::types::ToolStatus::Completed => ToolStateView::Completed,
+                    crate::agent::types::ToolStatus::Denied => ToolStateView::Denied,
+                    crate::agent::types::ToolStatus::Cancelled => ToolStateView::Cancelled,
+                    crate::agent::types::ToolStatus::Uncertain => ToolStateView::Uncertain,
+                    _ => ToolStateView::Failed,
                 };
                 self.update_tool(
                     *tool_call_id,
@@ -245,6 +248,11 @@ impl TerminalViewModel {
                 "Turn cancelled",
                 "no further local effect",
                 NoticeSeverity::Warning,
+            ))),
+            RuntimeEvent::TurnUncertain { .. } => self.finish_terminal(Some((
+                "Turn outcome uncertain",
+                "inspect the affected workspace paths before continuing",
+                NoticeSeverity::Error,
             ))),
         }
         self.transcript_scroll_offset = 0;
@@ -511,6 +519,7 @@ fn transcript_text(model: &TerminalViewModel, width: u16) -> Text<'static> {
                     ToolStateView::Denied => ("–", "denied", Color::Yellow),
                     ToolStateView::Failed => ("×", "failed", Color::Red),
                     ToolStateView::Cancelled => ("–", "cancelled", Color::Yellow),
+                    ToolStateView::Uncertain => ("!", "uncertain", Color::Red),
                 };
                 let detail_prefix_width = 4 + marker.width() + 1 + label.width() + 3;
                 let detail_width = usize::from(width)
@@ -870,6 +879,7 @@ mod tests {
             name: "phase3_mutation_probe".into(),
             output: "no local effect".into(),
             executed: false,
+            status: crate::agent::types::ToolStatus::Denied,
         });
         model.apply_event(&RuntimeEvent::UsageUpdated {
             turn_id,

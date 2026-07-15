@@ -199,7 +199,7 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
         RuntimeEvent::ToolCompleted {
             turn_id,
             tool_call_id,
-            executed,
+            status,
             ..
         } => {
             with_live_turn(state, turn_id, |turn| {
@@ -209,11 +209,7 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
                     .iter_mut()
                     .find(|tool| tool.tool_call_id == tool_call_id)
                 {
-                    tool.status = if executed {
-                        ToolStatus::Completed
-                    } else {
-                        ToolStatus::Denied
-                    };
+                    tool.status = status;
                 }
             });
         }
@@ -239,6 +235,9 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
         }
         RuntimeEvent::TurnCancelled { turn_id } => {
             terminal(state, turn_id, TurnStatus::Cancelled);
+        }
+        RuntimeEvent::TurnUncertain { turn_id } => {
+            terminal(state, turn_id, TurnStatus::Uncertain);
         }
     }
 }

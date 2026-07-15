@@ -12,7 +12,10 @@ use crate::auth::SecretText;
 use crate::auth::api_key::{CredentialActor, DeepSeekCredentialValidator};
 use crate::backend::deepseek::DeepSeekBackend;
 use crate::backend::sse::SseLimits;
-use crate::tools::{ApprovalDecision, Phase3ToolRuntime, StaticApprovalPolicy};
+use crate::tools::{
+    ApprovalDecision, ApprovalPolicy, ApprovalRequest, ApprovalResponse, Phase3ToolRuntime,
+    Phase4ToolRuntime, StaticApprovalPolicy, ToolRuntime,
+};
 
 use command::{ChatPresentation, Command, PromptSource};
 use renderer::Renderer;
@@ -101,14 +104,34 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         Arc::new(CredentialActor::new(&guard, store, validator).map_err(|_| CliError::Runtime)?);
     let backend = Arc::new(deepseek_backend(credentials.clone())?);
     let config = Arc::new(RuntimeConfig::default());
-    let mut application = ApplicationCoordinator::new_with_services(
-        credentials,
-        backend,
-        Arc::new(Phase3ToolRuntime::default()),
-        Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
-        config,
-    )
-    .await;
+    let phase4_workspace = (cfg!(debug_assertions)
+        && matches!(
+            command,
+            Command::Chat {
+                presentation: ChatPresentation::Raw,
+                ..
+            }
+        ))
+    .then(|| std::env::var_os("PHO_CODE_PHASE4_WORKSPACE"))
+    .flatten();
+    let (tools, approvals): (Arc<dyn ToolRuntime>, Arc<dyn ApprovalPolicy>) =
+        if let Some(workspace) = phase4_workspace {
+            (
+                Arc::new(
+                    Phase4ToolRuntime::new_disposable_in_memory(workspace)
+                        .map_err(|_| CliError::Runtime)?,
+                ),
+                Arc::new(ControllingTerminalApproval),
+            )
+        } else {
+            (
+                Arc::new(Phase3ToolRuntime::default()),
+                Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
+            )
+        };
+    let mut application =
+        ApplicationCoordinator::new_with_services(credentials, backend, tools, approvals, config)
+            .await;
     if matches!(
         command,
         Command::Chat {
@@ -207,6 +230,40 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         _ => CliError::Runtime,
     })?;
     renderer.finish().map_err(|_| CliError::Cancelled)
+}
+
+struct ControllingTerminalApproval;
+
+impl ApprovalPolicy for ControllingTerminalApproval {
+    fn decide<'a>(
+        &'a self,
+        request: &'a ApprovalRequest,
+        cancellation: CancellationToken,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ApprovalResponse> + Send + 'a>> {
+        Box::pin(async move {
+            let summary = request.summary.clone();
+            let decision = tokio::task::spawn_blocking(move || {
+                terminal::read_approval(&summary, &cancellation)
+                    .map(|approved| {
+                        if approved {
+                            ApprovalDecision::Approved
+                        } else {
+                            ApprovalDecision::Denied
+                        }
+                    })
+                    .unwrap_or(ApprovalDecision::Unavailable)
+            })
+            .await
+            .unwrap_or(ApprovalDecision::Unavailable);
+            ApprovalResponse {
+                turn_id: request.turn_id,
+                approval_id: request.approval_id,
+                tool_call_id: request.tool_call_id,
+                effect_digest: request.effect_digest.clone(),
+                decision,
+            }
+        })
+    }
 }
 
 fn deepseek_backend(credentials: Arc<CredentialActor>) -> Result<DeepSeekBackend, CliError> {

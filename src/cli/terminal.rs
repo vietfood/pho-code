@@ -36,6 +36,33 @@ pub fn read_stdin_prompt(
     read_bounded_cancellable(&mut input, maximum_bytes, cancellation)
 }
 
+pub fn read_approval(summary: &str, cancellation: &CancellationToken) -> io::Result<bool> {
+    let mut terminal = open_terminal()?;
+    terminal.write_all(b"\nApproval required\n")?;
+    let safe_summary = control_safe_terminal_text(summary);
+    terminal.write_all(safe_summary.as_bytes())?;
+    terminal.write_all(b"\nApprove once? Type `yes` to approve: ")?;
+    terminal.flush()?;
+    let response = read_bounded_cancellable(&mut terminal, 16, cancellation)?;
+    Ok(response.eq_ignore_ascii_case("yes"))
+}
+
+fn control_safe_terminal_text(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    for character in input.chars() {
+        if character == '\n' {
+            output.push(character);
+        } else if character.is_control()
+            || matches!(character as u32, 0x7f..=0x9f | 0x202a..=0x202e | 0x2066..=0x2069)
+        {
+            output.extend(character.escape_default());
+        } else {
+            output.push(character);
+        }
+    }
+    output
+}
+
 fn open_terminal() -> io::Result<File> {
     OpenOptions::new().read(true).write(true).open("/dev/tty")
 }
@@ -180,5 +207,13 @@ mod tests {
         assert!(read_bounded(&mut &[0xff, b'\n'][..], 8).is_err());
         assert!(read_bounded(&mut &b"12345\n"[..], 4).is_err());
         assert_eq!(read_bounded(&mut &b"hello\n"[..], 8).unwrap(), "hello");
+    }
+
+    #[test]
+    fn approval_text_preserves_newlines_and_escapes_terminal_controls() {
+        assert_eq!(
+            control_safe_terminal_text("first\nsecond\r\u{1b}[2J\u{202e}"),
+            "first\nsecond\\r\\u{1b}[2J\\u{202e}"
+        );
     }
 }

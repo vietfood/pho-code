@@ -16,3 +16,6 @@
 [submodule "refs/gpui-component"]
 	path = refs/gpui-component
 	url = https://github.com/longbridge/gpui-component.git
+[submodule "refs/fff"]
+	path = refs/fff
+	url = https://github.com/dmtrKovalenko/fff.git

@@ -227,6 +227,10 @@ impl Renderer {
                 self.finish_reasoning_line()?;
                 writeln!(self.stderr, "turn cancelled")
             }
+            RuntimeEvent::TurnUncertain { .. } => {
+                self.finish_reasoning_line()?;
+                writeln!(self.stderr, "turn outcome uncertain")
+            }
             _ => Ok(()),
         }
     }

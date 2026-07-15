@@ -1,5 +1,5 @@
 use crate::agent::loop_runtime::LimitKind;
-use crate::agent::types::{ApprovalId, ToolCallId, TurnId};
+use crate::agent::types::{ApprovalId, ToolCallId, ToolStatus, TurnId};
 use crate::auth::{CredentialState, SecretText};
 use crate::backend::{AssistantPhase, Usage};
 use crate::tools::ApprovalDecision;
@@ -88,6 +88,7 @@ pub enum RuntimeEvent {
         name: String,
         output: String,
         executed: bool,
+        status: ToolStatus,
     },
     ContinuationStarted {
         turn_id: TurnId,
@@ -109,6 +110,9 @@ pub enum RuntimeEvent {
         code: &'static str,
     },
     TurnCancelled {
+        turn_id: TurnId,
+    },
+    TurnUncertain {
         turn_id: TurnId,
     },
 }
@@ -134,6 +138,7 @@ impl std::fmt::Debug for RuntimeEvent {
             Self::TurnCompleted { .. } => "TurnCompleted",
             Self::TurnFailed { .. } => "TurnFailed",
             Self::TurnCancelled { .. } => "TurnCancelled",
+            Self::TurnUncertain { .. } => "TurnUncertain",
         })
     }
 }
