@@ -20,7 +20,11 @@ pub struct ContextSize {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContextBuild {
     Fits(BackendRequest),
-    TooLarge(ContextSize),
+    NearLimit {
+        request: BackendRequest,
+        size: ContextSize,
+    },
+    CannotFit(ContextSize),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -124,15 +128,26 @@ pub fn build_context(
         bytes,
     };
     if size.messages > limits.maximum_messages || size.bytes > limits.maximum_bytes {
-        return Ok(ContextBuild::TooLarge(size));
+        return Ok(ContextBuild::CannotFit(size));
     }
-    Ok(ContextBuild::Fits(BackendRequest {
+    let request = BackendRequest {
         request_id,
         model: model.into(),
         system_instructions,
         messages,
         tools,
-    }))
+    };
+    if near_limit(size.bytes, limits.maximum_bytes)
+        || near_limit(size.messages, limits.maximum_messages)
+    {
+        Ok(ContextBuild::NearLimit { request, size })
+    } else {
+        Ok(ContextBuild::Fits(request))
+    }
+}
+
+fn near_limit(current: usize, maximum: usize) -> bool {
+    maximum > 0 && current.saturating_mul(10) >= maximum.saturating_mul(9)
 }
 
 fn message_bytes(message: &BackendMessage) -> Result<usize, ContextError> {
@@ -292,7 +307,27 @@ mod tests {
                 limits(4),
             )
             .unwrap(),
-            ContextBuild::TooLarge(ContextSize { bytes: 5, .. })
+            ContextBuild::CannotFit(ContextSize { bytes: 5, .. })
+        ));
+    }
+
+    #[test]
+    fn reports_near_limit_without_removing_history() {
+        let messages = vec![BackendMessage::User(UserMessage {
+            item_id: ItemId::new(),
+            text: "123456789".into(),
+        })];
+        assert!(matches!(
+            build_context(
+                BackendRequestId::new(),
+                "model",
+                String::new(),
+                messages.clone(),
+                vec![],
+                limits(10),
+            )
+            .unwrap(),
+            ContextBuild::NearLimit { request, .. } if request.messages == messages
         ));
     }
 }

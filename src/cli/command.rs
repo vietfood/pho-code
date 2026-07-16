@@ -18,13 +18,17 @@ pub enum Command {
     Login,
     Status,
     Logout,
+    SessionList,
+    SessionResume {
+        session_id: crate::agent::types::SessionId,
+    },
     Chat {
         source: PromptSource,
         presentation: ChatPresentation,
     },
 }
 
-pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho context\n  pho chat\n  pho chat --raw\n  pho chat --stdin\n\n`pho context` prints the offline model-context manifest, including exact built-in system instructions and fixed tool schemas.\n`pho chat` opens the interactive terminal UI. `--raw` and `--stdin` run one turn without cursor control sequences.\nPrompt text and API keys are never accepted as command arguments.\n";
+pub const HELP: &str = "Pho Code command adapter\n\nUsage:\n  pho login\n  pho status\n  pho logout\n  pho context\n  pho session list\n  pho session resume <session-id>\n  pho chat\n  pho chat --raw\n  pho chat --stdin\n\n`pho context` prints the offline model-context manifest, including exact built-in system instructions and fixed tool schemas.\n`pho chat` creates a durable session in the current workspace and opens the interactive terminal UI. `--raw` and `--stdin` run one durable turn without cursor control sequences.\n`pho session list` works offline. Session IDs are opaque local identifiers; journal paths are never accepted.\nPrompt text and API keys are never accepted as command arguments.\n";
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static str> {
     let args: Vec<String> = args.into_iter().collect();
@@ -36,6 +40,13 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, &'static
         [single] if single == "login" => Ok(Command::Login),
         [single] if single == "status" => Ok(Command::Status),
         [single] if single == "logout" => Ok(Command::Logout),
+        [first, second] if first == "session" && second == "list" => Ok(Command::SessionList),
+        [first, second, session_id] if first == "session" && second == "resume" => {
+            Ok(Command::SessionResume {
+                session_id: crate::agent::types::SessionId::parse(session_id)
+                    .map_err(|_| "invalid session ID; run `pho session list`")?,
+            })
+        }
         [single] if single == "chat" => Ok(Command::Chat {
             source: PromptSource::ControllingTerminal,
             presentation: ChatPresentation::Interactive,
@@ -83,5 +94,19 @@ mod tests {
         assert!(parse(vec!["login".into(), "secret-key-marker".into()]).is_err());
         assert_eq!(parse(vec!["context".into()]), Ok(Command::Context));
         assert!(parse(vec!["context".into(), "secret-prompt-marker".into()]).is_err());
+        assert_eq!(
+            parse(vec!["session".into(), "list".into()]),
+            Ok(Command::SessionList)
+        );
+        let session_id = crate::agent::types::SessionId::new();
+        assert_eq!(
+            parse(vec![
+                "session".into(),
+                "resume".into(),
+                session_id.to_string()
+            ]),
+            Ok(Command::SessionResume { session_id })
+        );
+        assert!(parse(vec!["session".into(), "resume".into(), "../journal".into()]).is_err());
     }
 }

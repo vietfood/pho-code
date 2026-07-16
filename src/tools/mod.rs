@@ -375,7 +375,10 @@ pub struct Phase4ToolRuntime {
     effects: Arc<dyn patch::EffectRecorder>,
     trash: Arc<dyn patch::Trash>,
     executed: Mutex<HashSet<ToolCallId>>,
+    personal_workspace: bool,
 }
+
+pub type Phase5ToolRuntime = Phase4ToolRuntime;
 
 impl Phase4ToolRuntime {
     pub fn new_disposable(
@@ -390,6 +393,26 @@ impl Phase4ToolRuntime {
         if workspace.root() == temporary_root || !workspace.root().starts_with(&temporary_root) {
             return Err(ToolError::Unavailable);
         }
+        Self::from_workspace(workspace, artifacts, effects, trash, false)
+    }
+
+    pub fn new_persistent(
+        root: impl AsRef<Path>,
+        artifacts: Arc<dyn ArtifactWriter>,
+        effects: Arc<dyn patch::EffectRecorder>,
+        trash: Arc<dyn patch::Trash>,
+    ) -> Result<Self, ToolError> {
+        let workspace = workspace::Workspace::open(root).map_err(|_| ToolError::Unavailable)?;
+        Self::from_workspace(workspace, artifacts, effects, trash, true)
+    }
+
+    fn from_workspace(
+        workspace: workspace::Workspace,
+        artifacts: Arc<dyn ArtifactWriter>,
+        effects: Arc<dyn patch::EffectRecorder>,
+        trash: Arc<dyn patch::Trash>,
+        personal_workspace: bool,
+    ) -> Result<Self, ToolError> {
         let search = Arc::new(
             search::WorkspaceSearch::start(workspace.clone())
                 .map_err(|_| ToolError::Unavailable)?,
@@ -401,6 +424,7 @@ impl Phase4ToolRuntime {
             effects,
             trash,
             executed: Mutex::new(HashSet::new()),
+            personal_workspace,
         })
     }
 
@@ -416,7 +440,11 @@ impl Phase4ToolRuntime {
 
 impl ToolRuntime for Phase4ToolRuntime {
     fn definitions(&self) -> Vec<ToolDefinition> {
-        phase4_definitions()
+        if self.personal_workspace {
+            phase5_definitions()
+        } else {
+            phase4_definitions()
+        }
     }
 
     fn prepare<'a>(
@@ -761,6 +789,16 @@ pub(crate) fn phase4_definitions() -> Vec<ToolDefinition> {
             schema: serde_json::json!({"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":300}},"required":["command"],"additionalProperties":false}),
         },
     ]
+}
+
+pub(crate) fn phase5_definitions() -> Vec<ToolDefinition> {
+    let mut definitions = phase4_definitions();
+    for definition in &mut definitions {
+        definition.description = definition
+            .description
+            .replace("a disposable workspace", "the selected personal workspace");
+    }
+    definitions
 }
 
 fn require_keys(

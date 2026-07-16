@@ -13,9 +13,13 @@ use crate::auth::SecretText;
 use crate::auth::api_key::{CredentialActor, DeepSeekCredentialValidator};
 use crate::backend::deepseek::DeepSeekBackend;
 use crate::backend::sse::SseLimits;
+use crate::session::SessionManager;
+use crate::session::artifacts::{ArtifactLimits, PersistentArtifactStore};
+use crate::session::journal::SessionEffectRecorder;
+use crate::session::record::SessionProfile;
 use crate::tools::{
     ApprovalDecision, ApprovalPolicy, ApprovalRequest, ApprovalResponse, Phase3ToolRuntime,
-    Phase4ToolRuntime, StaticApprovalPolicy, ToolRuntime,
+    Phase4ToolRuntime, Phase5ToolRuntime, StaticApprovalPolicy, ToolRuntime,
 };
 
 use command::{ChatPresentation, Command, PromptSource};
@@ -56,6 +60,10 @@ pub async fn run(command: Command) -> i32 {
             );
             3
         }
+        Err(CliError::UnknownSession) => {
+            eprintln!("pho: session is unknown; run `pho session list`");
+            4
+        }
         Err(CliError::Cancelled) => {
             eprintln!("pho: cancelled");
             130
@@ -68,8 +76,24 @@ pub async fn run(command: Command) -> i32 {
 }
 
 async fn run_operational(command: Command) -> Result<(), CliError> {
-    let guard = InstanceGuard::acquire(&default_lock_path().map_err(|_| CliError::Runtime)?)
-        .map_err(|_| CliError::Runtime)?;
+    let lock_path = default_lock_path().map_err(|_| CliError::Runtime)?;
+    let guard = InstanceGuard::acquire(&lock_path).map_err(|_| CliError::Runtime)?;
+    let application_root = lock_path.parent().ok_or(CliError::Runtime)?;
+    let sessions = Arc::new(SessionManager::new(application_root).map_err(|_| CliError::Runtime)?);
+    if matches!(command, Command::SessionList) {
+        for summary in sessions.list().map_err(|_| CliError::Runtime)? {
+            let workspace = summary.workspace.as_deref().unwrap_or("<unavailable>");
+            let state = if summary.read_only {
+                "read-only"
+            } else if std::path::Path::new(workspace).is_dir() {
+                "ready"
+            } else {
+                "missing-workspace"
+            };
+            println!("{}\t{}\t{}", summary.session_id, state, workspace);
+        }
+        return Ok(());
+    }
     #[cfg(target_os = "macos")]
     let store: Arc<dyn crate::auth::keychain::CredentialStore> = {
         let memory = cfg!(debug_assertions)
@@ -113,6 +137,11 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
     let validator = Arc::new(DeepSeekCredentialValidator::new().map_err(|_| CliError::Runtime)?);
     let credentials =
         Arc::new(CredentialActor::new(&guard, store, validator).map_err(|_| CliError::Runtime)?);
+    if matches!(command, Command::Chat { .. })
+        && credentials.status().await != crate::auth::CredentialState::Ready
+    {
+        return Err(CliError::MissingCredential);
+    }
     let backend = Arc::new(deepseek_backend(credentials.clone())?);
     let config = Arc::new(RuntimeConfig::default());
     let phase4_workspace = (cfg!(debug_assertions)
@@ -125,6 +154,39 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         ))
     .then(|| std::env::var_os("PHO_CODE_PHASE4_WORKSPACE"))
     .flatten();
+    let fixture_without_phase5_session = cfg!(debug_assertions)
+        && std::env::var_os("PHO_CODE_TEST_CHAT_ENDPOINT").is_some()
+        && std::env::var_os("PHO_CODE_TEST_PHASE5_SESSION").is_none();
+    let mut opened = if phase4_workspace.is_none() && !fixture_without_phase5_session {
+        match command {
+            Command::Chat { .. } => {
+                let workspace =
+                    std::fs::canonicalize(std::env::current_dir().map_err(|_| CliError::Runtime)?)
+                        .map_err(|_| CliError::Runtime)?;
+                let workspace = workspace
+                    .into_os_string()
+                    .into_string()
+                    .map_err(|_| CliError::Runtime)?;
+                Some(
+                    sessions
+                        .create(workspace, SessionProfile::default())
+                        .map_err(|_| CliError::Runtime)?,
+                )
+            }
+            Command::SessionResume { session_id } => Some(
+                sessions
+                    .open(session_id)
+                    .map_err(|_| CliError::UnknownSession)?,
+            ),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let mut durable_effects = None;
+    let fixture_without_phase5_tools = cfg!(debug_assertions)
+        && std::env::var_os("PHO_CODE_TEST_CHAT_ENDPOINT").is_some()
+        && std::env::var_os("PHO_CODE_TEST_PHASE5_TOOLS").is_none();
     let (tools, approvals): (Arc<dyn ToolRuntime>, Arc<dyn ApprovalPolicy>) =
         if let Some(workspace) = phase4_workspace {
             (
@@ -134,23 +196,88 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
                 ),
                 Arc::new(ControllingTerminalApproval),
             )
+        } else if let Some(session) = opened.as_ref() {
+            let workspace = session.projection.workspace.as_deref();
+            if !fixture_without_phase5_tools
+                && let (Some(writer), Some(workspace)) = (session.writer.clone(), workspace)
+                && std::path::Path::new(workspace).is_dir()
+                && !session.recovery.read_only
+            {
+                let artifacts = Arc::new(
+                    PersistentArtifactStore::for_session(
+                        sessions.root().join("artifacts"),
+                        session.session_id,
+                        ArtifactLimits {
+                            maximum_artifact_bytes: 2 * 1024 * 1024,
+                            maximum_session_bytes: 64 * 1024 * 1024,
+                            maximum_global_bytes: 1024 * 1024 * 1024,
+                        },
+                    )
+                    .map_err(|_| CliError::Runtime)?,
+                );
+                let effects = Arc::new(SessionEffectRecorder::new(writer));
+                let runtime = Phase5ToolRuntime::new_persistent(
+                    workspace,
+                    artifacts,
+                    effects.clone(),
+                    Arc::new(crate::tools::patch::MacTrash),
+                )
+                .map_err(|_| CliError::Runtime)?;
+                durable_effects = Some(effects);
+                (Arc::new(runtime), Arc::new(ControllingTerminalApproval))
+            } else {
+                (
+                    Arc::new(Phase3ToolRuntime::default()),
+                    Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
+                )
+            }
         } else {
             (
                 Arc::new(Phase3ToolRuntime::default()),
                 Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
             )
         };
-    let mut application =
+    let mut application = if let Some(session) = opened.take() {
+        ApplicationCoordinator::new_with_durable_session(
+            credentials,
+            backend,
+            tools,
+            approvals,
+            config,
+            session,
+            durable_effects,
+        )
+        .await
+        .map_err(|_| CliError::Runtime)?
+    } else {
         ApplicationCoordinator::new_with_services(credentials, backend, tools, approvals, config)
-            .await;
+            .await
+    };
     if matches!(
         command,
         Command::Chat {
             presentation: ChatPresentation::Interactive,
             ..
-        }
+        } | Command::SessionResume { .. }
     ) {
         if application.state.credentials != crate::auth::CredentialState::Ready {
+            if matches!(command, Command::SessionResume { .. }) {
+                let mut renderer = Renderer::stdio().map_err(|_| CliError::Runtime)?;
+                if let Some(session) = &application.state.session {
+                    renderer
+                        .render(&crate::app::action::RuntimeEvent::SessionLoaded {
+                            session_id: session.id,
+                            messages: session.messages.clone(),
+                            read_only: session.read_only,
+                            workspace_available: session.workspace_available,
+                            interrupted_turns: session.interrupted_turns.clone(),
+                            uncertain_paths: session.uncertain_paths.clone(),
+                        })
+                        .map_err(|_| CliError::Cancelled)?;
+                    renderer.finish().map_err(|_| CliError::Cancelled)?;
+                    return Ok(());
+                }
+            }
             return Err(CliError::MissingCredential);
         }
         return tui::run(application).await.map_err(|error| match error {
@@ -208,12 +335,21 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
                 PromptSource::ControllingTerminal => terminal::read_prompt(256 * 1024, &cancellation).map_err(|error| input_error(error, "a controlling terminal is required; use `pho chat --stdin` for explicit stdin input"))?,
                 PromptSource::Stdin => terminal::read_stdin_prompt(256 * 1024, &cancellation).map_err(|error| input_error(error, "stdin prompt is empty, invalid UTF-8, or too large"))?,
             };
-            Intent::SendEphemeralPrompt { text }
+            if let Some(session) = application.state.session.as_ref() {
+                Intent::SendPrompt {
+                    session_id: session.id,
+                    text,
+                }
+            } else {
+                Intent::SendEphemeralPrompt { text }
+            }
         }
         Command::Chat {
             presentation: ChatPresentation::Interactive,
             ..
         }
+        | Command::SessionList
+        | Command::SessionResume { .. }
         | Command::Help
         | Command::Context
         | Command::Version => return Ok(()),
@@ -303,6 +439,7 @@ fn input_error(error: std::io::Error, usage: &'static str) -> CliError {
 enum CliError {
     Usage(&'static str),
     MissingCredential,
+    UnknownSession,
     Cancelled,
     Runtime,
 }

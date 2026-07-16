@@ -6,7 +6,7 @@ use crate::backend::ToolDefinition;
 use crate::backend::profile::{
     MAXIMUM_OUTPUT_TOKENS, MODEL, PROFILE_REVISION, REASONING_EFFORT, THINKING_MODE,
 };
-use crate::tools::{Phase3ToolRuntime, ToolRuntime, phase4_definitions};
+use crate::tools::{phase4_definitions, phase5_definitions};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ContextRenderError {
@@ -19,7 +19,7 @@ pub enum ContextRenderError {
 pub fn render() -> Result<String, ContextRenderError> {
     let instruction_profile = AgentInstructionProfile::built_in();
     let config = RuntimeConfig::default();
-    let ordinary_tools = Phase3ToolRuntime::default().definitions();
+    let ordinary_tools = phase5_definitions();
     let disposable_tools = phase4_definitions();
     let mut output = String::new();
 
@@ -105,7 +105,7 @@ pub fn render() -> Result<String, ContextRenderError> {
     render_tools(
         &mut output,
         "ordinary_chat_tool_profile",
-        "Used by ordinary chat while personal-workspace tools remain gated pending Phase 5.",
+        "Used by durable ordinary chat after the Phase 5 persistence gate.",
         &ordinary_tools,
     )?;
     line(&mut output, "")?;

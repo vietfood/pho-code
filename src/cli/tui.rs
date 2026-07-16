@@ -132,6 +132,20 @@ impl TerminalViewModel {
     pub(super) fn apply_event(&mut self, event: &RuntimeEvent) {
         match event {
             RuntimeEvent::StartupReady { .. } | RuntimeEvent::CredentialChanged { .. } => {}
+            RuntimeEvent::SessionLoaded {
+                messages,
+                read_only,
+                workspace_available,
+                interrupted_turns,
+                uncertain_paths,
+                ..
+            } => self.load_session(
+                messages,
+                *read_only,
+                *workspace_available,
+                interrupted_turns.len(),
+                uncertain_paths,
+            ),
             RuntimeEvent::TurnPrepared { .. } => self.activity = ActivityView::Thinking,
             RuntimeEvent::ModelStreamStarted { model, .. } => {
                 self.model.clone_from(model);
@@ -249,6 +263,11 @@ impl TerminalViewModel {
                 "no further local effect",
                 NoticeSeverity::Warning,
             ))),
+            RuntimeEvent::TurnInterrupted { .. } => self.finish_terminal(Some((
+                "Turn interrupted",
+                "restart did not replay the prompt, request, approval, or tool",
+                NoticeSeverity::Warning,
+            ))),
             RuntimeEvent::TurnUncertain { .. } => self.finish_terminal(Some((
                 "Turn outcome uncertain",
                 "inspect the affected workspace paths before continuing",
@@ -257,6 +276,82 @@ impl TerminalViewModel {
         }
         self.transcript_scroll_offset = 0;
         self.enforce_transcript_bounds();
+    }
+
+    fn load_session(
+        &mut self,
+        messages: &[crate::backend::BackendMessage],
+        read_only: bool,
+        workspace_available: bool,
+        interrupted_turns: usize,
+        uncertain_paths: &[String],
+    ) {
+        self.transcript.clear();
+        for message in messages {
+            match message {
+                crate::backend::BackendMessage::User(message) => self.transcript.push(
+                    TranscriptEntry::User(bounded_text(&message.text, MAXIMUM_STREAM_ENTRY_BYTES)),
+                ),
+                crate::backend::BackendMessage::Assistant(phase) => {
+                    self.model.clone_from(&phase.compatibility.model);
+                    if let Some(reasoning) = &phase.reasoning {
+                        self.transcript.push(TranscriptEntry::Reasoning {
+                            content: bounded_text(reasoning, MAXIMUM_STREAM_ENTRY_BYTES),
+                            expanded: self.reasoning_expanded,
+                        });
+                    }
+                    if let Some(text) = &phase.text {
+                        self.transcript
+                            .push(TranscriptEntry::Assistant(bounded_text(
+                                text,
+                                MAXIMUM_STREAM_ENTRY_BYTES,
+                            )));
+                    }
+                    for call in &phase.tool_calls {
+                        self.transcript.push(TranscriptEntry::Tool {
+                            tool_call_id: Some(call.tool_call_id),
+                            name: call.name.clone(),
+                            state: ToolStateView::Pending,
+                            detail: "completed call; awaiting retained result".into(),
+                        });
+                    }
+                }
+                crate::backend::BackendMessage::Tool(result) => self.update_tool(
+                    result.tool_call_id,
+                    ToolStateView::Completed,
+                    &bounded_single_line(&result.output, MAXIMUM_TOOL_PREVIEW_BYTES),
+                ),
+            }
+        }
+        if read_only {
+            self.notice(
+                "Read-only session",
+                "journal corruption or incompatible data prevents new work",
+                NoticeSeverity::Error,
+            );
+        }
+        if !workspace_available {
+            self.notice(
+                "Workspace unavailable",
+                "offline inspection remains available; reopen the workspace before new work",
+                NoticeSeverity::Warning,
+            );
+        }
+        if interrupted_turns > 0 {
+            self.notice(
+                "Interrupted work",
+                &format!("{interrupted_turns} turn(s) were not replayed after restart"),
+                NoticeSeverity::Warning,
+            );
+        }
+        if !uncertain_paths.is_empty() {
+            self.notice(
+                "Uncertain local effect",
+                &format!("inspect: {}", uncertain_paths.join(", ")),
+                NoticeSeverity::Error,
+            );
+        }
+        self.activity = ActivityView::Idle;
     }
 
     pub(super) fn toggle_reasoning(&mut self) {
@@ -876,7 +971,10 @@ mod tests {
         model.apply_event(&RuntimeEvent::ToolCompleted {
             turn_id,
             tool_call_id,
+            provider_call_id: "provider-call".into(),
             name: "phase3_mutation_probe".into(),
+            effect_digest: "effect".into(),
+            mutating: true,
             output: "no local effect".into(),
             executed: false,
             status: crate::agent::types::ToolStatus::Denied,

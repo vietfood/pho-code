@@ -6,10 +6,15 @@ use tokio_util::sync::CancellationToken;
 
 use crate::agent::instructions::AgentInstructionProfile;
 use crate::agent::loop_runtime::{
-    AgentError, AgentEvent, AgentLimits, run_agent_turn_with_profile, run_no_tool_turn_with_profile,
+    AgentError, AgentEvent, AgentLimits, run_agent_turn_with_history_and_profile,
+    run_agent_turn_with_profile, run_no_tool_turn_with_profile,
 };
+use crate::agent::types::{BackendRequestId, ItemId, WorkspaceId};
 use crate::auth::api_key::CredentialActor;
 use crate::backend::{BackendError, ModelBackend, ModelEvent};
+use crate::session::OpenedSession;
+use crate::session::journal::{JournalWriter, SessionEffectRecorder};
+use crate::session::record::{RecordPayload, SessionProfile};
 use crate::tools::{
     ApprovalDecision, ApprovalPolicy, NoToolRuntime, StaticApprovalPolicy, ToolRuntime,
 };
@@ -35,6 +40,291 @@ pub struct RuntimeConfig {
     pub turn_timeout: Duration,
 }
 
+fn persist_agent_event(
+    writer: &JournalWriter,
+    effects: Option<&SessionEffectRecorder>,
+    profile: &SessionProfile,
+    turn_id: crate::agent::types::TurnId,
+    message_count: u32,
+    current_request: &mut Option<BackendRequestId>,
+    event: &AgentEvent,
+) -> Result<(), CoordinatorError> {
+    use crate::session::record;
+    let append = |payload| {
+        writer
+            .append_payload(payload)
+            .map(|_| ())
+            .map_err(|_| CoordinatorError::Persistence)
+    };
+    match event {
+        AgentEvent::BackendRequestStarting { request_id } => {
+            *current_request = Some(*request_id);
+            append(RecordPayload::BackendRequestStarted(
+                record::BackendRequestStarted {
+                    turn_id,
+                    request_id: *request_id,
+                    model: profile.model.clone(),
+                    profile: profile.clone(),
+                    message_count,
+                    extra: Default::default(),
+                },
+            ))
+        }
+        AgentEvent::Model(ModelEvent::AssistantPhaseCompleted { phase }) => {
+            append(RecordPayload::AssistantPhaseCompleted(
+                record::AssistantPhaseCompleted {
+                    turn_id,
+                    phase: phase.clone(),
+                    extra: Default::default(),
+                },
+            ))?;
+            for call in &phase.tool_calls {
+                append(RecordPayload::ToolCallCompleted(
+                    record::ToolCallCompleted {
+                        turn_id,
+                        tool_call_id: call.tool_call_id,
+                        provider_call_id: call.provider_call_id.clone(),
+                        name: call.name.clone(),
+                        arguments: call.arguments.clone(),
+                        extra: Default::default(),
+                    },
+                ))?;
+            }
+            Ok(())
+        }
+        AgentEvent::ApprovalRequested(request) => append(RecordPayload::ApprovalRequested(
+            record::ApprovalRequested {
+                turn_id,
+                approval_id: request.approval_id,
+                tool_call_id: request.tool_call_id,
+                effect_digest: request.effect_digest.clone(),
+                summary: request.summary.clone(),
+                extra: Default::default(),
+            },
+        )),
+        AgentEvent::ApprovalResolved(response) => {
+            append(RecordPayload::ApprovalResolved(record::ApprovalResolved {
+                turn_id,
+                approval_id: response.approval_id,
+                tool_call_id: response.tool_call_id,
+                effect_digest: response.effect_digest.clone(),
+                decision: format!("{:?}", response.decision).to_ascii_lowercase(),
+                extra: Default::default(),
+            }))
+        }
+        AgentEvent::ToolStarted {
+            tool_call_id,
+            name,
+            effect_digest,
+            mutating,
+        } => {
+            append(RecordPayload::ToolExecutionStarted(
+                record::ToolExecutionStarted {
+                    turn_id,
+                    tool_call_id: *tool_call_id,
+                    effect_digest: effect_digest.clone(),
+                    name: name.clone(),
+                    mutating: *mutating,
+                    extra: Default::default(),
+                },
+            ))?;
+            if *mutating {
+                effects
+                    .ok_or(CoordinatorError::Persistence)?
+                    .bind(effect_digest.clone(), turn_id, *tool_call_id)
+                    .map_err(|_| CoordinatorError::Persistence)?;
+            }
+            Ok(())
+        }
+        AgentEvent::ToolCompleted {
+            tool_call_id,
+            provider_call_id,
+            effect_digest,
+            mutating,
+            output,
+            executed,
+            status,
+            ..
+        } => {
+            if *executed {
+                use sha2::Digest as _;
+                append(RecordPayload::ToolExecutionCompleted(
+                    record::ToolExecutionCompleted {
+                        turn_id,
+                        tool_call_id: *tool_call_id,
+                        status: format!("{status:?}").to_ascii_lowercase(),
+                        effect_digest: Some(effect_digest.clone()),
+                        result_digest: Some(format!(
+                            "{:x}",
+                            sha2::Sha256::digest(output.as_bytes())
+                        )),
+                        extra: Default::default(),
+                    },
+                ))?;
+            }
+            append(RecordPayload::ToolResultCompleted(
+                record::ToolResultCompleted {
+                    turn_id,
+                    result: crate::backend::ToolResult {
+                        tool_call_id: *tool_call_id,
+                        provider_call_id: provider_call_id.clone(),
+                        output: output.clone(),
+                    },
+                    status: format!("{status:?}").to_ascii_lowercase(),
+                    artifact: None,
+                    extra: Default::default(),
+                },
+            ))?;
+            if *mutating && *executed {
+                let effects = effects.ok_or(CoordinatorError::Persistence)?;
+                if *status == crate::agent::types::ToolStatus::Uncertain {
+                    effects
+                        .finish_uncertain(effect_digest)
+                        .map_err(|_| CoordinatorError::Persistence)?;
+                } else {
+                    effects
+                        .finish(effect_digest)
+                        .map_err(|_| CoordinatorError::Persistence)?;
+                }
+            }
+            Ok(())
+        }
+        AgentEvent::UsageAccumulated { usage } => {
+            let request_id = current_request.ok_or(CoordinatorError::Persistence)?;
+            let estimate = crate::backend::profile::estimate_cost(usage).ok().flatten();
+            append(RecordPayload::UsageObserved(record::UsageObserved {
+                turn_id,
+                request_id,
+                usage: usage.clone(),
+                observed_at: "provider-terminal".into(),
+                profile: profile.clone(),
+                price_profile_revision: estimate
+                    .as_ref()
+                    .map(|_| crate::backend::profile::PRICE_OBSERVED_ON.into()),
+                currency: estimate.as_ref().map(|_| "USD".into()),
+                estimated_amount: estimate.map(|value| value.nano_usd.to_string()),
+                extra: Default::default(),
+            }))
+        }
+        AgentEvent::Model(_)
+        | AgentEvent::ToolValidated { .. }
+        | AgentEvent::ContinuationStarted { .. }
+        | AgentEvent::LimitReached { .. } => Ok(()),
+    }
+}
+
+fn retain_agent_event(state: &mut AppState, event: &AgentEvent) {
+    let Some(session) = state.session.as_mut() else {
+        return;
+    };
+    match event {
+        AgentEvent::Model(ModelEvent::AssistantPhaseCompleted { phase }) => session
+            .messages
+            .push(crate::backend::BackendMessage::Assistant(phase.clone())),
+        AgentEvent::ToolCompleted {
+            tool_call_id,
+            provider_call_id,
+            output,
+            ..
+        } => session.messages.push(crate::backend::BackendMessage::Tool(
+            crate::backend::ToolResult {
+                tool_call_id: *tool_call_id,
+                provider_call_id: provider_call_id.clone(),
+                output: output.clone(),
+            },
+        )),
+        _ => {}
+    }
+}
+
+async fn complete_durable_turn(
+    writer: &JournalWriter,
+    state: &mut AppState,
+    turn_id: crate::agent::types::TurnId,
+    result: Result<crate::agent::loop_runtime::TurnOutcome, AgentError>,
+    sink: &mut impl FnMut(RuntimeEvent),
+) -> Result<(), CoordinatorError> {
+    use crate::session::record::TurnTerminal;
+    let uncertain_paths = state
+        .session
+        .as_ref()
+        .map_or_else(Vec::new, |session| session.uncertain_paths.clone());
+    let (payload, event, result) = match result {
+        Ok(_) => (
+            RecordPayload::TurnCompleted(TurnTerminal {
+                turn_id,
+                reason: None,
+                code: None,
+                uncertain_paths: Vec::new(),
+                extra: Default::default(),
+            }),
+            RuntimeEvent::TurnCompleted { turn_id },
+            Ok(()),
+        ),
+        Err(AgentError::Backend(BackendError::Cancelled)) => (
+            RecordPayload::TurnCancelled(TurnTerminal {
+                turn_id,
+                reason: Some("cancelled".into()),
+                code: Some("cancelled".into()),
+                uncertain_paths: Vec::new(),
+                extra: Default::default(),
+            }),
+            RuntimeEvent::TurnCancelled { turn_id },
+            Err(CoordinatorError::Cancelled),
+        ),
+        Err(error @ AgentError::ToolOutcomeUncertain) => (
+            RecordPayload::TurnUncertain(TurnTerminal {
+                turn_id,
+                reason: Some("local tool outcome is uncertain".into()),
+                code: Some("tool_outcome_uncertain".into()),
+                uncertain_paths,
+                extra: Default::default(),
+            }),
+            RuntimeEvent::TurnUncertain { turn_id },
+            Err(CoordinatorError::Agent(error)),
+        ),
+        Err(
+            error @ AgentError::Backend(
+                BackendError::DeliveryUnknown
+                | BackendError::InterruptedAmbiguous
+                | BackendError::StreamEndedEarly,
+            ),
+        ) => (
+            RecordPayload::TurnInterrupted(TurnTerminal {
+                turn_id,
+                reason: Some(
+                    "backend request did not reach an authoritative terminal state".into(),
+                ),
+                code: Some(agent_error_code(&error).into()),
+                uncertain_paths: Vec::new(),
+                extra: Default::default(),
+            }),
+            RuntimeEvent::TurnInterrupted { turn_id },
+            Err(CoordinatorError::Agent(error)),
+        ),
+        Err(error) => {
+            let code = agent_error_code(&error);
+            (
+                RecordPayload::TurnFailed(TurnTerminal {
+                    turn_id,
+                    reason: Some("turn failed".into()),
+                    code: Some(code.into()),
+                    uncertain_paths: Vec::new(),
+                    extra: Default::default(),
+                }),
+                RuntimeEvent::TurnFailed { turn_id, code },
+                Err(CoordinatorError::Agent(error)),
+            )
+        }
+    };
+    writer
+        .append_payload(payload)
+        .map_err(|_| CoordinatorError::Persistence)?;
+    reduce(state, event.clone());
+    sink(event);
+    result
+}
+
 pub struct ApplicationCoordinator {
     pub state: AppState,
     credentials: Arc<CredentialActor>,
@@ -44,6 +334,10 @@ pub struct ApplicationCoordinator {
     active_cancellation: Option<CancellationToken>,
     tools: Arc<dyn ToolRuntime>,
     approvals: Arc<dyn ApprovalPolicy>,
+    journal: Option<Arc<JournalWriter>>,
+    session_effects: Option<Arc<SessionEffectRecorder>>,
+    session_profile: Option<SessionProfile>,
+    workspace_id: Option<WorkspaceId>,
 }
 
 impl ApplicationCoordinator {
@@ -85,7 +379,65 @@ impl ApplicationCoordinator {
             active_cancellation: None,
             tools,
             approvals,
+            journal: None,
+            session_effects: None,
+            session_profile: None,
+            workspace_id: None,
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new_with_durable_session(
+        credentials: Arc<CredentialActor>,
+        backend: Arc<dyn ModelBackend>,
+        tools: Arc<dyn ToolRuntime>,
+        approvals: Arc<dyn ApprovalPolicy>,
+        config: Arc<RuntimeConfig>,
+        opened: OpenedSession,
+        session_effects: Option<Arc<SessionEffectRecorder>>,
+    ) -> Result<Self, CoordinatorError> {
+        let profile = opened.projection.profile.clone().unwrap_or_default();
+        let workspace_id = opened.projection.workspace_id.unwrap_or_default();
+        let workspace_available = opened
+            .projection
+            .workspace
+            .as_ref()
+            .is_some_and(|workspace| std::path::Path::new(workspace).is_dir());
+        let profile_compatible = profile == SessionProfile::default();
+        let read_only = opened.recovery.read_only || opened.writer.is_none() || !profile_compatible;
+        let interrupted_turns = opened
+            .projection
+            .turns
+            .values()
+            .filter(|turn| {
+                matches!(
+                    turn.status,
+                    crate::agent::types::TurnStatus::Interrupted
+                        | crate::agent::types::TurnStatus::Uncertain
+                )
+            })
+            .map(|turn| turn.turn_id)
+            .collect();
+        let session_id = opened.session_id;
+        let messages = opened.projection.messages.clone();
+        let uncertain_paths = opened.projection.uncertain_paths.clone();
+        let writer = profile_compatible.then_some(opened.writer).flatten();
+        let mut application =
+            Self::new_with_services(credentials, backend, tools, approvals, config).await;
+        let loaded = RuntimeEvent::SessionLoaded {
+            session_id,
+            messages,
+            read_only,
+            workspace_available,
+            interrupted_turns,
+            uncertain_paths,
+        };
+        reduce(&mut application.state, loaded);
+        application.journal = writer;
+        application.session_effects = session_effects;
+        application.session_profile = Some(profile);
+        application.workspace_id = Some(workspace_id);
+        Ok(application)
     }
 
     pub async fn dispatch(
@@ -137,6 +489,14 @@ impl ApplicationCoordinator {
                 };
                 cancellation.cancel();
                 Ok(())
+            }
+            Effect::StartDurableTurn {
+                session_id,
+                turn_id,
+                text,
+            } => {
+                self.run_durable_turn(session_id, turn_id, text, external_cancellation, sink)
+                    .await
             }
             Effect::StartEphemeralTurn { turn_id, text } => {
                 let event = RuntimeEvent::TurnPrepared { turn_id };
@@ -261,6 +621,158 @@ impl ApplicationCoordinator {
             }
         }
     }
+
+    async fn run_durable_turn(
+        &mut self,
+        session_id: crate::agent::types::SessionId,
+        turn_id: crate::agent::types::TurnId,
+        text: String,
+        external_cancellation: CancellationToken,
+        mut sink: impl FnMut(RuntimeEvent),
+    ) -> Result<(), CoordinatorError> {
+        let writer = self.journal.clone().ok_or(CoordinatorError::Session)?;
+        let profile = self
+            .session_profile
+            .clone()
+            .ok_or(CoordinatorError::Session)?;
+        let workspace_id = self.workspace_id.ok_or(CoordinatorError::Session)?;
+        let session = self
+            .state
+            .session
+            .as_mut()
+            .filter(|session| session.id == session_id)
+            .ok_or(CoordinatorError::Session)?;
+        let item_id = ItemId::new();
+        writer
+            .append_payload(RecordPayload::TurnStarted(
+                crate::session::record::TurnStarted {
+                    turn_id,
+                    item_id,
+                    workspace_id,
+                    extra: Default::default(),
+                },
+            ))
+            .and_then(|_| {
+                writer.append_payload(RecordPayload::UserMessageCompleted(
+                    crate::session::record::UserMessageCompleted {
+                        turn_id,
+                        item_id,
+                        text: text.clone(),
+                        extra: Default::default(),
+                    },
+                ))
+            })
+            .map_err(|_| CoordinatorError::Persistence)?;
+        session.messages.push(crate::backend::BackendMessage::User(
+            crate::backend::UserMessage {
+                item_id,
+                text: text.clone(),
+            },
+        ));
+        let history = session.messages.clone();
+        let event = RuntimeEvent::TurnPrepared { turn_id };
+        reduce(&mut self.state, event.clone());
+        sink(event);
+        let queue_limit = if self.config.backend_event_queue == 0 {
+            Some(crate::agent::loop_runtime::LimitKind::BackendEventQueue)
+        } else if self.config.canonical_event_queue == 0 {
+            Some(crate::agent::loop_runtime::LimitKind::CanonicalEventQueue)
+        } else if self.config.ui_event_queue == 0 {
+            Some(crate::agent::loop_runtime::LimitKind::PresentationEventQueue)
+        } else {
+            None
+        };
+        if let Some(limit) = queue_limit {
+            let terminal = crate::session::record::TurnTerminal {
+                turn_id,
+                reason: Some("runtime queue capacity is zero".into()),
+                code: Some("limit_reached".into()),
+                uncertain_paths: Vec::new(),
+                extra: Default::default(),
+            };
+            writer
+                .append_payload(RecordPayload::TurnFailed(terminal))
+                .map_err(|_| CoordinatorError::Persistence)?;
+            let event = RuntimeEvent::LimitReached { turn_id, limit };
+            reduce(&mut self.state, event.clone());
+            sink(event);
+            let event = RuntimeEvent::TurnFailed {
+                turn_id,
+                code: "limit_reached",
+            };
+            reduce(&mut self.state, event.clone());
+            sink(event);
+            return Err(CoordinatorError::Agent(AgentError::Limit(limit)));
+        }
+        let cancellation = external_cancellation.child_token();
+        self.active_cancellation = Some(cancellation.clone());
+        let backend = self.backend.clone();
+        let tools = self.tools.clone();
+        let approvals = self.approvals.clone();
+        let config = self.config.clone();
+        let instruction_profile = self.instruction_profile.clone();
+        let effects = self.session_effects.clone();
+        let state = &mut self.state;
+        let mut current_request = None;
+        let mut persistence_failed = false;
+        let result = run_agent_turn_with_history_and_profile(
+            backend,
+            tools,
+            approvals,
+            turn_id,
+            history,
+            instruction_profile,
+            cancellation.clone(),
+            config.backend_event_queue,
+            AgentLimits {
+                maximum_context_bytes: config.maximum_context_bytes,
+                maximum_context_messages: config.maximum_context_messages,
+                maximum_model_continuations: config.maximum_model_continuations,
+                maximum_tool_calls: config.maximum_tool_calls,
+                maximum_tool_argument_bytes: config.maximum_tool_argument_bytes,
+                maximum_tool_result_bytes: config.maximum_tool_result_bytes,
+                maximum_pending_approvals: config.maximum_pending_approvals,
+                turn_timeout: config.turn_timeout,
+            },
+            |agent_event| {
+                if persist_agent_event(
+                    &writer,
+                    effects.as_deref(),
+                    &profile,
+                    turn_id,
+                    u32::try_from(
+                        state
+                            .session
+                            .as_ref()
+                            .map_or(0, |session| session.messages.len()),
+                    )
+                    .unwrap_or(u32::MAX),
+                    &mut current_request,
+                    agent_event,
+                )
+                .is_err()
+                {
+                    persistence_failed = true;
+                    cancellation.cancel();
+                    return;
+                }
+                retain_agent_event(state, agent_event);
+                if let Some(event) = project_agent_event(turn_id, agent_event) {
+                    reduce(state, event.clone());
+                    sink(event);
+                }
+            },
+        )
+        .await;
+        self.active_cancellation = None;
+        if persistence_failed {
+            let event = RuntimeEvent::TurnInterrupted { turn_id };
+            reduce(&mut self.state, event.clone());
+            sink(event);
+            return Err(CoordinatorError::Persistence);
+        }
+        complete_durable_turn(&writer, &mut self.state, turn_id, result, &mut sink).await
+    }
 }
 
 fn project_agent_event(
@@ -268,6 +780,7 @@ fn project_agent_event(
     event: &AgentEvent,
 ) -> Option<RuntimeEvent> {
     match event {
+        AgentEvent::BackendRequestStarting { .. } => None,
         AgentEvent::Model(event) => project_model_event(turn_id, event),
         AgentEvent::ToolValidated {
             tool_call_id,
@@ -293,21 +806,34 @@ fn project_agent_event(
             effect_digest: response.effect_digest.clone(),
             decision: response.decision,
         }),
-        AgentEvent::ToolStarted { tool_call_id, name } => Some(RuntimeEvent::ToolStarted {
+        AgentEvent::ToolStarted {
+            tool_call_id,
+            name,
+            effect_digest,
+            mutating,
+        } => Some(RuntimeEvent::ToolStarted {
             turn_id,
             tool_call_id: *tool_call_id,
             name: name.clone(),
+            effect_digest: effect_digest.clone(),
+            mutating: *mutating,
         }),
         AgentEvent::ToolCompleted {
             tool_call_id,
+            provider_call_id,
             name,
+            effect_digest,
+            mutating,
             output,
             executed,
             status,
         } => Some(RuntimeEvent::ToolCompleted {
             turn_id,
             tool_call_id: *tool_call_id,
+            provider_call_id: provider_call_id.clone(),
             name: name.clone(),
+            effect_digest: effect_digest.clone(),
+            mutating: *mutating,
             output: output.clone(),
             executed: *executed,
             status: *status,
@@ -404,6 +930,10 @@ pub enum CoordinatorError {
     Credential,
     #[error("model operation was cancelled")]
     Cancelled,
+    #[error("durable session is unavailable")]
+    Session,
+    #[error("session persistence failed")]
+    Persistence,
     #[error(transparent)]
     Backend(BackendError),
     #[error(transparent)]

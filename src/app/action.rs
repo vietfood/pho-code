@@ -1,5 +1,5 @@
 use crate::agent::loop_runtime::LimitKind;
-use crate::agent::types::{ApprovalId, ToolCallId, ToolStatus, TurnId};
+use crate::agent::types::{ApprovalId, SessionId, ToolCallId, ToolStatus, TurnId};
 use crate::auth::{CredentialState, SecretText};
 use crate::backend::{AssistantPhase, Usage};
 use crate::tools::ApprovalDecision;
@@ -9,6 +9,7 @@ pub enum Intent {
     InspectCredentialStatus,
     RemoveCredential,
     SendEphemeralPrompt { text: String },
+    SendPrompt { session_id: SessionId, text: String },
     CancelTurn { turn_id: TurnId },
 }
 
@@ -20,6 +21,11 @@ impl std::fmt::Debug for Intent {
             Self::RemoveCredential => formatter.write_str("RemoveCredential"),
             Self::SendEphemeralPrompt { text } => formatter
                 .debug_struct("SendEphemeralPrompt")
+                .field("text_bytes", &text.len())
+                .finish(),
+            Self::SendPrompt { session_id, text } => formatter
+                .debug_struct("SendPrompt")
+                .field("session_id", session_id)
                 .field("text_bytes", &text.len())
                 .finish(),
             Self::CancelTurn { turn_id } => formatter
@@ -37,6 +43,14 @@ pub enum RuntimeEvent {
     },
     CredentialChanged {
         state: CredentialState,
+    },
+    SessionLoaded {
+        session_id: SessionId,
+        messages: Vec<crate::backend::BackendMessage>,
+        read_only: bool,
+        workspace_available: bool,
+        interrupted_turns: Vec<TurnId>,
+        uncertain_paths: Vec<String>,
     },
     TurnPrepared {
         turn_id: TurnId,
@@ -81,11 +95,16 @@ pub enum RuntimeEvent {
         turn_id: TurnId,
         tool_call_id: ToolCallId,
         name: String,
+        effect_digest: String,
+        mutating: bool,
     },
     ToolCompleted {
         turn_id: TurnId,
         tool_call_id: ToolCallId,
+        provider_call_id: String,
         name: String,
+        effect_digest: String,
+        mutating: bool,
         output: String,
         executed: bool,
         status: ToolStatus,
@@ -112,6 +131,9 @@ pub enum RuntimeEvent {
     TurnCancelled {
         turn_id: TurnId,
     },
+    TurnInterrupted {
+        turn_id: TurnId,
+    },
     TurnUncertain {
         turn_id: TurnId,
     },
@@ -122,6 +144,7 @@ impl std::fmt::Debug for RuntimeEvent {
         formatter.write_str(match self {
             Self::StartupReady { .. } => "StartupReady",
             Self::CredentialChanged { .. } => "CredentialChanged",
+            Self::SessionLoaded { .. } => "SessionLoaded([REDACTED])",
             Self::TurnPrepared { .. } => "TurnPrepared",
             Self::ModelStreamStarted { .. } => "ModelStreamStarted",
             Self::ReasoningDelta { .. } => "ReasoningDelta([REDACTED])",
@@ -138,6 +161,7 @@ impl std::fmt::Debug for RuntimeEvent {
             Self::TurnCompleted { .. } => "TurnCompleted",
             Self::TurnFailed { .. } => "TurnFailed",
             Self::TurnCancelled { .. } => "TurnCancelled",
+            Self::TurnInterrupted { .. } => "TurnInterrupted",
             Self::TurnUncertain { .. } => "TurnUncertain",
         })
     }

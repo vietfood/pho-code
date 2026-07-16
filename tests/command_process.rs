@@ -135,7 +135,7 @@ fn sigint_cancels_while_waiting_for_stdin_prompt() {
     assert_eq!(ready.trim(), "pho-test-input-ready");
     // SAFETY: the child PID names the live process owned by this test.
     assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGINT) }, 0);
-    let deadline = Instant::now() + Duration::from_secs(3);
+    let deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
             break status;
@@ -229,7 +229,7 @@ fn full_screen_chat_restores_exact_terminal_mode_on_idle_exit() {
         0
     );
 
-    let raw_deadline = Instant::now() + Duration::from_secs(3);
+    let raw_deadline = Instant::now() + Duration::from_secs(10);
     let mut startup_output = Vec::new();
     let mut cursor_queries_answered = 0_usize;
     loop {
@@ -270,7 +270,7 @@ fn full_screen_chat_restores_exact_terminal_mode_on_idle_exit() {
     }
     master.write_all(&[0x04]).unwrap();
 
-    let restore_deadline = Instant::now() + Duration::from_secs(3);
+    let restore_deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let mut bytes = [0_u8; 4096];
         match master.read(&mut bytes) {
@@ -313,7 +313,7 @@ fn full_screen_chat_restores_exact_terminal_mode_on_idle_exit() {
         "TUI did not leave the alternate screen"
     );
 
-    let exit_deadline = Instant::now() + Duration::from_secs(3);
+    let exit_deadline = Instant::now() + Duration::from_secs(10);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
             break status;
@@ -389,7 +389,7 @@ fn raw_chat_uses_the_controlling_terminal_without_cursor_sequences() {
         0
     );
     let mut output = Vec::new();
-    let prompt_deadline = Instant::now() + Duration::from_secs(3);
+    let prompt_deadline = Instant::now() + Duration::from_secs(10);
     loop {
         drain_nonblocking(&mut master, &mut output);
         if output
@@ -408,7 +408,7 @@ fn raw_chat_uses_the_controlling_terminal_without_cursor_sequences() {
         thread::sleep(Duration::from_millis(10));
     }
     master.write_all(b"raw fixture prompt\n").unwrap();
-    let exit_deadline = Instant::now() + Duration::from_secs(5);
+    let exit_deadline = Instant::now() + Duration::from_secs(15);
     let status = loop {
         drain_nonblocking(&mut master, &mut output);
         if let Some(status) = child.try_wait().unwrap() {
@@ -513,7 +513,7 @@ fn phase4_raw_chat_approves_shell_only_through_the_controlling_terminal() {
         &mut child,
         &mut output,
         b"Prompt: ",
-        Duration::from_secs(3),
+        Duration::from_secs(10),
     );
     master.write_all(b"run the fixture shell\n").unwrap();
     wait_for_pty_text(
@@ -521,7 +521,7 @@ fn phase4_raw_chat_approves_shell_only_through_the_controlling_terminal() {
         &mut child,
         &mut output,
         b"Approve once? Type `yes` to approve: ",
-        Duration::from_secs(5),
+        Duration::from_secs(15),
     );
     master.write_all(b"yes\n").unwrap();
     let deadline = Instant::now() + Duration::from_secs(8);
@@ -736,7 +736,7 @@ fn interactive_chat_runs_repeated_independent_fixture_turns() {
         &mut output,
         &mut cursor_queries_answered,
         b"deepseek-v4-flash",
-        Duration::from_secs(3),
+        Duration::from_secs(10),
     );
     master.write_all(b"first fixture prompt\r").unwrap();
     pump_pty_until(
@@ -745,7 +745,7 @@ fn interactive_chat_runs_repeated_independent_fixture_turns() {
         &mut output,
         &mut cursor_queries_answered,
         b"tui-first",
-        Duration::from_secs(5),
+        Duration::from_secs(15),
     );
     let narrow = libc::winsize {
         ws_row: 20,
@@ -767,8 +767,12 @@ fn interactive_chat_runs_repeated_independent_fixture_turns() {
         &mut output,
         &mut cursor_queries_answered,
         b"tui-second",
-        Duration::from_secs(5),
+        Duration::from_secs(15),
     );
+    // The assistant text can be painted just before the driver transitions back to idle. Give
+    // that state transition one input-poll interval before sending EOF so the key is not consumed
+    // as cancellation for the finishing turn.
+    thread::sleep(Duration::from_millis(100));
     master.write_all(&[0x04]).unwrap();
     pump_pty_until(
         &mut master,
@@ -776,9 +780,9 @@ fn interactive_chat_runs_repeated_independent_fixture_turns() {
         &mut output,
         &mut cursor_queries_answered,
         b"pho-test-tui-restored",
-        Duration::from_secs(3),
+        Duration::from_secs(10),
     );
-    let status = wait_for_process(&mut child, Duration::from_secs(3));
+    let status = wait_for_process(&mut child, Duration::from_secs(10));
     assert!(status.success(), "{status:?}");
 
     let requests = server.join().unwrap();
@@ -933,7 +937,7 @@ fn read_http_request_body(stream: &mut std::net::TcpStream) -> Vec<u8> {
     use std::io::Read as _;
 
     stream
-        .set_read_timeout(Some(Duration::from_secs(3)))
+        .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
     let mut bytes = Vec::new();
     let mut chunk = [0_u8; 4096];

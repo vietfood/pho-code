@@ -2,15 +2,29 @@ use crate::agent::types::{ApprovalStatus, ToolStatus, TurnId, TurnStatus};
 use crate::auth::CredentialState;
 
 use super::action::{Intent, RuntimeEvent};
-use super::state::{ActiveTurn, AppState, ApprovalProjection, StartupState, ToolProjection};
+use super::state::{
+    ActiveTurn, AppState, ApprovalProjection, SessionProjection, StartupState, ToolProjection,
+};
 
 #[derive(Debug)]
 pub enum Effect {
-    InstallCredential { candidate: crate::auth::SecretText },
+    InstallCredential {
+        candidate: crate::auth::SecretText,
+    },
     InspectCredentialStatus,
     RemoveCredential,
-    StartEphemeralTurn { turn_id: TurnId, text: String },
-    CancelTurn { turn_id: TurnId },
+    StartEphemeralTurn {
+        turn_id: TurnId,
+        text: String,
+    },
+    StartDurableTurn {
+        session_id: crate::agent::types::SessionId,
+        turn_id: TurnId,
+        text: String,
+    },
+    CancelTurn {
+        turn_id: TurnId,
+    },
 }
 
 pub fn reduce_intent(state: &mut AppState, intent: Intent) -> Option<Effect> {
@@ -51,6 +65,30 @@ pub fn reduce_intent(state: &mut AppState, intent: Intent) -> Option<Effect> {
                 })
             }
         }
+        Intent::SendPrompt { session_id, text } => {
+            let session_ready = state.session.as_ref().is_some_and(|session| {
+                session.id == session_id && !session.read_only && session.workspace_available
+            });
+            if state.startup != StartupState::Ready
+                || state.credentials != CredentialState::Ready
+                || !session_ready
+                || state
+                    .active_turn
+                    .as_ref()
+                    .is_some_and(|turn| !turn.status.is_terminal())
+                || text.is_empty()
+                || text.len() > 256 * 1024
+            {
+                state.diagnose("send_prompt_rejected");
+                None
+            } else {
+                Some(Effect::StartDurableTurn {
+                    session_id,
+                    turn_id: TurnId::new(),
+                    text,
+                })
+            }
+        }
         Intent::CancelTurn { turn_id } => {
             let accepted = state
                 .active_turn
@@ -73,6 +111,23 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
             state.credentials = credentials;
         }
         RuntimeEvent::CredentialChanged { state: credentials } => state.credentials = credentials,
+        RuntimeEvent::SessionLoaded {
+            session_id,
+            messages,
+            read_only,
+            workspace_available,
+            interrupted_turns,
+            uncertain_paths,
+        } => {
+            state.session = Some(SessionProjection {
+                id: session_id,
+                messages,
+                read_only,
+                workspace_available,
+                interrupted_turns,
+                uncertain_paths,
+            });
+        }
         RuntimeEvent::TurnPrepared { turn_id } => {
             if state
                 .active_turn
@@ -235,6 +290,9 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
         }
         RuntimeEvent::TurnCancelled { turn_id } => {
             terminal(state, turn_id, TurnStatus::Cancelled);
+        }
+        RuntimeEvent::TurnInterrupted { turn_id } => {
+            terminal(state, turn_id, TurnStatus::Interrupted);
         }
         RuntimeEvent::TurnUncertain { turn_id } => {
             terminal(state, turn_id, TurnStatus::Uncertain);

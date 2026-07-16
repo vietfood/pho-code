@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::agent::types::{ApprovalId, ApprovalStatus, ToolCallId, ToolStatus, TurnId, TurnStatus};
+use crate::agent::types::{
+    ApprovalId, ApprovalStatus, SessionId, ToolCallId, ToolStatus, TurnId, TurnStatus,
+};
 use crate::auth::CredentialState;
 use crate::backend::{AssistantPhase, Usage};
 
@@ -58,9 +60,34 @@ pub struct ApprovalProjection {
 }
 
 #[derive(Clone)]
+pub struct SessionProjection {
+    pub id: SessionId,
+    pub messages: Vec<crate::backend::BackendMessage>,
+    pub read_only: bool,
+    pub workspace_available: bool,
+    pub interrupted_turns: Vec<TurnId>,
+    pub uncertain_paths: Vec<String>,
+}
+
+impl std::fmt::Debug for SessionProjection {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SessionProjection")
+            .field("id", &self.id)
+            .field("messages", &self.messages.len())
+            .field("read_only", &self.read_only)
+            .field("workspace_available", &self.workspace_available)
+            .field("interrupted_turns", &self.interrupted_turns)
+            .field("uncertain_paths", &self.uncertain_paths)
+            .finish()
+    }
+}
+
+#[derive(Clone)]
 pub struct AppState {
     pub startup: StartupState,
     pub credentials: CredentialState,
+    pub session: Option<SessionProjection>,
     pub active_turn: Option<ActiveTurn>,
     pub diagnostics: VecDeque<&'static str>,
     maximum_diagnostics: usize,
@@ -72,6 +99,7 @@ impl std::fmt::Debug for AppState {
             .debug_struct("AppState")
             .field("startup", &self.startup)
             .field("credentials", &self.credentials)
+            .field("session", &self.session)
             .field("active_turn", &self.active_turn)
             .field("diagnostics", &self.diagnostics)
             .finish()
@@ -83,6 +111,7 @@ impl AppState {
         Self {
             startup: StartupState::Starting,
             credentials: CredentialState::Missing,
+            session: None,
             active_turn: None,
             diagnostics: VecDeque::new(),
             maximum_diagnostics,
@@ -90,6 +119,9 @@ impl AppState {
     }
 
     pub(crate) fn diagnose(&mut self, code: &'static str) {
+        if self.maximum_diagnostics == 0 {
+            return;
+        }
         if self.diagnostics.len() == self.maximum_diagnostics {
             self.diagnostics.pop_front();
         }

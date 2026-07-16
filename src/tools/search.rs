@@ -27,6 +27,8 @@ pub const SCAN_WAIT: Duration = Duration::from_secs(2);
 pub const SEARCH_TIME_BUDGET_MS: u64 = 2_000;
 pub const MAXIMUM_SNIPPET_BYTES: usize = 512;
 pub const MAXIMUM_SERIALIZED_RESULT_BYTES: usize = 48 * 1024;
+const WATCHER_STARTUP_ATTEMPTS: usize = 11;
+const WATCHER_STARTUP_RETRY_DELAY: Duration = Duration::from_millis(500);
 
 static GENERATION: AtomicU64 = AtomicU64::new(1);
 
@@ -411,25 +413,39 @@ impl SafeRescanWatcher {
         let callback_limit = Arc::clone(&limit_exceeded);
         let frecency = SharedFrecency::default();
         let root = workspace.root().to_path_buf();
-        let mut watcher =
-            notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-                if event.is_err() {
-                    callback_health.store(false, Ordering::Release);
-                    return;
-                }
-                schedule_safe_rescan(
-                    &picker,
-                    &frecency,
-                    &workspace,
-                    MAXIMUM_INDEXED_PATHS,
-                    &callback_health,
-                    &callback_limit,
-                );
-            })
-            .map_err(|_| SearchError::WatcherStartupFailed)?;
-        watcher
-            .watch(&root, RecursiveMode::Recursive)
-            .map_err(|_| SearchError::WatcherStartupFailed)?;
+        let mut watcher = None;
+        for attempt in 0..WATCHER_STARTUP_ATTEMPTS {
+            let callback_picker = picker.clone();
+            let callback_frecency = frecency.clone();
+            let callback_workspace = workspace.clone();
+            let callback_health = Arc::clone(&callback_health);
+            let callback_limit = Arc::clone(&callback_limit);
+            let candidate =
+                notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+                    if event.is_err() {
+                        callback_health.store(false, Ordering::Release);
+                        return;
+                    }
+                    schedule_safe_rescan(
+                        &callback_picker,
+                        &callback_frecency,
+                        &callback_workspace,
+                        MAXIMUM_INDEXED_PATHS,
+                        &callback_health,
+                        &callback_limit,
+                    );
+                });
+            if let Ok(mut candidate) = candidate
+                && candidate.watch(&root, RecursiveMode::Recursive).is_ok()
+            {
+                watcher = Some(candidate);
+                break;
+            }
+            if attempt + 1 < WATCHER_STARTUP_ATTEMPTS {
+                std::thread::sleep(WATCHER_STARTUP_RETRY_DELAY);
+            }
+        }
+        let watcher = watcher.ok_or(SearchError::WatcherStartupFailed)?;
         Ok(Self {
             healthy,
             limit_exceeded,
@@ -762,7 +778,20 @@ pub enum SearchError {
 mod tests {
     use super::*;
 
-    fn service() -> (tempfile::TempDir, WorkspaceSearch) {
+    static WATCHER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn watcher_guard() -> std::sync::MutexGuard<'static, ()> {
+        WATCHER_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn service() -> (
+        std::sync::MutexGuard<'static, ()>,
+        tempfile::TempDir,
+        WorkspaceSearch,
+    ) {
+        let guard = watcher_guard();
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir(root.path().join("src")).unwrap();
         std::fs::write(
@@ -774,12 +803,12 @@ mod tests {
         let workspace = Workspace::open(root.path()).unwrap();
         let search = WorkspaceSearch::start(workspace).unwrap();
         assert!(search.picker.wait_for_scan(Duration::from_secs(10)));
-        (root, search)
+        (guard, root, search)
     }
 
     #[test]
     fn fuzzy_file_and_literal_text_search_are_bounded() {
-        let (_root, search) = service();
+        let (_guard, _root, search) = service();
         let files = search
             .search_files(&FileSearchRequest {
                 query: "main".into(),
@@ -808,6 +837,7 @@ mod tests {
 
     #[test]
     fn initial_outside_symlink_is_not_indexed_or_read() {
+        let _guard = watcher_guard();
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::fs::write(outside.path().join("secret.txt"), "outside-marker\n").unwrap();
@@ -834,7 +864,7 @@ mod tests {
 
     #[test]
     fn stale_generation_cursor_is_rejected() {
-        let (_root, search) = service();
+        let (_guard, _root, search) = service();
         assert_eq!(
             parse_cursor(
                 search.generation() + 1,
@@ -853,6 +883,7 @@ mod tests {
 
     #[test]
     fn text_cursor_resumes_within_the_same_file_without_skipping_matches() {
+        let _guard = watcher_guard();
         let root = tempfile::tempdir().unwrap();
         std::fs::write(
             root.path().join("many.txt"),
@@ -896,7 +927,7 @@ mod tests {
 
     #[test]
     fn safe_rescan_observes_changes_without_indexing_outside_symlinks() {
-        let (root, search) = service();
+        let (_guard, root, search) = service();
         std::fs::write(root.path().join("added.rs"), "added_marker\n").unwrap();
         wait_for_path(&search, "added", "added.rs", true);
 
@@ -947,7 +978,7 @@ mod tests {
 
     #[test]
     fn watcher_failure_transitions_search_to_stale() {
-        let (_root, search) = service();
+        let (_guard, _root, search) = service();
         search.watcher.mark_stale();
         assert_eq!(search.state(), SearchState::Stale);
         assert_eq!(
@@ -963,7 +994,7 @@ mod tests {
 
     #[test]
     fn dirty_rescan_preflight_marks_limit_without_scheduling() {
-        let (_root, search) = service();
+        let (_guard, _root, search) = service();
         let healthy = AtomicBool::new(true);
         let limit_exceeded = AtomicBool::new(false);
         schedule_safe_rescan(
@@ -980,6 +1011,7 @@ mod tests {
 
     #[test]
     fn root_path_replacement_makes_search_stale() {
+        let _guard = watcher_guard();
         let parent = tempfile::tempdir().unwrap();
         let root = parent.path().join("workspace");
         std::fs::create_dir(&root).unwrap();
@@ -1004,6 +1036,7 @@ mod tests {
 
     #[test]
     fn regex_fuzzy_ignore_binary_large_and_pagination_are_observable() {
+        let _guard = watcher_guard();
         let root = tempfile::tempdir().unwrap();
         std::fs::write(root.path().join(".gitignore"), "ignored.txt\n").unwrap();
         std::fs::write(root.path().join("ignored.txt"), "needle ignored\n").unwrap();
@@ -1073,6 +1106,7 @@ mod tests {
     #[test]
     #[ignore = "qualification measurement; run explicitly on supported macOS"]
     fn qualification_reports_repo_scan_metrics() {
+        let _guard = watcher_guard();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
         let workspace = Workspace::open(root).unwrap();
         enforce_index_limit(root).unwrap();

@@ -1,7 +1,7 @@
 # Session, artifact, and recovery architecture
 
 - Status: Normative V1 design
-- Last updated: 2026-07-14
+- Last updated: 2026-07-17
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System context: [Native harness system](native-harness-system.md)
 - Implementation phase: [Phase 5](../implementation/v1/phase-5-sessions.md)
@@ -158,6 +158,8 @@ V1 sends full retained history. Before a request it estimates whether the comple
 - Record, payload, line, artifact, session, and diagnostic sizes have named limits.
 - Flush and artifact work run off the render path.
 - Only one active root turn/tool in V1 can create effect-boundary records, but the store still rejects duplicate terminal records by identity.
+
+The selected V1 command profile permits at most 1,000,000 records and 256 MiB of journal bytes per session, 512 KiB per record payload, 1 MiB per encoded line, and 16 KiB per diagnostic. Production artifacts are limited to 2 MiB each, 64 MiB per session, and 1 GiB globally. Session listing returns at most 1,024 opaque IDs. Model context is limited to 4,096 messages and 8 MiB, with `NearLimit` beginning at 90 percent of either bound. Journal and artifact directories use mode `0700`; committed, temporary, replacement, and recovery files use mode `0600` on the supported Unix host.
 
 ## Failure behavior
 

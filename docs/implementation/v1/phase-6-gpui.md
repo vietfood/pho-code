@@ -1,6 +1,6 @@
 # Phase 6: Native GPUI personal V1
 
-- Status: Planned
+- Status: Ready
 - Depends on: [Phase 5](phase-5-sessions.md)
 - Produces: Usable macOS V1
 - Future: [V2 roadmap](../v2/README.md)

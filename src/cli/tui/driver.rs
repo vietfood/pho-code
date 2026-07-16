@@ -30,6 +30,16 @@ pub(crate) async fn run(mut application: ApplicationCoordinator) -> Result<(), T
     let mut terminal = TerminalSession::enter().map_err(classify_terminal_error)?;
     let mut events = EventStream::new();
     let mut model = TerminalViewModel::new();
+    if let Some(session) = &application.state.session {
+        model.apply_event(&crate::app::action::RuntimeEvent::SessionLoaded {
+            session_id: session.id,
+            messages: session.messages.clone(),
+            read_only: session.read_only,
+            workspace_available: session.workspace_available,
+            interrupted_turns: session.interrupted_turns.clone(),
+            uncertain_paths: session.uncertain_paths.clone(),
+        });
+    }
     terminal.draw(&model).map_err(|_| TuiError::Cancelled)?;
 
     let mut interrupts = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
@@ -118,14 +128,18 @@ async fn run_turn(
     let cancellation = CancellationToken::new();
     let view = RefCell::new(model);
     let dirty = Cell::new(false);
-    let dispatch = application.dispatch_cancellable(
-        Intent::SendEphemeralPrompt { text: prompt },
-        cancellation.clone(),
-        |event| {
-            view.borrow_mut().apply_event(&event);
-            dirty.set(true);
-        },
-    );
+    let intent = if let Some(session) = application.state.session.as_ref() {
+        Intent::SendPrompt {
+            session_id: session.id,
+            text: prompt,
+        }
+    } else {
+        Intent::SendEphemeralPrompt { text: prompt }
+    };
+    let dispatch = application.dispatch_cancellable(intent, cancellation.clone(), |event| {
+        view.borrow_mut().apply_event(&event);
+        dirty.set(true);
+    });
     tokio::pin!(dispatch);
     let mut redraw = tokio::time::interval(REDRAW_INTERVAL);
     redraw.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

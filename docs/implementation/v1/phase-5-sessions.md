@@ -1,6 +1,6 @@
 # Phase 5: Sessions and recovery
 
-- Status: Planned
+- Status: **PASS — 2026-07-17** ([evidence](../evidence/phase-5-2026-07-17.md))
 - Depends on: [Phase 4](phase-4-tools.md)
 - Produces: Versioned JSONL, persistent artifacts, reconstruction, honest crash recovery, safe tool enablement, and stable pre-GPUI `pho` release
 - Next: [Phase 6](phase-6-gpui.md)

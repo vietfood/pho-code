@@ -150,6 +150,57 @@ impl Renderer {
 
     pub fn render(&mut self, event: &RuntimeEvent) -> io::Result<()> {
         match event {
+            RuntimeEvent::SessionLoaded {
+                session_id,
+                messages,
+                read_only,
+                workspace_available,
+                interrupted_turns,
+                uncertain_paths,
+            } => {
+                writeln!(self.stderr, "session: {session_id}")?;
+                for message in messages {
+                    match message {
+                        crate::backend::BackendMessage::User(message) => {
+                            writeln!(self.stdout, "user: {}", message.text)?;
+                        }
+                        crate::backend::BackendMessage::Assistant(phase) => {
+                            if let Some(reasoning) = &phase.reasoning {
+                                writeln!(
+                                    self.stderr,
+                                    "reasoning (provider-returned): {reasoning}"
+                                )?;
+                            }
+                            if let Some(text) = &phase.text {
+                                writeln!(self.stdout, "assistant: {text}")?;
+                            }
+                        }
+                        crate::backend::BackendMessage::Tool(result) => {
+                            writeln!(self.stderr, "tool result: {}", result.output)?;
+                        }
+                    }
+                }
+                if *read_only {
+                    writeln!(self.stderr, "session is read-only")?;
+                }
+                if !workspace_available {
+                    writeln!(self.stderr, "session workspace is unavailable")?;
+                }
+                if !interrupted_turns.is_empty() {
+                    writeln!(
+                        self.stderr,
+                        "interrupted turns: {}",
+                        interrupted_turns.len()
+                    )?;
+                }
+                if !uncertain_paths.is_empty() {
+                    writeln!(self.stderr, "uncertain workspace paths:")?;
+                    for path in uncertain_paths {
+                        writeln!(self.stderr, "  {path}")?;
+                    }
+                }
+                Ok(())
+            }
             RuntimeEvent::CredentialChanged { state } => {
                 writeln!(self.stderr, "credential: {state:?}")
             }
@@ -226,6 +277,10 @@ impl Renderer {
             RuntimeEvent::TurnCancelled { .. } => {
                 self.finish_reasoning_line()?;
                 writeln!(self.stderr, "turn cancelled")
+            }
+            RuntimeEvent::TurnInterrupted { .. } => {
+                self.finish_reasoning_line()?;
+                writeln!(self.stderr, "turn interrupted; no work was replayed")
             }
             RuntimeEvent::TurnUncertain { .. } => {
                 self.finish_reasoning_line()?;

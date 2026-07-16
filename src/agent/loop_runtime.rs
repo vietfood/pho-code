@@ -54,6 +54,9 @@ pub struct AgentLimits {
 
 #[derive(Clone)]
 pub enum AgentEvent {
+    BackendRequestStarting {
+        request_id: BackendRequestId,
+    },
     Model(ModelEvent),
     ToolValidated {
         tool_call_id: ToolCallId,
@@ -65,10 +68,15 @@ pub enum AgentEvent {
     ToolStarted {
         tool_call_id: ToolCallId,
         name: String,
+        effect_digest: String,
+        mutating: bool,
     },
     ToolCompleted {
         tool_call_id: ToolCallId,
+        provider_call_id: String,
         name: String,
+        effect_digest: String,
+        mutating: bool,
         output: String,
         executed: bool,
         status: ToolStatus,
@@ -87,6 +95,7 @@ pub enum AgentEvent {
 impl std::fmt::Debug for AgentEvent {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(match self {
+            Self::BackendRequestStarting { .. } => "BackendRequestStarting",
             Self::Model(_) => "Model([REDACTED])",
             Self::ToolValidated { .. } => "ToolValidated",
             Self::ApprovalRequested(_) => "ApprovalRequested",
@@ -142,14 +151,33 @@ pub async fn run_no_tool_turn_with_profile(
     event_queue: usize,
     on_event: impl FnMut(&ModelEvent),
 ) -> Result<TurnOutcome, BackendError> {
+    run_no_tool_turn_with_history_and_profile(
+        backend,
+        vec![BackendMessage::User(UserMessage {
+            item_id: ItemId::new(),
+            text: prompt,
+        })],
+        instruction_profile,
+        cancellation,
+        event_queue,
+        on_event,
+    )
+    .await
+}
+
+pub async fn run_no_tool_turn_with_history_and_profile(
+    backend: Arc<dyn ModelBackend>,
+    messages: Vec<BackendMessage>,
+    instruction_profile: AgentInstructionProfile,
+    cancellation: CancellationToken,
+    event_queue: usize,
+    on_event: impl FnMut(&ModelEvent),
+) -> Result<TurnOutcome, BackendError> {
     let request = BackendRequest {
         request_id: BackendRequestId::new(),
         model: MODEL.into(),
         system_instructions: instruction_profile.system_instructions().into(),
-        messages: vec![BackendMessage::User(UserMessage {
-            item_id: ItemId::new(),
-            text: prompt,
-        })],
+        messages,
         tools: vec![],
     };
     run_response(backend, request, cancellation, event_queue, None, on_event).await
@@ -193,14 +221,41 @@ pub async fn run_agent_turn_with_profile(
     cancellation: CancellationToken,
     event_queue: usize,
     limits: AgentLimits,
+    on_event: impl FnMut(&AgentEvent),
+) -> Result<TurnOutcome, AgentError> {
+    run_agent_turn_with_history_and_profile(
+        backend,
+        tools,
+        approvals,
+        turn_id,
+        vec![BackendMessage::User(UserMessage {
+            item_id: ItemId::new(),
+            text: prompt,
+        })],
+        instruction_profile,
+        cancellation,
+        event_queue,
+        limits,
+        on_event,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn run_agent_turn_with_history_and_profile(
+    backend: Arc<dyn ModelBackend>,
+    tools: Arc<dyn ToolRuntime>,
+    approvals: Arc<dyn ApprovalPolicy>,
+    turn_id: TurnId,
+    mut messages: Vec<BackendMessage>,
+    instruction_profile: AgentInstructionProfile,
+    cancellation: CancellationToken,
+    event_queue: usize,
+    limits: AgentLimits,
     mut on_event: impl FnMut(&AgentEvent),
 ) -> Result<TurnOutcome, AgentError> {
     let deadline = tokio::time::Instant::now() + limits.turn_timeout;
     let definitions = tools.definitions();
-    let mut messages = vec![BackendMessage::User(UserMessage {
-        item_id: ItemId::new(),
-        text: prompt,
-    })];
     let mut executed_provider_calls = HashSet::new();
     let mut total_calls = 0_usize;
     let mut continuations = 0_usize;
@@ -221,14 +276,20 @@ pub async fn run_agent_turn_with_profile(
                 maximum_tool_argument_bytes: limits.maximum_tool_argument_bytes,
             },
         )? {
-            ContextBuild::Fits(request) => request,
-            ContextBuild::TooLarge(_) => {
+            ContextBuild::Fits(request) | ContextBuild::NearLimit { request, .. } => request,
+            ContextBuild::CannotFit(_) => {
                 on_event(&AgentEvent::LimitReached {
                     limit: LimitKind::ContextBytes,
                 });
                 return Err(AgentError::Limit(LimitKind::ContextBytes));
             }
         };
+        on_event(&AgentEvent::BackendRequestStarting {
+            request_id: request.request_id,
+        });
+        if cancellation.is_cancelled() {
+            return Err(AgentError::Backend(BackendError::Cancelled));
+        }
         let outcome = run_response(
             backend.clone(),
             request,
@@ -364,12 +425,20 @@ pub async fn run_agent_turn_with_profile(
                     return Err(AgentError::StaleApproval);
                 }
                 on_event(&AgentEvent::ApprovalResolved(response.clone()));
+                if cancellation.is_cancelled() {
+                    return Err(AgentError::Backend(BackendError::Cancelled));
+                }
                 match response.decision {
                     ApprovalDecision::Approved => {
                         on_event(&AgentEvent::ToolStarted {
                             tool_call_id: candidate.tool_call_id,
                             name: candidate.name.clone(),
+                            effect_digest: candidate.effect_digest.clone(),
+                            mutating: candidate.mutating,
                         });
+                        if cancellation.is_cancelled() {
+                            return Err(AgentError::Backend(BackendError::Cancelled));
+                        }
                         let execution = tools
                             .execute(&candidate, turn_id, cancellation.child_token())
                             .await
@@ -400,7 +469,12 @@ pub async fn run_agent_turn_with_profile(
                 on_event(&AgentEvent::ToolStarted {
                     tool_call_id: candidate.tool_call_id,
                     name: candidate.name.clone(),
+                    effect_digest: candidate.effect_digest.clone(),
+                    mutating: candidate.mutating,
                 });
+                if cancellation.is_cancelled() {
+                    return Err(AgentError::Backend(BackendError::Cancelled));
+                }
                 let execution = tools
                     .execute(&candidate, turn_id, cancellation.child_token())
                     .await
@@ -418,11 +492,17 @@ pub async fn run_agent_turn_with_profile(
             }
             on_event(&AgentEvent::ToolCompleted {
                 tool_call_id: candidate.tool_call_id,
+                provider_call_id: candidate.provider_call_id.clone(),
                 name: candidate.name.clone(),
+                effect_digest: candidate.effect_digest.clone(),
+                mutating: candidate.mutating,
                 output: execution.output.clone(),
                 executed,
                 status: execution.status,
             });
+            if cancellation.is_cancelled() {
+                return Err(AgentError::Backend(BackendError::Cancelled));
+            }
             messages.push(BackendMessage::Tool(ToolResult {
                 tool_call_id: candidate.tool_call_id,
                 provider_call_id: candidate.provider_call_id,
@@ -730,7 +810,9 @@ mod tests {
     use crate::agent::types::ToolCallId;
     use crate::backend::scripted::ScriptedBackend;
     use crate::backend::{BackendRequest, CompletedToolCall, ModelBackend, ProviderCompatibility};
-    use crate::tools::{ApprovalDecision, ScriptedToolRuntime, StaticApprovalPolicy};
+    use crate::tools::{
+        ApprovalDecision, NoToolRuntime, ScriptedToolRuntime, StaticApprovalPolicy,
+    };
     use std::future::Future;
     use std::pin::Pin;
 
@@ -842,6 +924,41 @@ mod tests {
             requests[0].system_instructions,
             AgentInstructionProfile::built_in().system_instructions()
         );
+    }
+
+    #[tokio::test]
+    async fn durable_turn_sends_complete_reconstructed_history() {
+        let previous = phase(vec![]);
+        let history = vec![
+            BackendMessage::User(UserMessage {
+                item_id: ItemId::new(),
+                text: "first".into(),
+            }),
+            BackendMessage::Assistant(previous),
+            BackendMessage::User(UserMessage {
+                item_id: ItemId::new(),
+                text: "second".into(),
+            }),
+        ];
+        let backend = Arc::new(ScriptedBackend::new([script(
+            phase(vec![]),
+            FinishClass::Stop,
+        )]));
+        run_agent_turn_with_history_and_profile(
+            backend.clone(),
+            Arc::new(NoToolRuntime),
+            Arc::new(StaticApprovalPolicy::new(ApprovalDecision::Denied)),
+            TurnId::new(),
+            history.clone(),
+            AgentInstructionProfile::built_in(),
+            CancellationToken::new(),
+            8,
+            limits(),
+            |_| {},
+        )
+        .await
+        .unwrap();
+        assert_eq!(backend.request_snapshot().unwrap()[0].messages, history);
     }
 
     #[tokio::test]

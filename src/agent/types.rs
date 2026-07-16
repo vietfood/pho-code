@@ -12,6 +12,24 @@ macro_rules! local_id {
             pub fn new() -> Self {
                 Self(Uuid::new_v4())
             }
+
+            pub fn parse(value: &str) -> Result<Self, uuid::Error> {
+                Uuid::parse_str(value).map(Self)
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt(formatter)
+            }
+        }
+
+        impl std::str::FromStr for $name {
+            type Err = uuid::Error;
+
+            fn from_str(value: &str) -> Result<Self, Self::Err> {
+                Self::parse(value)
+            }
         }
 
         impl Default for $name {
