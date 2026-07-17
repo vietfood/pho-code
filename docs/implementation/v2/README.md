@@ -1,12 +1,16 @@
 # V2 roadmap
 
-- Status: Reserved; intentionally not implementation-ready
-- Earliest start: After [V1 Phase 6](../v1/phase-6-gpui.md) passes
+- Status: Phase 6B ready; later expansion phases reserved
+- Earliest start: After V1 `0.1.0`
 - Governing boundary: [ADR 0003](../../decisions/0003-deepseek-api-first-backend.md#v1-and-v2-boundary)
 
 ## Why this is brief
 
-V2 must be shaped by evidence from a working V1. Expanding compaction, subagent, provider-portability, sandbox, and platform plans now would create precise-looking requirements for untested boundaries. Each V2 phase begins with a new ADR and one representative design decision developed to full depth.
+V2 must be shaped by evidence from a working V1. Phase 6B is the bounded completion work deliberately deferred by [ADR 0005](../../decisions/0005-release-v1-and-defer-phase-6b.md); it adds no product surface. Expanding compaction, subagent, provider-portability, sandbox, and platform plans now would create precise-looking requirements for untested boundaries. Each expansion phase begins with a new ADR and one representative design decision developed to full depth.
+
+## Phase 6B: Complete native qualification
+
+[Phase 6B](phase-6b-native-completion.md) closes the final clean-suite, multi-terminal interaction, command/native parity, supervised-task, accessibility, display, theme, and supported-macOS evidence deferred from V1. It must pass before Phase 7 begins.
 
 ## Phase 7: Native compaction
 

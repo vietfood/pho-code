@@ -5,7 +5,7 @@
 - Scope: Pho Code V1 authentication, model backend, pre-GPUI interaction surface, qualification gate, and roadmap
 - Decision owners: Pho Code maintainers
 - Supersedes: [ADR 0002](0002-native-agent-harness.md)
-- Superseded by: Nothing
+- Superseded by: [ADR 0004](0004-native-workbench-phase-6.md) for the Phase 6 GPUI product surface only; all backend, command, runtime, safety, and V1/V2 boundaries remain current
 
 ## Document role
 

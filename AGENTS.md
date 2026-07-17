@@ -2,7 +2,7 @@
 
 ## Product orientation
 
-Pho Code is a small independently owned Rust agent harness with a stable `pho` command adapter and a native GPUI adapter over the same runtime. [ADR 0003](docs/decisions/0003-deepseek-api-first-backend.md) owns the accepted product decision; [the documentation index](docs/README.md) routes all current design and delivery work. Do not restate those contracts in code comments or new plans when a link is sufficient.
+Pho Code is a small independently owned Rust agent harness with a stable `pho` command adapter and a native GPUI adapter over the same runtime. [ADR 0003](docs/decisions/0003-deepseek-api-first-backend.md) owns the accepted backend/runtime product decision, [ADR 0004](docs/decisions/0004-native-workbench-phase-6.md) owns the expanded native workbench surface, and [ADR 0005](docs/decisions/0005-release-v1-and-defer-phase-6b.md) owns the V1 release/deferred Phase 6B boundary; [the documentation index](docs/README.md) routes all current design and delivery work. Do not restate those contracts in code comments or new plans when a link is sufficient.
 
 V1 is macOS-only, one concrete DeepSeek API backend, one root agent, sequential tools, and one shared command/GPUI runtime. The ChatGPT OAuth attempt is frozen historical/developer-only work and never a runtime fallback. Compaction, subagents, a second supported real backend, custom provider endpoints, strong sandboxing, and portability remain V2 roadmap items.
 
@@ -11,12 +11,13 @@ V1 is macOS-only, one concrete DeepSeek API backend, one root agent, sequential 
 Read in this order:
 
 1. [Documentation index](docs/README.md) for authority, terminology, evidence policy, and current status.
-2. [ADR 0003](docs/decisions/0003-deepseek-api-first-backend.md) for the accepted boundary and reversal conditions.
-3. [Native harness system](docs/architecture/native-harness-system.md) for components, dependencies, state, and event flow.
-4. The component contract relevant to the task: [DeepSeek backend](docs/architecture/deepseek-api-backend.md), [tools](docs/architecture/tools.md), or [sessions](docs/architecture/sessions.md).
-5. The current phase under [the implementation roadmap](docs/implementation/README.md).
-6. [Pi](docs/research/pi-source-study.md) or [Codex](docs/research/codex-source-study.md) source studies only when upstream behavior or rationale matters.
-7. `Cargo.toml` and relevant `src/**` files to verify what is actually implemented.
+2. [ADR 0003](docs/decisions/0003-deepseek-api-first-backend.md) for the accepted backend/runtime boundary and reversal conditions.
+3. [ADR 0004](docs/decisions/0004-native-workbench-phase-6.md) and [ADR 0005](docs/decisions/0005-release-v1-and-defer-phase-6b.md) when the native workbench, V1 release, or Phase 6B scope is relevant.
+4. [Native harness system](docs/architecture/native-harness-system.md) for components, dependencies, state, and event flow.
+5. The component contract relevant to the task: [DeepSeek backend](docs/architecture/deepseek-api-backend.md), [tools](docs/architecture/tools.md), [sessions](docs/architecture/sessions.md), [GPUI workbench](docs/architecture/gpui-workbench.md), [native workbench lifecycle](docs/architecture/native-workbench-lifecycle.md), [workspace inspection](docs/architecture/workbench-workspaces.md), or [user terminal](docs/architecture/user-terminal.md).
+6. The current phase under [the implementation roadmap](docs/implementation/README.md).
+7. [Pi](docs/research/pi-source-study.md), [Codex](docs/research/codex-source-study.md), or the Phase 6 source studies only when upstream behavior or rationale matters.
+8. `Cargo.toml` and relevant `src/**` files to verify what is actually implemented.
 
 `refs/**` is read-only evidence, not application code or an extension point. Do not modify it or copy source without explicit authorization and license review.
 

@@ -1,4 +1,5 @@
 pub mod artifacts;
+pub mod catalog;
 pub mod journal;
 pub mod record;
 pub mod recovery;

@@ -458,7 +458,20 @@ impl ApplicationCoordinator {
         let effect = reduce_intent(&mut self.state, intent).ok_or(CoordinatorError::Rejected)?;
         match effect {
             Effect::InstallCredential { candidate } => {
-                let result = self.credentials.install(candidate).await;
+                if crate::auth::validate_candidate(candidate.expose()).is_ok() {
+                    let event = RuntimeEvent::CredentialChanged {
+                        state: crate::auth::CredentialState::Validating,
+                    };
+                    reduce(&mut self.state, event.clone());
+                    sink(event);
+                }
+                let result = tokio::select! {
+                    _ = external_cancellation.cancelled() => {
+                        self.credentials.cancel_install().await;
+                        Err(crate::auth::AuthError::Cancelled)
+                    }
+                    result = self.credentials.install(candidate) => result,
+                };
                 let event = RuntimeEvent::CredentialChanged {
                     state: self.credentials.status().await,
                 };

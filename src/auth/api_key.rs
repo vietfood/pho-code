@@ -172,7 +172,15 @@ impl CredentialActor {
     }
 
     pub async fn install(&self, candidate: SecretText) -> Result<(), AuthError> {
-        validate_candidate(candidate.expose())?;
+        if let Err(error) = validate_candidate(candidate.expose()) {
+            let mut state = self.state.lock().await;
+            state.status = if state.record.is_some() {
+                CredentialState::Ready
+            } else {
+                CredentialState::Malformed
+            };
+            return Err(error);
+        }
         {
             let mut state = self.state.lock().await;
             state.status = CredentialState::Validating;
@@ -212,6 +220,19 @@ impl CredentialActor {
         state.status = CredentialState::Ready;
         state.leases_allowed = true;
         Ok(())
+    }
+
+    /// Restore stable local state after the owner cancels candidate validation before the
+    /// Keychain replacement boundary.
+    pub async fn cancel_install(&self) {
+        let mut state = self.state.lock().await;
+        if state.status == CredentialState::Validating {
+            state.status = if state.record.is_some() {
+                CredentialState::Ready
+            } else {
+                CredentialState::Missing
+            };
+        }
     }
 
     pub async fn lease(&self) -> Result<CredentialLease, AuthError> {
@@ -303,6 +324,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_candidate_is_visible_without_replacing_a_usable_record() {
+        let dir = tempdir().unwrap();
+        let guard = guard(&dir);
+        let empty_store = Arc::new(MemoryCredentialStore::empty());
+        let actor = CredentialActor::new(
+            &guard,
+            empty_store,
+            Arc::new(FakeValidator(Err(AuthError::Invalid))),
+        )
+        .unwrap();
+        assert_eq!(
+            actor.install(SecretText::new(" malformed ".into())).await,
+            Err(AuthError::CredentialsMalformed)
+        );
+        assert_eq!(actor.status().await, CredentialState::Malformed);
+
+        let ready_store = Arc::new(MemoryCredentialStore::empty());
+        ready_store
+            .replace(&CredentialRecord::new("prior-key".into(), 1, 0, "digest".into()).unwrap())
+            .unwrap();
+        let ready_actor = CredentialActor::new(
+            &guard,
+            ready_store,
+            Arc::new(FakeValidator(Err(AuthError::Invalid))),
+        )
+        .unwrap();
+        assert_eq!(
+            ready_actor
+                .install(SecretText::new(" malformed ".into()))
+                .await,
+            Err(AuthError::CredentialsMalformed)
+        );
+        assert_eq!(ready_actor.status().await, CredentialState::Ready);
+    }
+
+    #[tokio::test]
     async fn successful_install_and_logout_control_leases() {
         let dir = tempdir().unwrap();
         let guard = guard(&dir);
@@ -322,6 +379,28 @@ mod tests {
         assert!(actor.lease().await.is_ok());
         actor.logout().await.unwrap();
         assert!(actor.lease().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn cancelled_validation_restores_the_prior_stable_state() {
+        let dir = tempdir().unwrap();
+        let guard = guard(&dir);
+        let actor = CredentialActor::new(
+            &guard,
+            Arc::new(MemoryCredentialStore::empty()),
+            Arc::new(FakeValidator(Ok(ValidationResult {
+                model_set_digest: "digest".into(),
+            }))),
+        )
+        .unwrap();
+        {
+            let mut state = actor.state.lock().await;
+            state.status = CredentialState::Validating;
+        }
+
+        actor.cancel_install().await;
+
+        assert_eq!(actor.status().await, CredentialState::Missing);
     }
 
     #[tokio::test]

@@ -250,7 +250,7 @@ Errors cross boundaries as structured categories with operation, safe identity, 
 
 The model and backend stream are untrusted input. They cannot grant approval, widen a workspace, select secret environment values, or turn a read tool into a mutation. System instructions can guide the model but cannot expand those authorities. The API key remains in Keychain/in-memory credential state. First-party file operations enforce containment; approved shell remains a general process under the user's account and is not a sandbox.
 
-Component-specific security rules live in [backend security](deepseek-api-backend.md#security-and-privacy-requirements), [tool security](tools.md#security-and-privacy), and [session privacy](sessions.md#storage-location-and-privacy).
+Component-specific security rules live in [backend security](deepseek-api-backend.md#security-and-privacy-requirements), [tool security](tools.md#security-and-privacy), [session privacy](sessions.md#storage-location-and-privacy), and the [native workbench](gpui-workbench.md).
 
 ## Presentation adapters and application lifecycle
 
@@ -260,9 +260,9 @@ The `pho` command adapter parses bounded command input, dispatches typed intents
 
 `pho context` is an offline inspection command outside the application-operation path. It prints the exact built-in system instructions, their revision and digest, fixed model/request settings, runtime limits, and the ordinary plus disposable-debug tool schema profiles. It does not acquire the instance lock, read Keychain, select a workspace, capture a prompt/history, or send a network request. It labels dynamic per-turn messages as unavailable and service-side provider context as unobservable instead of claiming to reproduce either.
 
-GPUI views render projected state and dispatch the same typed intents. They may coalesce deltas and virtualize old rows but cannot hide lifecycle boundaries or mutate runtime actors directly. Command and GPUI rendering can differ in layout while preserving the same item kinds, approvals, truncation, and terminal truth.
+GPUI views render projected state and dispatch the same typed intents. They may coalesce deltas and virtualize old rows but cannot hide lifecycle boundaries or mutate runtime actors directly. Command and GPUI rendering can differ in layout while preserving the same item kinds, approvals, truncation, and terminal truth. The [GPUI workbench architecture](gpui-workbench.md) owns the Phase 6 shell, presentation projections, and native-only workspace/file/Git/PTY service boundaries.
 
-Startup order is: command parsing without secret values, diagnostics/preferences, single-instance lock, session scan when available, credential actor, workspace/search index when requested, selected-session recovery, presentation adapter, then coordinator actions. Credential or network failure still permits offline session inspection after the session phase exists.
+Startup order is: command parsing without secret values, safe diagnostics, single-instance lock, non-secret preferences, session scan when available, credential actor, workspace/search index when requested, selected-session recovery, presentation adapter, then coordinator actions. Credential or network failure still permits offline session inspection after the session phase exists.
 
 Shutdown rejects new work, cancels the active owner, invalidates pending approval, flushes terminal/interrupted state, stops watchers/actors, and exits only after owned child processes are reaped or an explicit uncertain-shutdown diagnostic is durable.
 

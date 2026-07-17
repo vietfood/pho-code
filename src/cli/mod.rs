@@ -7,13 +7,10 @@ pub mod tui;
 use std::sync::Arc;
 
 use crate::app::action::Intent;
-use crate::app::instance_lock::{InstanceGuard, default_lock_path};
-use crate::app::runtime::{ApplicationCoordinator, CoordinatorError, RuntimeConfig};
+use crate::app::runtime::{CoordinatorError, RuntimeConfig};
+use crate::app::services::{ApplicationPaths, ApplicationServicesFactory, BackendSelection};
 use crate::auth::SecretText;
-use crate::auth::api_key::{CredentialActor, DeepSeekCredentialValidator};
-use crate::backend::deepseek::DeepSeekBackend;
-use crate::backend::sse::SseLimits;
-use crate::session::SessionManager;
+use crate::auth::api_key::DeepSeekCredentialValidator;
 use crate::session::artifacts::{ArtifactLimits, PersistentArtifactStore};
 use crate::session::journal::SessionEffectRecorder;
 use crate::session::record::SessionProfile;
@@ -76,10 +73,17 @@ pub async fn run(command: Command) -> i32 {
 }
 
 async fn run_operational(command: Command) -> Result<(), CliError> {
-    let lock_path = default_lock_path().map_err(|_| CliError::Runtime)?;
-    let guard = InstanceGuard::acquire(&lock_path).map_err(|_| CliError::Runtime)?;
-    let application_root = lock_path.parent().ok_or(CliError::Runtime)?;
-    let sessions = Arc::new(SessionManager::new(application_root).map_err(|_| CliError::Runtime)?);
+    let paths = ApplicationPaths::from_home().map_err(|_| CliError::Runtime)?;
+    let store = cli_credential_store()?;
+    let validator = Arc::new(DeepSeekCredentialValidator::new().map_err(|_| CliError::Runtime)?);
+    let config = Arc::new(RuntimeConfig::default());
+    let backend = cli_backend_selection()?;
+    let locked =
+        ApplicationServicesFactory::with_components(paths, store, validator, backend, config)
+            .acquire()
+            .map_err(|_| CliError::Runtime)?;
+    let local = locked.open_local().map_err(|_| CliError::Runtime)?;
+    let sessions = local.sessions();
     if matches!(command, Command::SessionList) {
         for summary in sessions.list().map_err(|_| CliError::Runtime)? {
             let workspace = summary.workspace.as_deref().unwrap_or("<unavailable>");
@@ -94,56 +98,13 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
         }
         return Ok(());
     }
-    #[cfg(target_os = "macos")]
-    let store: Arc<dyn crate::auth::keychain::CredentialStore> = {
-        let memory = cfg!(debug_assertions)
-            .then(|| std::env::var("PHO_CODE_TEST_MEMORY_CREDENTIALS").ok())
-            .flatten();
-        let use_memory = memory.is_some();
-        let development = (!use_memory && cfg!(debug_assertions))
-            .then(|| std::env::var("PHO_CODE_TEST_KEYCHAIN_SUFFIX").ok())
-            .flatten();
-        if let Some(state) = memory {
-            let store = Arc::new(crate::auth::keychain::MemoryCredentialStore::empty());
-            if state == "ready" {
-                use crate::auth::keychain::CredentialStore as _;
-                store
-                    .replace(
-                        &crate::auth::CredentialRecord::new(
-                            "process-test-key".into(),
-                            crate::backend::profile::PROFILE_REVISION,
-                            0,
-                            "process-test-model-set".into(),
-                        )
-                        .map_err(|_| CliError::Runtime)?,
-                    )
-                    .map_err(|_| CliError::Runtime)?;
-            } else if state != "missing" {
-                return Err(CliError::Runtime);
-            }
-            store
-        } else {
-            match development {
-                Some(suffix) => Arc::new(
-                    crate::auth::keychain::MacKeychainStore::development(&suffix)
-                        .map_err(|_| CliError::Runtime)?,
-                ),
-                None => Arc::new(crate::auth::keychain::MacKeychainStore::production()),
-            }
-        }
-    };
-    #[cfg(not(target_os = "macos"))]
-    let store = Arc::new(crate::auth::keychain::MemoryCredentialStore::empty());
-    let validator = Arc::new(DeepSeekCredentialValidator::new().map_err(|_| CliError::Runtime)?);
-    let credentials =
-        Arc::new(CredentialActor::new(&guard, store, validator).map_err(|_| CliError::Runtime)?);
+    let services = local.activate().map_err(|_| CliError::Runtime)?;
+    let credentials = services.credentials();
     if matches!(command, Command::Chat { .. })
         && credentials.status().await != crate::auth::CredentialState::Ready
     {
         return Err(CliError::MissingCredential);
     }
-    let backend = Arc::new(deepseek_backend(credentials.clone())?);
-    let config = Arc::new(RuntimeConfig::default());
     let phase4_workspace = (cfg!(debug_assertions)
         && matches!(
             command,
@@ -238,20 +199,12 @@ async fn run_operational(command: Command) -> Result<(), CliError> {
             )
         };
     let mut application = if let Some(session) = opened.take() {
-        ApplicationCoordinator::new_with_durable_session(
-            credentials,
-            backend,
-            tools,
-            approvals,
-            config,
-            session,
-            durable_effects,
-        )
-        .await
-        .map_err(|_| CliError::Runtime)?
-    } else {
-        ApplicationCoordinator::new_with_services(credentials, backend, tools, approvals, config)
+        services
+            .durable_coordinator(tools, approvals, session, durable_effects)
             .await
+            .map_err(|_| CliError::Runtime)?
+    } else {
+        services.coordinator(tools, approvals).await
     };
     if matches!(
         command,
@@ -414,17 +367,64 @@ impl ApprovalPolicy for ControllingTerminalApproval {
     }
 }
 
-fn deepseek_backend(credentials: Arc<CredentialActor>) -> Result<DeepSeekBackend, CliError> {
+fn cli_backend_selection() -> Result<BackendSelection, CliError> {
     #[cfg(debug_assertions)]
     if let Some(endpoint) = std::env::var_os("PHO_CODE_TEST_CHAT_ENDPOINT") {
         if std::env::var_os("PHO_CODE_TEST_MEMORY_CREDENTIALS").is_none() {
             return Err(CliError::Runtime);
         }
         let endpoint = endpoint.into_string().map_err(|_| CliError::Runtime)?;
-        return DeepSeekBackend::new_loopback_fixture(SseLimits::default(), &endpoint)
-            .map_err(|_| CliError::Runtime);
+        return Ok(BackendSelection::LoopbackFixture(endpoint));
     }
-    DeepSeekBackend::new(credentials, SseLimits::default()).map_err(|_| CliError::Runtime)
+    Ok(BackendSelection::Production)
+}
+
+#[cfg(target_os = "macos")]
+fn cli_credential_store() -> Result<Arc<dyn crate::auth::keychain::CredentialStore>, CliError> {
+    let memory = cfg!(debug_assertions)
+        .then(|| std::env::var("PHO_CODE_TEST_MEMORY_CREDENTIALS").ok())
+        .flatten();
+    let use_memory = memory.is_some();
+    let development = (!use_memory && cfg!(debug_assertions))
+        .then(|| std::env::var("PHO_CODE_TEST_KEYCHAIN_SUFFIX").ok())
+        .flatten();
+    if let Some(state) = memory {
+        let store = Arc::new(crate::auth::keychain::MemoryCredentialStore::empty());
+        if state == "ready" {
+            use crate::auth::keychain::CredentialStore as _;
+            store
+                .replace(
+                    &crate::auth::CredentialRecord::new(
+                        "process-test-key".into(),
+                        crate::backend::profile::PROFILE_REVISION,
+                        0,
+                        "process-test-model-set".into(),
+                    )
+                    .map_err(|_| CliError::Runtime)?,
+                )
+                .map_err(|_| CliError::Runtime)?;
+        } else if state != "missing" {
+            return Err(CliError::Runtime);
+        }
+        Ok(store)
+    } else {
+        match development {
+            Some(suffix) => Ok(Arc::new(
+                crate::auth::keychain::MacKeychainStore::development(&suffix)
+                    .map_err(|_| CliError::Runtime)?,
+            )),
+            None => Ok(Arc::new(
+                crate::auth::keychain::MacKeychainStore::production(),
+            )),
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn cli_credential_store() -> Result<Arc<dyn crate::auth::keychain::CredentialStore>, CliError> {
+    Ok(Arc::new(
+        crate::auth::keychain::MemoryCredentialStore::empty(),
+    ))
 }
 
 fn input_error(error: std::io::Error, usage: &'static str) -> CliError {

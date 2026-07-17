@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-- Status: Phase 5 complete; Phase 6 ready
+- Status: V1 `0.1.0` released; deferred native qualification moved to V2 Phase 6B
 - Last updated: 2026-07-17
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System boundary: [Native harness system](../architecture/native-harness-system.md)
@@ -29,7 +29,7 @@ Every pre-GPUI phase leaves the passing functionality usable through the `pho` c
 | 3B | Optional alternate-screen terminal TUI with repeated independent ephemeral turns and preserved raw modes | [Interactive terminal experience](v1/phase-3b-terminal-tui.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-3b-2026-07-15.md)) |
 | 4 | Tool runtime and controlling-terminal approvals proven in disposable workspaces through `pho` | [Tools](v1/phase-4-tools.md) | **PASS — 2026-07-15** ([evidence](evidence/phase-4-2026-07-15.md)) |
 | 5 | JSONL, persistent artifacts, crash recovery, safe tool enablement, and stable pre-GPUI command release | [Sessions](v1/phase-5-sessions.md) | **PASS — 2026-07-17** ([evidence](evidence/phase-5-2026-07-17.md)) |
-| 6 | Usable native GPUI personal release over the proven command-mode runtime | [GPUI V1](v1/phase-6-gpui.md) | Ready |
+| 6 | Native four-pane GPUI personal workbench over the proven command-mode runtime | [GPUI workbench](v1/phase-6/README.md) | **V1 RELEASE — 0.1.0, 2026-07-17** ([evidence](evidence/phase-6-release-candidate-2026-07-17.md)); deferred matrix: [V2 Phase 6B](v2/phase-6b-native-completion.md) |
 
 The accepted V1 product boundary is defined once in [ADR 0003](../decisions/0003-deepseek-api-first-backend.md#decision). Component ownership and state flow are defined once in [the system architecture](../architecture/native-harness-system.md). Phase files should link to those sections instead of copying them.
 

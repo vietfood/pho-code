@@ -15,7 +15,7 @@ Use these current plans:
 - [V1 Phase 3: Live backend](implementation/v1/phase-3-live-backend.md)
 - [V1 Phase 4: Tools](implementation/v1/phase-4-tools.md)
 - [V1 Phase 5: Sessions](implementation/v1/phase-5-sessions.md)
-- [V1 Phase 6: GPUI](implementation/v1/phase-6-gpui.md)
+- [V1 Phase 6: GPUI workbench](implementation/v1/phase-6/README.md)
 - [V2 roadmap](implementation/v2/README.md)
 
 Normative behavior remains in [the system](architecture/native-harness-system.md), [DeepSeek backend](architecture/deepseek-api-backend.md), [tools](architecture/tools.md), and [sessions](architecture/sessions.md) documents. Phase files own implementation order and gates only. The ChatGPT backend document is frozen historical evidence.

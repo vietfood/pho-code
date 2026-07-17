@@ -1,3 +1,4 @@
+pub mod approval;
 pub mod output;
 pub mod patch;
 pub mod read;
@@ -403,6 +404,19 @@ impl Phase4ToolRuntime {
         trash: Arc<dyn patch::Trash>,
     ) -> Result<Self, ToolError> {
         let workspace = workspace::Workspace::open(root).map_err(|_| ToolError::Unavailable)?;
+        Self::new_persistent_workspace(workspace, artifacts, effects, trash)
+    }
+
+    /// Builds the persistent runtime from an already-retained workspace authority.
+    ///
+    /// Native workbench inspection and agent tools must share this exact authority rather than
+    /// independently resolving the same path across a possible directory replacement.
+    pub fn new_persistent_workspace(
+        workspace: workspace::Workspace,
+        artifacts: Arc<dyn ArtifactWriter>,
+        effects: Arc<dyn patch::EffectRecorder>,
+        trash: Arc<dyn patch::Trash>,
+    ) -> Result<Self, ToolError> {
         Self::from_workspace(workspace, artifacts, effects, trash, true)
     }
 
