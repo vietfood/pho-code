@@ -1,16 +1,20 @@
 # V2 roadmap
 
-- Status: Phase 6B ready; later expansion phases reserved
+- Status: Phase 6C ready for bounded implementation; Phase 6B qualifies the integrated surface before later expansion
 - Earliest start: After V1 `0.1.0`
 - Governing boundary: [ADR 0003](../../decisions/0003-deepseek-api-first-backend.md#v1-and-v2-boundary)
 
 ## Why this is brief
 
-V2 must be shaped by evidence from a working V1. Phase 6B is the bounded completion work deliberately deferred by [ADR 0005](../../decisions/0005-release-v1-and-defer-phase-6b.md); it adds no product surface. Expanding compaction, subagent, provider-portability, sandbox, and platform plans now would create precise-looking requirements for untested boundaries. Each expansion phase begins with a new ADR and one representative design decision developed to full depth.
+V2 must be shaped by evidence from a working V1. Phase 6B is the bounded completion work deliberately deferred by [ADR 0005](../../decisions/0005-release-v1-and-defer-phase-6b.md). [ADR 0006](../../decisions/0006-chat-first-native-workbench.md) permits the bounded Phase 6C presentation implementation before final Phase 6B qualification so the parity/accessibility/native matrix exercises the surface that will actually remain. Expanding compaction, subagent, provider-portability, sandbox, and platform plans now would create precise-looking requirements for untested boundaries. Each expansion phase begins with a new ADR and one representative design decision developed to full depth.
 
 ## Phase 6B: Complete native qualification
 
-[Phase 6B](phase-6b-native-completion.md) closes the final clean-suite, multi-terminal interaction, command/native parity, supervised-task, accessibility, display, theme, and supported-macOS evidence deferred from V1. It must pass before Phase 7 begins.
+[Phase 6B](phase-6b-native-completion.md) closes the final clean-suite, multi-terminal interaction, command/native parity, supervised-task, accessibility, display, theme, and supported-macOS evidence deferred from V1. Its implementation work may proceed alongside non-overlapping Phase 6C packages, but its final parity/accessibility/native matrix runs after Phase 6C integration. It must pass before Phase 7 begins.
+
+## Phase 6C: Chat-first native workbench polish
+
+[Phase 6C](phase-6c-chat-first-ui-polish.md) is ready to implement the [ADR 0006](../../decisions/0006-chat-first-native-workbench.md) presentation: canonical grouped tool lifecycle rows, progressive reasoning/tool disclosure, chat-first pane state, lazy terminal reveal, semantic visual tokens, and the associated migration. It changes no backend, agent, tool-authority, session, workspace-containment, or terminal-process contract. It closes only after Phase 6B qualifies the integrated surface.
 
 ## Phase 7: Native compaction
 

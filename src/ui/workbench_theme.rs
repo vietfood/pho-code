@@ -89,6 +89,9 @@ pub struct SemanticColors {
     pub background: Rgb,
     pub surface: Rgb,
     pub raised: Rgb,
+    pub hover: Rgb,
+    pub selected: Rgb,
+    pub separator: Rgb,
     pub primary_text: Rgb,
     pub muted_text: Rgb,
     pub border: Rgb,
@@ -96,6 +99,7 @@ pub struct SemanticColors {
     pub focus: Rgb,
     pub insertion: Rgb,
     pub deletion: Rgb,
+    pub success: Rgb,
     pub warning: Rgb,
     pub error: Rgb,
     pub link: Rgb,
@@ -122,6 +126,9 @@ impl SemanticColors {
             background: Rgb::new(250, 250, 250),
             surface: Rgb::new(255, 255, 255),
             raised: Rgb::new(240, 240, 240),
+            hover: Rgb::new(232, 239, 248),
+            selected: Rgb::new(211, 229, 255),
+            separator: Rgb::new(205, 210, 218),
             primary_text: Rgb::new(17, 17, 17),
             muted_text: Rgb::new(74, 74, 74),
             border: Rgb::new(90, 90, 90),
@@ -129,6 +136,7 @@ impl SemanticColors {
             focus: Rgb::new(0, 95, 204),
             insertion: Rgb::new(11, 122, 62),
             deletion: Rgb::new(179, 38, 30),
+            success: Rgb::new(23, 122, 68),
             warning: Rgb::new(138, 75, 0),
             error: Rgb::new(176, 0, 32),
             link: Rgb::new(0, 74, 159),
@@ -157,18 +165,24 @@ impl SemanticColors {
 
     fn dark() -> Self {
         Self {
-            background: Rgb::new(18, 20, 23),
-            surface: Rgb::new(27, 30, 35),
-            raised: Rgb::new(37, 42, 49),
-            primary_text: Rgb::new(245, 247, 250),
-            muted_text: Rgb::new(193, 202, 212),
-            border: Rgb::new(139, 149, 161),
+            // ADR 0006's initial dark semantic roles. These remain roles rather than
+            // view-local colors so light and high-contrast profiles can diverge safely.
+            background: Rgb::new(11, 13, 16),
+            surface: Rgb::new(17, 19, 24),
+            raised: Rgb::new(23, 26, 32),
+            hover: Rgb::new(31, 35, 43),
+            selected: Rgb::new(34, 56, 82),
+            separator: Rgb::new(39, 43, 51),
+            primary_text: Rgb::new(242, 244, 247),
+            muted_text: Rgb::new(150, 157, 168),
+            border: Rgb::new(72, 78, 90),
             selection: Rgb::new(36, 75, 122),
             focus: Rgb::new(121, 184, 255),
             insertion: Rgb::new(97, 208, 149),
             deletion: Rgb::new(255, 138, 128),
-            warning: Rgb::new(255, 209, 102),
-            error: Rgb::new(255, 107, 107),
+            success: Rgb::new(114, 214, 157),
+            warning: Rgb::new(229, 185, 107),
+            error: Rgb::new(240, 124, 124),
             link: Rgb::new(102, 170, 255),
             inline_code: Rgb::new(51, 57, 67),
             fenced_code: Rgb::new(32, 37, 43),
@@ -198,6 +212,9 @@ impl SemanticColors {
             background: Rgb::new(0, 0, 0),
             surface: Rgb::new(0, 0, 0),
             raised: Rgb::new(26, 26, 26),
+            hover: Rgb::new(48, 48, 48),
+            selected: Rgb::new(72, 72, 0),
+            separator: Rgb::new(255, 255, 255),
             primary_text: Rgb::new(255, 255, 255),
             muted_text: Rgb::new(240, 240, 240),
             border: Rgb::new(255, 255, 255),
@@ -205,6 +222,7 @@ impl SemanticColors {
             focus: Rgb::new(0, 255, 255),
             insertion: Rgb::new(0, 255, 102),
             deletion: Rgb::new(255, 102, 102),
+            success: Rgb::new(0, 255, 102),
             warning: Rgb::new(255, 255, 0),
             error: Rgb::new(255, 102, 102),
             link: Rgb::new(102, 204, 255),
@@ -240,6 +258,8 @@ pub enum NetworkAssetPolicy {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FontFallbackPolicy {
     SystemQualified,
+    /// Packaged JetBrains Mono faces registered at native startup.
+    PackagedJetBrainsMono,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -272,8 +292,8 @@ impl Default for LocalAssetPolicyV1 {
         Self {
             schema_version: THEME_POLICY_VERSION,
             network_assets: NetworkAssetPolicy::Disabled,
-            ui_font: FontFallbackPolicy::SystemQualified,
-            monospace_font: FontFallbackPolicy::SystemQualified,
+            ui_font: FontFallbackPolicy::PackagedJetBrainsMono,
+            monospace_font: FontFallbackPolicy::PackagedJetBrainsMono,
             text_glyph_controls: true,
             missing_icon: MissingAssetFallback::TextGlyphControl,
             missing_font: MissingAssetFallback::SystemQualifiedFont,
@@ -442,8 +462,14 @@ mod tests {
         let policy = LocalAssetPolicyV1::default();
         assert_eq!(policy.schema_version, THEME_POLICY_VERSION);
         assert_eq!(policy.network_assets, NetworkAssetPolicy::Disabled);
-        assert_eq!(policy.ui_font, FontFallbackPolicy::SystemQualified);
-        assert_eq!(policy.monospace_font, FontFallbackPolicy::SystemQualified);
+        assert_eq!(
+            policy.ui_font,
+            FontFallbackPolicy::PackagedJetBrainsMono
+        );
+        assert_eq!(
+            policy.monospace_font,
+            FontFallbackPolicy::PackagedJetBrainsMono
+        );
         assert!(policy.text_glyph_controls);
         assert_eq!(policy.missing_icon, MissingAssetFallback::TextGlyphControl);
         assert_eq!(

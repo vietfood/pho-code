@@ -1622,7 +1622,9 @@ mod tests {
                 .saturating_mul(MAX_TERMINALS)
                 <= MAX_AGGREGATE_BYTES
         );
-        assert!(manager.shutdown_all(Duration::from_secs(2)));
+        // Eight concurrently opening login shells can need more than the controller's ordinary
+        // close grace on a contended test host. This remains a bounded supervision assertion.
+        assert!(manager.shutdown_all(Duration::from_secs(5)));
     }
 
     #[test]

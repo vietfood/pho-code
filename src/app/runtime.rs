@@ -649,10 +649,9 @@ impl ApplicationCoordinator {
             .clone()
             .ok_or(CoordinatorError::Session)?;
         let workspace_id = self.workspace_id.ok_or(CoordinatorError::Session)?;
-        let session = self
-            .state
+        self.state
             .session
-            .as_mut()
+            .as_ref()
             .filter(|session| session.id == session_id)
             .ok_or(CoordinatorError::Session)?;
         let item_id = ItemId::new();
@@ -676,13 +675,22 @@ impl ApplicationCoordinator {
                 ))
             })
             .map_err(|_| CoordinatorError::Persistence)?;
-        session.messages.push(crate::backend::BackendMessage::User(
-            crate::backend::UserMessage {
-                item_id,
-                text: text.clone(),
-            },
-        ));
-        let history = session.messages.clone();
+        let event = RuntimeEvent::UserMessageCommitted {
+            session_id,
+            turn_id,
+            item_id,
+            text,
+        };
+        reduce(&mut self.state, event.clone());
+        sink(event);
+        let history = self
+            .state
+            .session
+            .as_ref()
+            .filter(|session| session.id == session_id)
+            .ok_or(CoordinatorError::Session)?
+            .messages
+            .clone();
         let event = RuntimeEvent::TurnPrepared { turn_id };
         reduce(&mut self.state, event.clone());
         sink(event);
@@ -871,8 +879,11 @@ fn project_model_event(
     event: &ModelEvent,
 ) -> Option<RuntimeEvent> {
     match event {
-        ModelEvent::ResponseStarted { model, .. } => Some(RuntimeEvent::ModelStreamStarted {
+        ModelEvent::ResponseStarted {
+            request_id, model, ..
+        } => Some(RuntimeEvent::ModelStreamStarted {
             turn_id,
+            request_id: *request_id,
             model: model.clone(),
         }),
         ModelEvent::ReasoningDelta { text } => Some(RuntimeEvent::ReasoningDelta {

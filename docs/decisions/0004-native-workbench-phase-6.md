@@ -5,7 +5,7 @@
 - Scope: Pho Code V1 GPUI product surface and Phase 6 delivery boundary
 - Decision owners: Pho Code maintainers
 - Supersedes: [ADR 0003](0003-deepseek-api-first-backend.md) only where it deferred the GPUI visual language or excluded workbench panes from Phase 6
-- Superseded by: [ADR 0005](0005-release-v1-and-defer-phase-6b.md) only for the original all-or-nothing Phase 6 release gate
+- Superseded by: [ADR 0005](0005-release-v1-and-defer-phase-6b.md) only for the original all-or-nothing Phase 6 release gate, and [ADR 0006](0006-chat-first-native-workbench.md) only for default pane visibility, transcript disclosure, terminal reveal behavior, and visual hierarchy
 
 ## Document role
 

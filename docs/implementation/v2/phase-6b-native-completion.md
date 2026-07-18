@@ -1,9 +1,10 @@
 # Phase 6B: Complete native qualification
 
-- Status: Ready after V1 `0.1.0`
+- Status: Ready; final matrix runs against the integrated Phase 6C surface
 - Depends on: [V1 release evidence](../evidence/phase-6-release-candidate-2026-07-17.md)
 - Governing decision: [ADR 0005](../../decisions/0005-release-v1-and-defer-phase-6b.md)
 - Preserved source gate: [V1 Phase 6](../v1/phase-6/README.md#deferred-original-phase-6-gate)
+- Integration input: [Phase 6C chat-first native workbench polish](phase-6c-chat-first-ui-polish.md); non-overlapping work may proceed, but final qualification follows package 6C.6
 
 ## Outcome
 
@@ -27,4 +28,4 @@ Close the native-workbench verification and interaction gaps deferred from V1 wi
 
 ## Gate
 
-Phase 6B passes only when all work above has dated automated and native evidence, no known child process is falsely labeled or unreaped, the final full suite is green on the qualified host, and the V1 documentation no longer needs a verification caveat for the deferred matrix.
+Phase 6B passes only when all work above has dated automated and native evidence against the integrated Phase 6C surface, no known child process is falsely labeled or unreaped, the final full suite is green on the qualified host, and the V1 documentation no longer needs a verification caveat for the deferred matrix. Evidence produced solely against the replaced pre-6C presentation does not close an interaction, accessibility, theme, display, or command/native projection criterion without a justified rerun.

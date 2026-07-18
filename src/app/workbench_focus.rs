@@ -149,7 +149,8 @@ pub enum Shortcut {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ShortcutAction {
-    FocusRegion(FocusRegion),
+    RevealAndFocusRegion(FocusRegion),
+    ToggleTerminal,
     FocusTab(TraversalDirection),
     CloseFocusedPresentationTab(FocusTarget),
     RequestShutdown,
@@ -201,6 +202,7 @@ struct ModalFrame {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FocusRouter {
     focused: FocusTarget,
+    last_valid_non_terminal_target: FocusTarget,
     groups: [RovingState; 5],
     modal_stack: Vec<ModalFrame>,
     ime_composing: bool,
@@ -216,6 +218,7 @@ impl FocusRouter {
     pub fn new() -> Self {
         Self {
             focused: FocusTarget::Region(FocusRegion::Navigation),
+            last_valid_non_terminal_target: FocusTarget::Region(FocusRegion::Navigation),
             groups: [RovingState::EMPTY; 5],
             modal_stack: Vec::new(),
             ime_composing: false,
@@ -223,6 +226,19 @@ impl FocusRouter {
     }
 
     pub fn focused(&self) -> FocusTarget {
+        self.focused
+    }
+
+    pub fn last_valid_non_terminal_target(&self) -> FocusTarget {
+        self.last_valid_non_terminal_target
+    }
+
+    /// Restore a process-local focus target after hiding the terminal presentation. This has no
+    /// terminal process or lifecycle effect.
+    pub fn restore_last_valid_non_terminal_target(&mut self) -> FocusTarget {
+        if !self.has_modal() {
+            self.set_focused(self.clamp_target(self.last_valid_non_terminal_target));
+        }
         self.focused
     }
 
@@ -257,7 +273,7 @@ impl FocusRouter {
         if self.has_modal() {
             return false;
         }
-        self.focused = FocusTarget::Region(region);
+        self.set_focused(FocusTarget::Region(region));
         true
     }
 
@@ -265,7 +281,7 @@ impl FocusRouter {
         if self.has_modal() {
             return false;
         }
-        self.focused = FocusTarget::Composer;
+        self.set_focused(FocusTarget::Composer);
         true
     }
 
@@ -274,7 +290,7 @@ impl FocusRouter {
             return false;
         }
         self.groups[group.index()].index = index;
-        self.focused = group.target(index);
+        self.set_focused(group.target(index));
         true
     }
 
@@ -283,7 +299,7 @@ impl FocusRouter {
         if self.has_modal() || !self.groups[group.index()].move_by(direction) {
             return false;
         }
-        self.focused = group.target(self.groups[group.index()].index);
+        self.set_focused(group.target(self.groups[group.index()].index));
         true
     }
 
@@ -323,7 +339,7 @@ impl FocusRouter {
         let Some(frame) = self.modal_stack.pop() else {
             return false;
         };
-        self.focused = self.clamp_target(frame.invoking_target);
+        self.set_focused(self.clamp_target(frame.invoking_target));
         true
     }
 
@@ -364,23 +380,23 @@ impl FocusRouter {
         match shortcut {
             Shortcut::Command1 => {
                 self.focus_region(FocusRegion::Navigation);
-                ShortcutAction::FocusRegion(FocusRegion::Navigation)
+                ShortcutAction::RevealAndFocusRegion(FocusRegion::Navigation)
             }
             Shortcut::Command2 => {
                 self.focus_region(FocusRegion::ChatTabsHeaderTranscriptComposer);
-                ShortcutAction::FocusRegion(FocusRegion::ChatTabsHeaderTranscriptComposer)
+                ShortcutAction::RevealAndFocusRegion(FocusRegion::ChatTabsHeaderTranscriptComposer)
             }
             Shortcut::Command3 => {
                 self.focus_region(FocusRegion::ViewerTabsContent);
-                ShortcutAction::FocusRegion(FocusRegion::ViewerTabsContent)
+                ShortcutAction::RevealAndFocusRegion(FocusRegion::ViewerTabsContent)
             }
             Shortcut::Command4 => {
                 self.focus_region(FocusRegion::FileTree);
-                ShortcutAction::FocusRegion(FocusRegion::FileTree)
+                ShortcutAction::RevealAndFocusRegion(FocusRegion::FileTree)
             }
             Shortcut::ControlBacktick => {
                 self.focus_region(FocusRegion::TerminalTabsContent);
-                ShortcutAction::FocusRegion(FocusRegion::TerminalTabsContent)
+                ShortcutAction::ToggleTerminal
             }
             Shortcut::PreviousFocusedTab => self.route_focused_tab(TraversalDirection::Previous),
             Shortcut::NextFocusedTab => self.route_focused_tab(TraversalDirection::Next),
@@ -426,7 +442,7 @@ impl FocusRouter {
     }
 
     fn focus_region_entry(&mut self, region: FocusRegion) {
-        self.focused = FocusTarget::Region(region);
+        self.set_focused(FocusTarget::Region(region));
         let group = match region {
             FocusRegion::Navigation => Some(RovingGroup::NavigationTree),
             FocusRegion::ChatTabsHeaderTranscriptComposer => Some(RovingGroup::ChatTabs),
@@ -435,7 +451,7 @@ impl FocusRouter {
             FocusRegion::FileTree => Some(RovingGroup::FileTree),
         };
         if let Some(group) = group.filter(|group| self.group_count(*group) > 0) {
-            self.focused = group.target(self.groups[group.index()].index);
+            self.set_focused(group.target(self.groups[group.index()].index));
         }
     }
 
@@ -466,6 +482,15 @@ impl FocusRouter {
 
     fn normalize_target(&mut self) {
         self.focused = self.clamp_target(self.focused);
+    }
+
+    fn set_focused(&mut self, target: FocusTarget) {
+        if !matches!(target.region(), Some(FocusRegion::TerminalTabsContent))
+            && !matches!(target, FocusTarget::Modal { .. })
+        {
+            self.last_valid_non_terminal_target = target;
+        }
+        self.focused = target;
     }
 
     fn clamp_target(&self, target: FocusTarget) -> FocusTarget {
@@ -620,7 +645,7 @@ mod tests {
         let mut router = FocusRouter::new();
         assert_eq!(
             router.route_shortcut(Shortcut::Command3, false),
-            ShortcutAction::FocusRegion(FocusRegion::ViewerTabsContent)
+            ShortcutAction::RevealAndFocusRegion(FocusRegion::ViewerTabsContent)
         );
         assert_eq!(
             router.focused(),
@@ -628,7 +653,7 @@ mod tests {
         );
         assert_eq!(
             router.route_shortcut(Shortcut::ControlBacktick, false),
-            ShortcutAction::FocusRegion(FocusRegion::TerminalTabsContent)
+            ShortcutAction::ToggleTerminal
         );
         assert_eq!(
             router.route_shortcut(Shortcut::RequestShutdown, false),
@@ -648,6 +673,28 @@ mod tests {
         assert_eq!(
             router.route_shortcut(Shortcut::Command1, false),
             ShortcutAction::Ignored
+        );
+    }
+
+    #[test]
+    fn terminal_focus_restores_the_latest_non_terminal_target() {
+        let mut router = FocusRouter::new();
+        assert!(router.focus_composer());
+        assert_eq!(
+            router.last_valid_non_terminal_target(),
+            FocusTarget::Composer
+        );
+        assert_eq!(
+            router.route_shortcut(Shortcut::ControlBacktick, false),
+            ShortcutAction::ToggleTerminal
+        );
+        assert_eq!(
+            router.focused(),
+            FocusTarget::Region(FocusRegion::TerminalTabsContent)
+        );
+        assert_eq!(
+            router.restore_last_valid_non_terminal_target(),
+            FocusTarget::Composer
         );
     }
 

@@ -128,6 +128,33 @@ pub fn reduce(state: &mut AppState, event: RuntimeEvent) {
                 uncertain_paths,
             });
         }
+        RuntimeEvent::UserMessageCommitted {
+            session_id,
+            item_id,
+            text,
+            ..
+        } => {
+            let Some(session) = state
+                .session
+                .as_mut()
+                .filter(|session| session.id == session_id)
+            else {
+                state.diagnose("user_message_session_mismatch");
+                return;
+            };
+            let duplicate = session.messages.iter().any(|message| {
+                matches!(
+                    message,
+                    crate::backend::BackendMessage::User(message)
+                        if message.item_id == item_id
+                )
+            });
+            if !duplicate {
+                session.messages.push(crate::backend::BackendMessage::User(
+                    crate::backend::UserMessage { item_id, text },
+                ));
+            }
+        }
         RuntimeEvent::TurnPrepared { turn_id } => {
             if state
                 .active_turn
@@ -388,6 +415,48 @@ mod tests {
             },
         );
         assert!(state.active_turn.unwrap().streamed_text.is_empty());
+    }
+
+    #[test]
+    fn durable_user_message_is_projected_once_before_turn_preparation() {
+        let mut state = AppState::new(8);
+        let session_id = crate::agent::types::SessionId::new();
+        let turn_id = TurnId::new();
+        let item_id = crate::agent::types::ItemId::new();
+        reduce(
+            &mut state,
+            RuntimeEvent::SessionLoaded {
+                session_id,
+                messages: Vec::new(),
+                read_only: false,
+                workspace_available: true,
+                interrupted_turns: Vec::new(),
+                uncertain_paths: Vec::new(),
+            },
+        );
+        let event = RuntimeEvent::UserMessageCommitted {
+            session_id,
+            turn_id,
+            item_id,
+            text: "visible immediately".into(),
+        };
+        reduce(&mut state, event.clone());
+        reduce(&mut state, event);
+
+        let session = state.session.as_ref().unwrap();
+        assert_eq!(session.messages.len(), 1);
+        assert!(matches!(
+            &session.messages[0],
+            crate::backend::BackendMessage::User(message)
+                if message.item_id == item_id && message.text == "visible immediately"
+        ));
+        assert!(state.active_turn.is_none());
+
+        reduce(&mut state, RuntimeEvent::TurnPrepared { turn_id });
+        assert_eq!(
+            state.active_turn.as_ref().map(|turn| turn.id),
+            Some(turn_id)
+        );
     }
 
     #[test]

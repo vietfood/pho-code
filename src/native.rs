@@ -31,13 +31,13 @@ mod macos {
     use crate::ui::composer::{
         Backspace as ComposerBackspace, Composer, Delete as ComposerDelete, End as ComposerEnd,
         Home as ComposerHome, Left as ComposerLeft, Newline as ComposerNewline,
-        Right as ComposerRight, Submit as ComposerSubmit,
+        Paste as ComposerPaste, Right as ComposerRight, Submit as ComposerSubmit,
     };
-    use crate::ui::secure_input::{Backspace, Delete, End, Home, Left, Right, SecureInput};
+    use crate::ui::secure_input::{Backspace, Delete, End, Home, Left, Paste, Right, SecureInput};
     use crate::ui::startup::{
         DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, FocusChat, FocusFiles, FocusInspection,
-        FocusNavigation, FocusTerminal, MINIMUM_WINDOW_HEIGHT, MINIMUM_WINDOW_WIDTH,
-        OpenCredentialSettings, RetryStartupAction, StartupView,
+        FocusNavigation, MINIMUM_WINDOW_HEIGHT, MINIMUM_WINDOW_WIDTH, OpenCredentialSettings,
+        RetryStartupAction, StartupView, ToggleTerminalSurface,
     };
     use tokio::sync::{mpsc, watch};
     use tokio_util::sync::CancellationToken;
@@ -118,6 +118,7 @@ mod macos {
         }
         let application = gpui_platform::application();
         application.run(|cx| {
+            crate::ui::fonts::register_packaged_fonts(cx);
             cx.activate(true);
             cx.on_action(request_quit);
             cx.bind_keys([
@@ -126,7 +127,7 @@ mod macos {
                 KeyBinding::new("cmd-2", FocusChat, None),
                 KeyBinding::new("cmd-3", FocusInspection, None),
                 KeyBinding::new("cmd-4", FocusFiles, None),
-                KeyBinding::new("ctrl-`", FocusTerminal, None),
+                KeyBinding::new("ctrl-`", ToggleTerminalSurface, None),
                 KeyBinding::new("cmd-,", OpenCredentialSettings, None),
                 KeyBinding::new("backspace", Backspace, Some("SecureInput")),
                 KeyBinding::new("delete", Delete, Some("SecureInput")),
@@ -134,6 +135,8 @@ mod macos {
                 KeyBinding::new("right", Right, Some("SecureInput")),
                 KeyBinding::new("home", Home, Some("SecureInput")),
                 KeyBinding::new("end", End, Some("SecureInput")),
+                KeyBinding::new("cmd-v", Paste, Some("SecureInput")),
+                KeyBinding::new("ctrl-v", Paste, Some("SecureInput")),
                 KeyBinding::new("backspace", ComposerBackspace, Some("ComposerInput")),
                 KeyBinding::new("delete", ComposerDelete, Some("ComposerInput")),
                 KeyBinding::new("left", ComposerLeft, Some("ComposerInput")),
@@ -142,6 +145,8 @@ mod macos {
                 KeyBinding::new("end", ComposerEnd, Some("ComposerInput")),
                 KeyBinding::new("enter", ComposerSubmit, Some("ComposerInput")),
                 KeyBinding::new("shift-enter", ComposerNewline, Some("ComposerInput")),
+                KeyBinding::new("cmd-v", ComposerPaste, Some("ComposerInput")),
+                KeyBinding::new("ctrl-v", ComposerPaste, Some("ComposerInput")),
             ]);
             cx.set_menus([Menu::new("Pho Code").items([MenuItem::action("Quit Pho Code", Quit)])]);
             cx.set_global(NativeWindowOwner {
@@ -324,7 +329,7 @@ mod macos {
                 let _ = reduce_startup(&mut projection, StartupEvent::LockContended { generation });
                 return Bootstrap {
                     projection,
-                    theme: ThemePreference::System,
+                    theme: ThemePreference::Dark,
                     window_frame: None,
                     retry_paths: Some(paths),
                     workbench_sender: None,
@@ -434,7 +439,7 @@ mod macos {
         }
         Bootstrap {
             projection,
-            theme: ThemePreference::System,
+            theme: ThemePreference::Dark,
             window_frame: None,
             retry_paths: None,
             workbench_sender: None,

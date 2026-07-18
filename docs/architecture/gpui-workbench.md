@@ -1,10 +1,11 @@
 # GPUI workbench architecture
 
-- Status: Normative V1 architecture; released in 0.1.0 with deferred qualification in V2 Phase 6B
-- Governing decision: [ADR 0004](../decisions/0004-native-workbench-phase-6.md)
+- Status: Normative native architecture; V1 released in 0.1.0, qualification deferred to V2 Phase 6B, chat-first presentation amended for Phase 6C
+- Governing decisions: [ADR 0004](../decisions/0004-native-workbench-phase-6.md) and [ADR 0006](../decisions/0006-chat-first-native-workbench.md)
 - Shared runtime: [Native harness system](native-harness-system.md)
 - Component contracts: [DeepSeek backend](deepseek-api-backend.md), [tools](tools.md), and [sessions](sessions.md)
 - Delivery: [Phase 6](../implementation/v1/phase-6/README.md)
+- Presentation delivery: [Phase 6C](../implementation/v2/phase-6c-chat-first-ui-polish.md)
 - Native lifecycle: [Native workbench lifecycle](native-workbench-lifecycle.md)
 
 ## Document role
@@ -21,16 +22,20 @@ V1 still has one supported real backend, one selected agent workspace/session, o
 
 ## Shell composition
 
-The default window is a four-region horizontal composition with a vertical split inside the inspection region:
+The workbench retains four functional regions with a vertical split inside the inspection region:
 
 ```text
 Workspaces/chats | Chat execution trace | File/diff viewer | File tree
-                                      \_ User terminal _/
+                 \_ User terminal _/
 ```
 
-The navigation sidebar begins near 300 logical pixels and the file tree near 250 logical pixels. The chat and inspection columns share remaining width. Exact minimum, preferred, and restored sizes belong to a versioned layout profile qualified against the supported display class; widths in the visual reference are starting values rather than hard guarantees.
+The `ChatFirstV1` profile initially expands only the chat. Navigation, inspection, file tree, and terminal are revealed through persistent labeled controls or keyboard actions. Chat is structural and cannot be hidden. Revealing a context pane adds it to the fixed bounded composition; it does not create an overlay, arbitrary dock node, or new application service.
 
-The left and right regions may collapse. The file viewer and terminal may resize vertically, and each content region may own tabs. Phase 6 uses a fixed application composition with bounded resizable groups rather than exposing arbitrary user-created panels or a public docking registry. UI-only size/collapse preferences are stored separately from sessions and never enter model context or the canonical journal.
+The navigation sidebar begins near 220 logical pixels when revealed and the file tree near 250 logical pixels. Chat and inspection share remaining width when inspection is visible. Exact minimum, preferred, and restored sizes belong to a versioned layout profile qualified against the supported display class; widths in the visual reference are starting values rather than hard guarantees.
+
+Navigation, inspection, file tree, and terminal visibility are explicit presentation state. The viewer and terminal may resize vertically when both are visible, and each content region may own tabs. The shell uses a fixed composition with bounded resizable groups rather than exposing arbitrary user-created panels or a public docking registry. UI-only geometry, visibility, disclosure, and tab preferences are stored separately from sessions and never enter model context or the canonical journal.
+
+![Chat-first workbench workflow](../assets/ui/chat-first-workbench-workflow.jpg)
 
 ## Ownership and dependency direction
 
@@ -82,9 +87,7 @@ TranscriptRow
   UserMessage
   AssistantText
   ProviderReasoning
-  ToolCall
-  Approval
-  ToolResult
+  ToolLifecycle
   Usage
   TurnStatus
   Diagnostic
@@ -98,9 +101,17 @@ Streaming text and reasoning are ephemeral projections keyed by the active reque
 
 User text renders as literal selectable text with whitespace preserved and no Markdown interpretation. Assistant text uses the bounded Markdown pipeline below. Provider-returned reasoning is labeled with its reported origin, collapsed by default, excluded from automatic previews, and revealed only through an explicit local view action. Its collapsed state is UI preference, not a session mutation.
 
-A tool call and its result appear as one structured lifecycle group while retaining their separate canonical identities. Read/search rows summarize bounded structured details. Patch rows show the canonical diff/effect preview, truncation, stale state, per-file outcomes, and artifact references. Shell rows show the exact command, working directory, timeout, unrestricted-account warning, exit state, duration, output previews, truncation, and artifacts.
+A tool call, optional approval, and result appear as one structured lifecycle group while retaining their separate canonical identities. The group has a stable row identity, parent assistant-phase identity, tool-call identity, optional approval identity, optional result-item identity, tool kind, semantic lifecycle state, bounded structured summary, optional effect/output previews, truncation state, artifact references, and local disclosure state. It derives lifecycle truth from canonical events and records; a view never reconstructs state by parsing trace strings or provider/tool JSON.
 
-An approval row is rendered from the live `ApprovalId`, `ToolCallId`, complete validated effect digest, and canonical preview. `ApproveOnce` and `Deny` dispatch typed decisions carrying the live identities; the view cannot synthesize success or reuse a stale row. A truncated preview clearly links to bounded details while the decision remains bound to the complete digest rather than the visible subset.
+Successful read, search, and list groups are collapsed by default after completion and expose tool kind, safe scope/target, count/range, completion, and any truncation/artifact indicator in their header. Active low-risk inspection remains a compact semantic status. Read/search details remain explicitly expandable.
+
+Patch and shell groups remain expanded while awaiting approval and after completion unless the user explicitly collapses a completed group locally. Their effect-bearing summaries cannot inherit a low-risk success treatment. Denial, failure, timeout, cancellation, interruption, stale identity, truncation, and uncertainty are expanded by default with safe recovery context. No rule may hide an approval, imply success before a terminal event, suppress an uncertain effect, or detach a result from its call.
+
+Read/search details summarize bounded structured fields. Patch details show the canonical diff/effect preview, truncation, stale state, per-file outcomes, and artifact references. Shell details show the exact command, contained working directory, timeout, unrestricted-account warning, exit state, duration, output previews, truncation, and artifacts. Raw provider DTOs, raw tool payloads, and unstructured debug traces are not primary transcript rows.
+
+An approval subrow within the lifecycle group is rendered from the live `ApprovalId`, `ToolCallId`, complete validated effect digest, and canonical preview. `ApproveOnce` and `Deny` dispatch typed decisions carrying the live identities; the view cannot synthesize success or reuse a stale row. A truncated preview clearly links to bounded details while the decision remains bound to the complete digest rather than the visible subset.
+
+Reasoning and lifecycle expansion state is keyed by canonical row identity, bounded, and stored only as presentation preference. Reconstruction never changes canonical content based on a prior expanded/collapsed choice.
 
 Usage and estimated cost attach to the owning turn and preserve qualification/pricing dates. Terminal turn state always has a distinct visible row for completed, failed, cancelled, interrupted, or uncertain. Diagnostics expose safe structured recovery context without prompts, reasoning, file bodies, command output, credentials, headers, account data, or personal absolute paths.
 

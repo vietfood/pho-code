@@ -1,10 +1,11 @@
 # Native workbench lifecycle
 
-- Status: Normative V1 architecture; released in 0.1.0 with deferred qualification in V2 Phase 6B
-- Governing decision: [ADR 0004](../decisions/0004-native-workbench-phase-6.md)
+- Status: Normative native architecture; V1 released in 0.1.0, qualification deferred to V2 Phase 6B, chat-first presentation amended for Phase 6C
+- Governing decisions: [ADR 0004](../decisions/0004-native-workbench-phase-6.md) and [ADR 0006](../decisions/0006-chat-first-native-workbench.md)
 - Presentation: [GPUI workbench](gpui-workbench.md)
 - Shared runtime: [Native harness system](native-harness-system.md)
 - Delivery: [Phase 6](../implementation/v1/phase-6/README.md)
+- Presentation delivery: [Phase 6C](../implementation/v2/phase-6c-chat-first-ui-polish.md)
 
 ## Document role
 
@@ -61,7 +62,7 @@ Offline inspection remains available when the credential is missing or remote va
 
 ## Preference ownership and schema
 
-Workbench preferences are a versioned, non-secret local document under `Application Support/Pho Code/preferences/workbench-v1.json`. They are not session records, do not enter model context, and cannot alter tool or backend authority. The initial schema contains only:
+Workbench preferences are a versioned, non-secret local document under `Application Support/Pho Code/preferences/workbench-v1.json`. They are not session records, do not enter model context, and cannot alter tool or backend authority. The released V1 schema contains only:
 
 ```text
 WorkbenchPreferencesV1
@@ -86,13 +87,17 @@ Writes use a sibling temporary file, file flush, atomic rename, directory flush,
 
 `clean_shutdown` is set false only after the shell owns the guard and is set true only after owned services and terminal children have reached the shutdown boundary. It is a diagnostic hint, not proof that a prior effect or process completed. Terminal processes are never reattached after restart.
 
+Phase 6C introduces an explicit bounded `WorkbenchPreferencesV2` migration. V2 retains the V1 fields and adds a layout-profile revision, explicit visibility for navigation/inspection/files/terminal, last valid bounded pane fractions, and bounded transcript disclosure keys. Chat remains structural rather than optional. Focus history is process-local and is not persisted.
+
+Migration preserves valid V1 navigation and file-tree collapse choices, starts inspection and terminal hidden when no compatible explicit state exists, clamps retained geometry to the current display/profile, and leaves sessions and terminal process state untouched. New, corrupt, or safely reset preferences use `ChatFirstV1` with only chat expanded. Migration failure retains the intact candidate, uses safe defaults for the run, and produces a local recovery diagnostic; it never silently overwrites the source candidate.
+
 ## Window and layout contract
 
-The application opens one native macOS window with system traffic-light controls, drag behavior, and a sidebar-toggle affordance. The content is a fixed composition of nested horizontal and vertical resizable groups; Phase 6 does not expose arbitrary docking, detachable windows, or user-authored panel registries.
+The application opens one native macOS window with system traffic-light controls, drag behavior, and labeled pane-toggle affordances. The content is a fixed composition of nested horizontal and vertical resizable groups; the workbench does not expose arbitrary docking, detachable windows, or user-authored panel registries.
 
-The default profile uses a navigation sidebar near 300 logical pixels, a file tree near 250, and a roughly even split between chat and inspection. The inspection column contains a vertically resizable viewer above the terminal. Qualifying implementation defines constants for every preferred, minimum, and maximum fraction and tests them at the supported display sizes. Restored sizes are clamped to the current visible screen and profile revision before use.
+The `ChatFirstV1` default profile expands only chat and uses the dark theme. When revealed, navigation begins near 220 logical pixels, the file tree near 250, and chat/inspection use a bounded restored or roughly even split. The user terminal docks under the chat column and is revealable independently of inspection. Qualifying implementation defines constants for every preferred, minimum, and maximum fraction and tests them at the supported display sizes. Restored sizes are clamped to the current visible screen and profile revision before use.
 
-When horizontal space is insufficient, the shell collapses the file tree first and the navigation sidebar second into labeled icon affordances. It never permits panes to overlap, lets a fixed sidebar starve the composer/viewer, or hides the terminal permanently; each collapsed region remains keyboard reachable. Below the qualified minimum window size, resize is constrained rather than producing an undefined layout. Vertical pressure preserves a reachable terminal tab bar and composer before optional header detail.
+Navigation, inspection, files, and terminal are explicitly revealable/hideable; hiding changes presentation only and cancels no service operation. When horizontal space is insufficient, the shell hides the file tree first, navigation second, and inspection third according to deterministic pressure rules while retaining labeled reveal affordances. It never permits panes to overlap, lets a fixed sidebar starve the composer/viewer, or makes any region unreachable. Below the qualified minimum window size, resize is constrained rather than producing an undefined layout. Vertical pressure preserves the composer and, when terminal is visible, a reachable terminal tab bar before optional header detail.
 
 Pane geometry, collapse state, selected presentation tabs, local drafts, and transcript expansion state are preferences. Canonical selection, active turn, approval, tool, session, file, Git, and process truth remain application state.
 
@@ -104,14 +109,16 @@ Phase 6 reserves these application bindings after conflict and IME qualification
 
 | Binding | Action |
 | --- | --- |
-| `Command-1` through `Command-4` | Focus navigation, chat, inspection, or file tree |
-| `Control-`` | Focus/toggle the terminal portion of inspection |
+| `Command-1` through `Command-4` | Reveal if needed and focus navigation, chat, inspection, or file tree |
+| `Control-backtick` | Toggle terminal visibility under chat (lazy first create) |
 | `Command-Shift-[` / `Command-Shift-]` | Previous/next tab in the focused tab strip |
 | `Command-W` | Close the focused presentation tab; never delete a session or file |
 | `Command-Shift-W` | Request window shutdown |
 | `Enter` | Send from the composer when composition is inactive and send is enabled |
 | `Shift-Enter` | Insert a composer newline |
 | `Escape` | Close a transient surface, or request explicit turn cancellation only when the cancel control owns focus |
+
+`Control-backtick` is a presentation toggle, not a terminal process command. Hiding terminal restores the most recent valid non-terminal focus target; revealing an existing terminal focuses it without restart; first reveal requests lazy creation only after valid dimensions exist. Repeated toggles while opening cannot create duplicate terminals.
 
 The terminal receives ordinary key input only while its content owns focus; application shortcuts are intercepted before PTY encoding and visibly documented. No global approval shortcut is introduced. Approval requires focus on the live decision control and dispatches its complete typed identity.
 
@@ -121,9 +128,9 @@ Streaming, session restoration, Git refresh, tree loading, and terminal output n
 
 ## Theme, fonts, and assets
 
-The component/theme registry initializes exactly once before selected `gpui-component` controls render. All icons, fonts, and math assets are reviewed and packaged locally; no render or theme path downloads assets. The dependency spike must establish one GPUI source family and record licenses for every packaged asset.
+The component/theme registry initializes exactly once before selected `gpui-component` controls render. All icons, fonts, and math assets are reviewed and packaged locally; no render or theme path downloads assets. The workbench registers packaged JetBrains Mono faces at native startup and applies that family to the whole native shell (chrome, chat, sidebars, viewer, and terminal), with system monospace fallback if registration fails. Syntax highlighting uses a Pho-owned tree-sitter path for a curated language set (Rust, JavaScript/TypeScript/TSX, JSON, Python, Bash, TOML, YAML) and a lexical fallback elsewhere. The dependency spike must establish one GPUI source family and record licenses for every packaged asset.
 
-System, light, dark, and high-contrast profiles provide semantic colors for background layers, text, selection, focus, insertion, deletion, warning, error, link, code, and terminal ANSI mapping. Syntax and Git colors cannot be the sole carrier of meaning. Missing optional fonts fall back to packaged/system-qualified fonts without invisible glyphs; a missing required math font triggers source fallback.
+System, light, dark, and high-contrast profiles provide semantic colors for window, primary, raised, hover, selected, separator, text, muted text, focus, insertion, deletion, success, warning, error, link, code, and terminal ANSI mapping. Ordinary assistant text uses the primary surface; raised surfaces are reserved for user prompts, grouped tool activity, approvals/errors, and selected controls. One-pixel low-contrast separators replace repeated equal-weight pane/card outlines without weakening focus or status visibility. Syntax and Git colors cannot be the sole carrier of meaning. Missing optional fonts fall back to packaged/system-qualified fonts without invisible glyphs; a missing required math font triggers source fallback.
 
 ## Shutdown contract
 

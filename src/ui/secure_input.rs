@@ -12,7 +12,10 @@ use crate::auth::SecretText;
 
 pub const MAX_SECRET_INPUT_BYTES: usize = 4_096;
 
-gpui::actions!(secure_input, [Backspace, Delete, Left, Right, Home, End]);
+gpui::actions!(
+    secure_input,
+    [Backspace, Delete, Left, Right, Home, End, Paste]
+);
 
 pub struct SecureInput {
     focus_handle: FocusHandle,
@@ -129,6 +132,22 @@ impl SecureInput {
 
     fn end(&mut self, _: &End, _: &mut Window, cx: &mut Context<Self>) {
         self.move_to(self.content.len(), cx);
+    }
+
+    fn paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(item) = cx.read_from_clipboard() else {
+            return;
+        };
+        let Some(text) = item.text() else {
+            return;
+        };
+        // API keys never contain internal whitespace; collapse so a copied
+        // "sk-...\n" still pastes cleanly without silently dropping characters.
+        let trimmed = text.trim_matches(|c: char| c.is_ascii_control() || c == ' ');
+        if trimmed.is_empty() {
+            return;
+        }
+        self.replace_range(None, trimmed, cx);
     }
 
     fn focus_at_end(&mut self, _: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -293,6 +312,7 @@ impl gpui::Render for SecureInput {
             .on_action(cx.listener(Self::right))
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
+            .on_action(cx.listener(Self::paste))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::focus_at_end))
             .child(
                 div()
@@ -300,11 +320,15 @@ impl gpui::Render for SecureInput {
                     .inset_0()
                     .flex()
                     .items_center()
-                    .px_2()
+                    .px_3()
+                    .text_sm()
                     .child(if masked.is_empty() {
-                        "Enter API key".to_owned()
+                        div()
+                            .text_color(gpui::hsla(0., 0., 0., 0.))
+                            .child(" ")
+                            .into_any_element()
                     } else {
-                        masked
+                        div().child(masked).into_any_element()
                     }),
             )
             .child(InputCapture { input: cx.entity() })

@@ -1,11 +1,12 @@
 # User terminal architecture
 
-- Status: Normative V1 architecture; bounded actor and single-surface implementation released in 0.1.0; multi-tab qualification deferred to V2 Phase 6B
-- Governing decision: [ADR 0004](../decisions/0004-native-workbench-phase-6.md)
+- Status: Normative native architecture; bounded actor and single-surface implementation released in 0.1.0, multi-tab qualification deferred to V2 Phase 6B, lazy reveal amended for Phase 6C
+- Governing decisions: [ADR 0004](../decisions/0004-native-workbench-phase-6.md) and [ADR 0006](../decisions/0006-chat-first-native-workbench.md)
 - Parent presentation: [GPUI workbench](gpui-workbench.md)
 - Dependency research: [PTY and emulator study](../research/terminal-pty-source-study.md)
 - Model-facing process contract: [V1 shell tool](tools.md#noninteractive-shell)
 - Delivery: [Phase 6](../implementation/v1/phase-6/README.md)
+- Presentation delivery: [Phase 6C](../implementation/v2/phase-6c-chat-first-ui-polish.md)
 
 ## Document role
 
@@ -135,7 +136,13 @@ Resize accepts clamped columns, rows, and pixel dimensions and coalesces identic
 
 ## Presentation and persistence
 
-The terminal pane is first-class: it has an independent tab bar, focus target, running/exited/error badge, workspace label, bounded scrollback, selection/copy, local search, and explicit new/interrupt/restart/close controls. It is not visually hidden as tool output. Terminal tabs may remain running when the viewer is collapsed or another workspace is selected.
+The terminal is a first-class explicitly revealable surface: it has an independent tab bar, focus target, running/exited/error badge, workspace label, bounded scrollback, selection/copy, local search, and explicit new/interrupt/restart/close controls. It is not rendered as agent tool output. Terminal tabs may remain running while the surface or viewer is hidden or another workspace is selected.
+
+The `ChatFirstV1` profile starts the terminal surface hidden and creates no PTY merely because the workbench opened. `Control-backtick` is intercepted as an application action before PTY encoding. On first reveal with no terminal entry, the shell reveals the surface, supplies clamped nonzero dimensions, dispatches exactly one `CreateTerminal`, and focuses the entry when it reaches `Ready`. Repeated reveal/toggle actions during `Opening` are idempotent and cannot create a duplicate.
+
+When an opening, running, exited, failed, or uncertain entry already exists, revealing selects/focuses it without restart. Hiding changes presentation only: it sends no input, resize, interrupt, close, restart, or lifecycle-success event and does not discard the actor's bounded snapshot/scrollback. A hidden running terminal continues under the same documented actor bounds. Creation failure keeps the surface visible with safe error and retry/close controls.
+
+Hiding a focused terminal restores the most recent valid visible non-terminal focus target. If that target became unavailable, focus falls back deterministically to the chat composer or chat surface without sending input. Workspace switches retain the terminal's original binding exactly as before.
 
 Only a bounded dormant descriptor may enter workbench preferences: terminal tab order, registration ID, initial contained relative cwd, and sanitized display title. Live handles, PID/group, environment, input/output, screen, scrollback, selection, command history, exit status, and reconnect token are never persisted. After orderly shutdown or restart, restored tabs are dormant and require explicit start; after a crash, the app never reattaches or replays.
 
@@ -152,6 +159,8 @@ Process death can prevent clean signalling, and macOS provides no claim here tha
 ## Verification
 
 Pure tests cover every state transition, stale identity/generation/sequence, lossless lifecycle events, snapshot coalescing, input backpressure, scrollback eviction, dimension clamping, terminal/app shortcut routing, dormant restoration, and diagnostic redaction.
+
+Presentation tests additionally cover first-reveal lazy creation, repeated toggles during `Opening`, hide/reveal of running/exited/failed entries, no actor command on hide, focus restoration, stale workspace/terminal generations, and creation failure remaining visible.
 
 The macOS PTY corpus covers shell startup/exit, startup failure, `stty size`, resize/SIGWINCH, `Control-C` of a foreground child while the shell survives, descendant process-group close, terminate/kill escalation, wait/reap and absence proof, EOF/EIO, Unicode/wide/combining cells, ANSI color, alternate screen, bracketed paste, malformed escapes, OSC 7/52, hyperlinks, large/one-byte output, long lines, rapid input/resize, eight tabs, cache pressure, and saturated UI handoff.
 

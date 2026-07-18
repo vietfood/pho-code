@@ -7,6 +7,8 @@ pub mod reducer;
 pub mod runtime;
 pub mod services;
 pub mod state;
+pub mod syntax;
+pub mod terminal_surface;
 pub mod transcript;
 pub mod window_geometry;
 pub mod workbench_controller;

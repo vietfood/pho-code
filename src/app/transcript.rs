@@ -7,22 +7,28 @@
 use std::collections::VecDeque;
 use std::fmt;
 
+use crate::agent::types::{ApprovalId, BackendRequestId, ItemId, SessionId, ToolCallId, TurnId};
+use crate::backend::{AssistantPhase, BackendMessage, CompletedToolCall, ToolResult};
+
 pub const MAX_ROWS: usize = 4_096;
 pub const MAX_DIAGNOSTICS: usize = 128;
 pub const MAX_PROVISIONAL_BYTES: usize = 512 * 1024;
 pub const MAX_DELTA_QUEUE: usize = 256;
 pub const MAX_APPROVAL_PREVIEW_BYTES: usize = 4 * 1024;
+pub const MAX_TOOL_DETAIL_BYTES: usize = 8 * 1024;
+pub const MAX_PENDING_LIFECYCLES: usize = 256;
+pub const MAX_EXPANSION_KEYS: usize = 256;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ProvisionalKey {
-    pub turn_id: u64,
-    pub request_id: u64,
+    pub turn_id: TurnId,
+    pub request_id: BackendRequestId,
     pub generation: u64,
 }
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct ToolCallRecord {
-    pub tool_call_id: u64,
+    pub tool_call_id: ToolCallId,
     pub provider_call_id: String,
     pub name: String,
     pub arguments: String,
@@ -42,7 +48,7 @@ impl fmt::Debug for ToolCallRecord {
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct ToolResultRecord {
-    pub tool_call_id: u64,
+    pub tool_call_id: ToolCallId,
     pub provider_call_id: String,
     pub output: String,
     pub status: ToolTerminalStatus,
@@ -60,17 +66,94 @@ impl fmt::Debug for ToolResultRecord {
     }
 }
 
+impl From<CompletedToolCall> for ToolCallRecord {
+    fn from(value: CompletedToolCall) -> Self {
+        Self {
+            tool_call_id: value.tool_call_id,
+            provider_call_id: value.provider_call_id,
+            name: value.name,
+            arguments: value.arguments,
+        }
+    }
+}
+
+impl From<ToolResult> for ToolResultRecord {
+    fn from(value: ToolResult) -> Self {
+        Self {
+            tool_call_id: value.tool_call_id,
+            provider_call_id: value.provider_call_id,
+            output: value.output,
+            status: ToolTerminalStatus::Completed,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ToolTerminalStatus {
     Completed,
     Failed,
+    TimedOut,
     Cancelled,
+    Interrupted,
+    Stale,
     Uncertain,
+}
+
+/// The display state of a canonical call. This is deliberately not inferred from a textual
+/// diagnostic or a provider payload: callers provide lifecycle transitions as typed events.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ToolLifecycleState {
+    Validated,
+    AwaitingApproval,
+    Denied,
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    TimedOut,
+    Cancelled,
+    Interrupted,
+    Stale,
+    Uncertain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ToolKind {
+    Read,
+    Search,
+    List,
+    Patch,
+    Shell,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Disclosure {
+    Collapsed,
+    Expanded,
+}
+
+/// GPUI-neutral data used to render one lifecycle row. The canonical call, approval, and result
+/// stay independently addressable on `TranscriptRow::ToolCallGroup`; this is only a safe view of
+/// their current relationship.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ToolLifecycleProjection {
+    pub row_id: RowId,
+    pub phase_item_id: Option<ItemId>,
+    pub tool_call_id: ToolCallId,
+    pub approval_id: Option<ApprovalId>,
+    pub result_provider_call_id: Option<String>,
+    pub kind: ToolKind,
+    pub state: ToolLifecycleState,
+    pub summary: String,
+    pub disclosure: Disclosure,
+    pub arguments_truncated: bool,
+    pub output_truncated: bool,
 }
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct AssistantPhaseRecord {
-    pub item_id: u64,
+    pub item_id: ItemId,
     pub provider_completion_id: String,
     pub text: Option<String>,
     pub reasoning: Option<String>,
@@ -92,6 +175,19 @@ impl fmt::Debug for AssistantPhaseRecord {
             )
             .field("tool_calls", &self.tool_calls.len())
             .finish()
+    }
+}
+
+impl From<AssistantPhase> for AssistantPhaseRecord {
+    fn from(value: AssistantPhase) -> Self {
+        Self {
+            item_id: value.item_id,
+            provider_completion_id: value.provider_completion_id,
+            text: value.text,
+            reasoning: value.reasoning,
+            reasoning_required_for_replay: value.reasoning_required_for_replay,
+            tool_calls: value.tool_calls.into_iter().map(Into::into).collect(),
+        }
     }
 }
 
@@ -176,9 +272,9 @@ pub enum ApprovalDecision {
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct ApprovalResolution {
-    pub turn_id: u64,
-    pub approval_id: u64,
-    pub tool_call_id: u64,
+    pub turn_id: TurnId,
+    pub approval_id: ApprovalId,
+    pub tool_call_id: ToolCallId,
     pub effect_digest: [u8; 32],
     pub decision: ApprovalDecision,
 }
@@ -198,9 +294,9 @@ impl fmt::Debug for ApprovalResolution {
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct ApprovalRow {
-    pub turn_id: u64,
-    pub approval_id: u64,
-    pub tool_call_id: u64,
+    pub turn_id: TurnId,
+    pub approval_id: ApprovalId,
+    pub tool_call_id: ToolCallId,
     pub effect_digest: [u8; 32],
     pub summary: String,
     pub display_preview: String,
@@ -224,16 +320,43 @@ impl fmt::Debug for ApprovalRow {
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum RowId {
-    UserMessage { item_id: u64 },
-    AssistantPhase { item_id: u64 },
-    ProviderReasoning { item_id: u64 },
-    ToolGroup { turn_id: u64, tool_call_id: u64 },
-    Approval { turn_id: u64, approval_id: u64 },
-    Usage { turn_id: u64 },
-    TurnStatus { turn_id: u64 },
-    Diagnostic { sequence: u64 },
-    ProvisionalText(ProvisionalKey),
-    ProvisionalReasoning(ProvisionalKey),
+    UserMessage {
+        session_id: SessionId,
+        item_id: ItemId,
+    },
+    AssistantPhase {
+        session_id: SessionId,
+        item_id: ItemId,
+    },
+    ProviderReasoning {
+        session_id: SessionId,
+        item_id: ItemId,
+    },
+    ToolGroup {
+        session_id: SessionId,
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+    },
+    Usage {
+        session_id: SessionId,
+        turn_id: TurnId,
+    },
+    TurnStatus {
+        session_id: SessionId,
+        turn_id: TurnId,
+    },
+    Diagnostic {
+        session_id: SessionId,
+        sequence: u64,
+    },
+    ProvisionalText {
+        session_id: SessionId,
+        key: ProvisionalKey,
+    },
+    ProvisionalReasoning {
+        session_id: SessionId,
+        key: ProvisionalKey,
+    },
 }
 
 impl fmt::Debug for RowId {
@@ -243,12 +366,11 @@ impl fmt::Debug for RowId {
             Self::AssistantPhase { .. } => "AssistantPhase",
             Self::ProviderReasoning { .. } => "ProviderReasoning",
             Self::ToolGroup { .. } => "ToolGroup",
-            Self::Approval { .. } => "Approval",
             Self::Usage { .. } => "Usage",
             Self::TurnStatus { .. } => "TurnStatus",
             Self::Diagnostic { .. } => "Diagnostic",
-            Self::ProvisionalText(_) => "ProvisionalText",
-            Self::ProvisionalReasoning(_) => "ProvisionalReasoning",
+            Self::ProvisionalText { .. } => "ProvisionalText",
+            Self::ProvisionalReasoning { .. } => "ProvisionalReasoning",
         })
     }
 }
@@ -257,42 +379,46 @@ impl fmt::Debug for RowId {
 pub enum TranscriptRow {
     UserMessage {
         id: RowId,
-        item_id: u64,
+        item_id: ItemId,
         text: String,
     },
     AssistantText {
         id: RowId,
-        turn_id: u64,
-        phase_item_id: u64,
+        turn_id: TurnId,
+        phase_item_id: ItemId,
         text: String,
         provisional: bool,
     },
     ProviderReasoning {
         id: RowId,
-        turn_id: u64,
-        phase_item_id: u64,
+        turn_id: TurnId,
+        phase_item_id: ItemId,
         text: String,
         provisional: bool,
         required_for_replay: bool,
     },
     ToolCallGroup {
         id: RowId,
-        turn_id: u64,
-        call: ToolCallRecord,
+        turn_id: TurnId,
+        /// `None` is an intentionally short-lived out-of-order state. An approval or result can
+        /// arrive before its completed assistant phase, but it must remain visible rather than be
+        /// dropped or rendered as an unrelated raw row.
+        phase_item_id: Option<ItemId>,
+        call: Option<ToolCallRecord>,
+        approval: Option<Box<ApprovalRow>>,
         result: Option<ToolResultRecord>,
-    },
-    Approval {
-        id: RowId,
-        approval: ApprovalRow,
+        state: ToolLifecycleState,
+        arguments_truncated: bool,
+        output_truncated: bool,
     },
     Usage {
         id: RowId,
-        turn_id: u64,
+        turn_id: TurnId,
         usage: UsageRecord,
     },
     TurnStatus {
         id: RowId,
-        turn_id: u64,
+        turn_id: TurnId,
         state: TerminalState,
         code: Option<String>,
     },
@@ -323,19 +449,27 @@ impl fmt::Debug for TranscriptRow {
                 .field("text_bytes", &text.len())
                 .finish(),
             Self::ToolCallGroup {
-                id, call, result, ..
+                id,
+                call,
+                approval,
+                result,
+                state,
+                ..
             } => formatter
                 .debug_struct("ToolCallGroup")
                 .field("id", id)
-                .field("tool_call_id", &call.tool_call_id)
-                .field("name", &call.name)
-                .field("argument_bytes", &call.arguments.len())
+                .field("tool_call_id", &call.as_ref().map(|call| call.tool_call_id))
+                .field("name", &call.as_ref().map(|call| call.name.as_str()))
+                .field(
+                    "argument_bytes",
+                    &call.as_ref().map(|call| call.arguments.len()),
+                )
+                .field(
+                    "approval_id",
+                    &approval.as_ref().map(|approval| approval.approval_id),
+                )
                 .field("has_result", &result.is_some())
-                .finish(),
-            Self::Approval { id, approval } => formatter
-                .debug_struct("Approval")
-                .field("id", id)
-                .field("approval", approval)
+                .field("state", state)
                 .finish(),
             Self::Usage { id, turn_id, usage } => formatter
                 .debug_struct("Usage")
@@ -367,15 +501,15 @@ impl fmt::Debug for TranscriptRow {
 #[derive(Clone, Eq, PartialEq)]
 pub enum TranscriptEvent {
     UserMessage {
-        item_id: u64,
+        item_id: ItemId,
         text: String,
     },
     Preparing {
-        turn_id: u64,
+        turn_id: TurnId,
     },
     RequestStarted {
-        turn_id: u64,
-        request_id: u64,
+        turn_id: TurnId,
+        request_id: BackendRequestId,
     },
     ReasoningDelta {
         key: ProvisionalKey,
@@ -386,13 +520,18 @@ pub enum TranscriptEvent {
         text: String,
     },
     AssistantPhaseCompleted {
-        turn_id: u64,
+        turn_id: TurnId,
         key: ProvisionalKey,
         phase: AssistantPhaseRecord,
     },
     ToolResult {
-        turn_id: u64,
+        turn_id: TurnId,
         result: ToolResultRecord,
+    },
+    ToolState {
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+        state: ToolLifecycleState,
     },
     ApprovalRequested {
         approval: ApprovalRow,
@@ -401,7 +540,7 @@ pub enum TranscriptEvent {
         resolution: ApprovalResolution,
     },
     Usage {
-        turn_id: u64,
+        turn_id: TurnId,
         usage: UsageRecord,
     },
     RunningTool {
@@ -411,20 +550,20 @@ pub enum TranscriptEvent {
     Continuing,
     Cancelling,
     TurnCompleted {
-        turn_id: u64,
+        turn_id: TurnId,
     },
     TurnFailed {
-        turn_id: u64,
+        turn_id: TurnId,
         code: String,
     },
     TurnCancelled {
-        turn_id: u64,
+        turn_id: TurnId,
     },
     TurnInterrupted {
-        turn_id: u64,
+        turn_id: TurnId,
     },
     TurnUncertain {
-        turn_id: u64,
+        turn_id: TurnId,
     },
     Diagnostic {
         code: String,
@@ -441,6 +580,7 @@ impl fmt::Debug for TranscriptEvent {
             Self::TextDelta { .. } => "TextDelta([REDACTED])",
             Self::AssistantPhaseCompleted { .. } => "AssistantPhaseCompleted([REDACTED])",
             Self::ToolResult { .. } => "ToolResult([REDACTED])",
+            Self::ToolState { .. } => "ToolState",
             Self::ApprovalRequested { .. } => "ApprovalRequested",
             Self::ApprovalResolved { .. } => "ApprovalResolved",
             Self::Usage { .. } => "Usage",
@@ -530,9 +670,11 @@ impl fmt::Debug for ProvisionalText {
 /// Rebuildable transcript projection with bounded canonical rows and provisional deltas.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TranscriptProjection {
+    session_id: SessionId,
     rows: Vec<TranscriptRow>,
     provisional: Vec<(ProvisionalKey, ProvisionalText)>,
     delta_queue: VecDeque<ProvisionalKey>,
+    expanded_lifecycles: VecDeque<RowId>,
     sequence: u64,
     activity: SemanticActivity,
     scroll: ScrollState,
@@ -546,14 +688,26 @@ impl Default for TranscriptProjection {
 
 impl TranscriptProjection {
     pub fn new() -> Self {
+        Self::for_session(SessionId::new())
+    }
+
+    /// The production constructor. A projection is always scoped to one canonical session, so
+    /// virtual-row identity cannot collide across open session tabs.
+    pub fn for_session(session_id: SessionId) -> Self {
         Self {
+            session_id,
             rows: Vec::new(),
             provisional: Vec::new(),
             delta_queue: VecDeque::new(),
+            expanded_lifecycles: VecDeque::new(),
             sequence: 0,
             activity: SemanticActivity::Idle,
             scroll: ScrollState::default(),
         }
+    }
+
+    pub fn session_id(&self) -> SessionId {
+        self.session_id
     }
 
     pub fn rows(&self) -> &[TranscriptRow] {
@@ -580,6 +734,101 @@ impl TranscriptProjection {
         self.delta_queue.len()
     }
 
+    pub fn lifecycle(&self, id: &RowId) -> Option<ToolLifecycleProjection> {
+        self.rows.iter().find_map(|row| match row {
+            TranscriptRow::ToolCallGroup {
+                id: row_id,
+                turn_id,
+                phase_item_id,
+                call,
+                approval,
+                result,
+                state,
+                arguments_truncated,
+                output_truncated,
+            } if row_id == id => Some(ToolLifecycleProjection {
+                row_id: row_id.clone(),
+                phase_item_id: *phase_item_id,
+                tool_call_id: match row_id {
+                    RowId::ToolGroup { tool_call_id, .. } => *tool_call_id,
+                    _ => return None,
+                },
+                approval_id: approval.as_ref().map(|approval| approval.approval_id),
+                result_provider_call_id: result
+                    .as_ref()
+                    .map(|result| result.provider_call_id.clone()),
+                kind: call
+                    .as_ref()
+                    .map(|call| tool_kind(&call.name))
+                    .unwrap_or(ToolKind::Other),
+                state: *state,
+                summary: lifecycle_summary(*turn_id, call.as_ref(), result.as_ref(), *state),
+                disclosure: lifecycle_disclosure(
+                    call.as_ref(),
+                    approval.as_deref(),
+                    result.as_ref(),
+                    *state,
+                ),
+                arguments_truncated: *arguments_truncated,
+                output_truncated: *output_truncated,
+            }),
+            _ => None,
+        })
+    }
+
+    pub fn set_lifecycle_expanded(&mut self, id: RowId, expanded: bool) {
+        if !matches!(id, RowId::ToolGroup { .. }) {
+            return;
+        }
+        self.expanded_lifecycles
+            .retain(|candidate| candidate != &id);
+        if expanded {
+            self.expanded_lifecycles.push_back(id);
+            while self.expanded_lifecycles.len() > MAX_EXPANSION_KEYS {
+                self.expanded_lifecycles.pop_front();
+            }
+        }
+    }
+
+    pub fn lifecycle_is_expanded(&self, id: &RowId) -> bool {
+        self.expanded_lifecycles
+            .iter()
+            .any(|candidate| candidate == id)
+    }
+
+    /// Project a durable backend message without parsing its serialized representation. The caller
+    /// supplies the journal-owned turn and request identities; reconstruction may not invent or
+    /// recover either from provider strings.
+    pub fn apply_reconstructed_message(
+        &mut self,
+        turn_id: TurnId,
+        request_id: BackendRequestId,
+        generation: u64,
+        message: BackendMessage,
+    ) {
+        match message {
+            BackendMessage::User(message) => self.apply(TranscriptEvent::UserMessage {
+                item_id: message.item_id,
+                text: message.text,
+            }),
+            BackendMessage::Assistant(phase) => {
+                self.apply(TranscriptEvent::AssistantPhaseCompleted {
+                    turn_id,
+                    key: ProvisionalKey {
+                        turn_id,
+                        request_id,
+                        generation,
+                    },
+                    phase: phase.into(),
+                });
+            }
+            BackendMessage::Tool(result) => self.apply(TranscriptEvent::ToolResult {
+                turn_id,
+                result: result.into(),
+            }),
+        }
+    }
+
     pub fn scroll_away(&mut self, anchor: ScrollAnchor) {
         self.scroll.scroll_away(anchor);
     }
@@ -592,7 +841,10 @@ impl TranscriptProjection {
         match event {
             TranscriptEvent::UserMessage { item_id, text } => {
                 self.push_row(TranscriptRow::UserMessage {
-                    id: RowId::UserMessage { item_id },
+                    id: RowId::UserMessage {
+                        session_id: self.session_id,
+                        item_id,
+                    },
                     item_id,
                     text,
                 });
@@ -620,20 +872,10 @@ impl TranscriptProjection {
             } => {
                 self.provisional.retain(|(candidate, _)| *candidate != key);
                 self.remove_provisional_rows(key);
-                if phase.text.is_some() {
-                    self.push_row(TranscriptRow::AssistantText {
-                        id: RowId::AssistantPhase {
-                            item_id: phase.item_id,
-                        },
-                        turn_id,
-                        phase_item_id: phase.item_id,
-                        text: phase.text.unwrap_or_default(),
-                        provisional: false,
-                    });
-                }
                 if let Some(reasoning) = phase.reasoning {
                     self.push_row(TranscriptRow::ProviderReasoning {
                         id: RowId::ProviderReasoning {
+                            session_id: self.session_id,
                             item_id: phase.item_id,
                         },
                         turn_id,
@@ -643,50 +885,52 @@ impl TranscriptProjection {
                         required_for_replay: phase.reasoning_required_for_replay,
                     });
                 }
-                for call in phase.tool_calls {
-                    self.push_row(TranscriptRow::ToolCallGroup {
-                        id: RowId::ToolGroup {
-                            turn_id,
-                            tool_call_id: call.tool_call_id,
+                if phase.text.is_some() {
+                    self.push_row(TranscriptRow::AssistantText {
+                        id: RowId::AssistantPhase {
+                            session_id: self.session_id,
+                            item_id: phase.item_id,
                         },
                         turn_id,
-                        call,
-                        result: None,
+                        phase_item_id: phase.item_id,
+                        text: phase.text.unwrap_or_default(),
+                        provisional: false,
                     });
+                }
+                for call in phase.tool_calls {
+                    self.upsert_call(turn_id, phase.item_id, call);
                 }
                 self.activity = SemanticActivity::Idle;
                 self.scroll.activity_arrived();
             }
             TranscriptEvent::ToolResult { turn_id, result } => {
-                if let Some(TranscriptRow::ToolCallGroup { result: slot, .. }) = self.rows.iter_mut().find(|row| matches!(row, TranscriptRow::ToolCallGroup { turn_id: candidate, call, .. } if *candidate == turn_id && call.tool_call_id == result.tool_call_id && call.provider_call_id == result.provider_call_id)) {
-                    *slot = Some(result);
-                }
+                self.upsert_result(turn_id, result);
                 self.activity = SemanticActivity::Idle;
                 self.scroll.activity_arrived();
             }
+            TranscriptEvent::ToolState {
+                turn_id,
+                tool_call_id,
+                state,
+            } => {
+                self.upsert_state(turn_id, tool_call_id, state);
+                self.scroll.activity_arrived();
+            }
             TranscriptEvent::ApprovalRequested { approval } => {
-                self.push_row(TranscriptRow::Approval {
-                    id: RowId::Approval {
-                        turn_id: approval.turn_id,
-                        approval_id: approval.approval_id,
-                    },
-                    approval,
-                });
+                self.upsert_approval(approval);
                 self.activity = SemanticActivity::AwaitingApproval;
                 self.scroll.activity_arrived();
             }
             TranscriptEvent::ApprovalResolved { resolution } => {
-                if let Some(TranscriptRow::Approval { approval, .. }) = self.rows.iter_mut().find(|row| matches!(row, TranscriptRow::Approval { approval, .. } if approval.turn_id == resolution.turn_id && approval.approval_id == resolution.approval_id))
-                    && approval.effect_digest == resolution.effect_digest
-                    && approval.tool_call_id == resolution.tool_call_id
-                {
-                    approval.resolved = Some(resolution.decision);
-                }
+                self.resolve_approval(resolution);
                 self.activity = SemanticActivity::Idle;
                 self.scroll.activity_arrived();
             }
             TranscriptEvent::Usage { turn_id, usage } => {
-                let id = RowId::Usage { turn_id };
+                let id = RowId::Usage {
+                    session_id: self.session_id,
+                    turn_id,
+                };
                 if let Some(TranscriptRow::Usage { usage: slot, .. }) = self.rows.iter_mut().find(|row| matches!(row, TranscriptRow::Usage { turn_id: candidate, .. } if *candidate == turn_id)) {
                     *slot = usage;
                 } else {
@@ -729,6 +973,7 @@ impl TranscriptProjection {
                 self.sequence = self.sequence.saturating_add(1);
                 self.push_row(TranscriptRow::Diagnostic {
                     id: RowId::Diagnostic {
+                        session_id: self.session_id,
                         sequence: self.sequence,
                     },
                     code,
@@ -790,7 +1035,113 @@ impl TranscriptProjection {
         self.sync_provisional_rows(key, value);
     }
 
-    fn finish_turn(&mut self, turn_id: u64, state: TerminalState, code: Option<String>) {
+    fn lifecycle_mut(
+        &mut self,
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+    ) -> Option<&mut TranscriptRow> {
+        self.rows.iter_mut().find(|row| matches!(row, TranscriptRow::ToolCallGroup { turn_id: candidate_turn, id: RowId::ToolGroup { tool_call_id: candidate_call, .. }, .. } if *candidate_turn == turn_id && *candidate_call == tool_call_id))
+    }
+
+    fn ensure_lifecycle(
+        &mut self,
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+    ) -> Option<&mut TranscriptRow> {
+        if self.lifecycle_mut(turn_id, tool_call_id).is_none() {
+            self.push_row(TranscriptRow::ToolCallGroup {
+                id: RowId::ToolGroup {
+                    session_id: self.session_id,
+                    turn_id,
+                    tool_call_id,
+                },
+                turn_id,
+                phase_item_id: None,
+                call: None,
+                approval: None,
+                result: None,
+                state: ToolLifecycleState::Validated,
+                arguments_truncated: false,
+                output_truncated: false,
+            });
+        }
+        self.lifecycle_mut(turn_id, tool_call_id)
+    }
+
+    fn upsert_call(&mut self, turn_id: TurnId, phase_item_id: ItemId, mut call: ToolCallRecord) {
+        let arguments_truncated = truncate_string(&mut call.arguments, MAX_TOOL_DETAIL_BYTES);
+        if let Some(TranscriptRow::ToolCallGroup {
+            call: slot,
+            phase_item_id: phase,
+            arguments_truncated: truncated,
+            ..
+        }) = self.ensure_lifecycle(turn_id, call.tool_call_id)
+        {
+            *slot = Some(call);
+            *phase = Some(phase_item_id);
+            *truncated |= arguments_truncated;
+        }
+    }
+
+    fn upsert_result(&mut self, turn_id: TurnId, mut result: ToolResultRecord) {
+        let output_truncated = truncate_string(&mut result.output, MAX_TOOL_DETAIL_BYTES);
+        let state = result_state(result.status);
+        if let Some(TranscriptRow::ToolCallGroup {
+            result: slot,
+            state: current,
+            output_truncated: truncated,
+            ..
+        }) = self.ensure_lifecycle(turn_id, result.tool_call_id)
+        {
+            *slot = Some(result);
+            *current = state;
+            *truncated |= output_truncated;
+        }
+    }
+
+    fn upsert_state(
+        &mut self,
+        turn_id: TurnId,
+        tool_call_id: ToolCallId,
+        state: ToolLifecycleState,
+    ) {
+        if let Some(TranscriptRow::ToolCallGroup { state: slot, .. }) =
+            self.ensure_lifecycle(turn_id, tool_call_id)
+        {
+            *slot = state;
+        }
+    }
+
+    fn upsert_approval(&mut self, mut approval: ApprovalRow) {
+        approval.display_preview = approval_preview(&approval.summary);
+        if let Some(TranscriptRow::ToolCallGroup {
+            approval: slot,
+            state,
+            ..
+        }) = self.ensure_lifecycle(approval.turn_id, approval.tool_call_id)
+        {
+            *slot = Some(Box::new(approval));
+            *state = ToolLifecycleState::AwaitingApproval;
+        }
+    }
+
+    fn resolve_approval(&mut self, resolution: ApprovalResolution) {
+        if let Some(TranscriptRow::ToolCallGroup {
+            approval: Some(approval),
+            state,
+            ..
+        }) = self.lifecycle_mut(resolution.turn_id, resolution.tool_call_id)
+            && approval_matches(approval, resolution)
+        {
+            approval.resolved = Some(resolution.decision);
+            *state = match resolution.decision {
+                ApprovalDecision::ApproveOnce => ToolLifecycleState::Queued,
+                ApprovalDecision::Deny => ToolLifecycleState::Denied,
+            };
+        }
+    }
+
+    fn finish_turn(&mut self, turn_id: TurnId, state: TerminalState, code: Option<String>) {
         let removed: Vec<_> = self
             .provisional
             .iter()
@@ -803,7 +1154,10 @@ impl TranscriptProjection {
         }
         self.activity = SemanticActivity::Idle;
         let row = TranscriptRow::TurnStatus {
-            id: RowId::TurnStatus { turn_id },
+            id: RowId::TurnStatus {
+                session_id: self.session_id,
+                turn_id,
+            },
             turn_id,
             state,
             code,
@@ -842,9 +1196,9 @@ impl TranscriptProjection {
             !matches!(
                 row,
                 TranscriptRow::AssistantText {
-                    id: RowId::ProvisionalText(candidate), ..
+                    id: RowId::ProvisionalText { key: candidate, .. }, ..
                 } | TranscriptRow::ProviderReasoning {
-                    id: RowId::ProvisionalReasoning(candidate), ..
+                    id: RowId::ProvisionalReasoning { key: candidate, .. }, ..
                 } if *candidate == key
             )
         });
@@ -854,18 +1208,24 @@ impl TranscriptProjection {
         self.remove_provisional_rows(key);
         if !value.text.is_empty() {
             self.push_row(TranscriptRow::AssistantText {
-                id: RowId::ProvisionalText(key),
+                id: RowId::ProvisionalText {
+                    session_id: self.session_id,
+                    key,
+                },
                 turn_id: key.turn_id,
-                phase_item_id: 0,
+                phase_item_id: ItemId::new(),
                 text: value.text,
                 provisional: true,
             });
         }
         if !value.reasoning.is_empty() {
             self.push_row(TranscriptRow::ProviderReasoning {
-                id: RowId::ProvisionalReasoning(key),
+                id: RowId::ProvisionalReasoning {
+                    session_id: self.session_id,
+                    key,
+                },
                 turn_id: key.turn_id,
-                phase_item_id: 0,
+                phase_item_id: ItemId::new(),
                 text: value.reasoning,
                 provisional: true,
                 required_for_replay: false,
@@ -880,7 +1240,6 @@ fn transcript_row_id(row: &TranscriptRow) -> &RowId {
         | TranscriptRow::AssistantText { id, .. }
         | TranscriptRow::ProviderReasoning { id, .. }
         | TranscriptRow::ToolCallGroup { id, .. }
-        | TranscriptRow::Approval { id, .. }
         | TranscriptRow::Usage { id, .. }
         | TranscriptRow::TurnStatus { id, .. }
         | TranscriptRow::Diagnostic { id, .. } => id,
@@ -905,6 +1264,106 @@ fn append_bounded(target: &mut String, value: &str, maximum: usize, truncated: &
     *truncated = true;
 }
 
+fn truncate_string(value: &mut String, maximum: usize) -> bool {
+    if value.len() <= maximum {
+        return false;
+    }
+    let mut end = maximum;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value.truncate(end);
+    true
+}
+
+fn tool_kind(name: &str) -> ToolKind {
+    match name {
+        "read" => ToolKind::Read,
+        "search" => ToolKind::Search,
+        "list" | "ls" => ToolKind::List,
+        "patch" | "apply_patch" => ToolKind::Patch,
+        "shell" => ToolKind::Shell,
+        _ => ToolKind::Other,
+    }
+}
+
+fn result_state(status: ToolTerminalStatus) -> ToolLifecycleState {
+    match status {
+        ToolTerminalStatus::Completed => ToolLifecycleState::Succeeded,
+        ToolTerminalStatus::Failed => ToolLifecycleState::Failed,
+        ToolTerminalStatus::TimedOut => ToolLifecycleState::TimedOut,
+        ToolTerminalStatus::Cancelled => ToolLifecycleState::Cancelled,
+        ToolTerminalStatus::Interrupted => ToolLifecycleState::Interrupted,
+        ToolTerminalStatus::Stale => ToolLifecycleState::Stale,
+        ToolTerminalStatus::Uncertain => ToolLifecycleState::Uncertain,
+    }
+}
+
+fn lifecycle_summary(
+    _turn_id: TurnId,
+    call: Option<&ToolCallRecord>,
+    result: Option<&ToolResultRecord>,
+    state: ToolLifecycleState,
+) -> String {
+    let action = match call.map(|call| tool_kind(&call.name)) {
+        Some(ToolKind::Read) => "Read",
+        Some(ToolKind::Search) => "Search",
+        Some(ToolKind::List) => "List",
+        Some(ToolKind::Patch) => "Patch",
+        Some(ToolKind::Shell) => "Shell",
+        _ => "Tool",
+    };
+    let outcome = match state {
+        ToolLifecycleState::Validated => "validated",
+        ToolLifecycleState::AwaitingApproval => "awaiting approval",
+        ToolLifecycleState::Denied => "denied",
+        ToolLifecycleState::Queued => "queued",
+        ToolLifecycleState::Running => "running",
+        ToolLifecycleState::Succeeded => "completed",
+        ToolLifecycleState::Failed => "failed",
+        ToolLifecycleState::TimedOut => "timed out",
+        ToolLifecycleState::Cancelled => "cancelled",
+        ToolLifecycleState::Interrupted => "interrupted",
+        ToolLifecycleState::Stale => "stale",
+        ToolLifecycleState::Uncertain => "uncertain",
+    };
+    let detail = if result.is_some() {
+        "result available"
+    } else {
+        "details available"
+    };
+    format!("{action} {outcome}; {detail}")
+}
+
+fn lifecycle_disclosure(
+    call: Option<&ToolCallRecord>,
+    approval: Option<&ApprovalRow>,
+    _result: Option<&ToolResultRecord>,
+    state: ToolLifecycleState,
+) -> Disclosure {
+    if approval.is_some_and(|approval| approval.resolved.is_none()) {
+        return Disclosure::Expanded;
+    }
+    if matches!(
+        state,
+        ToolLifecycleState::AwaitingApproval
+            | ToolLifecycleState::Denied
+            | ToolLifecycleState::Failed
+            | ToolLifecycleState::TimedOut
+            | ToolLifecycleState::Cancelled
+            | ToolLifecycleState::Interrupted
+            | ToolLifecycleState::Stale
+            | ToolLifecycleState::Uncertain
+            | ToolLifecycleState::Running
+    ) {
+        return Disclosure::Expanded;
+    }
+    match call.map(|call| tool_kind(&call.name)) {
+        Some(ToolKind::Patch | ToolKind::Shell) => Disclosure::Expanded,
+        _ => Disclosure::Collapsed,
+    }
+}
+
 pub fn approval_matches(row: &ApprovalRow, resolution: ApprovalResolution) -> bool {
     row.turn_id == resolution.turn_id
         && row.approval_id == resolution.approval_id
@@ -925,9 +1384,9 @@ pub fn approval_preview(summary: &str) -> String {
 
 impl ApprovalRow {
     pub fn new(
-        turn_id: u64,
-        approval_id: u64,
-        tool_call_id: u64,
+        turn_id: TurnId,
+        approval_id: ApprovalId,
+        tool_call_id: ToolCallId,
         effect_digest: [u8; 32],
         summary: String,
     ) -> Self {
@@ -948,23 +1407,42 @@ impl ApprovalRow {
 mod tests {
     use super::*;
 
+    fn turn() -> TurnId {
+        TurnId::parse("00000000-0000-0000-0000-000000000007").unwrap()
+    }
+    fn other_turn() -> TurnId {
+        TurnId::parse("00000000-0000-0000-0000-000000000008").unwrap()
+    }
+    fn request() -> BackendRequestId {
+        BackendRequestId::parse("00000000-0000-0000-0000-000000000009").unwrap()
+    }
+    fn item() -> ItemId {
+        ItemId::parse("00000000-0000-0000-0000-000000000042").unwrap()
+    }
+    fn call() -> ToolCallId {
+        ToolCallId::parse("00000000-0000-0000-0000-000000000011").unwrap()
+    }
+    fn approval() -> ApprovalId {
+        ApprovalId::parse("00000000-0000-0000-0000-000000000002").unwrap()
+    }
+
     fn key() -> ProvisionalKey {
         ProvisionalKey {
-            turn_id: 7,
-            request_id: 9,
+            turn_id: turn(),
+            request_id: request(),
             generation: 1,
         }
     }
 
     fn phase() -> AssistantPhaseRecord {
         AssistantPhaseRecord {
-            item_id: 42,
+            item_id: item(),
             provider_completion_id: "provider-completion".into(),
             text: Some("completed".into()),
             reasoning: Some("private reasoning".into()),
             reasoning_required_for_replay: true,
             tool_calls: vec![ToolCallRecord {
-                tool_call_id: 11,
+                tool_call_id: call(),
                 provider_call_id: "provider-call".into(),
                 name: "read".into(),
                 arguments: "{\"path\":\"src/lib.rs\"}".into(),
@@ -984,7 +1462,7 @@ mod tests {
             .iter()
             .any(|row| matches!(row, TranscriptRow::AssistantText { provisional: true, text, .. } if text == "partial")));
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 7,
+            turn_id: turn(),
             key: ProvisionalKey {
                 generation: 2,
                 ..key()
@@ -993,13 +1471,13 @@ mod tests {
         });
         assert_eq!(projection.provisional_count(), 1);
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 7,
+            turn_id: turn(),
             key: key(),
             phase: phase(),
         });
         assert_eq!(projection.provisional_count(), 0);
         assert!(projection.rows().iter().any(|row| matches!(row, TranscriptRow::AssistantText { text, provisional: false, .. } if text == "completed")));
-        assert!(projection.rows().iter().any(|row| matches!(row, TranscriptRow::ToolCallGroup { call, .. } if call.provider_call_id == "provider-call")));
+        assert!(projection.rows().iter().any(|row| matches!(row, TranscriptRow::ToolCallGroup { call: Some(call), .. } if call.provider_call_id == "provider-call")));
     }
 
     #[test]
@@ -1009,7 +1487,7 @@ mod tests {
             key: key(),
             text: "secret".into(),
         });
-        projection.apply(TranscriptEvent::TurnInterrupted { turn_id: 7 });
+        projection.apply(TranscriptEvent::TurnInterrupted { turn_id: turn() });
         assert_eq!(projection.provisional_count(), 0);
         assert!(projection.rows().iter().any(|row| matches!(
             row,
@@ -1023,13 +1501,13 @@ mod tests {
 
     #[test]
     fn approval_requires_exact_identity_and_digest() {
-        let row = ApprovalRow::new(1, 2, 3, [4; 32], "shell command".into());
+        let row = ApprovalRow::new(turn(), approval(), call(), [4; 32], "shell command".into());
         assert!(approval_matches(
             &row,
             ApprovalResolution {
-                turn_id: 1,
-                approval_id: 2,
-                tool_call_id: 3,
+                turn_id: turn(),
+                approval_id: approval(),
+                tool_call_id: call(),
                 effect_digest: [4; 32],
                 decision: ApprovalDecision::Deny
             }
@@ -1037,9 +1515,9 @@ mod tests {
         assert!(!approval_matches(
             &row,
             ApprovalResolution {
-                turn_id: 1,
-                approval_id: 2,
-                tool_call_id: 3,
+                turn_id: turn(),
+                approval_id: approval(),
+                tool_call_id: call(),
                 effect_digest: [5; 32],
                 decision: ApprovalDecision::ApproveOnce
             }
@@ -1050,14 +1528,14 @@ mod tests {
     fn tool_results_require_turn_and_provider_call_identity() {
         let mut projection = TranscriptProjection::new();
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 7,
+            turn_id: turn(),
             key: key(),
             phase: phase(),
         });
         projection.apply(TranscriptEvent::ToolResult {
-            turn_id: 8,
+            turn_id: other_turn(),
             result: ToolResultRecord {
-                tool_call_id: 11,
+                tool_call_id: call(),
                 provider_call_id: "provider-call".into(),
                 output: "stale".into(),
                 status: ToolTerminalStatus::Completed,
@@ -1070,9 +1548,9 @@ mod tests {
                 .any(|row| matches!(row, TranscriptRow::ToolCallGroup { result: None, .. }))
         );
         projection.apply(TranscriptEvent::ToolResult {
-            turn_id: 7,
+            turn_id: turn(),
             result: ToolResultRecord {
-                tool_call_id: 11,
+                tool_call_id: call(),
                 provider_call_id: "provider-call".into(),
                 output: "ok".into(),
                 status: ToolTerminalStatus::Completed,
@@ -1085,21 +1563,21 @@ mod tests {
     fn repeated_authoritative_phase_is_idempotent() {
         let mut projection = TranscriptProjection::new();
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 7,
+            turn_id: turn(),
             key: key(),
             phase: phase(),
         });
         projection.apply(TranscriptEvent::ToolResult {
-            turn_id: 7,
+            turn_id: turn(),
             result: ToolResultRecord {
-                tool_call_id: 11,
+                tool_call_id: call(),
                 provider_call_id: "provider-call".into(),
                 output: "ok".into(),
                 status: ToolTerminalStatus::Completed,
             },
         });
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 7,
+            turn_id: turn(),
             key: key(),
             phase: phase(),
         });
@@ -1135,11 +1613,11 @@ mod tests {
             });
         }
         assert_eq!(projection.rows().len(), MAX_ROWS);
-        for index in 0..(MAX_DELTA_QUEUE + 10) {
+        for _index in 0..(MAX_DELTA_QUEUE + 10) {
             projection.apply(TranscriptEvent::TextDelta {
                 key: ProvisionalKey {
-                    turn_id: index as u64,
-                    request_id: 1,
+                    turn_id: TurnId::new(),
+                    request_id: BackendRequestId::new(),
                     generation: 1,
                 },
                 text: "x".repeat(MAX_PROVISIONAL_BYTES),
@@ -1153,7 +1631,10 @@ mod tests {
     fn scroll_away_sets_new_activity_until_return_to_end() {
         let mut projection = TranscriptProjection::new();
         projection.scroll_away(ScrollAnchor {
-            row: Some(RowId::Diagnostic { sequence: 1 }),
+            row: Some(RowId::Diagnostic {
+                session_id: SessionId::new(),
+                sequence: 1,
+            }),
             offset: 4,
         });
         projection.apply(TranscriptEvent::TextDelta {
@@ -1162,7 +1643,7 @@ mod tests {
         });
         assert!(projection.scroll().new_activity);
         projection.apply(TranscriptEvent::AssistantPhaseCompleted {
-            turn_id: 1,
+            turn_id: turn(),
             key: key(),
             phase: phase(),
         });
@@ -1181,9 +1662,12 @@ mod tests {
         };
         assert!(!format!("{event:?}").contains("SECRET_REASONING"));
         let row = TranscriptRow::ProviderReasoning {
-            id: RowId::ProviderReasoning { item_id: 1 },
-            turn_id: 1,
-            phase_item_id: 1,
+            id: RowId::ProviderReasoning {
+                session_id: SessionId::new(),
+                item_id: item(),
+            },
+            turn_id: turn(),
+            phase_item_id: item(),
             text: "SECRET_REASONING".into(),
             provisional: false,
             required_for_replay: true,
@@ -1195,5 +1679,116 @@ mod tests {
             text: "SECRET_PROVISIONAL".into(),
         });
         assert!(!format!("{projection:?}").contains("SECRET_PROVISIONAL"));
+    }
+
+    #[test]
+    fn lifecycle_joins_reordered_approval_and_result_without_raw_sibling_rows() {
+        let session = SessionId::new();
+        let mut projection = TranscriptProjection::for_session(session);
+        projection.apply(TranscriptEvent::ApprovalRequested {
+            approval: ApprovalRow::new(turn(), approval(), call(), [9; 32], "apply patch".into()),
+        });
+        projection.apply(TranscriptEvent::ToolResult {
+            turn_id: turn(),
+            result: ToolResultRecord {
+                tool_call_id: call(),
+                provider_call_id: "provider-call".into(),
+                output: "changed one file".into(),
+                status: ToolTerminalStatus::Completed,
+            },
+        });
+        projection.apply(TranscriptEvent::AssistantPhaseCompleted {
+            turn_id: turn(),
+            key: key(),
+            phase: phase(),
+        });
+        let id = RowId::ToolGroup {
+            session_id: session,
+            turn_id: turn(),
+            tool_call_id: call(),
+        };
+        let lifecycle = projection.lifecycle(&id).expect("canonical lifecycle");
+        assert_eq!(lifecycle.approval_id, Some(approval()));
+        assert_eq!(lifecycle.state, ToolLifecycleState::Succeeded);
+        assert_eq!(lifecycle.disclosure, Disclosure::Expanded);
+        assert_eq!(
+            projection
+                .rows()
+                .iter()
+                .filter(|row| matches!(row, TranscriptRow::ToolCallGroup { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn disclosure_keeps_effects_and_failures_prominent() {
+        let mut projection = TranscriptProjection::for_session(SessionId::new());
+        let mut patch_phase = phase();
+        patch_phase.tool_calls[0].name = "patch".into();
+        projection.apply(TranscriptEvent::AssistantPhaseCompleted {
+            turn_id: turn(),
+            key: key(),
+            phase: patch_phase,
+        });
+        let id = projection
+            .rows()
+            .iter()
+            .find_map(|row| match row {
+                TranscriptRow::ToolCallGroup { id, .. } => Some(id.clone()),
+                _ => None,
+            })
+            .expect("tool row");
+        assert_eq!(
+            projection.lifecycle(&id).map(|value| value.disclosure),
+            Some(Disclosure::Expanded)
+        );
+        projection.apply(TranscriptEvent::ToolResult {
+            turn_id: turn(),
+            result: ToolResultRecord {
+                tool_call_id: call(),
+                provider_call_id: "provider-call".into(),
+                output: String::new(),
+                status: ToolTerminalStatus::Failed,
+            },
+        });
+        assert_eq!(
+            projection.lifecycle(&id).map(|value| value.disclosure),
+            Some(Disclosure::Expanded)
+        );
+    }
+
+    #[test]
+    fn identical_canonical_fixture_rebuilds_to_identical_projection() {
+        let session = SessionId::new();
+        let events = vec![
+            TranscriptEvent::TextDelta {
+                key: key(),
+                text: "partial".into(),
+            },
+            TranscriptEvent::AssistantPhaseCompleted {
+                turn_id: turn(),
+                key: key(),
+                phase: phase(),
+            },
+            TranscriptEvent::ToolResult {
+                turn_id: turn(),
+                result: ToolResultRecord {
+                    tool_call_id: call(),
+                    provider_call_id: "provider-call".into(),
+                    output: "ok".into(),
+                    status: ToolTerminalStatus::Completed,
+                },
+            },
+        ];
+        let mut live = TranscriptProjection::for_session(session);
+        let mut reconstructed = TranscriptProjection::for_session(session);
+        for event in events.clone() {
+            live.apply(event);
+        }
+        for event in events {
+            reconstructed.apply(event);
+        }
+        assert_eq!(live, reconstructed);
     }
 }

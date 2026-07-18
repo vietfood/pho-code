@@ -1,7 +1,7 @@
 # Implementation roadmap
 
-- Status: V1 `0.1.0` released; deferred native qualification moved to V2 Phase 6B
-- Last updated: 2026-07-17
+- Status: V1 `0.1.0` released; Phase 6C ready for bounded implementation; Phase 6B qualifies the integrated surface before Phase 7
+- Last updated: 2026-07-18
 - Governing decision: [ADR 0003](../decisions/0003-deepseek-api-first-backend.md)
 - System boundary: [Native harness system](../architecture/native-harness-system.md)
 
@@ -35,7 +35,7 @@ The accepted V1 product boundary is defined once in [ADR 0003](../decisions/0003
 
 ## V2 roadmap
 
-[The V2 roadmap](v2/README.md) reserves compaction, subagents, and a second backend/portability phase. It is intentionally brief. V1 implementation evidence must exist before those designs are expanded.
+[The V2 roadmap](v2/README.md) permits the accepted chat-first presentation in [Phase 6C](v2/phase-6c-chat-first-ui-polish.md) to be implemented from the V1 baseline, then requires [Phase 6B](v2/phase-6b-native-completion.md) to qualify the integrated surface before reserved compaction, subagent, and second-backend/portability phases. Non-overlapping Phase 6B implementation may proceed concurrently; its final matrix follows Phase 6C integration.
 
 ## Verification levels
 

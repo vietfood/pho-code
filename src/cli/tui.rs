@@ -146,6 +146,10 @@ impl TerminalViewModel {
                 interrupted_turns.len(),
                 uncertain_paths,
             ),
+            // `begin_turn` already projects the local prompt immediately. The durable event is
+            // authoritative for native and other event-driven presentations, but replaying it
+            // here would duplicate the terminal row.
+            RuntimeEvent::UserMessageCommitted { .. } => {}
             RuntimeEvent::TurnPrepared { .. } => self.activity = ActivityView::Thinking,
             RuntimeEvent::ModelStreamStarted { model, .. } => {
                 self.model.clone_from(model);
@@ -952,6 +956,7 @@ mod tests {
         model.begin_turn("test prompt".into());
         model.apply_event(&RuntimeEvent::ModelStreamStarted {
             turn_id,
+            request_id: crate::agent::types::BackendRequestId::new(),
             model: "test-model".into(),
         });
         model.apply_event(&RuntimeEvent::ReasoningDelta {

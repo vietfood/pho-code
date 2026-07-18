@@ -1,5 +1,7 @@
 use crate::agent::loop_runtime::LimitKind;
-use crate::agent::types::{ApprovalId, SessionId, ToolCallId, ToolStatus, TurnId};
+use crate::agent::types::{
+    ApprovalId, BackendRequestId, ItemId, SessionId, ToolCallId, ToolStatus, TurnId,
+};
 use crate::auth::{CredentialState, SecretText};
 use crate::backend::{AssistantPhase, Usage};
 use crate::tools::ApprovalDecision;
@@ -52,11 +54,19 @@ pub enum RuntimeEvent {
         interrupted_turns: Vec<TurnId>,
         uncertain_paths: Vec<String>,
     },
+    /// Emitted only after the user item is durable, before provider work begins.
+    UserMessageCommitted {
+        session_id: SessionId,
+        turn_id: TurnId,
+        item_id: ItemId,
+        text: String,
+    },
     TurnPrepared {
         turn_id: TurnId,
     },
     ModelStreamStarted {
         turn_id: TurnId,
+        request_id: BackendRequestId,
         model: String,
     },
     ReasoningDelta {
@@ -145,6 +155,7 @@ impl std::fmt::Debug for RuntimeEvent {
             Self::StartupReady { .. } => "StartupReady",
             Self::CredentialChanged { .. } => "CredentialChanged",
             Self::SessionLoaded { .. } => "SessionLoaded([REDACTED])",
+            Self::UserMessageCommitted { .. } => "UserMessageCommitted([REDACTED])",
             Self::TurnPrepared { .. } => "TurnPrepared",
             Self::ModelStreamStarted { .. } => "ModelStreamStarted",
             Self::ReasoningDelta { .. } => "ReasoningDelta([REDACTED])",

@@ -14,7 +14,8 @@ use uuid::Uuid;
 
 use crate::agent::types::SessionId;
 
-pub const SCHEMA_VERSION: u16 = 1;
+pub const WORKBENCH_PREFERENCES_V1_SCHEMA_VERSION: u16 = 1;
+pub const SCHEMA_VERSION: u16 = 2;
 pub const MAX_ENCODED_BYTES: usize = 1024 * 1024;
 pub const MAX_REGISTERED_WORKSPACES: usize = 64;
 pub const MAX_OPEN_SESSION_TABS: usize = 16;
@@ -35,9 +36,9 @@ pub const MAX_TIMESTAMP: u64 = 4_102_444_800_000;
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemePreference {
-    #[default]
     System,
     Light,
+    #[default]
     Dark,
     HighContrast,
 }
@@ -111,6 +112,106 @@ impl WorkbenchLayoutV1 {
         }) {
             return Err(PreferencesValidationError::LayoutFractionOutOfBounds);
         }
+        Ok(())
+    }
+}
+
+/// The fixed native-shell profile selected by the user-facing workbench presentation.
+///
+/// Chat is structural in every profile and therefore intentionally has no visibility field.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkbenchLayoutProfile {
+    #[default]
+    ChatFirstV1,
+}
+
+pub const MIN_NAVIGATION_FRACTION: f64 = 0.10;
+pub const MAX_NAVIGATION_FRACTION: f64 = 0.28;
+pub const DEFAULT_NAVIGATION_FRACTION: f64 = 0.16;
+pub const MIN_INSPECTION_FRACTION: f64 = 0.24;
+pub const MAX_INSPECTION_FRACTION: f64 = 0.65;
+pub const DEFAULT_INSPECTION_FRACTION: f64 = 0.42;
+pub const MIN_FILES_FRACTION: f64 = 0.10;
+pub const MAX_FILES_FRACTION: f64 = 0.36;
+pub const DEFAULT_FILES_FRACTION: f64 = 0.18;
+pub const MIN_TERMINAL_FRACTION: f64 = 0.16;
+pub const MAX_TERMINAL_FRACTION: f64 = 0.70;
+pub const DEFAULT_TERMINAL_FRACTION: f64 = 0.40;
+
+/// Explicit pane presentation choices. These affect only the native shell.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PaneVisibilityPreferences {
+    pub navigation: bool,
+    pub inspection: bool,
+    pub files: bool,
+    pub terminal: bool,
+}
+
+/// Last valid pane fractions. Values remain available while their pane is hidden so reveal can
+/// restore a bounded size without reconstructing presentation from session or process state.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PaneFractionsV2 {
+    pub navigation: f64,
+    pub inspection: f64,
+    pub files: f64,
+    pub terminal: f64,
+}
+
+impl Default for PaneFractionsV2 {
+    fn default() -> Self {
+        Self {
+            navigation: DEFAULT_NAVIGATION_FRACTION,
+            inspection: DEFAULT_INSPECTION_FRACTION,
+            files: DEFAULT_FILES_FRACTION,
+            terminal: DEFAULT_TERMINAL_FRACTION,
+        }
+    }
+}
+
+impl PaneFractionsV2 {
+    fn validate(&self) -> Result<(), PreferencesValidationError> {
+        let valid = |value: f64, minimum: f64, maximum: f64| {
+            value.is_finite() && (minimum..=maximum).contains(&value)
+        };
+        if valid(
+            self.navigation,
+            MIN_NAVIGATION_FRACTION,
+            MAX_NAVIGATION_FRACTION,
+        ) && valid(
+            self.inspection,
+            MIN_INSPECTION_FRACTION,
+            MAX_INSPECTION_FRACTION,
+        ) && valid(self.files, MIN_FILES_FRACTION, MAX_FILES_FRACTION)
+            && valid(self.terminal, MIN_TERMINAL_FRACTION, MAX_TERMINAL_FRACTION)
+        {
+            Ok(())
+        } else {
+            Err(PreferencesValidationError::PaneFractionOutOfBounds)
+        }
+    }
+
+    fn from_v1(layout: &WorkbenchLayoutV1) -> Self {
+        Self {
+            navigation: layout
+                .navigation_sidebar_fraction
+                .clamp(MIN_NAVIGATION_FRACTION, MAX_NAVIGATION_FRACTION),
+            inspection: layout
+                .inspection_fraction
+                .clamp(MIN_INSPECTION_FRACTION, MAX_INSPECTION_FRACTION),
+            files: layout
+                .file_tree_fraction
+                .clamp(MIN_FILES_FRACTION, MAX_FILES_FRACTION),
+            terminal: (1.0 - layout.inspection_viewer_fraction)
+                .clamp(MIN_TERMINAL_FRACTION, MAX_TERMINAL_FRACTION),
+        }
+    }
+}
+
+impl PaneVisibilityPreferences {
+    fn validate(&self) -> Result<(), PreferencesValidationError> {
         Ok(())
     }
 }
@@ -211,7 +312,7 @@ impl TranscriptViewPreferences {
     }
 }
 
-/// The complete version-one workbench preference document.
+/// The complete released V1 preference document, retained only to make migration explicit.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkbenchPreferencesV1 {
@@ -233,9 +334,9 @@ pub struct WorkbenchPreferencesV1 {
 impl Default for WorkbenchPreferencesV1 {
     fn default() -> Self {
         Self {
-            schema_version: SCHEMA_VERSION,
+            schema_version: WORKBENCH_PREFERENCES_V1_SCHEMA_VERSION,
             clean_shutdown: false,
-            theme: ThemePreference::System,
+            theme: ThemePreference::Dark,
             window_frame: None,
             layout: WorkbenchLayoutV1::default(),
             registered_workspaces: Vec::new(),
@@ -252,7 +353,7 @@ impl Default for WorkbenchPreferencesV1 {
 
 impl WorkbenchPreferencesV1 {
     pub fn validate(&self) -> Result<(), PreferencesValidationError> {
-        if self.schema_version != SCHEMA_VERSION {
+        if self.schema_version != WORKBENCH_PREFERENCES_V1_SCHEMA_VERSION {
             return Err(PreferencesValidationError::UnsupportedSchemaVersion);
         }
         if self.registered_workspaces.len() > MAX_REGISTERED_WORKSPACES {
@@ -333,6 +434,90 @@ impl WorkbenchPreferencesV1 {
         Ok(())
     }
 
+    #[cfg(test)]
+    fn encoded(&self) -> Result<Vec<u8>, PreferencesStoreError> {
+        self.validate()?;
+        let bytes = serde_json::to_vec(self).map_err(|_| PreferencesStoreError::EncodingFailed)?;
+        if bytes.len() > MAX_ENCODED_BYTES {
+            return Err(PreferencesStoreError::EncodedTooLarge);
+        }
+        Ok(bytes)
+    }
+}
+
+/// The bounded V2 preference document used by the chat-first native workbench.
+///
+/// V2 retains all V1 fields so workspace/session restoration stays independent of pane
+/// presentation. The added fields are presentation-only and never change session journals.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkbenchPreferencesV2 {
+    pub schema_version: u16,
+    pub clean_shutdown: bool,
+    pub theme: ThemePreference,
+    pub window_frame: Option<WindowFrame>,
+    pub layout: WorkbenchLayoutV1,
+    pub registered_workspaces: Vec<WorkspaceRegistrationPreference>,
+    pub selected_workspace_registration_id: Option<WorkspaceRegistrationId>,
+    pub selected_session_id: Option<SessionId>,
+    pub open_session_tabs: Vec<SessionId>,
+    pub open_file_tabs: Vec<String>,
+    pub terminal_tab_descriptors: Vec<TerminalRestoreDescriptor>,
+    pub per_session_drafts: Vec<DraftPreference>,
+    pub transcript_view_preferences: TranscriptViewPreferences,
+    pub layout_profile: WorkbenchLayoutProfile,
+    pub pane_visibility: PaneVisibilityPreferences,
+    pub pane_fractions: PaneFractionsV2,
+}
+
+impl Default for WorkbenchPreferencesV2 {
+    fn default() -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            clean_shutdown: false,
+            theme: ThemePreference::Dark,
+            window_frame: None,
+            layout: WorkbenchLayoutV1::default(),
+            registered_workspaces: Vec::new(),
+            selected_workspace_registration_id: None,
+            selected_session_id: None,
+            open_session_tabs: Vec::new(),
+            open_file_tabs: Vec::new(),
+            terminal_tab_descriptors: Vec::new(),
+            per_session_drafts: Vec::new(),
+            transcript_view_preferences: TranscriptViewPreferences::default(),
+            layout_profile: WorkbenchLayoutProfile::ChatFirstV1,
+            pane_visibility: PaneVisibilityPreferences::default(),
+            pane_fractions: PaneFractionsV2::default(),
+        }
+    }
+}
+
+impl WorkbenchPreferencesV2 {
+    pub fn validate(&self) -> Result<(), PreferencesValidationError> {
+        if self.schema_version != SCHEMA_VERSION {
+            return Err(PreferencesValidationError::UnsupportedSchemaVersion);
+        }
+        WorkbenchPreferencesV1 {
+            schema_version: WORKBENCH_PREFERENCES_V1_SCHEMA_VERSION,
+            clean_shutdown: self.clean_shutdown,
+            theme: self.theme,
+            window_frame: self.window_frame,
+            layout: self.layout.clone(),
+            registered_workspaces: self.registered_workspaces.clone(),
+            selected_workspace_registration_id: self.selected_workspace_registration_id,
+            selected_session_id: self.selected_session_id,
+            open_session_tabs: self.open_session_tabs.clone(),
+            open_file_tabs: self.open_file_tabs.clone(),
+            terminal_tab_descriptors: self.terminal_tab_descriptors.clone(),
+            per_session_drafts: self.per_session_drafts.clone(),
+            transcript_view_preferences: self.transcript_view_preferences.clone(),
+        }
+        .validate()?;
+        self.pane_visibility.validate()?;
+        self.pane_fractions.validate()
+    }
+
     pub fn encoded(&self) -> Result<Vec<u8>, PreferencesStoreError> {
         self.validate()?;
         let bytes = serde_json::to_vec(self).map_err(|_| PreferencesStoreError::EncodingFailed)?;
@@ -340,6 +525,47 @@ impl WorkbenchPreferencesV1 {
             return Err(PreferencesStoreError::EncodedTooLarge);
         }
         Ok(bytes)
+    }
+
+    /// Applies a fully bounded presentation preference in one operation.
+    pub fn set_pane_presentation(
+        &mut self,
+        visibility: PaneVisibilityPreferences,
+        fractions: PaneFractionsV2,
+    ) -> Result<(), PreferencesValidationError> {
+        visibility.validate()?;
+        fractions.validate()?;
+        self.pane_visibility = visibility;
+        self.pane_fractions = fractions;
+        Ok(())
+    }
+
+    fn migrate_from_v1(v1: WorkbenchPreferencesV1) -> Self {
+        let pane_visibility = PaneVisibilityPreferences {
+            navigation: !v1.layout.navigation_collapsed,
+            inspection: false,
+            files: !v1.layout.file_tree_collapsed,
+            terminal: false,
+        };
+        let pane_fractions = PaneFractionsV2::from_v1(&v1.layout);
+        Self {
+            schema_version: SCHEMA_VERSION,
+            clean_shutdown: v1.clean_shutdown,
+            theme: v1.theme,
+            window_frame: v1.window_frame,
+            layout: v1.layout,
+            registered_workspaces: v1.registered_workspaces,
+            selected_workspace_registration_id: v1.selected_workspace_registration_id,
+            selected_session_id: v1.selected_session_id,
+            open_session_tabs: v1.open_session_tabs,
+            open_file_tabs: v1.open_file_tabs,
+            terminal_tab_descriptors: v1.terminal_tab_descriptors,
+            per_session_drafts: v1.per_session_drafts,
+            transcript_view_preferences: v1.transcript_view_preferences,
+            layout_profile: WorkbenchLayoutProfile::ChatFirstV1,
+            pane_visibility,
+            pane_fractions,
+        }
     }
 }
 
@@ -361,6 +587,8 @@ pub enum PreferencesValidationError {
     WindowFrameOutOfBounds,
     #[error("layout fraction is out of bounds")]
     LayoutFractionOutOfBounds,
+    #[error("pane fraction is out of bounds")]
+    PaneFractionOutOfBounds,
     #[error("path is invalid")]
     InvalidPath,
     #[error("path is too long")]
@@ -400,13 +628,14 @@ pub enum PreferencesDiagnostic {
     Corrupt,
     Oversized,
     NewerVersion { version: u64 },
+    MigratedFromV1,
 }
 
 /// Load result and write owner for one preferences path. `overwrite_blocked` remains true for the
 /// lifetime of an instance recovered from a bad candidate, so a later shutdown cannot erase it.
 pub struct WorkbenchPreferencesStore {
     path: PathBuf,
-    preferences: WorkbenchPreferencesV1,
+    preferences: WorkbenchPreferencesV2,
     diagnostic: Option<PreferencesDiagnostic>,
     overwrite_blocked: bool,
 }
@@ -419,7 +648,7 @@ impl WorkbenchPreferencesStore {
             Err(ReadError::Missing) => {
                 return Ok(Self {
                     path,
-                    preferences: WorkbenchPreferencesV1::default(),
+                    preferences: WorkbenchPreferencesV2::default(),
                     diagnostic: None,
                     overwrite_blocked: false,
                 });
@@ -443,26 +672,46 @@ impl WorkbenchPreferencesStore {
                 PreferencesDiagnostic::NewerVersion { version },
             ));
         }
-        let preferences: WorkbenchPreferencesV1 = match serde_json::from_value(raw) {
-            Ok(value) => value,
-            Err(_) => return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt)),
-        };
-        if preferences.validate().is_err() {
-            return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt));
+        match version {
+            Some(version) if version == u64::from(WORKBENCH_PREFERENCES_V1_SCHEMA_VERSION) => {
+                let v1: WorkbenchPreferencesV1 = match serde_json::from_value(raw) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt)),
+                };
+                if v1.validate().is_err() {
+                    return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt));
+                }
+                Ok(Self {
+                    path,
+                    preferences: WorkbenchPreferencesV2::migrate_from_v1(v1),
+                    diagnostic: Some(PreferencesDiagnostic::MigratedFromV1),
+                    overwrite_blocked: false,
+                })
+            }
+            Some(version) if version == u64::from(SCHEMA_VERSION) => {
+                let preferences: WorkbenchPreferencesV2 = match serde_json::from_value(raw) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt)),
+                };
+                if preferences.validate().is_err() {
+                    return Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt));
+                }
+                Ok(Self {
+                    path,
+                    preferences,
+                    diagnostic: None,
+                    overwrite_blocked: false,
+                })
+            }
+            _ => Ok(Self::recovered(path, PreferencesDiagnostic::Corrupt)),
         }
-        Ok(Self {
-            path,
-            preferences,
-            diagnostic: None,
-            overwrite_blocked: false,
-        })
     }
 
-    pub fn preferences(&self) -> &WorkbenchPreferencesV1 {
+    pub fn preferences(&self) -> &WorkbenchPreferencesV2 {
         &self.preferences
     }
 
-    pub fn preferences_mut(&mut self) -> &mut WorkbenchPreferencesV1 {
+    pub fn preferences_mut(&mut self) -> &mut WorkbenchPreferencesV2 {
         &mut self.preferences
     }
 
@@ -488,7 +737,7 @@ impl WorkbenchPreferencesStore {
     fn recovered(path: PathBuf, diagnostic: PreferencesDiagnostic) -> Self {
         Self {
             path,
-            preferences: WorkbenchPreferencesV1::default(),
+            preferences: WorkbenchPreferencesV2::default(),
             diagnostic: Some(diagnostic),
             overwrite_blocked: true,
         }
@@ -497,7 +746,7 @@ impl WorkbenchPreferencesStore {
 
 pub fn write_preferences(
     path: impl AsRef<Path>,
-    preferences: &WorkbenchPreferencesV1,
+    preferences: &WorkbenchPreferencesV2,
 ) -> Result<(), PreferencesStoreError> {
     let bytes = preferences.encoded()?;
     let path = path.as_ref();
@@ -508,7 +757,7 @@ pub fn write_preferences(
     fs::create_dir_all(parent).map_err(|_| PreferencesStoreError::Unavailable)?;
     set_private(parent, true).map_err(|_| PreferencesStoreError::Unavailable)?;
 
-    let temporary = parent.join(format!(".workbench-v1.{}.tmp", Uuid::new_v4()));
+    let temporary = parent.join(format!(".workbench-v2.{}.tmp", Uuid::new_v4()));
     let result = (|| {
         let mut file = OpenOptions::new()
             .create_new(true)
@@ -655,8 +904,8 @@ mod tests {
         PathBuf::from("/tmp/pho-workbench-tests/workspace")
     }
 
-    fn valid_preferences() -> WorkbenchPreferencesV1 {
-        let mut preferences = WorkbenchPreferencesV1::default();
+    fn valid_preferences() -> WorkbenchPreferencesV2 {
+        let mut preferences = WorkbenchPreferencesV2::default();
         preferences
             .registered_workspaces
             .push(WorkspaceRegistrationPreference {
@@ -678,6 +927,64 @@ mod tests {
         let store = WorkbenchPreferencesStore::load(&file).unwrap();
         assert_eq!(store.preferences(), &expected);
         assert!(store.diagnostic().is_none());
+        assert!(!store.overwrite_blocked());
+    }
+
+    #[test]
+    fn v1_migration_preserves_compatible_choices_and_clamps_geometry() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("preferences.json");
+        let mut v1 = WorkbenchPreferencesV1::default();
+        v1.layout.navigation_collapsed = true;
+        v1.layout.file_tree_collapsed = false;
+        v1.layout.navigation_sidebar_fraction = 0.0;
+        v1.layout.file_tree_fraction = 1.0;
+        v1.layout.inspection_fraction = 0.0;
+        v1.layout.inspection_viewer_fraction = 1.0;
+        v1.open_file_tabs.push("src/main.rs".into());
+        fs::write(&file, v1.encoded().unwrap()).unwrap();
+
+        let store = WorkbenchPreferencesStore::load(&file).unwrap();
+        let preferences = store.preferences();
+        assert_eq!(
+            store.diagnostic(),
+            Some(&PreferencesDiagnostic::MigratedFromV1)
+        );
+        assert!(!store.overwrite_blocked());
+        assert_eq!(
+            preferences.layout_profile,
+            WorkbenchLayoutProfile::ChatFirstV1
+        );
+        assert!(!preferences.pane_visibility.navigation);
+        assert!(preferences.pane_visibility.files);
+        assert!(!preferences.pane_visibility.inspection);
+        assert!(!preferences.pane_visibility.terminal);
+        assert_eq!(
+            preferences.pane_fractions.navigation,
+            MIN_NAVIGATION_FRACTION
+        );
+        assert_eq!(preferences.pane_fractions.files, MAX_FILES_FRACTION);
+        assert_eq!(
+            preferences.pane_fractions.inspection,
+            MIN_INSPECTION_FRACTION
+        );
+        assert_eq!(preferences.pane_fractions.terminal, MIN_TERMINAL_FRACTION);
+        assert_eq!(preferences.open_file_tabs, vec!["src/main.rs"]);
+    }
+
+    #[test]
+    fn new_preferences_are_chat_first_and_writable() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("missing.json");
+        let store = WorkbenchPreferencesStore::load(&file).unwrap();
+        assert_eq!(
+            store.preferences().layout_profile,
+            WorkbenchLayoutProfile::ChatFirstV1
+        );
+        assert_eq!(
+            store.preferences().pane_visibility,
+            PaneVisibilityPreferences::default()
+        );
         assert!(!store.overwrite_blocked());
     }
 
@@ -704,11 +1011,11 @@ mod tests {
         assert!(store.overwrite_blocked());
 
         let newer = directory.path().join("newer.json");
-        fs::write(&newer, br#"{"schema_version":2}"#).unwrap();
+        fs::write(&newer, br#"{"schema_version":3}"#).unwrap();
         let store = WorkbenchPreferencesStore::load(&newer).unwrap();
         assert_eq!(
             store.diagnostic(),
-            Some(&PreferencesDiagnostic::NewerVersion { version: 2 })
+            Some(&PreferencesDiagnostic::NewerVersion { version: 3 })
         );
         assert!(store.overwrite_blocked());
     }
@@ -718,14 +1025,14 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let file = directory.path().join("missing.json");
         let store = WorkbenchPreferencesStore::load(&file).unwrap();
-        assert_eq!(store.preferences(), &WorkbenchPreferencesV1::default());
+        assert_eq!(store.preferences(), &WorkbenchPreferencesV2::default());
         assert!(!store.overwrite_blocked());
         store.save().unwrap();
     }
 
     #[test]
     fn bounds_and_relative_paths_are_validated() {
-        let mut preferences = WorkbenchPreferencesV1::default();
+        let mut preferences = WorkbenchPreferencesV2::default();
         preferences.open_file_tabs.push("../escape".into());
         assert_eq!(
             preferences.validate(),
@@ -750,7 +1057,7 @@ mod tests {
 
     #[test]
     fn scalar_and_string_bounds_are_validated() {
-        let mut preferences = WorkbenchPreferencesV1 {
+        let mut preferences = WorkbenchPreferencesV2 {
             window_frame: Some(WindowFrame {
                 x: 0.0,
                 y: 0.0,
@@ -801,6 +1108,17 @@ mod tests {
             preferences.validate(),
             Err(PreferencesValidationError::InvalidString)
         );
+
+        let mut preferences = WorkbenchPreferencesV2::default();
+        preferences.pane_fractions.navigation = MIN_NAVIGATION_FRACTION - 0.01;
+        assert_eq!(
+            preferences.validate(),
+            Err(PreferencesValidationError::PaneFractionOutOfBounds)
+        );
+
+        let mut preferences = WorkbenchPreferencesV2::default();
+        preferences.pane_visibility.terminal = true;
+        assert!(preferences.validate().is_ok());
     }
 
     #[cfg(unix)]
@@ -811,7 +1129,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let preferences_dir = directory.path().join("preferences");
         let file = preferences_dir.join("workbench-v1.json");
-        write_preferences(&file, &WorkbenchPreferencesV1::default()).unwrap();
+        write_preferences(&file, &WorkbenchPreferencesV2::default()).unwrap();
         assert_eq!(
             fs::metadata(&preferences_dir).unwrap().permissions().mode() & 0o777,
             0o700

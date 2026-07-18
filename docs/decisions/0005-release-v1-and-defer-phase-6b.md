@@ -5,7 +5,7 @@
 - Scope: Pho Code V1 release boundary and deferred native work
 - Decision owners: Pho Code maintainers
 - Supersedes: [ADR 0004](0004-native-workbench-phase-6.md) only for its original all-or-nothing Phase 6 release gate
-- Superseded by: Nothing
+- Superseded by: [ADR 0006](0006-chat-first-native-workbench.md) only where it required Phase 6B to pass before the bounded Phase 6C presentation implementation; Phase 6B remains the qualification gate before Phase 7 or broader expansion
 
 ## Context
 

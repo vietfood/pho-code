@@ -11,7 +11,9 @@ pub const MAX_COMPOSER_BYTES: usize = 256 * 1024;
 
 gpui::actions!(
     composer_input,
-    [Backspace, Delete, Left, Right, Home, End, Submit, Newline]
+    [
+        Backspace, Delete, Left, Right, Home, End, Submit, Newline, Paste
+    ]
 );
 
 #[derive(Clone)]
@@ -209,6 +211,22 @@ impl Composer {
         }
     }
 
+    fn paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.enabled {
+            return;
+        }
+        let Some(item) = cx.read_from_clipboard() else {
+            return;
+        };
+        let Some(text) = item.text() else {
+            return;
+        };
+        if text.is_empty() {
+            return;
+        }
+        self.replace_range(None, &text, cx);
+    }
+
     fn focus_at_end(&mut self, _: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         if self.enabled {
             self.move_to(self.content.len(), cx);
@@ -345,12 +363,18 @@ impl EntityInputHandler for Composer {
 }
 
 impl gpui::Render for Composer {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let display = if self.content.is_empty() {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let is_empty = self.content.is_empty();
+        let display = if is_empty {
             self.placeholder.to_owned()
         } else {
             self.content.clone()
         };
+        let placeholder_color = super::startup::SemanticPalette::for_window(
+            crate::app::workbench_preferences::ThemePreference::System,
+            window.appearance(),
+        )
+        .muted_text;
         div()
             .id(self.element_id)
             .role(gpui::Role::TextInput)
@@ -369,14 +393,19 @@ impl gpui::Render for Composer {
             .on_action(cx.listener(Self::end))
             .on_action(cx.listener(Self::submit))
             .on_action(cx.listener(Self::newline))
+            .on_action(cx.listener(Self::paste))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::focus_at_end))
             .child(
                 div()
                     .absolute()
                     .inset_0()
-                    .p_2()
+                    .p_3()
                     .text_sm()
                     .whitespace_normal()
+                    .when(is_empty, |container| {
+                        container.text_color(placeholder_color)
+                    })
+                    .when(!self.enabled, |container| container.opacity(0.5))
                     .child(display),
             )
             .child(InputCapture { input: cx.entity() })

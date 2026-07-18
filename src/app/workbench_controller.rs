@@ -16,8 +16,8 @@ use crate::auth::{CredentialState, SecretText};
 use crate::backend::BackendMessage;
 use crate::session::catalog::{SessionClassification, scan_sessions};
 use crate::terminal::{
-    CloseReason, TerminalBinding, TerminalError, TerminalEventKind, TerminalIdentity,
-    TerminalLaunchOptions, TerminalManager, TerminalSnapshot,
+    CloseReason, MAX_COLUMNS, MAX_ROWS, TerminalBinding, TerminalError, TerminalEventKind,
+    TerminalIdentity, TerminalLaunchOptions, TerminalManager, TerminalSnapshot,
 };
 use crate::tools::ApprovalResponse;
 use crate::tools::approval::InteractiveApprovalPolicy;
@@ -30,8 +30,8 @@ use super::git_inspection::{
 use super::runtime::{ApplicationCoordinator, CoordinatorError};
 use super::services::HeadlessApplicationServices;
 use super::workbench_preferences::{
-    WindowFrame, WorkbenchPreferencesStore, WorkspaceRegistrationId,
-    WorkspaceRegistrationPreference,
+    PaneFractionsV2, PaneVisibilityPreferences, WindowFrame, WorkbenchPreferencesStore,
+    WorkspaceRegistrationId, WorkspaceRegistrationPreference,
 };
 use super::workbench_services::{
     DurableSessionContext, WorkbenchServiceError, create_durable_session, open_durable_session,
@@ -46,6 +46,47 @@ pub const NATIVE_COMMAND_CAPACITY: usize = 16;
 pub const NATIVE_EVENT_CAPACITY: usize = 512;
 pub const NATIVE_CANCELLATION_CAPACITY: usize = 4;
 pub const NATIVE_APPROVAL_CAPACITY: usize = 4;
+
+/// Measured terminal content dimensions supplied by the native presentation after layout.
+///
+/// Keeping this type GPUI-neutral prevents a view from crossing into PTY ownership while making
+/// the lazy-create precondition explicit at the controller boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TerminalSurfaceDimensions {
+    pub columns: u16,
+    pub rows: u16,
+    pub pixel_width: u16,
+    pub pixel_height: u16,
+}
+
+impl TerminalSurfaceDimensions {
+    pub fn new(columns: u16, rows: u16, pixel_width: u16, pixel_height: u16) -> Option<Self> {
+        (columns > 0
+            && columns <= MAX_COLUMNS
+            && rows > 0
+            && rows <= MAX_ROWS
+            && pixel_width > 0
+            && pixel_width <= 4096
+            && pixel_height > 0
+            && pixel_height <= 4096)
+            .then_some(Self {
+                columns,
+                rows,
+                pixel_width,
+                pixel_height,
+            })
+    }
+
+    fn launch_options(self) -> TerminalLaunchOptions {
+        TerminalLaunchOptions {
+            shell: None,
+            columns: self.columns,
+            rows: self.rows,
+            pixel_width: self.pixel_width,
+            pixel_height: self.pixel_height,
+        }
+    }
+}
 
 pub enum WorkbenchCommand {
     InstallCredential {
@@ -71,9 +112,33 @@ pub enum WorkbenchCommand {
     },
     RefreshGit,
     RefreshGitDiff,
+    /// Persist bounded pane presentation without changing canonical session or terminal state.
+    SetPanePresentation {
+        visibility: PaneVisibilityPreferences,
+        fractions: PaneFractionsV2,
+    },
     SendPrompt {
         text: String,
     },
+    /// Create exactly one first terminal for the expected workspace generation.
+    CreateTerminal {
+        workspace_generation: WorkspaceGeneration,
+        dimensions: TerminalSurfaceDimensions,
+    },
+    /// Resize an existing terminal without changing its visibility or process lifecycle.
+    ResizeTerminal {
+        workspace_generation: WorkspaceGeneration,
+        terminal_identity: TerminalIdentity,
+        dimensions: TerminalSurfaceDimensions,
+    },
+    /// Restart only an already closed terminal using a new generation.
+    RestartTerminal {
+        workspace_generation: WorkspaceGeneration,
+        terminal_identity: TerminalIdentity,
+        dimensions: TerminalSurfaceDimensions,
+    },
+    /// Kept temporarily for the pre-6C start control. Native presentation must use
+    /// `CreateTerminal` after measured dimensions exist.
     StartTerminal,
     TerminalInput {
         bytes: Vec<u8>,
@@ -108,9 +173,38 @@ impl std::fmt::Debug for WorkbenchCommand {
                 .finish(),
             Self::RefreshGit => formatter.write_str("RefreshGit"),
             Self::RefreshGitDiff => formatter.write_str("RefreshGitDiff"),
+            Self::SetPanePresentation { .. } => formatter.write_str("SetPanePresentation"),
             Self::SendPrompt { text } => formatter
                 .debug_struct("SendPrompt")
                 .field("text_bytes", &text.len())
+                .finish(),
+            Self::CreateTerminal {
+                workspace_generation,
+                dimensions,
+            } => formatter
+                .debug_struct("CreateTerminal")
+                .field("workspace_generation", workspace_generation)
+                .field("dimensions", dimensions)
+                .finish(),
+            Self::ResizeTerminal {
+                workspace_generation,
+                terminal_identity,
+                dimensions,
+            } => formatter
+                .debug_struct("ResizeTerminal")
+                .field("workspace_generation", workspace_generation)
+                .field("terminal_identity", terminal_identity)
+                .field("dimensions", dimensions)
+                .finish(),
+            Self::RestartTerminal {
+                workspace_generation,
+                terminal_identity,
+                dimensions,
+            } => formatter
+                .debug_struct("RestartTerminal")
+                .field("workspace_generation", workspace_generation)
+                .field("terminal_identity", terminal_identity)
+                .field("dimensions", dimensions)
                 .finish(),
             Self::StartTerminal => formatter.write_str("StartTerminal"),
             Self::TerminalInput { bytes } => formatter
@@ -196,6 +290,7 @@ pub struct WorkbenchSnapshot {
     pub workspaces: Vec<WorkspaceSummary>,
     pub sessions: Vec<SessionSummary>,
     pub selected_registration_id: Option<WorkspaceRegistrationId>,
+    pub workspace_generation: Option<WorkspaceGeneration>,
     pub selected_session_id: Option<SessionId>,
     pub messages: Vec<BackendMessage>,
     pub directory: Option<DirectorySnapshot>,
@@ -204,7 +299,10 @@ pub struct WorkbenchSnapshot {
     pub git: Option<GitSnapshot>,
     pub git_diff: Option<UncommittedDiffSnapshot>,
     pub terminal: Option<TerminalSnapshot>,
+    pub terminal_identity: Option<TerminalIdentity>,
     pub terminal_status: TerminalPanelStatus,
+    pub pane_visibility: PaneVisibilityPreferences,
+    pub pane_fractions: PaneFractionsV2,
     pub session_read_only: bool,
     pub workspace_available: bool,
     pub turn_active: bool,
@@ -218,6 +316,7 @@ impl std::fmt::Debug for WorkbenchSnapshot {
             .field("workspaces", &self.workspaces)
             .field("sessions", &self.sessions)
             .field("selected_registration_id", &self.selected_registration_id)
+            .field("workspace_generation", &self.workspace_generation)
             .field("selected_session_id", &self.selected_session_id)
             .field("message_count", &self.messages.len())
             .field(
@@ -227,7 +326,9 @@ impl std::fmt::Debug for WorkbenchSnapshot {
             .field("file_present", &self.file.is_some())
             .field("git_present", &self.git.is_some())
             .field("terminal_present", &self.terminal.is_some())
+            .field("terminal_identity", &self.terminal_identity)
             .field("terminal_status", &self.terminal_status)
+            .field("pane_visibility", &self.pane_visibility)
             .field("session_read_only", &self.session_read_only)
             .field("workspace_available", &self.workspace_available)
             .field("turn_active", &self.turn_active)
@@ -396,6 +497,7 @@ impl WorkbenchController {
                 .collect(),
             sessions,
             selected_registration_id: self.selected_registration_id,
+            workspace_generation: self.workspace_generation,
             selected_session_id,
             messages: session.map_or_else(Vec::new, |session| session.messages.clone()),
             directory: self.directory.clone(),
@@ -404,7 +506,10 @@ impl WorkbenchController {
             git: self.git.clone(),
             git_diff: self.git_diff.clone(),
             terminal: self.terminal_snapshot.clone(),
+            terminal_identity: self.terminal_identity,
             terminal_status: self.terminal_status,
+            pane_visibility: self.preferences.preferences().pane_visibility,
+            pane_fractions: self.preferences.preferences().pane_fractions,
             session_read_only: session.is_none_or(|session| session.read_only),
             workspace_available: session.is_some_and(|session| session.workspace_available),
             turn_active: self
@@ -449,6 +554,10 @@ impl WorkbenchController {
             WorkbenchCommand::OpenFile { relative_path } => self.open_file(relative_path),
             WorkbenchCommand::RefreshGit => self.refresh_git(cancellation).await,
             WorkbenchCommand::RefreshGitDiff => self.refresh_git_diff(cancellation).await,
+            WorkbenchCommand::SetPanePresentation {
+                visibility,
+                fractions,
+            } => self.set_pane_presentation(visibility, fractions),
             WorkbenchCommand::SendPrompt { text } => {
                 let Some(session_id) = self
                     .coordinator
@@ -471,6 +580,20 @@ impl WorkbenchController {
                 )
                 .await
             }
+            WorkbenchCommand::CreateTerminal {
+                workspace_generation,
+                dimensions,
+            } => self.create_terminal(workspace_generation, dimensions),
+            WorkbenchCommand::ResizeTerminal {
+                workspace_generation,
+                terminal_identity,
+                dimensions,
+            } => self.resize_terminal(workspace_generation, terminal_identity, dimensions),
+            WorkbenchCommand::RestartTerminal {
+                workspace_generation,
+                terminal_identity,
+                dimensions,
+            } => self.restart_terminal(workspace_generation, terminal_identity, dimensions),
             WorkbenchCommand::StartTerminal => self.start_terminal(),
             WorkbenchCommand::TerminalInput { bytes } => self.write_terminal_input(bytes),
             WorkbenchCommand::InterruptTerminal => self.interrupt_terminal(),
@@ -704,6 +827,23 @@ impl WorkbenchController {
         Ok(())
     }
 
+    fn set_pane_presentation(
+        &mut self,
+        visibility: PaneVisibilityPreferences,
+        fractions: PaneFractionsV2,
+    ) -> Result<(), ControllerError> {
+        let previous = self.preferences.preferences().clone();
+        self.preferences
+            .preferences_mut()
+            .set_pane_presentation(visibility, fractions)
+            .map_err(|_| ControllerError::Preferences)?;
+        if self.preferences.save().is_err() {
+            *self.preferences.preferences_mut() = previous;
+            return Err(ControllerError::Preferences);
+        }
+        Ok(())
+    }
+
     fn terminal_binding(&self) -> Result<TerminalBinding, ControllerError> {
         let registration_id = self
             .selected_registration_id
@@ -720,28 +860,106 @@ impl WorkbenchController {
             .map_err(ControllerError::Terminal)
     }
 
+    /// Compatibility adapter for the pre-6C explicit start button.  The chat-first surface uses
+    /// [`Self::create_terminal`] with measured nonzero dimensions instead.
     fn start_terminal(&mut self) -> Result<(), ControllerError> {
-        let options = TerminalLaunchOptions::default();
-        let identity = match (self.terminal_identity, self.terminal_status) {
-            (Some(identity), TerminalPanelStatus::Closed) => self
-                .terminal_manager
-                .restart(identity, options)
-                .map_err(ControllerError::Terminal)?,
-            (Some(_), TerminalPanelStatus::Uncertain) => {
-                return Err(ControllerError::TerminalCleanup);
-            }
-            (Some(_), _) => return Err(ControllerError::TerminalActive),
-            (None, _) => {
+        let dimensions = TerminalSurfaceDimensions::new(80, 24, 1, 1)
+            .expect("constant terminal dimensions are valid");
+        let workspace_generation = self
+            .workspace_generation
+            .ok_or(ControllerError::NoWorkspace)?;
+        self.create_terminal(workspace_generation, dimensions)
+    }
+
+    fn create_terminal(
+        &mut self,
+        workspace_generation: WorkspaceGeneration,
+        dimensions: TerminalSurfaceDimensions,
+    ) -> Result<(), ControllerError> {
+        self.ensure_terminal_workspace_generation(workspace_generation)?;
+        let result = match (self.terminal_identity, self.terminal_status) {
+            (Some(_), TerminalPanelStatus::Uncertain) => Err(ControllerError::TerminalCleanup),
+            // Repeated reveal/create while opening is idempotent and cannot allocate a second
+            // PTY. A deliberate restart remains a separate command after close.
+            (Some(_), _) => Ok(()),
+            (None, _) => (|| {
                 let binding = self.terminal_binding()?;
-                self.terminal_manager
-                    .create_terminal(binding, options)
-                    .map_err(ControllerError::Terminal)?
-            }
+                let identity = self
+                    .terminal_manager
+                    .create_terminal(binding, dimensions.launch_options())
+                    .map_err(ControllerError::Terminal)?;
+                self.terminal_identity = Some(identity);
+                self.terminal_snapshot = None;
+                self.terminal_status = TerminalPanelStatus::Starting;
+                Ok(())
+            })(),
         };
-        self.terminal_identity = Some(identity);
+        if result.is_err() {
+            self.terminal_status = TerminalPanelStatus::Failed;
+        }
+        result
+    }
+
+    fn resize_terminal(
+        &mut self,
+        workspace_generation: WorkspaceGeneration,
+        terminal_identity: TerminalIdentity,
+        dimensions: TerminalSurfaceDimensions,
+    ) -> Result<(), ControllerError> {
+        self.ensure_terminal_workspace_generation(workspace_generation)?;
+        self.ensure_terminal_identity(terminal_identity)?;
+        self.terminal_manager
+            .resize(
+                terminal_identity,
+                dimensions.columns,
+                dimensions.rows,
+                dimensions.pixel_width,
+                dimensions.pixel_height,
+            )
+            .map_err(ControllerError::Terminal)
+    }
+
+    fn restart_terminal(
+        &mut self,
+        workspace_generation: WorkspaceGeneration,
+        terminal_identity: TerminalIdentity,
+        dimensions: TerminalSurfaceDimensions,
+    ) -> Result<(), ControllerError> {
+        self.ensure_terminal_workspace_generation(workspace_generation)?;
+        self.ensure_terminal_identity(terminal_identity)?;
+        if self.terminal_status == TerminalPanelStatus::Uncertain {
+            return Err(ControllerError::TerminalCleanup);
+        }
+        if self.terminal_status != TerminalPanelStatus::Closed {
+            return Err(ControllerError::TerminalActive);
+        }
+        let next_identity = self
+            .terminal_manager
+            .restart(terminal_identity, dimensions.launch_options())
+            .map_err(ControllerError::Terminal)?;
+        self.terminal_identity = Some(next_identity);
         self.terminal_snapshot = None;
         self.terminal_status = TerminalPanelStatus::Starting;
         Ok(())
+    }
+
+    fn ensure_terminal_workspace_generation(
+        &self,
+        expected: WorkspaceGeneration,
+    ) -> Result<(), ControllerError> {
+        if self.workspace_generation == Some(expected) {
+            Ok(())
+        } else {
+            Err(ControllerError::StaleWorkspace)
+        }
+    }
+
+    fn ensure_terminal_identity(&self, expected: TerminalIdentity) -> Result<(), ControllerError> {
+        if self.terminal_identity == Some(expected) {
+            Ok(())
+        } else {
+            Err(ControllerError::StaleTerminal)
+        }
     }
 
     fn write_terminal_input(&mut self, bytes: Vec<u8>) -> Result<(), ControllerError> {
@@ -1062,9 +1280,13 @@ impl WorkbenchCommand {
             | Self::ExpandDirectory { .. }
             | Self::OpenFile { .. }
             | Self::RefreshGit
-            | Self::RefreshGitDiff => WorkbenchCommandKind::Workspace,
+            | Self::RefreshGitDiff
+            | Self::SetPanePresentation { .. } => WorkbenchCommandKind::Workspace,
             Self::SendPrompt { .. } => WorkbenchCommandKind::Turn,
-            Self::StartTerminal
+            Self::CreateTerminal { .. }
+            | Self::ResizeTerminal { .. }
+            | Self::RestartTerminal { .. }
+            | Self::StartTerminal
             | Self::TerminalInput { .. }
             | Self::InterruptTerminal
             | Self::CloseTerminal => WorkbenchCommandKind::Terminal,
@@ -1107,6 +1329,10 @@ enum ControllerError {
     RegistryLimit,
     #[error("no workspace is selected")]
     NoWorkspace,
+    #[error("the workspace changed before the terminal request was applied")]
+    StaleWorkspace,
+    #[error("the terminal changed before the request was applied")]
+    StaleTerminal,
     #[error("a turn is active")]
     TurnActive,
     #[error("workspace inspection failed")]
@@ -1139,6 +1365,8 @@ impl ControllerError {
             Self::Preferences => "preferences_write_failed",
             Self::RegistryLimit => "workspace_registry_full",
             Self::NoWorkspace => "workspace_unavailable",
+            Self::StaleWorkspace => "stale_workspace",
+            Self::StaleTerminal => "stale_terminal",
             Self::TurnActive => "turn_active",
             Self::Inspection => "workspace_inspection_failed",
             Self::Git => "git_inspection_failed",
@@ -1162,6 +1390,17 @@ pub async fn resolve_approval(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terminal_surface_dimensions_require_measured_nonzero_bounded_geometry() {
+        assert!(TerminalSurfaceDimensions::new(80, 24, 800, 600).is_some());
+        assert!(TerminalSurfaceDimensions::new(0, 24, 800, 600).is_none());
+        assert!(TerminalSurfaceDimensions::new(80, 0, 800, 600).is_none());
+        assert!(TerminalSurfaceDimensions::new(80, 24, 0, 600).is_none());
+        assert!(TerminalSurfaceDimensions::new(80, 24, 800, 0).is_none());
+        assert!(TerminalSurfaceDimensions::new(MAX_COLUMNS + 1, 24, 800, 600).is_none());
+        assert!(TerminalSurfaceDimensions::new(80, MAX_ROWS + 1, 800, 600).is_none());
+    }
 
     #[test]
     fn sensitive_command_debug_is_redacted() {
@@ -1188,6 +1427,7 @@ mod tests {
             workspaces: Vec::new(),
             sessions: Vec::new(),
             selected_registration_id: None,
+            workspace_generation: None,
             selected_session_id: None,
             messages: vec![BackendMessage::User(crate::backend::UserMessage {
                 item_id: crate::agent::types::ItemId::new(),
@@ -1199,7 +1439,10 @@ mod tests {
             git: None,
             git_diff: None,
             terminal: None,
+            terminal_identity: None,
             terminal_status: TerminalPanelStatus::Inactive,
+            pane_visibility: PaneVisibilityPreferences::default(),
+            pane_fractions: PaneFractionsV2::default(),
             session_read_only: false,
             workspace_available: true,
             turn_active: false,

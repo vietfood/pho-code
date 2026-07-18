@@ -12,7 +12,13 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::agent::types::{SessionId, ToolCallId, TurnId, WorkspaceId};
 
-use super::workbench_preferences::WorkspaceRegistrationId;
+use super::workbench_preferences::{
+    DEFAULT_FILES_FRACTION, DEFAULT_INSPECTION_FRACTION, DEFAULT_NAVIGATION_FRACTION,
+    DEFAULT_TERMINAL_FRACTION, MAX_FILES_FRACTION, MAX_INSPECTION_FRACTION,
+    MAX_NAVIGATION_FRACTION, MAX_TERMINAL_FRACTION, MIN_FILES_FRACTION, MIN_INSPECTION_FRACTION,
+    MIN_NAVIGATION_FRACTION, MIN_TERMINAL_FRACTION, PaneFractionsV2, PaneVisibilityPreferences,
+    WorkbenchPreferencesV2, WorkspaceRegistrationId,
+};
 
 pub const MAX_WORKSPACES: usize = 64;
 pub const MAX_CATALOG_ENTRIES: usize = 1_024;
@@ -26,6 +32,217 @@ pub const MAX_TITLE_BYTES: usize = 4 * 1024;
 pub const MAX_DISPLAY_NAME_BYTES: usize = 256;
 pub const MAX_TIMESTAMP_BYTES: usize = 128;
 pub const MAX_PROFILE_FIELD_BYTES: usize = 256;
+pub const MINIMUM_CHAT_WIDTH: u32 = 480;
+pub const MINIMUM_NAVIGATION_WIDTH: u32 = 180;
+pub const MINIMUM_INSPECTION_WIDTH: u32 = 360;
+pub const MINIMUM_FILES_WIDTH: u32 = 200;
+
+/// A non-chat shell pane. Chat is structural and deliberately omitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WorkbenchPane {
+    Navigation,
+    Inspection,
+    Files,
+    Terminal,
+}
+
+/// A bounded normalized fraction represented without floating-point state drift.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PaneFraction(u16);
+
+impl PaneFraction {
+    const SCALE: f64 = 10_000.0;
+
+    pub fn from_fraction(value: f64) -> Self {
+        let bounded = if value.is_finite() {
+            value.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        Self((bounded * Self::SCALE).round() as u16)
+    }
+
+    pub fn as_fraction(self) -> f64 {
+        f64::from(self.0) / Self::SCALE
+    }
+}
+
+/// Explicit, process-independent pane presentation state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PanePresentation {
+    navigation_visible: bool,
+    inspection_visible: bool,
+    files_visible: bool,
+    terminal_visible: bool,
+    navigation_fraction: PaneFraction,
+    inspection_fraction: PaneFraction,
+    files_fraction: PaneFraction,
+    terminal_fraction: PaneFraction,
+}
+
+impl Default for PanePresentation {
+    fn default() -> Self {
+        Self {
+            navigation_visible: false,
+            inspection_visible: false,
+            files_visible: false,
+            terminal_visible: false,
+            navigation_fraction: PaneFraction::from_fraction(DEFAULT_NAVIGATION_FRACTION),
+            inspection_fraction: PaneFraction::from_fraction(DEFAULT_INSPECTION_FRACTION),
+            files_fraction: PaneFraction::from_fraction(DEFAULT_FILES_FRACTION),
+            terminal_fraction: PaneFraction::from_fraction(DEFAULT_TERMINAL_FRACTION),
+        }
+    }
+}
+
+impl PanePresentation {
+    pub fn from_preferences(preferences: &WorkbenchPreferencesV2) -> Self {
+        Self {
+            navigation_visible: preferences.pane_visibility.navigation,
+            inspection_visible: preferences.pane_visibility.inspection,
+            files_visible: preferences.pane_visibility.files,
+            terminal_visible: preferences.pane_visibility.terminal,
+            navigation_fraction: PaneFraction::from_fraction(preferences.pane_fractions.navigation),
+            inspection_fraction: PaneFraction::from_fraction(preferences.pane_fractions.inspection),
+            files_fraction: PaneFraction::from_fraction(preferences.pane_fractions.files),
+            terminal_fraction: PaneFraction::from_fraction(preferences.pane_fractions.terminal),
+        }
+    }
+
+    pub fn visibility(&self, pane: WorkbenchPane) -> bool {
+        match pane {
+            WorkbenchPane::Navigation => self.navigation_visible,
+            WorkbenchPane::Inspection => self.inspection_visible,
+            WorkbenchPane::Files => self.files_visible,
+            WorkbenchPane::Terminal => self.terminal_visible,
+        }
+    }
+
+    pub fn fraction(&self, pane: WorkbenchPane) -> PaneFraction {
+        match pane {
+            WorkbenchPane::Navigation => self.navigation_fraction,
+            WorkbenchPane::Inspection => self.inspection_fraction,
+            WorkbenchPane::Files => self.files_fraction,
+            WorkbenchPane::Terminal => self.terminal_fraction,
+        }
+    }
+
+    pub fn visibility_preferences(&self) -> PaneVisibilityPreferences {
+        PaneVisibilityPreferences {
+            navigation: self.navigation_visible,
+            inspection: self.inspection_visible,
+            files: self.files_visible,
+            terminal: self.terminal_visible,
+        }
+    }
+
+    pub fn fraction_preferences(&self) -> PaneFractionsV2 {
+        PaneFractionsV2 {
+            navigation: self.navigation_fraction.as_fraction(),
+            inspection: self.inspection_fraction.as_fraction(),
+            files: self.files_fraction.as_fraction(),
+            terminal: self.terminal_fraction.as_fraction(),
+        }
+    }
+
+    pub fn reveal(&mut self, pane: WorkbenchPane) {
+        match pane {
+            WorkbenchPane::Navigation => self.navigation_visible = true,
+            WorkbenchPane::Inspection => self.inspection_visible = true,
+            WorkbenchPane::Files => self.files_visible = true,
+            // Terminal visibility is presentation-only and independent of inspection. Revealing
+            // it never starts, focuses, or restarts a PTY; that remains a terminal-actor intent.
+            WorkbenchPane::Terminal => self.terminal_visible = true,
+        }
+    }
+
+    pub fn hide(&mut self, pane: WorkbenchPane) {
+        match pane {
+            WorkbenchPane::Navigation => self.navigation_visible = false,
+            WorkbenchPane::Inspection => self.inspection_visible = false,
+            WorkbenchPane::Files => self.files_visible = false,
+            WorkbenchPane::Terminal => self.terminal_visible = false,
+        }
+    }
+
+    pub fn toggle(&mut self, pane: WorkbenchPane) {
+        if self.visibility(pane) {
+            self.hide(pane);
+        } else {
+            self.reveal(pane);
+        }
+    }
+
+    pub fn set_fraction(&mut self, pane: WorkbenchPane, fraction: PaneFraction) {
+        let fraction =
+            PaneFraction::from_fraction(clamp_pane_fraction(pane, fraction.as_fraction()));
+        match pane {
+            WorkbenchPane::Navigation => self.navigation_fraction = fraction,
+            WorkbenchPane::Inspection => self.inspection_fraction = fraction,
+            WorkbenchPane::Files => self.files_fraction = fraction,
+            WorkbenchPane::Terminal => self.terminal_fraction = fraction,
+        }
+    }
+
+    /// Computes width-pressure presentation without changing the user's explicit reveal choice.
+    /// The collapse order is files, navigation, then inspection; chat is always reachable.
+    pub fn layout_for_width(&self, width: u32) -> PaneLayout {
+        let mut navigation_visible = self.navigation_visible;
+        let mut inspection_visible = self.inspection_visible;
+        let mut files_visible = self.files_visible;
+        let required_width = |navigation: bool, inspection: bool, files: bool| {
+            MINIMUM_CHAT_WIDTH
+                + if navigation {
+                    MINIMUM_NAVIGATION_WIDTH
+                } else {
+                    0
+                }
+                + if inspection {
+                    MINIMUM_INSPECTION_WIDTH
+                } else {
+                    0
+                }
+                + if files { MINIMUM_FILES_WIDTH } else { 0 }
+        };
+        if required_width(navigation_visible, inspection_visible, files_visible) > width {
+            files_visible = false;
+        }
+        if required_width(navigation_visible, inspection_visible, files_visible) > width {
+            navigation_visible = false;
+        }
+        if required_width(navigation_visible, inspection_visible, files_visible) > width {
+            inspection_visible = false;
+        }
+        PaneLayout {
+            chat_visible: true,
+            navigation_visible,
+            inspection_visible,
+            files_visible,
+            // Terminal docks under chat and does not consume horizontal budget, so width
+            // pressure never silently hides an explicitly revealed terminal.
+            terminal_visible: self.terminal_visible,
+        }
+    }
+}
+
+fn clamp_pane_fraction(pane: WorkbenchPane, value: f64) -> f64 {
+    let (minimum, maximum) = match pane {
+        WorkbenchPane::Navigation => (MIN_NAVIGATION_FRACTION, MAX_NAVIGATION_FRACTION),
+        WorkbenchPane::Inspection => (MIN_INSPECTION_FRACTION, MAX_INSPECTION_FRACTION),
+        WorkbenchPane::Files => (MIN_FILES_FRACTION, MAX_FILES_FRACTION),
+        WorkbenchPane::Terminal => (MIN_TERMINAL_FRACTION, MAX_TERMINAL_FRACTION),
+    };
+    value.clamp(minimum, maximum)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PaneLayout {
+    pub chat_visible: bool,
+    pub navigation_visible: bool,
+    pub inspection_visible: bool,
+    pub files_visible: bool,
+    pub terminal_visible: bool,
+}
 
 static WORKSPACE_GENERATION: AtomicU64 = AtomicU64::new(1);
 static SELECTION_GENERATION: AtomicU64 = AtomicU64::new(1);
@@ -400,6 +617,19 @@ pub struct PendingRequests {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorkbenchIntent {
+    RevealPane {
+        pane: WorkbenchPane,
+    },
+    HidePane {
+        pane: WorkbenchPane,
+    },
+    TogglePane {
+        pane: WorkbenchPane,
+    },
+    SetPaneFraction {
+        pane: WorkbenchPane,
+        fraction: PaneFraction,
+    },
     RegisterWorkspace {
         canonical_path: PathBuf,
         display_name: String,
@@ -515,6 +745,7 @@ pub enum WorkbenchStateError {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WorkbenchState {
+    pub pane_presentation: PanePresentation,
     pub registry: Vec<WorkspaceRegistration>,
     pub catalog: SessionCatalog,
     pub chat_tabs: Vec<ChatTab>,
@@ -536,6 +767,7 @@ impl Default for WorkbenchState {
 impl WorkbenchState {
     pub fn new() -> Self {
         Self {
+            pane_presentation: PanePresentation::default(),
             registry: Vec::new(),
             catalog: SessionCatalog::new(),
             chat_tabs: Vec::new(),
@@ -577,11 +809,35 @@ impl WorkbenchState {
         }
     }
 
+    pub fn pane_presentation(&self) -> PanePresentation {
+        self.pane_presentation
+    }
+
+    pub fn restore_pane_presentation(&mut self, preferences: &WorkbenchPreferencesV2) {
+        self.pane_presentation = PanePresentation::from_preferences(preferences);
+    }
+
     pub fn reduce_intent(
         &mut self,
         intent: WorkbenchIntent,
     ) -> Result<Option<WorkbenchEffect>, WorkbenchStateError> {
         match intent {
+            WorkbenchIntent::RevealPane { pane } => {
+                self.pane_presentation.reveal(pane);
+                Ok(None)
+            }
+            WorkbenchIntent::HidePane { pane } => {
+                self.pane_presentation.hide(pane);
+                Ok(None)
+            }
+            WorkbenchIntent::TogglePane { pane } => {
+                self.pane_presentation.toggle(pane);
+                Ok(None)
+            }
+            WorkbenchIntent::SetPaneFraction { pane, fraction } => {
+                self.pane_presentation.set_fraction(pane, fraction);
+                Ok(None)
+            }
             WorkbenchIntent::RegisterWorkspace {
                 canonical_path,
                 display_name,
@@ -1126,6 +1382,127 @@ mod tests {
     fn ids_are_monotonic_and_distinct() {
         assert!(WorkspaceGeneration::new() < WorkspaceGeneration::new());
         assert!(SelectionGeneration::new() < SelectionGeneration::new());
+    }
+
+    #[test]
+    fn pane_intents_are_presentation_only_and_chat_remains_structural() {
+        let mut state = WorkbenchState::new();
+        assert_eq!(
+            state.pane_presentation().layout_for_width(0),
+            PaneLayout {
+                chat_visible: true,
+                navigation_visible: false,
+                inspection_visible: false,
+                files_visible: false,
+                terminal_visible: false,
+            }
+        );
+        state
+            .reduce_intent(WorkbenchIntent::RevealPane {
+                pane: WorkbenchPane::Terminal,
+            })
+            .unwrap();
+        assert!(
+            !state
+                .pane_presentation()
+                .visibility(WorkbenchPane::Inspection)
+        );
+        assert!(
+            state
+                .pane_presentation()
+                .visibility(WorkbenchPane::Terminal)
+        );
+        state
+            .reduce_intent(WorkbenchIntent::HidePane {
+                pane: WorkbenchPane::Terminal,
+            })
+            .unwrap();
+        assert!(
+            !state
+                .pane_presentation()
+                .visibility(WorkbenchPane::Inspection)
+        );
+        assert!(
+            !state
+                .pane_presentation()
+                .visibility(WorkbenchPane::Terminal)
+        );
+        assert!(state.registry.is_empty());
+        assert!(state.chat_tabs.is_empty());
+    }
+
+    #[test]
+    fn pane_pressure_collapses_files_navigation_then_inspection_without_forgetting_reveals() {
+        let mut presentation = PanePresentation::default();
+        for pane in [
+            WorkbenchPane::Navigation,
+            WorkbenchPane::Inspection,
+            WorkbenchPane::Files,
+            WorkbenchPane::Terminal,
+        ] {
+            presentation.reveal(pane);
+        }
+        assert_eq!(
+            presentation.layout_for_width(
+                MINIMUM_CHAT_WIDTH + MINIMUM_NAVIGATION_WIDTH + MINIMUM_INSPECTION_WIDTH
+            ),
+            PaneLayout {
+                chat_visible: true,
+                navigation_visible: true,
+                inspection_visible: true,
+                files_visible: false,
+                terminal_visible: true,
+            }
+        );
+        assert_eq!(
+            presentation.layout_for_width(MINIMUM_CHAT_WIDTH + MINIMUM_INSPECTION_WIDTH),
+            PaneLayout {
+                chat_visible: true,
+                navigation_visible: false,
+                inspection_visible: true,
+                files_visible: false,
+                terminal_visible: true,
+            }
+        );
+        assert_eq!(
+            presentation.layout_for_width(MINIMUM_CHAT_WIDTH - 1),
+            PaneLayout {
+                chat_visible: true,
+                navigation_visible: false,
+                inspection_visible: false,
+                files_visible: false,
+                terminal_visible: true,
+            }
+        );
+        assert!(presentation.visibility(WorkbenchPane::Files));
+        assert!(presentation.visibility(WorkbenchPane::Navigation));
+        assert!(presentation.visibility(WorkbenchPane::Inspection));
+    }
+
+    #[test]
+    fn pane_fractions_are_clamped_and_rapid_toggles_are_deterministic() {
+        let mut state = WorkbenchState::new();
+        for _ in 0..20 {
+            state
+                .reduce_intent(WorkbenchIntent::TogglePane {
+                    pane: WorkbenchPane::Files,
+                })
+                .unwrap();
+        }
+        assert!(!state.pane_presentation().visibility(WorkbenchPane::Files));
+        state
+            .reduce_intent(WorkbenchIntent::SetPaneFraction {
+                pane: WorkbenchPane::Files,
+                fraction: PaneFraction::from_fraction(1.0),
+            })
+            .unwrap();
+        assert_eq!(
+            state
+                .pane_presentation()
+                .fraction(WorkbenchPane::Files)
+                .as_fraction(),
+            MAX_FILES_FRACTION
+        );
     }
 
     #[test]
