@@ -1,24 +1,42 @@
+import { useEffect, useState } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { cn } from "./lib/cn";
-import { LoadingState } from "./loading-state";
+import { workedForLabel } from "./lib/work-log";
 
 // Codex-inspired single “Worked for …” disclosure for an entire assistant turn.
 // Visual reference only (no Codex source). Collapses all thinking/tool steps at once.
-// Live waiting chrome uses Beautiful UI LoadingState (MIT, Shane Levine).
 
 export function WorkLogToggle({
   label,
   expanded,
   onToggle,
   live = false,
-  elapsed,
+  startedAt,
 }: {
   label: string;
   expanded: boolean;
   onToggle: () => void;
   live?: boolean;
-  elapsed?: string;
+  startedAt?: string;
 }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!live) {
+      return;
+    }
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [live]);
+
+  const text = live
+    ? workedForLabel({
+        live: true,
+        ...(startedAt ? { startedAt } : {}),
+        nowMs,
+      })
+    : label;
+
   return (
     <button
       type="button"
@@ -31,11 +49,7 @@ export function WorkLogToggle({
       data-testid="work-log-toggle"
       onClick={onToggle}
     >
-      {live && elapsed ? (
-        <LoadingState label="Working" elapsed={elapsed} />
-      ) : (
-        <span className="min-w-0 truncate font-medium">{label}</span>
-      )}
+      <span className="min-w-0 truncate font-medium">{text}</span>
       <ChevronRightIcon
         className={cn(
           "size-3.5 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",

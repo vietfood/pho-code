@@ -5,7 +5,8 @@ import { ConservativeMarkdown } from "./markdown";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 // Thinking work-entry row adapted from refs/t3code MessagesTimeline.tsx tone:"thinking"
-// PlainWorkEntryRow (MIT, T3 Tools Inc., 6bc6cb6). Expanded body uses harness markdown.
+// PlainWorkEntryRow (MIT, T3 Tools Inc., 6bc6cb6). Settled expanded body uses harness
+// markdown; live thinking stays plaintext so deltas do not re-parse.
 
 export function ThinkingBlock({
   text,
@@ -73,11 +74,6 @@ export function ThinkingBlock({
                 aria-hidden="true"
               />
             </span>
-            {live ? (
-              <span className="flex size-4 items-center justify-center" aria-hidden="true">
-                <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60 motion-reduce:animate-none" />
-              </span>
-            ) : null}
           </div>
         </div>
       </div>
@@ -87,11 +83,16 @@ export function ThinkingBlock({
           onClick={stopRowToggle}
           onPointerDown={stopRowToggle}
         >
-          <ConservativeMarkdown
-            text={text}
-            isStreaming={live}
-            className="chat-markdown-dense text-[12px] leading-relaxed text-secondary-label"
-          />
+          {live ? (
+            <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-secondary-label">
+              {text}
+            </p>
+          ) : (
+            <ConservativeMarkdown
+              text={text}
+              className="chat-markdown-dense text-[12px] leading-relaxed text-secondary-label"
+            />
+          )}
         </div>
       ) : null}
     </div>

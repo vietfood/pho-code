@@ -2,7 +2,7 @@
 // lib/syntaxHighlighting.ts (MIT, T3 Tools Inc., 6bc6cb6). Suspense/use() and
 // Pierre Diffs highlighter omitted; direct shiki createHighlighter + Map cache.
 
-import { createHighlighter, type BundledLanguage, type Highlighter } from "shiki";
+import type { BundledLanguage, Highlighter } from "shiki";
 
 export type ShikiThemeName = "github-light" | "github-dark";
 
@@ -13,10 +13,12 @@ let highlighterPromise: Promise<Highlighter> | null = null;
 
 function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ["github-light", "github-dark"],
-      langs: ["text", "typescript", "javascript", "tsx", "jsx", "json", "bash", "shell", "markdown", "python", "css", "html", "yaml", "toml", "diff", "rust", "go"],
-    });
+    highlighterPromise = import("shiki").then((mod) =>
+      mod.createHighlighter({
+        themes: ["github-light", "github-dark"],
+        langs: ["text", "typescript", "javascript", "tsx", "jsx", "json", "bash", "shell", "markdown", "python", "css", "html", "yaml", "toml", "diff", "rust", "go"],
+      }),
+    );
   }
   return highlighterPromise;
 }

@@ -1,4 +1,4 @@
-export { AppShell, MainColumn } from "./app-shell";
+export { AppShell } from "./app-shell";
 export { AppSidebar } from "./app-sidebar";
 export { ChatHeader } from "./chat-header";
 export { SidebarToggleButton } from "./sidebar-toggle-button";
@@ -20,8 +20,6 @@ export { DiagnosticsPanel } from "./diagnostics-panel";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ToolRow } from "./tool-row";
-export { LoadingState } from "./loading-state";
-export { formatElapsedTenths, elapsedSince } from "./lib/elapsed";
 export { composerHighlight } from "./lib/composer-highlight";
 export { findSlashQuery } from "./lib/slash-query";
 export { WorkLogToggle } from "./work-log-toggle";
@@ -43,6 +41,7 @@ export {
   toolWorkEntryPreview,
 } from "./tool-presentation";
 export { Transcript } from "./transcript";
+export { replaceLiveRun, resetLiveRunStore } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
 export { SETTINGS_SECTIONS, type SettingsSectionId } from "./lib/settings-section";
 export { ProviderAccountsSection } from "./provider-accounts";

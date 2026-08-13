@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cn } from "./lib/cn";
 
 export function AppShell({
   sidebar,
@@ -16,8 +15,4 @@ export function AppShell({
       </div>
     </div>
   );
-}
-
-export function MainColumn({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>{children}</div>;
 }

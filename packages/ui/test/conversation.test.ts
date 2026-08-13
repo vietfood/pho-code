@@ -1,9 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test, beforeEach } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { emptyFeatureSnapshot, idleRunState, type SessionSnapshot } from "@pho-code/protocol";
 import { Conversation } from "../src/conversation";
 import { isMacDesktop, localMachineLabel } from "../src/lib/platform";
+import { resetLiveRunStore } from "../src/lib/live-run-store";
 
 const testModel = {
   provider: "deepseek",
@@ -58,6 +59,10 @@ const handlers = {
   onModelChange: () => undefined,
   onThinkingChange: () => undefined,
 };
+
+beforeEach(() => {
+  resetLiveRunStore();
+});
 
 describe("empty session hero", () => {
   test("centers a hero composer with workspace and local machine context", () => {
@@ -202,7 +207,7 @@ describe("empty session hero", () => {
     expect(markup).not.toContain('aria-label="Send"');
   });
 
-  test("shows the pixel-grid loader while the agent is working with no tokens yet", () => {
+  test("shows static Working text while the agent is waiting for tokens", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
         snapshot: snapshot({
@@ -218,9 +223,26 @@ describe("empty session hero", () => {
         ...handlers,
       }),
     );
-    expect(markup).toContain('data-testid="agent-loading"');
+    expect(markup).toContain('data-testid="agent-working"');
     expect(markup).toContain("Working");
-    expect(markup).toContain("loading-state-grid");
+    expect(markup).not.toContain("loading-state-grid");
+  });
+
+  test("renders live tokens as sanitized markdown without KaTeX or Mermaid", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+          run: { status: "streaming", runId: "r1", streamingText: "**bold** and `code`", work: [] },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="streaming-text"');
+    expect(markup).toContain('data-testid="markdown"');
+    expect(markup).toContain("<strong>");
+    expect(markup).toContain("<code>");
+    expect(markup).not.toContain("katex");
   });
 });
 

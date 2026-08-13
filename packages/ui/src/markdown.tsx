@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import type { Components } from "react-markdown";
+import { memo } from "react";
+import type { Components, Options } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -18,7 +18,8 @@ import "katex/dist/katex.min.css";
 // copy uses harness CopyButton (T3 chrome pattern). Shiki highlighting adapted
 // separately in shiki-code.tsx. KaTeX via remark-math + rehype-katex after sanitize
 // (official safe order). Markdown images: http(s)/data only with lightbox;
-// workspace/file: deferred.
+// workspace/file: deferred. Live streaming uses GFM + sanitize only (no math,
+// Shiki, or Mermaid) so the token path stays off KaTeX.
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -34,6 +35,11 @@ const sanitizeSchema = {
     div: [...(defaultSchema.attributes?.div ?? []), ["className", "math", "math-display", "math-inline"]],
   },
 };
+
+const streamingRemarkPlugins: Options["remarkPlugins"] = [remarkGfm];
+const streamingRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema]];
+const settledRemarkPlugins: Options["remarkPlugins"] = [remarkGfm, remarkMath];
+const settledRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 function PlainCodeBlock({ language, className, text }: { language: string; className?: string; text: string }) {
   return (
@@ -54,7 +60,7 @@ function ImageFallback({ alt }: { alt?: string }) {
   );
 }
 
-function createComponents(isStreaming: boolean): Components {
+function createComponents(rich: boolean): Components {
   return {
     a({ href, children }) {
       if (!href || !/^https?:\/\//u.test(href)) {
@@ -76,14 +82,11 @@ function createComponents(isStreaming: boolean): Components {
         return <code>{children}</code>;
       }
       const language = className?.replace(/^language-/u, "") ?? "";
-      if (language === "mermaid") {
-        if (isStreaming) {
-          return <PlainCodeBlock language={language} className={className} text={text} />;
-        }
-        return <MermaidDiagram source={text} />;
-      }
-      if (isStreaming) {
+      if (!rich) {
         return <PlainCodeBlock language={language} className={className} text={text} />;
+      }
+      if (language === "mermaid") {
+        return <MermaidDiagram source={text} />;
       }
       return (
         <MarkdownCodeBlock language={language} text={text}>
@@ -104,27 +107,28 @@ function createComponents(isStreaming: boolean): Components {
   };
 }
 
-export function ConservativeMarkdown({
+const streamingComponents = createComponents(false);
+const settledComponents = createComponents(true);
+
+export const ConservativeMarkdown = memo(function ConservativeMarkdown({
   text,
   className,
-  isStreaming = false,
+  streaming = false,
 }: {
   text: string;
   className?: string;
-  isStreaming?: boolean;
+  streaming?: boolean;
 }) {
-  const components = useMemo(() => createComponents(isStreaming), [isStreaming]);
-
   return (
     <div className={cn("chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80", className)} data-testid="markdown">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        remarkPlugins={streaming ? streamingRemarkPlugins : settledRemarkPlugins}
+        rehypePlugins={streaming ? streamingRehypePlugins : settledRehypePlugins}
         urlTransform={markdownUrlTransform}
-        components={components}
+        components={streaming ? streamingComponents : settledComponents}
       >
         {text}
       </ReactMarkdown>
     </div>
   );
-}
+});

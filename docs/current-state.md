@@ -1,6 +1,6 @@
 # Pho Code: current state
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ## What exists today
 
@@ -10,7 +10,7 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - local workspace selection and recent-project navigation;
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
-- multi-turn streaming chat, thinking blocks, sanitized Markdown with KaTeX/Shiki/Mermaid, copy and owner rewrite for settled assistant output and copy for fenced code blocks, tool activity, Stop, and error states;
+- multi-turn streaming chat with sanitized GFM live tokens, thinking blocks, KaTeX/Shiki/Mermaid after settle, copy and owner rewrite for settled assistant output and copy for fenced code blocks, tool activity, Stop, and error states;
 - a T3-inspired conversation UI with a wider collapsible project/session sidebar (manual folder order, no MRU bump on session switch), a centered empty-session composer, and an anchored composer after the first message;
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;

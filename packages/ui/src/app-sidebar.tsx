@@ -64,7 +64,6 @@ export function AppSidebar({
 }) {
   const mac = isMacDesktop();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [enterSessions, setEnterSessions] = useState<Record<string, boolean>>({});
   const canNewSession = Boolean(activeWorkspaceId);
   const projectIds = projects.map((project) => project.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -81,7 +80,6 @@ export function AppSidebar({
       const nextOpen = !current[workspaceId];
       if (nextOpen) {
         onExpandProject(workspaceId);
-        setEnterSessions((pending) => ({ ...pending, [workspaceId]: true }));
       }
       return { ...current, [workspaceId]: nextOpen };
     });
@@ -164,15 +162,9 @@ export function AppSidebar({
                       busy={busy}
                       sessions={sessions}
                       selectedSessionId={selectedSessionId}
-                      enterSessions={enterSessions[project.id] === true}
                       onToggle={() => toggleProject(project.id)}
                       onNewSession={() => onNewSession(project.id)}
                       onOpenSession={(sessionId) => onOpenSession(project.id, sessionId)}
-                      onAnimationEnd={() => {
-                        setEnterSessions((pending) =>
-                          pending[project.id] ? { ...pending, [project.id]: false } : pending,
-                        );
-                      }}
                     />
                   );
                 })}
@@ -211,11 +203,9 @@ function SortableProjectRow({
   busy,
   sessions,
   selectedSessionId,
-  enterSessions,
   onToggle,
   onNewSession,
   onOpenSession,
-  onAnimationEnd,
 }: {
   project: RecentWorkspaceRecord;
   open: boolean;
@@ -223,11 +213,9 @@ function SortableProjectRow({
   busy: boolean;
   sessions: readonly SessionSummary[];
   selectedSessionId?: string;
-  enterSessions: boolean;
   onToggle: () => void;
   onNewSession: () => void;
   onOpenSession: (sessionId: string) => void;
-  onAnimationEnd: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id,
@@ -313,10 +301,7 @@ function SortableProjectRow({
         </div>
       </div>
       {open ? (
-        <div
-          className={cn("mt-px min-w-0 space-y-px overflow-hidden pb-0.5", enterSessions && "project-sessions-enter")}
-          onAnimationEnd={onAnimationEnd}
-        >
+        <div className="mt-px min-w-0 space-y-px overflow-hidden pb-0.5">
           {sessions.length > 0 ? (
             <ul className="m-0 grid min-w-0 list-none gap-px p-0">
               {sessions.map((session) => {

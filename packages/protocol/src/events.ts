@@ -110,6 +110,29 @@ function isRunEstablishingEvent(type: string): boolean {
   return type === RUNTIME_EVENT_TYPES.sessionSnapshot || type === RUNTIME_EVENT_TYPES.runAdmitted;
 }
 
+/** High-frequency run events. Renderer should not rebuild conversation chrome for these. */
+export function isLiveRunDeltaType(type: string): boolean {
+  switch (type) {
+    case RUNTIME_EVENT_TYPES.textDelta:
+    case RUNTIME_EVENT_TYPES.thinkingDelta:
+    case RUNTIME_EVENT_TYPES.toolEvent:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** Events that can change the projected session list. */
+export function runtimeEventUpdatesSessionList(type: string): boolean {
+  switch (type) {
+    case RUNTIME_EVENT_TYPES.sessionSnapshot:
+    case RUNTIME_EVENT_TYPES.runSettled:
+      return true;
+    default:
+      return false;
+  }
+}
+
 export function appendThinkingDelta(work: readonly RunWorkEntry[], delta: string): RunWorkEntry[] {
   if (delta.length === 0) {
     return [...work];

@@ -8,6 +8,9 @@ import {
   RUNTIME_EVENT_TYPES,
   MAX_PREPARED_IMAGES,
   MAX_SOURCE_IMAGE_BYTES,
+  idleRunState,
+  isLiveRunDeltaType,
+  runtimeEventUpdatesSessionList,
   type BootstrapState,
   type ConversationViewState,
   type HarnessSettingsSnapshot,
@@ -36,6 +39,7 @@ import {
   SettingsView,
   WorkspacePicker,
   writeSidebarCollapsed,
+  replaceLiveRun,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
 
@@ -58,6 +62,8 @@ export function App() {
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const composerAfterRun = useRef(false);
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((current) => {
@@ -93,6 +99,9 @@ export function App() {
     }
     if (next.activeSession) {
       rememberSessions(next.activeSession.workspace.id, next.activeSession.sessions);
+      if (conversationRef.current.snapshot?.session.id !== next.activeSession.session.id) {
+        replaceLiveRun(next.activeSession.run, { immediate: true });
+      }
     }
     setConversation((current) => {
       const active = next.activeSession;
@@ -118,13 +127,18 @@ export function App() {
     let cancelled = false;
     const bridge = getDesktopBridge();
     const stop = bridge.subscribe((event) => {
-      setConversation((current) => {
-        const next = applyRuntimeEvent(current, event);
-        if (next.snapshot) {
-          rememberSessions(next.snapshot.workspace.id, next.snapshot.sessions);
-        }
-        return next;
-      });
+      const next = applyRuntimeEvent(conversationRef.current, event);
+      conversationRef.current = next;
+      const run = next.snapshot?.run ?? idleRunState();
+      if (isLiveRunDeltaType(event.type)) {
+        replaceLiveRun(run);
+        return;
+      }
+      replaceLiveRun(run, { immediate: true });
+      if (runtimeEventUpdatesSessionList(event.type) && next.snapshot) {
+        rememberSessions(next.snapshot.workspace.id, next.snapshot.sessions);
+      }
+      setConversation(next);
       if (event.type === RUNTIME_EVENT_TYPES.providerAuthFlow) {
         const phase = (event.payload as { phase?: string }).phase;
         if (phase === "completed" || phase === "failed" || phase === "cancelled") {
@@ -206,6 +220,7 @@ export function App() {
   }
 
   function applySessionSnapshot(snapshot: SessionSnapshot): void {
+    replaceLiveRun(snapshot.run, { immediate: true });
     setConversation((current) => ({
       lastSequence: current.lastSequence,
       snapshot,
@@ -222,6 +237,15 @@ export function App() {
       ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
     });
     rememberSessions(snapshot.workspace.id, snapshot.sessions);
+  }
+
+  function resetConversationChrome(): void {
+    replaceLiveRun(idleRunState(), { immediate: true });
+    setConversation((current) => ({
+      ...emptyConversationState(),
+      settings: current.settings,
+      authFlow: current.authFlow,
+    }));
   }
 
   function applyAuthFlow(snapshot: ProviderAuthFlowSnapshot): void {
@@ -266,6 +290,7 @@ export function App() {
     setDraft("");
     setPreparedImages([]);
     setSettingsOpen(false);
+    replaceLiveRun(idleRunState(), { immediate: true });
     try {
       const opened = await action();
       applySessionSnapshot(opened);
@@ -384,11 +409,7 @@ export function App() {
                   setWorkspace(picked);
                   setDraft("");
                   setPreparedImages([]);
-                  setConversation((current) => ({
-                    ...emptyConversationState(),
-                    settings: current.settings,
-                    authFlow: current.authFlow,
-                  }));
+                  resetConversationChrome();
                   rememberSessions(picked.workspace.id, picked.sessions);
                   await refreshBootstrap();
                 }
@@ -440,7 +461,7 @@ export function App() {
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {snapshot ? (
-          <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div key={snapshot.session.id} className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Conversation
                 snapshot={snapshot}
                 draft={draft}
@@ -586,7 +607,6 @@ export function App() {
             aria-busy="true"
           >
             <div className="session-switch-veil">
-              <span className="session-switch-pulse" aria-hidden="true" />
               <span className="sr-only">Opening session…</span>
             </div>
           </div>
@@ -603,11 +623,7 @@ export function App() {
                   setWorkspace(picked);
                   setDraft("");
                   setPreparedImages([]);
-                  setConversation((current) => ({
-                    ...emptyConversationState(),
-                    settings: current.settings,
-                    authFlow: current.authFlow,
-                  }));
+                  resetConversationChrome();
                   rememberSessions(picked.workspace.id, picked.sessions);
                   await refreshBootstrap();
                 }
@@ -619,11 +635,7 @@ export function App() {
                 setWorkspace(opened);
                 setDraft("");
                 setPreparedImages([]);
-                setConversation((current) => ({
-                  ...emptyConversationState(),
-                  settings: current.settings,
-                  authFlow: current.authFlow,
-                }));
+                resetConversationChrome();
                 rememberSessions(opened.workspace.id, opened.sessions);
                 await refreshBootstrap();
               });

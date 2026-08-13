@@ -20,9 +20,11 @@ import {
   isSupportedProtocolVersion,
   isWorkspaceReferenceToken,
   isWebSourceRecord,
+  isLiveRunDeltaType,
   jsonRoundTrip,
   nodeVersionMeetsMinimum,
   providerDisclosureCopy,
+  runtimeEventUpdatesSessionList,
   unwrapCommandResult,
   type BootstrapState,
   type SessionSnapshot,
@@ -170,6 +172,17 @@ describe("protocol serialization", () => {
       runId: "run-a",
     });
     expect(state.snapshot?.run.streamingText).toBe("hi");
+  });
+
+  test("classifies live-run deltas separately from session-list events", () => {
+    expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.textDelta)).toBe(true);
+    expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.thinkingDelta)).toBe(true);
+    expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.toolEvent)).toBe(true);
+    expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runAdmitted)).toBe(false);
+    expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runSettled)).toBe(false);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionSnapshot)).toBe(true);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.runSettled)).toBe(true);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.textDelta)).toBe(false);
   });
 
   test("establishes a second run after a terminal snapshot and ignores a late first-run delta", () => {

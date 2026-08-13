@@ -60,16 +60,27 @@ describe("sanitized markdown", () => {
     expect(html).not.toContain("<script");
   });
 
-  test("keeps mermaid source while streaming", () => {
+  test("keeps mermaid source as a plain code block while streaming", () => {
     const html = renderToStaticMarkup(
       createElement(ConservativeMarkdown, {
-        isStreaming: true,
+        streaming: true,
         text: "```mermaid\nflowchart LR\n  A-->B\n```\n",
       }),
     );
     expect(html).toContain("flowchart LR");
     expect(html).toContain("mermaid");
     expect(html).not.toContain('data-testid="mermaid-diagram"');
+  });
+
+  test("does not run KaTeX while streaming", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        streaming: true,
+        text: "Inline $E=mc^2$ and **bold**.",
+      }),
+    );
+    expect(html).toContain("<strong>");
+    expect(html).not.toContain("katex");
   });
 
   test("mounts mermaid diagram wrapper when settled", () => {

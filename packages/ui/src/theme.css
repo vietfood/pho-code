@@ -350,56 +350,7 @@ html[data-appearance="dark"] .mention-chip {
   text-overflow: ellipsis;
 }
 
-/* Beautiful UI LoadingState / ToolChips tokens (MIT, Shane Levine). */
-.loading-state {
-  display: flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  gap: 0.625rem;
-}
-
-.loading-state-grid {
-  display: grid;
-  flex-shrink: 0;
-  grid-template-columns: repeat(3, 4px);
-  gap: 1.5px;
-}
-
-.loading-state-pixel {
-  width: 4px;
-  height: 4px;
-  border-radius: 1px;
-  background: var(--foreground);
-}
-
-.loading-state-pixel.is-round {
-  border-radius: 9999px;
-}
-
-.loading-state-label {
-  overflow: hidden;
-  background-image: linear-gradient(
-    90deg,
-    var(--muted-foreground) 35%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 65%
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  color: transparent;
-  font-size: 13px;
-  font-weight: 500;
-  animation: shimmer-text 1.4s linear infinite;
-}
-
-.loading-state-elapsed {
-  color: var(--muted-foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
+/* Beautiful UI ToolChips tokens (MIT, Shane Levine). */
 .tool-chip {
   display: inline-flex;
   height: 1.375rem;
@@ -705,22 +656,6 @@ html[data-appearance="dark"] .approval-card {
 .chat-composer-shell {
   position: relative;
   isolation: isolate;
-}
-
-.empty-session-glow {
-  pointer-events: none;
-  position: absolute;
-  top: 42%;
-  left: 50%;
-  z-index: 0;
-  width: min(36rem, 80%);
-  height: 16rem;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(ellipse at center, rgb(0 0 0 / 5%), transparent 70%);
-}
-
-html[data-appearance="dark"] .empty-session-glow {
-  background: radial-gradient(ellipse at center, rgb(255 255 255 / 7%), transparent 70%);
 }
 
 /* Chat markdown adapted from refs/t3code/apps/web/src/index.css (MIT, T3 Tools Inc., 6bc6cb6).
@@ -1064,9 +999,12 @@ html[data-appearance="dark"] .empty-session-glow {
   inset: 0;
   border-radius: var(--composer-radius);
   background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
+  content: "";
+}
+
+html[data-glass="on"] .chat-composer-shell::before {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  content: "";
 }
 
 .chat-composer-host {
@@ -1536,58 +1474,8 @@ html[data-glass="on"] .glass-field {
   border-radius: 3px;
 }
 
-.thinking-block-body {
-  animation: thinking-expand 160ms ease-out;
-}
-
-.streaming-text {
-  position: relative;
-}
-
-.streaming-caret {
-  display: inline-block;
-  margin-left: 0.15rem;
-  color: var(--muted-foreground);
-  animation: streaming-blink 1.1s step-end infinite;
-}
-
-.streaming-caret::before {
-  content: "▋";
-}
-
-.project-sessions-enter {
-  animation: project-sessions-enter 140ms ease-out;
-}
-
-@keyframes project-sessions-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.session-pane-enter {
-  animation: session-pane-enter 180ms ease-out;
-}
-
-@keyframes session-pane-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 .session-switching .session-pane-body {
   opacity: 0.4;
-  transition: opacity 120ms ease;
   pointer-events: none;
 }
 
@@ -1599,64 +1487,6 @@ html[data-glass="on"] .glass-field {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-}
-
-.session-switch-pulse {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
-  animation: session-switch-pulse 900ms ease-in-out infinite;
-}
-
-@keyframes session-switch-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-@keyframes thinking-expand {
-  from {
-    opacity: 0.35;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes streaming-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-@keyframes pixel-on {
-  0%,
-  100% {
-    opacity: 0.15;
-  }
-  18%,
-  42% {
-    opacity: 1;
-  }
-  62% {
-    opacity: 0.15;
-  }
-}
-
-@keyframes shimmer-text {
-  0% {
-    background-position: 150%;
-  }
-  100% {
-    background-position: -50%;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1673,35 +1503,5 @@ html[data-glass="on"] .glass-field {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: var(--card);
-  }
-
-  .streaming-caret {
-    animation: none;
-    opacity: 1;
-  }
-
-  .loading-state-pixel {
-    animation: none !important;
-    opacity: 0.35 !important;
-  }
-
-  .loading-state-label {
-    animation: none !important;
-    background: none !important;
-    color: var(--muted-foreground);
-  }
-
-  .empty-session-glow {
-    display: none;
-  }
-
-  .session-switching .session-pane-body {
-    transition: none;
-  }
-
-  .session-switch-pulse {
-    animation: none;
-    opacity: 0.7;
-    transform: none;
   }
 }

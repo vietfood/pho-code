@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import {
@@ -10,6 +10,11 @@ import {
 import { WorkLogToggle } from "../src/work-log-toggle";
 import { Transcript } from "../src/transcript";
 import { emptyFeatureSnapshot, idleRunState, type SessionSnapshot } from "@pho-code/protocol";
+import { resetLiveRunStore } from "../src/lib/live-run-store";
+
+beforeEach(() => {
+  resetLiveRunStore();
+});
 
 describe("work log helpers", () => {
   test("counts thoughts and tools", () => {
@@ -94,20 +99,18 @@ describe("work log toggle", () => {
     expect(markup).not.toContain('data-testid="agent-loading"');
   });
 
-  test("uses the pixel-grid loader while a run is live", () => {
+  test("keeps the Working label while a run is live", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkLogToggle, {
-        label: "Working for 1m 12s",
+        label: "Working",
         expanded: true,
         live: true,
-        elapsed: "72.0s",
+        startedAt: new Date().toISOString(),
         onToggle: () => undefined,
       }),
     );
-    expect(markup).toContain('data-testid="agent-loading"');
     expect(markup).toContain("Working");
-    expect(markup).toContain("72.0s");
-    expect(markup).not.toContain("Working for 1m 12s");
+    expect(markup).not.toContain('data-testid="agent-loading"');
   });
 });
 
