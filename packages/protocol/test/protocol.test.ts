@@ -11,10 +11,13 @@ import {
   createHarnessError,
   emptyConversationState,
   emptyFeatureSnapshot,
+  glassCssTokens,
   idleRunState,
   isCommandResult,
   isJsonSafeValue,
   isSupportedProtocolVersion,
+  isWorkspaceReferenceToken,
+  isWebSourceRecord,
   jsonRoundTrip,
   nodeVersionMeetsMinimum,
   unwrapCommandResult,
@@ -106,6 +109,24 @@ describe("protocol serialization", () => {
     expect(nodeVersionMeetsMinimum("24.18.1", PINNED_ELECTRON.minimumEmbeddedNode)).toBe(true);
     expect(nodeVersionMeetsMinimum("22.19.0", PINNED_ELECTRON.minimumEmbeddedNode)).toBe(true);
     expect(nodeVersionMeetsMinimum("22.18.0", PINNED_ELECTRON.minimumEmbeddedNode)).toBe(false);
+  });
+
+  test("keeps workspace reference tokens JSON-safe and relative", () => {
+    const token = { path: "src/composer.tsx", kind: "file" as const };
+    expect(isWorkspaceReferenceToken(token)).toBe(true);
+    expect(isWorkspaceReferenceToken({ path: "/tmp/secret", kind: "file" })).toBe(true);
+    expect(isWorkspaceReferenceToken({ path: "src/composer.tsx" })).toBe(true);
+    expect(isWorkspaceReferenceToken({ path: "" })).toBe(false);
+    expect(isJsonSafeValue({ suggestions: [token], status: "ready" })).toBe(true);
+    expect(jsonRoundTrip(token)).toEqual(token);
+  });
+
+  test("keeps web source records JSON-safe", () => {
+    const source = { title: "Example", url: "https://example.com/doc", provider: "duckduckgo" as const };
+    expect(isWebSourceRecord(source)).toBe(true);
+    expect(isWebSourceRecord({ title: "x", url: "file:///etc/passwd", provider: "http" })).toBe(false);
+    expect(isJsonSafeValue({ sources: [source] })).toBe(true);
+    expect(jsonRoundTrip(source)).toEqual(source);
   });
 
   test("ignores stale run deltas and older sequence numbers", () => {
@@ -387,17 +408,42 @@ describe("protocol serialization", () => {
 
   test("settings snapshots are JSON-safe", () => {
     const snapshot = {
-      appearance: { theme: "dark" as const },
+      appearance: {
+        palette: "default" as const,
+        mode: "dark" as const,
+        glassEnabled: false,
+        glassStrength: 55,
+        uiFontSize: 18,
+        chatFontSize: 16,
+      },
       permission: {
-        profile: "guarded" as const,
+        profile: "developer" as const,
         yoloMode: false,
         permissionReviewLog: true,
         projectOverridePresent: false,
+        projectPermissionRulesTrusted: false,
+        projectPermissionRulesRemembered: false,
         appliesToSharedPiAgentDir: true as const,
       },
     };
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+  });
+
+  test("glassCssTokens keep chrome readable and frost the composer more than the pane", () => {
+    const mid = glassCssTokens(55);
+    expect(mid.opacityPercent).toBeGreaterThanOrEqual(70);
+    expect(mid.sidebarOpacityPercent).toBeGreaterThanOrEqual(52);
+    expect(mid.sidebarOpacityPercent).toBeLessThan(mid.opacityPercent);
+    expect(mid.composerOpacityPercent).toBeGreaterThan(mid.opacityPercent);
+    expect(mid.composerOpacityPercent).toBeLessThanOrEqual(90);
+    expect(mid.sidebarBlurPx).toBeGreaterThanOrEqual(mid.blurPx);
+    expect(mid.blurPx).toBeLessThanOrEqual(20);
+
+    const max = glassCssTokens(100);
+    expect(max.opacityPercent).toBeGreaterThanOrEqual(60);
+    expect(max.sidebarOpacityPercent).toBeGreaterThanOrEqual(52);
+    expect(max.blurPx).toBeLessThanOrEqual(24);
   });
 
   test("session usage and model cost fields survive a JSON round trip", () => {
@@ -408,6 +454,38 @@ describe("protocol serialization", () => {
     expect(snapshot.model?.contextWindow).toBe(128_000);
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+  });
+
+  test("queue state and prepared image summaries are JSON-safe and path-free", () => {
+    const snapshot = sampleSessionSnapshot("run-queue");
+    snapshot.queue = {
+      steering: [{ text: "go left after this tool" }],
+      followUp: [{ text: "then summarize" }],
+      steeringMode: "one-at-a-time",
+      followUpMode: "all",
+    };
+    snapshot.messages = [
+      {
+        id: "u-image",
+        role: "user",
+        blocks: [{ type: "image", name: "shot.png", mimeType: "image/png" }],
+      },
+    ];
+    const image = {
+      id: "img-1",
+      name: "shot.png",
+      mimeType: "image/png" as const,
+      byteLength: 128,
+      width: 32,
+      height: 24,
+      previewDataUrl: "data:image/jpeg;base64,abc",
+    };
+    expect(isJsonSafeValue(snapshot)).toBe(true);
+    expect(isJsonSafeValue(image)).toBe(true);
+    expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+    expect(JSON.stringify(snapshot)).not.toContain("/Users");
+    expect(JSON.stringify(image)).not.toContain("/tmp");
+    expect(image.name).toBe("shot.png");
   });
 });
 

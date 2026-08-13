@@ -25,6 +25,9 @@ export const HARNESS_ERROR_CODES = {
   credentialImportFailed: "credential_import_failed",
   unsupportedHostUi: "unsupported_host_ui",
   extensionCommandNotFound: "extension_command_not_found",
+  invalidWorkspaceReference: "invalid_workspace_reference",
+  invalidImage: "invalid_image",
+  imagesUnsupported: "images_unsupported",
 } as const;
 
 export function isHarnessError(value: unknown): value is HarnessError {

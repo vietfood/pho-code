@@ -25,6 +25,8 @@ export interface ModelSummary {
   name: string;
   contextWindow: number;
   cost: ModelCostRatesSummary;
+  /** True when Pi `model.input` includes `"image"`. */
+  supportsImages?: boolean;
 }
 
 /** Pi thinking levels projected for JSON-safe UI selectors. */
