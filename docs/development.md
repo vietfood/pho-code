@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 are accepted, and the personal v1 is complete. Read the [Milestone 5 code review](./reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Post-v1 work lives in the [next-version roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the [Milestone 0 review](./reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 are accepted. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
 
 After a fresh clone, materialize the references with:
 
@@ -34,8 +34,8 @@ Do not run install/build commands inside a reference submodule as if that built 
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, and credential-import commands |
-| `packages/runtime` | Pi session/loader ownership, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, deterministic test model |
+| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, and prepared image summaries |
+| `packages/runtime` | Pi session/loader ownership, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, deterministic test model |
 | `packages/application` | Workspace/session/prompt/settings/credential use cases, recent-workspace and appearance metadata, validation, shutdown |
 | `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, compact Settings including API-key import, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, agent-dir override, test seams |
@@ -103,7 +103,7 @@ Expected development behavior:
 | `PHO_CODE_TEST_MODE=background` | Headless Electron test launch |
 | `PHO_CODE_TEST_WORKSPACE` | Inject a directory as if it was chosen with the native picker (test-only) |
 | `PHO_CODE_TEST_MODEL=1` | Register the deterministic faux model and `harness_mark` tool |
-| `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package); otherwise tests use an empty manifest |
+| `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package, recoverable Trash, and pho-web; FFF tools only if the caller passes a retrieval runtime); otherwise tests use an empty manifest |
 | `PHO_CODE_RESOURCES_DIR` | Override the staged resource root in source development/tests; packaged production ignores it and uses Electron `process.resourcesPath` |
 | `PHO_CODE_SHUTDOWN_PROBE` | Write a JSON dispose probe on quit |
 
@@ -135,7 +135,7 @@ Verification classes for this change:
 
 - **unit verified:** protocol JSON safety including second-run supersession, command-result envelopes, select dialog settlement, and settings snapshots; application metadata/appearance/shutdown; package boundaries including the pinned permission package; sanitized markdown (KaTeX/Shiki/Mermaid); dialog focus loop; Guarded/Balanced preset mapping, Custom preservation, invalid-config refusal, and atomic permission writes
 - **integration verified:** isolated-directory Pi session create, stream, tool, second prompt, abort, dispose, reopen, process-lifetime trust, baked-feature isolation, select/input dialog/rebind, real permission-package select, dispose during a pending dialog, feature-health false-positive rejection
-- **desktop verified:** Electron chat with the deterministic test model including a second consecutive prompt, JSONL reopen, and immediate session-list appearance; test-host select dialog; baked permission-system select dialog; Settings theme persistence across relaunch and Guarded profile applied to the next gated tool call
+- **desktop verified:** Electron chat with the deterministic test model including a second consecutive prompt, JSONL reopen, and immediate session-list appearance; test-host select dialog; baked permission-system select dialog; Settings palette/mode/glass and font-size persistence across relaunch and Guarded profile applied to the next gated tool call
 - **owner verified:** real `deepseek/deepseek-v4-flash` multi-turn chat with thinking and failed/completed tool projection (Milestone 1/2)
 - **not verified (Milestone 4):** packaged installer; Linux desktop; real-provider permission allow/deny
 
@@ -166,6 +166,66 @@ The acceptance review additionally reran typecheck, lint, eight focused packagin
 
 Keep TypeScript and `typescript-eslint` inside their declared peer-version ranges.
 
+v2 Milestone 0 implementation evidence, recorded 2026-08-13, pending owner acceptance review:
+
+```text
+bun run typecheck     PASS
+bun run lint          PASS
+bun test              152/152 PASS
+bun run test:desktop  PASS — 9 Electron tests (smoke, security, shutdown, chat, host-ui, permission, settings, credentials, developer)
+bun run package:mac   PASS — unsigned Pho Code.app at apps/desktop/release/mac-arm64
+bun run test:packaged PASS — 1 packaged Electron test (permission + recoverable Trash, Developer Trash journey, no Pi CLI)
+bun run build         PASS — main, preload, and renderer bundles
+```
+
+Milestone 0 verification classes:
+
+- **unit verified:** stable permission-key mapping and detection; pre-v3 Guarded/Balanced recognition; Custom/invalid preservation; permission-system 24.0.0 command-family characterization; Trash target validation; OS Trash adapter fail-closed behavior; host-dialog title/body split
+- **integration verified:** the internal `developer` policy allows `git status`, denies `rm`, asks wrappers, and moves an owned fixture through `/usr/bin/trash`; default manifest loads permission-system and recoverable-trash; idle-only permission updates
+- **desktop verified:** the third owner-facing mode persists across relaunch; `USE_SAFE_SHELL` completes without a dialog; `USE_DANGEROUS_SHELL` remains blocked; `USE_TRASH` removes the owned fixture; existing strict/chat/permission journeys still pass
+- **packaged verified:** unsigned local `.app` loads `permission-system 24.0.0` and `recoverable-trash 1.0.0` from app-owned resources, completes recoverable Trash with isolated data and a PATH that does not contain `pi`
+- **not verified:** Linux desktop and real Linux Trash; owner-monitored real-provider daily-driver proof; treating the permission layer as a sandbox
+
+v2 Milestone 1 Slice 1 implementation evidence, recorded 2026-08-13, pending owner harness testing:
+
+```text
+bun run typecheck     PASS
+bun run lint          PASS
+bun test packages/protocol/test/protocol.test.ts
+         packages/runtime/test/workspace-reference.test.ts
+         packages/runtime/test/local-retrieval.test.ts
+         packages/ui/test/at-mention.test.ts
+                      21/21 PASS (local-retrieval needs native FFI; sandbox-blocked runs fail)
+```
+
+Slice 1 verification classes:
+
+- **unit verified:** workspace-relative `@` tokens reject absolute/parent/sensitive paths and serialize without absolute paths; composer mention parsing; protocol JSON-safety for reference tokens
+- **integration verified:** `FileFinder` indexes an owned temp workspace and returns relative path suggestions
+- **desktop verified:** not run; owner should exercise `bun run dev`
+- **packaged verified:** not run; native `dlopen` from asar remains a later packaging check
+- **not verified:** owner-monitored inline `@path` mentions and `fffind`/`ffgrep` against a real workspace; FFF benchmark gate; Linux index behavior
+
+v2 Milestone 1 Slice 2 implementation evidence, recorded 2026-08-13, pending owner harness testing:
+
+```text
+bun run typecheck     PASS
+bun run lint          PASS
+bun test packages/protocol/test/protocol.test.ts
+         packages/runtime/test/web-url.test.ts
+         packages/runtime/test/permission-settings.test.ts
+                      29/29 PASS
+```
+
+Slice 2 verification classes:
+
+- **unit verified:** SSRF rejects file/credentials/localhost/private/link-local/metadata addresses; redirects onto private IPs are denied; DuckDuckGo HTML parse skips ads and decodes `uddg` URLs; protocol JSON-safety for source records; Developer maps `web_search=ask` and `fetch_content=allow`
+- **integration verified:** not run against live DuckDuckGo or arbitrary internet hosts
+- **desktop verified:** not run; owner should exercise `bun run dev`
+- **packaged verified:** not run
+- **not verified:** owner-monitored `web_search` / `fetch_content` on a real workspace; Linux DNS/SSRF; adversarial DNS rebinding during the connect window
+
+
 ## Recorded runtime compatibility
 
 The desktop pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1` (with matching `@earendil-works/pi-ai` `0.84.1`). The Electron runtime reports embedded Node `24.18.1`, which satisfies Pi's `engines.node` of `>=22.19.0`.
@@ -176,7 +236,7 @@ Installed 0.84.1 typings are the API source of truth. The public SDK guide is [p
 - `session.prompt(..., { source: "interactive", preflightResult })` for admission; `prompt()` resolves after the full run
 - do not treat the first `agent_end` as completion when retries remain; this host settles from `prompt()` plus abort/error
 - `getDefaultSessionDir` is not a public export; isolated runs set `PI_CODING_AGENT_DIR` so Pi's default session layout stays in the injected agent directory
-- native-picker approval is a process-lifetime `Set` plus `resolveProjectTrust`; the host never writes `trust.json`
+- native-picker approval is process-lifetime; the explicit Settings action remembers permission-rule trust in Pho Code metadata and still never writes Pi's shared `trust.json` or enables project extensions
 - the deterministic test path uses `fauxProvider` from `@earendil-works/pi-ai` and `defineTool` `harness_mark`
 
 Never upgrade Pi and Electron opportunistically in an unrelated feature change.
@@ -308,7 +368,7 @@ Covered by `packages/runtime/test/pi-runtime.test.ts` and `apps/desktop/tests/{c
 6. Electron `USE_TOOL` with `PHO_CODE_TEST_HOST_UI=1` completes a select dialog;
 7. conservative Markdown/code rendering covers assistant and streaming text.
 
-Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature. Personal `bun run dev` uses the default manifest.
+Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature, the application-owned Trash tool, and pho-web. Personal `bun run dev` uses the production fallback manifest (permission, Trash, FFF local retrieval, and pho-web).
 
 Keep these checks focused. Do not add a visual-regression framework or reproduce the complete third-party permission extension suite.
 
@@ -318,8 +378,8 @@ Covered by `packages/runtime/test/permission-settings.test.ts`, `packages/applic
 
 1. Guarded/Balanced map to the reviewed policies; string catch-alls match a `*` map; Custom is preserved on unrelated YOLO changes;
 2. invalid/unrecognized existing permission config is refused; managed writes are atomic and keep unowned fields;
-3. application appearance persists independently of permission settings and migrates v1 metadata to `system`;
-4. one Electron journey persists dark theme across relaunch, applies Guarded, and completes the next gated `USE_TOOL` call;
+3. application appearance (palette, mode, glass, UI font size, chat font size) persists independently of permission settings and migrates v1–v3 `theme` into Default palette + mode with glass defaults;
+4. one Electron journey persists palette/mode/glass across relaunch, applies Guarded, and completes the next gated `USE_TOOL` call;
 5. typecheck, lint, unit/integration tests, and build pass.
 
 Do not build a generic schema-form test matrix or copy the third-party package's policy test suite.
@@ -336,6 +396,17 @@ Covered by `packages/runtime/test/{resource-locator,credentials}.test.ts`, `scri
 6. `bun run test:packaged` launches the unsigned `.app` with isolated user data, `PHO_CODE_TEST_FEATURES=1`, and a PATH that does not contain `pi`.
 
 Default Playwright config ignores `packaged.spec.ts`; the packaged lane uses `playwright.packaged.config.ts`.
+
+### Milestone 0 (v2) focused lane
+
+Covered by `packages/runtime/test/{permission-engine,permission-settings,developer-runtime,trash-target,recoverable-removal,host-dialog-presentation}.test.ts`, `apps/desktop/tests/developer.spec.ts`, and `apps/desktop/tests/packaged.spec.ts`:
+
+1. Developer maps to the reviewed policy; Guarded/Balanced stay unchanged and are never silently detected as Developer;
+2. characterization covers compound commands, wrappers, redirection, and representative deny families;
+3. Trash target validation refuses workspace roots, protected app/Pi/reference paths, missing paths, and outside-workspace paths;
+4. OS Trash adapter uses `/usr/bin/trash` on macOS and never falls back to `rm`;
+5. one Electron journey selects Developer, allows `USE_SAFE_SHELL`, denies `USE_DANGEROUS_SHELL`, and moves an owned fixture with `USE_TRASH`;
+6. packaged macOS loads `permission-system` and `recoverable-trash` without a Pi CLI and completes the Trash journey under the third owner-facing mode.
 
 ### Optional real-provider recipe
 

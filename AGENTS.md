@@ -4,32 +4,31 @@ These instructions apply to the entire repository. Nested `AGENTS.md` files may 
 
 ## Mission and current maturity
 
-Build a personal, macOS-first and Linux-compatible desktop harness on the Pi SDK. The first release must be a small, reliable local chat application with deliberately placed extension seams. It is not yet a publicly distributed or adversarially hardened product.
+Build a personal, macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 is accepted and archived. Active v2 work aims to make the harness a fast daily driver with legible autonomy, recoverable removal, and bounded retrieval; it is not yet a publicly distributed or adversarially hardened product.
 
-Milestones 0 through 4 are accepted on Pi SDK `0.84.1`. Milestone 5 is implemented in source: packaged resource lookup, in-app API-key import, third-party notices, and an unsigned local macOS bundle proof. Read `docs/reviews/milestone-4-code-review.md` before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/plans/conversation-ui.md`. Do not turn Milestone 5 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project.
+Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/plans/conversation-ui.md`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 
 Read these files before nontrivial implementation:
 
-1. `docs/product-v1.md`
-2. `docs/architecture/overview.md`
-3. `docs/architecture/desktop-shell.md`
-4. `docs/extension-model.md`
-5. `docs/implementation-plan.md`
-6. `docs/plans/conversation-ui.md` when changing conversation chrome
-7. `docs/development.md`
-8. `docs/reviews/milestone-4-code-review.md`
-9. `docs/reviews/milestone-3-code-review.md`
-10. `docs/reviews/milestone-2-code-review.md`
-11. `docs/reviews/milestone-1-code-review.md`
-12. `docs/reviews/milestone-0-code-review.md`
+1. `docs/current-state.md`
+2. `docs/product-v2.md`
+3. `docs/architecture/overview.md`
+4. `docs/architecture/desktop-shell.md`
+5. `docs/extension-model.md`
+6. `docs/implementation-plan-v2.md`
+7. `docs/plans/conversation-ui.md` when changing conversation chrome
+8. `docs/development.md`
+9. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
+10. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
+11. the earlier record under `docs/archive/v1` only when changing a boundary it established
 
 ## Product constraints
 
 - The product is built from scratch. `refs/pi-gui`, `refs/pi-web`, and `refs/t3code` are read-only references unless a task explicitly updates their gitlink revisions.
-- Electron is the v1 shell. Do not introduce Tauri or Rust into v1 without an explicit architecture-decision change.
+- Electron is the accepted shell. Do not introduce Tauri or Rust without an explicit architecture-decision change.
 - macOS is the first verification surface. Preserve Linux-compatible path, process, and UI behavior. Do not add Windows-specific work unless scope changes.
 - Use the Pi SDK directly. Do not fork or reproduce Pi's agent loop, model runtime, session tree, resource discovery, or JSONL persistence.
-- Do not make deferred production work a blocker for the personal v1. Sandbox/container execution, plugin auditing, signing, notarization, auto-update, marketplaces, and broad MCP management remain deferred. The local unsigned macOS bundle proof is Milestone 5 product work, not deferred production hardening.
+- Do not make deferred production work a blocker for personal v2. Sandbox/container execution, plugin auditing, signing, notarization, auto-update, marketplaces, and broad MCP management remain deferred.
 - Do not silently add features. Extensions, skills, prompts, and MCP integrations enter the product only as source-controlled manifest entries explicitly specified by the owner.
 - Settings may change only typed, documented behavior of features already present in that manifest. Do not expose generic key/value configuration, executable paths, arbitrary JSON schemas, package controls, or server definitions.
 - Treat the harness as standalone. Production feature loading must use app-owned packaged resources; never require the user to install a package/skill/MCP adapter into another Pi installation. Pi-compatible auth, model, session, and operational data may be reused, but user Pi feature composition is never a runtime dependency.
@@ -67,9 +66,9 @@ If a feature appears to require breaking a boundary, first propose a narrow cont
 - Use `dispose`, abort signals, and extension/session shutdown events to release long-lived resources.
 - Do not parse streaming text as final state. Use final message/session events as authoritative and deltas for rendering only.
 
-## Personal-v1 trust policy
+## Personal trust policy
 
-v1 assumes the owner trusts selected workspaces and the source-reviewed baked extensions, skills, packages, and MCP servers. The UI and documentation must still be honest:
+The product assumes the owner trusts selected workspaces and the source-reviewed baked extensions, skills, packages, and MCP servers. The UI and documentation must still be honest:
 
 - Pi has no built-in sandbox.
 - Extensions execute code with the permissions of the app process.
@@ -141,7 +140,7 @@ bun run test:desktop
 bun run build
 ```
 
-Use the narrower package command during iteration, followed by the required milestone exit checks in `docs/implementation-plan.md`.
+Use the narrower package command during iteration, followed by the required milestone exit checks in `docs/implementation-plan-v2.md`.
 
 ## Filesystem and deletion
 

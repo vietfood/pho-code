@@ -6,7 +6,7 @@ Use Electron for the personal v1. Keep the renderer and runtime contract shell-n
 
 Status: shell decision and personal v1 are accepted. The Electron shell hosts the Pi `0.84.1` runtime behind the typed bridge. Milestones 1 through 4 added workspace/session/prompt, baked features, permission host UI, the revised conversation shell, and typed appearance/permission settings without changing the renderer sandbox, context isolation, or bounded quit controls. Milestone 5 packages that shell as an unsigned local macOS `.app` with app-owned feature resources and in-app API-key import.
 
-The current shell pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1`. Milestone 0 is accepted. See the [Milestone 0 code review](../reviews/milestone-0-code-review.md).
+The current shell pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1`. The original bootstrap milestone is accepted. See the archived [v1 Milestone 0 code review](../archive/v1/reviews/milestone-0-code-review.md).
 
 ## Drivers
 
@@ -106,6 +106,7 @@ Also require:
 
 - local renderer assets rather than remote pages;
 - a restrictive CSP;
+- default-deny Chromium permission handlers, with a narrow allow for `clipboard-sanitized-write` so transcript/code copy buttons can use `navigator.clipboard.writeText`;
 - navigation and new-window interception;
 - validated `http:`/`https:` external links opened through the OS;
 - sender and payload validation for privileged IPC;

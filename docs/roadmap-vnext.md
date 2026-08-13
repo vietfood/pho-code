@@ -2,6 +2,8 @@
 
 This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
 
+The owner has promoted the autonomy foundation and retrieval work into [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 and 1.
+
 ## Rules carried forward
 
 - Pho Code remains a standalone harness built on an embedded, pinned Pi runtime.
@@ -62,7 +64,7 @@ Start this track only if Pho Code becomes more than a personal local application
 - multi-agent orchestration and worktree automation;
 - integrated terminal and diff/file workbench;
 - session fork/tree/compaction UI;
-- attachments and richer previews;
+- arbitrary document/binary attachments and richer previews beyond v2 Milestone 1 images;
 - remote access or server mode.
 
 Windows, mobile UI, a plugin marketplace, arbitrary renderer extensions, and user-managed MCP servers remain out of scope unless the product philosophy is deliberately changed.
