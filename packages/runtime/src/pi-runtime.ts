@@ -84,6 +84,7 @@ interface ActiveRun {
   promptDone: Promise<void>;
   abortRequested: boolean;
   settled: boolean;
+  startedAt: string;
 }
 
 export async function createPhoCodeRuntime(
@@ -267,6 +268,7 @@ export async function createPhoCodeRuntime(
           status: activeRun.abortRequested ? ("cancelled" as const) : ("streaming" as const),
           streamingText: "",
           work: [],
+          startedAt: activeRun.startedAt,
         }
       : idleRunState();
 
@@ -801,6 +803,7 @@ export async function createPhoCodeRuntime(
         promptDone: Promise.resolve(),
         abortRequested: false,
         settled: false,
+        startedAt: new Date().toISOString(),
       };
       activeRun = run;
 

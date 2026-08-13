@@ -19,13 +19,16 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
   const projected: TranscriptMessage[] = [];
   messages.forEach((message, index) => {
     switch (message.role) {
-      case "user":
+      case "user": {
+        const createdAt = toCreatedAt(message.timestamp);
         projected.push({
           id: `user:${message.timestamp}:${index}`,
           role: "user",
           blocks: [{ type: "text", text: userText(message.content) }],
+          ...(createdAt ? { createdAt } : {}),
         });
         return;
+      }
       case "assistant": {
         const blocks: TranscriptBlock[] = [];
         for (const part of message.content) {
@@ -64,10 +67,12 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
             }
           }
         }
+        const createdAt = toCreatedAt(message.timestamp);
         projected.push({
           id: `assistant:${message.timestamp}:${index}`,
           role: "assistant",
           blocks,
+          ...(createdAt ? { createdAt } : {}),
         });
         return;
       }
@@ -85,6 +90,25 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
   });
 
   return projected;
+}
+
+function toCreatedAt(timestamp: unknown): string | undefined {
+  if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+    return new Date(timestamp).toISOString();
+  }
+  if (typeof timestamp === "string" && timestamp.length > 0) {
+    if (/^\d+$/u.test(timestamp)) {
+      const asNumber = Number(timestamp);
+      if (Number.isFinite(asNumber)) {
+        return new Date(asNumber).toISOString();
+      }
+    }
+    const parsed = Date.parse(timestamp);
+    if (!Number.isNaN(parsed)) {
+      return new Date(parsed).toISOString();
+    }
+  }
+  return undefined;
 }
 
 function userText(content: string | Array<{ type: string; text?: string }>): string {

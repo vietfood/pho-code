@@ -33,6 +33,8 @@ export interface TranscriptMessage {
   id: string;
   role: TranscriptRole;
   blocks: TranscriptBlock[];
+  /** ISO timestamp when the underlying Pi message was created. */
+  createdAt?: string;
 }
 
 export interface ToolActivity {
@@ -61,6 +63,8 @@ export interface RunState {
   streamingText: string;
   /** Live think → tool → think sequence; mirrors settled assistant work blocks. */
   work: RunWorkEntry[];
+  /** ISO timestamp when the current run was admitted (for live “Working for…” duration). */
+  startedAt?: string;
   error?: HarnessError;
 }
 

@@ -171,6 +171,7 @@ function preserveLiveRunFields(
       ...incoming.run,
       streamingText: current.run.streamingText || incoming.run.streamingText,
       work: current.run.work.length > 0 ? current.run.work : incoming.run.work,
+      startedAt: current.run.startedAt ?? incoming.run.startedAt,
     },
   };
 }
@@ -224,6 +225,7 @@ export function applyRuntimeEvent(
             status: "admitted",
             streamingText: "",
             work: [],
+            startedAt: event.occurredAt,
           },
         },
         dialog: state.dialog,
