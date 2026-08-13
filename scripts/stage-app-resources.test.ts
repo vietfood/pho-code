@@ -1,0 +1,35 @@
+import { existsSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, test } from "bun:test";
+import { PERMISSION_PACKAGE_NAME } from "../packages/runtime/src/features.ts";
+import { createPackagedResourceLocator, readPiExtensionPaths } from "../packages/runtime/src/resource-locator.ts";
+import { generateThirdPartyNotices, stageBakedFeatureResources } from "./stage-app-resources.ts";
+
+describe("baked feature staging", () => {
+  test("stages the permission package for the packaged locator", () => {
+    const resourcesRoot = mkdtempSync(path.join(tmpdir(), "pho-code-stage-"));
+    const packageRoot = stageBakedFeatureResources(resourcesRoot);
+    expect(existsSync(path.join(packageRoot, "LICENSE"))).toBe(true);
+    expect(existsSync(path.join(packageRoot, "src", "index.ts"))).toBe(true);
+    expect(existsSync(path.join(packageRoot, "node_modules", "zod", "package.json"))).toBe(true);
+    expect(existsSync(path.join(packageRoot, "node_modules", "web-tree-sitter", "web-tree-sitter.wasm"))).toBe(true);
+    expect(existsSync(path.join(packageRoot, "node_modules", "tree-sitter-bash", "tree-sitter-bash.wasm"))).toBe(true);
+
+    const locator = createPackagedResourceLocator(resourcesRoot);
+    expect(locator.resolvePackageRoot(PERMISSION_PACKAGE_NAME)).toBe(packageRoot);
+    expect(readPiExtensionPaths(packageRoot).some((entry) => entry.endsWith("src/index.ts"))).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as { version: string };
+    expect(manifest.version).toBe("24.0.0");
+  });
+
+  test("notices name the pinned Pi and permission packages", () => {
+    const notices = generateThirdPartyNotices();
+    expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.1");
+    expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
+    expect(notices).toContain("MIT");
+  });
+});
