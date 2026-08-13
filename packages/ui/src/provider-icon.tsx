@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "./lib/cn";
 
+const OPENAI_CODEX_LIGHT_SRC = new URL("./assets/openai-codex-light.png", import.meta.url).href;
+const OPENAI_CODEX_DARK_SRC = new URL("./assets/openai-codex-dark.png", import.meta.url).href;
+
 /**
- * Compact provider marks for the model picker.
- * Paths adapted from Simple Icons (CC0) — see docs/references-and-attribution.md.
+ * Compact provider marks for the model picker and account rows.
+ * SVG paths adapted from Simple Icons (CC0); Codex bitmaps are owner-supplied.
+ * See docs/references-and-attribution.md.
  */
 export function ProviderIcon({
   provider,
@@ -13,6 +17,7 @@ export function ProviderIcon({
   className?: string;
 }) {
   const key = normalizeProvider(provider);
+  const bitmap = BITMAP_MARKS[key];
   const path = PROVIDER_PATHS[key];
   return (
     <span
@@ -23,13 +28,38 @@ export function ProviderIcon({
       aria-hidden="true"
       data-provider={key}
     >
-      {path ? <BrandMark path={path} /> : <LetterIcon provider={provider} />}
+      {bitmap ? (
+        <BitmapMark lightSrc={bitmap.lightSrc} darkSrc={bitmap.darkSrc} />
+      ) : path ? (
+        <BrandMark path={path} />
+      ) : (
+        <LetterIcon provider={provider} />
+      )}
     </span>
   );
 }
 
 function normalizeProvider(provider: string): string {
   return provider.trim().toLowerCase();
+}
+
+function BitmapMark({ lightSrc, darkSrc }: { lightSrc: string; darkSrc: string }): ReactNode {
+  return (
+    <>
+      <img
+        src={lightSrc}
+        alt=""
+        draggable={false}
+        className="size-full object-contain [[data-appearance=dark]_&]:hidden"
+      />
+      <img
+        src={darkSrc}
+        alt=""
+        draggable={false}
+        className="hidden size-full object-contain [[data-appearance=dark]_&]:block"
+      />
+    </>
+  );
 }
 
 function BrandMark({ path }: { path: string }): ReactNode {
@@ -51,6 +81,10 @@ function LetterIcon({ provider }: { provider: string }): ReactNode {
     </svg>
   );
 }
+
+const BITMAP_MARKS: Record<string, { lightSrc: string; darkSrc: string }> = {
+  "openai-codex": { lightSrc: OPENAI_CODEX_LIGHT_SRC, darkSrc: OPENAI_CODEX_DARK_SRC },
+};
 
 /** Simple Icons path data (viewBox 0 0 24 24), keyed by Pi provider id. */
 const PROVIDER_PATHS: Record<string, string> = {
