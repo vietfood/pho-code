@@ -1,0 +1,38 @@
+{
+  "name": "@pho-code/ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": ["**/*.css"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme.css": "./src/theme.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "peerDependencies": {
+    "react": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "dependencies": {
+    "@pho-code/protocol": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "katex": "0.16.22",
+    "lucide-react": "0.564.0",
+    "mermaid": "11.9.0",
+    "react-markdown": "10.1.0",
+    "rehype-katex": "7.0.1",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0",
+    "shiki": "3.12.2",
+    "tailwind-merge": "3.4.0"
+  }
+}

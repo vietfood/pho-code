@@ -1,0 +1,37 @@
+import { describe, expect, test } from "bun:test";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+import { ToolRow } from "../src/tool-row";
+import { toolWorkEntryHeading, toolWorkEntryIcon, toolWorkEntryPreview } from "../src/tool-presentation";
+import type { TranscriptToolBlock } from "@pho-code/protocol";
+
+const block: TranscriptToolBlock = {
+  type: "tool",
+  callId: "call-1",
+  name: "bash",
+  status: "completed",
+  inputPreview: '{"command":"ls -la docs"}',
+  outputPreview: "ok",
+};
+
+describe("tool presentation", () => {
+  test("formats T3-style headings and icons", () => {
+    expect(toolWorkEntryHeading("bash", "completed")).toBe("Bash completed");
+    expect(toolWorkEntryHeading("read", "failed")).toBe("Read failed");
+    expect(toolWorkEntryIcon("bash")).toBe("terminal");
+    expect(toolWorkEntryIcon("read")).toBe("eye");
+    expect(toolWorkEntryPreview("bash", '{"command":"ls -la docs"}', "")).toBe("ls -la docs");
+  });
+});
+
+describe("tool row", () => {
+  test("starts collapsed with heading, preview, and status check", () => {
+    const markup = renderToStaticMarkup(createElement(ToolRow, { block }));
+    expect(markup).toContain("Bash completed");
+    expect(markup).toContain("ls -la docs");
+    expect(markup).toContain('data-testid="tool-card"');
+    expect(markup).toContain('aria-label="Completed"');
+    expect(markup).not.toContain("<pre");
+    expect(markup).toContain('aria-expanded="false"');
+  });
+});
