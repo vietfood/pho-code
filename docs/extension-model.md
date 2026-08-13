@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 is accepted through Milestone 5. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and `@gotgenes/pi-permission-system` `24.0.0` is the first baked feature. Typed settings change supported baked-feature behavior without making the feature set customizable, and packaged builds resolve that feature only from app-owned resources. See the [Milestone 5 review](./reviews/milestone-5-code-review.md).
+Personal v1 is accepted through Milestone 5. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and `@gotgenes/pi-permission-system` `24.0.0` is the first baked feature. v2 Milestone 0 adds the application-owned `recoverable-trash` inline feature. Typed settings change supported baked-feature behavior without making the feature set customizable, and packaged builds resolve third-party features only from app-owned resources. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -92,7 +92,7 @@ This is an About/Diagnostics record, not a composition model. It has no enabled 
 
 `HarnessFeatureManifest` is the only composition input. Use a named inline factory for application-owned integration code. Use an explicit packaged path when a third-party Pi package is the implementation unit.
 
-The first feature is:
+The first shipped features are:
 
 ```ts
 const permissionFeature: HarnessFeature = {
@@ -100,9 +100,33 @@ const permissionFeature: HarnessFeature = {
   version: "24.0.0",
   extensionPaths: [resolvedBundledPermissionPackage],
 };
+
+const trashFeature: HarnessFeature = {
+  id: "recoverable-trash",
+  version: "1.0.0",
+  inlineFactory: "recoverable-trash",
+};
+
+const retrievalFeature: HarnessFeature = {
+  id: "local-retrieval",
+  version: "1.0.0",
+  inlineFactory: "local-retrieval",
+};
+
+const webFeature: HarnessFeature = {
+  id: "pho-web",
+  version: "1.0.0",
+  inlineFactory: "pho-web",
+};
 ```
 
 `@gotgenes/pi-permission-system` must be an exact application dependency and must be staged with its package manifest, `src`, runtime dependencies, schema/config assets, and license. The Pi loader should load that staged package/path explicitly. Do not rely on `npm:@gotgenes/pi-permission-system` in `~/.pi/agent/settings.json`, global npm lookup, or runtime installation.
+
+The application-owned Trash feature registers the `move_to_trash` tool through a named inline factory. It uses `/usr/bin/trash` on macOS and `trash-put` then `gio trash` on Linux, never `rm`. Missing or failing Trash on a platform degrades that tool with a diagnostic; the rest of the session continues. The runtime still does not import Electron for filesystem or process launch.
+
+The application-owned local-retrieval feature wraps pinned `@ff-labs/fff-node` `0.10.1`. One `FileFinder` per active workspace serves additive `fffind` / `ffgrep` / `fff-multi-grep` tools and the typed `searchWorkspaceReferences` command. Pho Code does not load `@ff-labs/pi-fff` because that extension owns a second index and TUI `@` autocomplete this host no-ops. Index and frecency state live under application data `retrieval/<workspace-hash>/`, never in packaged resources or another Pi installation’s default FFF database. Native lookup failure degrades the feature; ordinary chat continues.
+
+The application-owned `pho-web` feature registers additive `web_search` and `fetch_content` tools. Search uses keyless DuckDuckGo HTML results. Fetch is a public `http:`/`https:` GET with DNS/SSRF, redirect, timeout, and size limits, then Readability/Turndown extraction. Pho Code does not load `pi-web-access`; Exa MCP, Codex/OpenAI search, browser cookies, GitHub cloning, PDF/video, and hosted extraction fallbacks are unavailable. Requests originate in the privileged runtime; the renderer `connect-src 'self'` policy is unchanged.
 
 The package currently exposes its service API at the package root while its Pi extension factory is declared by the package's `pi.extensions` manifest. Resolve/package it as a Pi package resource; do not import the root service and assume it is the extension factory. If packaging the published package cannot provide a stable manifest path, add a narrow application adapter or request an upstream factory export rather than reaching through undocumented internal paths throughout the runtime.
 
@@ -124,9 +148,11 @@ The normal product has no feature Reload action because the manifest is immutabl
 
 Each settings surface is explicit in the protocol and application UI. Use named commands such as `updatePermissionSettings`, not `setSetting(key, value)`. The runtime adapter owns validation, storage location, migration, and apply/reload behavior for its pinned feature version. The renderer receives a redacted settings snapshot and sends typed intent; it never reads/writes config files.
 
-The first adapter targets the permission package's global config at `<agentDir>/extensions/pi-permission-system/config.json`. The default `agentDir` is Pho Code-owned under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override. The UI discloses the active scope. Milestone 4 edits this global-within-the-active-agent-root config only and reports the presence of a trusted workspace override without editing it.
+The first adapter targets the permission package's global config at `<agentDir>/extensions/pi-permission-system/config.json`. The default `agentDir` is Pho Code-owned under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override. The UI discloses the active scope. A project permission override is skipped until the owner explicitly trusts that project's permission rules. Pho Code remembers this narrow decision in its own metadata; it does not write Pi's shared `trust.json`, enable project extensions, or edit the project override.
 
-The permission engine is rule-based rather than scalar. Expose reviewed Guarded and Balanced policy templates, detect unmatched policy as Custom, and keep YOLO separate because it rewrites `ask` decisions while preserving explicit denies. Preserve fields the simple UI does not own, refuse to overwrite invalid/unrecognized config, and apply updates atomically. Do not show `doublePressToConfirm`; the pinned package documents it as TUI-only and it does not affect this RPC/frontend host.
+The permission engine is rule-based rather than scalar. Settings exposes baby (strict), okay, you got it, and with great power comes great responsibility while retaining stable `guarded`, `balanced`, and `developer` keys. Unmatched policies, pre-v3 Developer-without-YOLO policies, and YOLO combined with a different stable key are preserved as Custom. The third mode explicitly selects `developer` and enables YOLO, which rewrites `ask` decisions while preserving explicit denies. Preserve fields the simple UI does not own, refuse to overwrite invalid/unrecognized config, and apply updates atomically. Do not show `doublePressToConfirm`; the pinned package documents it as TUI-only and it does not affect this RPC/frontend host.
+
+The internal `developer` policy remains the v2 daily-driver template: ordinary workspace reads/edits, reviewed inspection and validation command families, and the application-owned `move_to_trash` tool are allowed inside the selected workspace. Public `fetch_content` is allowed; `web_search` asks on first use because the query is data egress. Every managed template explicitly denies permanent-removal commands with the reason “Permanent removal is unavailable. Use the move_to_trash tool.” Sensitive paths, external directories, privilege escalation, and publication remain asked or denied.
 
 ## Extension UI compatibility
 

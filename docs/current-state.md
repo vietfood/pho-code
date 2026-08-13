@@ -10,12 +10,17 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - local workspace selection and recent-project navigation;
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
-- multi-turn streaming chat, thinking blocks, sanitized Markdown with KaTeX/Shiki/Mermaid, tool activity, Stop, and error states;
-- a T3-inspired conversation UI with project/session sidebar, a centered empty-session composer, and an anchored composer after the first message;
+- multi-turn streaming chat, thinking blocks, sanitized Markdown with KaTeX/Shiki/Mermaid, copy for settled assistant output and fenced code blocks, tool activity, Stop, and error states;
+- a T3-inspired conversation UI with a wider collapsible project/session sidebar (manual folder order, no MRU bump on session switch), a centered empty-session composer, and an anchored composer after the first message;
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;
+- additive FFF-backed `fffind` / `ffgrep` / `fff-multi-grep` tools and composer inline `@path` mentions from one workspace-scoped index;
+- additive `pho-web` tools `web_search` (DuckDuckGo) and `fetch_content` (bounded public HTTP GET) with SSRF/redirect/size limits;
+- Pi-native **Steer current run** / **Add follow-up** commands with pending queue chips projected from Pi;
+- image attachments (PNG/JPEG/GIF/WebP) picked or pasted, prepared without absolute paths, and admitted only when the selected model accepts images;
+- an application-owned `move_to_trash` tool that uses the operating-system Trash facility and never falls back to permanent deletion;
 - desktop confirm/select/input permission dialogs, approval-for-session, denial reasons, notifications, cancellation, and session rebind;
-- typed Settings for system/light/dark appearance and Guarded/Balanced permission presets, with Custom preservation, a confirmed YOLO control, and honest private/shared data-scope disclosure;
+- typed Settings for palette + light/dark/system mode (Default, Gruvbox, Catppuccin, Flexoki, GitHub, One Dark), optional frosted-glass blur with strength control, independent UI and chat font sizes, and the owner-facing baby (strict), okay, you got it, and with great power comes great responsibility permission modes, with Custom preservation and honest private/shared data-scope disclosure;
 - in-app provider API-key import that never returns stored secrets to the renderer;
 - an unsigned local macOS bundle that stages Pi and the permission feature under app-owned resources;
 - internal feature/version diagnostics without install, enable, disable, or marketplace controls;
@@ -51,18 +56,18 @@ Milestone 5 completed the standalone boundary:
 - Settings offers in-app provider API-key import through Pi `ModelRuntime.login`; stored secrets never reach the renderer;
 - `bun run package:mac` produces an unsigned local macOS `.app`; `bun run test:packaged` smokes that artifact with isolated data and a PATH that does not contain `pi`.
 
-The acceptance review additionally made packaged resource overrides development-only and added pinned-version validation for the permission feature. See the [Milestone 5 code review](./reviews/milestone-5-code-review.md).
+The acceptance review additionally made packaged resource overrides development-only and added pinned-version validation for the permission feature. See the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md).
 
-## Next-version work
+## Active v2 planning
 
-- additional baked extensions or skills;
-- specified MCP-backed features or MCP management;
-- signed/notarized public installers, updates, or verified Linux artifacts;
-- containers, runtime sandboxing, automated package auditing, or production isolation;
-- multi-agent orchestration, worktrees, terminal, diff editor, attachments, or session-tree UI.
-- session archive/delete UI; the app-owned session root now gives that future feature a clear ownership boundary, and deletion must remain recoverable.
+The owner approved this initial milestone split:
 
-These are not unfinished v1 milestones. They are organized in the [next-version roadmap](./roadmap-vnext.md) and should be promoted into an implementation milestone only when the owner selects a concrete capability.
+- **Milestone 0 — autonomy foundation:** add three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool. Implemented; pending acceptance review.
+- **Milestone 1 — retrieval and richer input:** Slices 1–4 are implemented for owner testing (local FFF `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments).
+
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the implemented Milestone 0 contract and all four implemented Milestone 1 slices; Milestone 1 remains pending acceptance evidence and closure of review findings.
+
+OAuth subscriptions, skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 
 ## Run it
 
@@ -71,4 +76,4 @@ bun install --frozen-lockfile
 bun run dev
 ```
 
-Use [`implementation-plan.md`](./implementation-plan.md) for the closed v1 record, [`reviews/milestone-5-code-review.md`](./reviews/milestone-5-code-review.md) for v1 acceptance, and [`roadmap-vnext.md`](./roadmap-vnext.md) for later work. Update this brief when the accepted product boundary changes.
+Use [`implementation-plan-v2.md`](./implementation-plan-v2.md) for active work, [`archive/v1`](./archive/v1/README.md) for the closed v1 record, and [`roadmap-vnext.md`](./roadmap-vnext.md) for work not yet promoted. Update this brief when the accepted product boundary changes.

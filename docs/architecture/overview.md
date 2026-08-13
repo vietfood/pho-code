@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for the completed personal v1. Milestones 0 through 5 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the [Milestone 5 review](../reviews/milestone-5-code-review.md).
+Accepted architecture for the completed personal v1 and baseline for v2. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 (three owner-facing permission modes and recoverable Trash) is implemented and awaiting owner acceptance.
 
 ## Context
 
@@ -36,19 +36,19 @@ flowchart LR
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
-The implemented command surface is workspace/session/prompt, `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings`, and `listCredentialProviders` / `importProviderApiKey`. `subscribe` publishes JSON-safe runtime/host-UI events. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator.
+The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings`, and `listCredentialProviders` / `importProviderApiKey`. `subscribe` publishes JSON-safe runtime/host-UI events. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator.
 
 Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, settings snapshots, credential-import commands, JSON safety |
-| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, permission-settings adapter, API-key import, transcript projection |
+| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, settings snapshots, credential-import commands, queue state, prepared image summaries, JSON safety |
+| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, transcript projection |
 | Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases and metadata |
 | UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, compact Settings including API-key import, sanitized markdown (KaTeX, Shiki, Mermaid) |
-| Electron adapter | `apps/desktop/electron` | Native picker, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
+| Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
 | Renderer | `apps/desktop/src` | Viewport-owning React shell |
-| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, host-UI, permission, settings, credentials, and packaged Electron specs |
+| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, host-UI, permission, settings, credentials, developer, and packaged Electron specs |
 
 ## Target v1 system view
 
@@ -152,6 +152,11 @@ interface DesktopBridge {
   createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
   openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
+  steerRun(input: SteerRunInput): Promise<QueueAdmission>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
+  pickImages(): Promise<PickImagesResult>;
+  pasteImages(input?: PasteImagesInput): Promise<PickImagesResult>;
+  removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
@@ -161,6 +166,7 @@ interface DesktopBridge {
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): () => void;
 }
 ```

@@ -6,28 +6,23 @@ The product is new code. [`refs/pi-gui`](./refs/pi-gui), [`refs/pi-web`](./refs/
 
 ## Repository status
 
-Milestones 0 through 5 are accepted, and the personal v1 is complete. The application has persistent multi-turn Pi chat, immutable source-controlled feature composition, the pinned permission system with desktop dialogs and settings, in-app API-key import, and a self-contained unsigned macOS bundle.
+Milestones 0 through 5 are accepted, and the personal v1 is complete. The application has persistent multi-turn Pi chat, immutable source-controlled feature composition, the pinned permission system with desktop dialogs and settings, in-app API-key import, and a self-contained unsigned macOS bundle. V2 planning now focuses on quieter effect-aware permissions, recoverable removal, and bounded local/web retrieval.
 
 The confirmed identity is `Pho Code` / `pho-code`, package scope `@pho-code/*`, environment prefix `PHO_CODE_*`, bridge `window.phoCode`, IPC namespace `pho-code:v1:*`, and bundle identifier `dev.vietfood.phocode`. Normal runs keep Pi-compatible operational data under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override.
 
-See the [Milestone 5 code review](./docs/reviews/milestone-5-code-review.md) for v1 acceptance evidence. The earlier milestone reviews remain the historical implementation record, while post-v1 work lives in the [next-version roadmap](./docs/roadmap-vnext.md).
+See the archived [Milestone 5 code review](./docs/archive/v1/reviews/milestone-5-code-review.md) for v1 acceptance evidence. The complete historical record lives in the [personal-v1 archive](./docs/archive/v1/README.md), while active work lives in the [v2 product definition](./docs/product-v2.md) and [v2 implementation plan](./docs/implementation-plan-v2.md).
 
 Start with:
 
 1. [Current state: what exists and what is next](./docs/current-state.md)
-2. [Product and v1 scope](./docs/product-v1.md)
-3. [Architecture](./docs/architecture/overview.md)
-4. [Electron decision](./docs/architecture/desktop-shell.md)
-5. [Extension model](./docs/extension-model.md)
-6. [Implementation plan](./docs/implementation-plan.md)
+2. [Product v2 scope](./docs/product-v2.md)
+3. [V2 implementation plan](./docs/implementation-plan-v2.md)
+4. [Architecture](./docs/architecture/overview.md)
+5. [Electron decision](./docs/architecture/desktop-shell.md)
+6. [Extension model](./docs/extension-model.md)
 7. [Development and runbook](./docs/development.md)
-8. [Milestone 5 code review](./docs/reviews/milestone-5-code-review.md)
-9. [Next-version roadmap](./docs/roadmap-vnext.md)
-10. [Milestone 4 code review](./docs/reviews/milestone-4-code-review.md)
-11. [Milestone 3 code and UX review](./docs/reviews/milestone-3-code-review.md)
-12. [Milestone 2 code and UX review](./docs/reviews/milestone-2-code-review.md)
-13. [Milestone 1 code and UX review](./docs/reviews/milestone-1-code-review.md)
-14. [Accepted Milestone 0 review](./docs/reviews/milestone-0-code-review.md)
+8. [Later roadmap](./docs/roadmap-vnext.md)
+9. [Personal-v1 archive](./docs/archive/v1/README.md)
 
 Agents and contributors must also follow [`AGENTS.md`](./AGENTS.md).
 
@@ -169,19 +164,14 @@ The following first-usable criteria have been demonstrated in the Electron appli
 ## Documentation authority
 
 - [`docs/current-state.md`](./docs/current-state.md) is the short tracking brief and must be updated at milestone transitions.
-- [`docs/product-v1.md`](./docs/product-v1.md) defines product scope and acceptance criteria.
+- [`docs/product-v2.md`](./docs/product-v2.md) defines the active product scope and acceptance criteria.
 - [`docs/architecture/overview.md`](./docs/architecture/overview.md) defines component ownership and dependency direction.
 - [`docs/architecture/desktop-shell.md`](./docs/architecture/desktop-shell.md) records the Electron decision.
 - [`docs/extension-model.md`](./docs/extension-model.md) defines the baked feature manifest, feature-settings boundary, permission host UI, and future MCP-feature boundary.
-- [`docs/implementation-plan.md`](./docs/implementation-plan.md) is the closed v1 milestone and exit-criteria record.
+- [`docs/implementation-plan-v2.md`](./docs/implementation-plan-v2.md) is the active milestone and exit-criteria record.
 - [`docs/development.md`](./docs/development.md) defines development and verification commands.
-- [`docs/reviews/milestone-5-code-review.md`](./docs/reviews/milestone-5-code-review.md) records standalone-bundle acceptance and closes personal v1.
-- [`docs/roadmap-vnext.md`](./docs/roadmap-vnext.md) owns all work after v1.
-- [`docs/reviews/milestone-4-code-review.md`](./docs/reviews/milestone-4-code-review.md) records Milestone 4 acceptance and the Milestone 5 identity/data-root transition.
-- [`docs/reviews/milestone-3-code-review.md`](./docs/reviews/milestone-3-code-review.md) records Milestone 3 acceptance, carryover findings, and the original Milestone 4 settings contract.
-- [`docs/reviews/milestone-2-code-review.md`](./docs/reviews/milestone-2-code-review.md) records the earlier resource-host proof and product-direction correction.
-- [`docs/reviews/milestone-1-code-review.md`](./docs/reviews/milestone-1-code-review.md) records the current vertical-slice findings, UI calibration, and Milestone 2 transition gate.
-- [`docs/reviews/milestone-0-code-review.md`](./docs/reviews/milestone-0-code-review.md) records the accepted Milestone 0 review and hardening-pass evidence.
+- [`docs/roadmap-vnext.md`](./docs/roadmap-vnext.md) owns work not yet promoted into an active milestone.
+- [`docs/archive/v1`](./docs/archive/v1/README.md) preserves the closed v1 product, implementation, and review record.
 - [`AGENTS.md`](./AGENTS.md) defines contribution behavior for coding agents.
 
 When documents disagree, use the most specific document. Product scope overrides implementation convenience; security boundaries override UI convenience.
