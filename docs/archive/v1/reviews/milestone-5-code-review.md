@@ -40,4 +40,4 @@ The inspected artifact is `Pho Code.app` for Apple Silicon, has bundle identifie
 
 ## v1 closure
 
-The v1 critical path ends here. Further MCP-backed capabilities, additional baked skills/extensions, session archive/delete UI, Linux/public distribution, signing/notarization, isolation, and other production work belong to the [next-version roadmap](../roadmap-vnext.md). They are not incomplete v1 milestones.
+The v1 critical path ends here. Further MCP-backed capabilities, additional baked skills/extensions, session archive/delete UI, Linux/public distribution, signing/notarization, isolation, and other production work belong to the active [next-version roadmap](../../../roadmap-vnext.md). They are not incomplete v1 milestones.

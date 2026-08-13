@@ -4,7 +4,7 @@
 
 Implement in order. Each milestone produces a reviewable outcome with explicit exit checks. Later milestones may refine interfaces, but they must not bypass an earlier unproven boundary.
 
-This plan is now the closed implementation record for personal v1. Work after Milestone 5 belongs to the separate [next-version roadmap](./roadmap-vnext.md).
+This plan is now the closed implementation record for personal v1. Work after Milestone 5 belongs to the active [next-version roadmap](../../roadmap-vnext.md).
 
 ## Global acceptance rules
 
@@ -196,7 +196,7 @@ Establish the viewport-owning shell before adding another screen. Use one small 
 
 ### Status
 
-Accepted on 2026-08-13. The source-controlled feature manifest, pinned permission feature, select/input host UI, ambient-resource isolation, immediate session-list state, and removal of the Resources surface are implemented. Conversation chrome progressed in the separate [Conversation UI track](./plans/conversation-ui.md). See the [Milestone 3 review](./reviews/milestone-3-code-review.md) for evidence and bounded carryovers.
+Accepted on 2026-08-13. The source-controlled feature manifest, pinned permission feature, select/input host UI, ambient-resource isolation, immediate session-list state, and removal of the Resources surface are implemented. Conversation chrome progressed in the separate [Conversation UI track](../../plans/conversation-ui.md). See the [Milestone 3 review](./reviews/milestone-3-code-review.md) for evidence and bounded carryovers.
 
 Recorded exit checks: `bun run typecheck`, `bun run lint`, `bun test` (59/59), `bun run test:desktop` (6 Electron specs), and `bun run build` passed.
 
@@ -215,7 +215,7 @@ The vertical slice becomes a reliable personal Pi host without expanding into pr
 - Trap and restore focus for confirm/select/input dialogs; make transient notifications dismissible.
 - Keep shutdown/relaunch behavior robust and add a secret-filtered diagnostics copy action only if it helps daily debugging.
 
-Conversation readability, T3-polished chrome, multi-project sidebar, model/thinking selectors, motion, KaTeX, Shiki, and Mermaid are tracked in [docs/plans/conversation-ui.md](./plans/conversation-ui.md). Defer image attachments, steering/follow-up queues, virtualization, broad shortcuts, and arbitrary extension renderers until daily use demonstrates the need.
+Conversation readability, T3-polished chrome, multi-project sidebar, model/thinking selectors, motion, KaTeX, Shiki, and Mermaid are tracked in the active [conversation UI plan](../../plans/conversation-ui.md). Defer image attachments, steering/follow-up queues, virtualization, broad shortcuts, and arbitrary extension renderers until daily use demonstrates the need.
 
 ### Exit checks
 
@@ -303,13 +303,13 @@ Produce a local macOS application artifact that embeds the pinned Pi runtime and
 - Missing/corrupt packaged resources fail with named feature diagnostics rather than falling back to global Pi packages.
 - Signing, notarization, auto-update, production sandboxing, public installer UX, and Linux artifact verification remain explicitly deferred.
 
-Implementing-pass and acceptance evidence is recorded in [`development.md`](./development.md) and the [Milestone 5 review](./reviews/milestone-5-code-review.md).
+Implementing-pass and acceptance evidence is recorded in the active [`development.md`](../../development.md) and the [Milestone 5 review](./reviews/milestone-5-code-review.md).
 
 ## v1 closure
 
 Milestones 0 through 5 are accepted. Pho Code v1 is a usable personal macOS harness with persistent Pi chat, immutable baked feature composition, permission dialogs and settings, in-app API-key import, and a self-contained unsigned application bundle.
 
-There is no Milestone 6 in the v1 plan. Session lifecycle work, selected MCP-backed capabilities, additional baked features, distribution hardening, and optional product expansions have moved to the [next-version roadmap](./roadmap-vnext.md).
+There is no Milestone 6 in the v1 plan. Session lifecycle work, selected MCP-backed capabilities, additional baked features, distribution hardening, and optional product expansions moved to the active [next-version roadmap](../../roadmap-vnext.md).
 
 ## Risks and controls
 
