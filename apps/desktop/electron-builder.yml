@@ -1,0 +1,41 @@
+# Unsigned local macOS identity. `scripts/package-mac.ts` materializes this
+# against the staged app directory so electron-builder does not walk the
+# workspace package graph.
+appId: dev.vietfood.phocode
+productName: Pho Code
+electronVersion: 43.4.0
+copyright: Copyright 2026 Pho Code
+
+directories:
+  output: release
+  app: .package-stage
+  buildResources: resources
+
+files:
+  - "**/*"
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/*.wasm"
+  - "**/node_modules/@silvia-odwyer/photon-node/**/*"
+
+extraResources:
+  - from: resources/features
+    to: features
+  - from: resources/THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
+
+npmRebuild: false
+nodeGypRebuild: false
+
+mac:
+  identity: null
+  category: public.app-category.developer-tools
+  target:
+    - dir
+  darkModeSupport: true
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+artifactName: ${productName}-${version}-${arch}.${ext}
