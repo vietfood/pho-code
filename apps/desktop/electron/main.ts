@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import Module from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, session, shell } from "electron";
 import { createApplicationService, type ApplicationService } from "@pho-code/application";
 import {
   commandFail,
@@ -12,19 +12,30 @@ import {
   HARNESS_ERROR_CODES,
   isHarnessError,
   isJsonSafeValue,
+  MAX_PREPARED_IMAGES,
   PINNED_ELECTRON,
+  nativeThemeSourceForAppearance,
+  resolveAppearanceMode,
+  windowBackgroundForAppearance,
   type AbortRunInput,
+  type AppearanceSettings,
   type CommandResult,
   type CreateSessionInput,
   type ImportProviderApiKeyInput,
   type ListWorkspaceSessionsInput,
   type OpenRecentWorkspaceInput,
   type OpenSessionInput,
+  type PasteImagesInput,
+  type PickImagesResult,
+  type QueueFollowUpInput,
+  type RemovePreparedImageInput,
+  type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
+  type SearchWorkspaceReferencesInput,
   type SendPromptInput,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
-  type ThemePreference,
+  type SteerRunInput,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
@@ -38,8 +49,14 @@ import {
 } from "@pho-code/runtime";
 import { runBoundedShutdown } from "./bounded-shutdown";
 import { IPC_CHANNELS } from "./ipc";
+import { ingestImageBytes, ingestImageFile, ingestNativeImage } from "./image-ingest";
 import { createFileMetadataStore } from "./metadata-store";
-import { assertTrustedSender, contentSecurityPolicy, isSafeExternalUrl } from "./security";
+import {
+  assertTrustedSender,
+  contentSecurityPolicy,
+  isAllowedWebPermission,
+  isSafeExternalUrl,
+} from "./security";
 import { resolveTrustedRendererLocation, isTrustedRendererUrl } from "./trusted-renderer";
 
 const APP_NAME = "Pho Code";
@@ -118,21 +135,33 @@ function attachNavigationGuards(window: BrowserWindow): void {
   });
 }
 
+let currentAppearance: Pick<AppearanceSettings, "palette" | "mode" | "glassEnabled" | "glassStrength"> = {
+  palette: "default",
+  mode: "system",
+  glassEnabled: false,
+  glassStrength: 55,
+};
+
 function createWindow(): BrowserWindow {
   const isMac = process.platform === "darwin";
   // macOS hidden inset titlebar adapted from refs/t3code DesktopWindow.getWindowTitleBarOptions
   // (MIT, T3 Tools Inc., 6bc6cb6). SSH/WSL/updater/preview omitted.
+  const resolved = resolveAppearanceMode(currentAppearance.mode, nativeTheme.shouldUseDarkColors);
+  const solidBackground = windowBackgroundForAppearance(currentAppearance.palette, resolved);
   const window = new BrowserWindow({
     width: 1100,
     height: 780,
     minWidth: 640,
     minHeight: 520,
     show: !testMode,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0a0a0a" : "#fafafa",
+    // macOS stays transparent-capable so frosted glass can toggle without recreating the window.
+    transparent: isMac,
+    backgroundColor: currentAppearance.glassEnabled && isMac ? "#00000000" : solidBackground,
     ...(isMac
       ? {
           titleBarStyle: "hiddenInset" as const,
           trafficLightPosition: { x: 16, y: 18 },
+          ...(currentAppearance.glassEnabled ? { vibrancy: "under-window" as const } : {}),
         }
       : {}),
     webPreferences: {
@@ -162,11 +191,27 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function applyTheme(theme: ThemePreference): void {
-  nativeTheme.themeSource = theme;
-  const background = nativeTheme.shouldUseDarkColors ? "#0a0a0a" : "#fafafa";
+function applyAppearance(
+  appearance: Pick<AppearanceSettings, "palette" | "mode" | "glassEnabled" | "glassStrength">,
+): void {
+  currentAppearance = appearance;
+  const mode = nativeThemeSourceForAppearance(appearance.palette, appearance.mode);
+  nativeTheme.themeSource = mode;
+  const resolved = resolveAppearanceMode(mode, nativeTheme.shouldUseDarkColors);
+  const solidBackground = windowBackgroundForAppearance(appearance.palette, resolved);
+  const isMac = process.platform === "darwin";
   for (const window of BrowserWindow.getAllWindows()) {
-    window.setBackgroundColor(background);
+    if (isMac) {
+      if (appearance.glassEnabled) {
+        window.setBackgroundColor("#00000000");
+        window.setVibrancy("under-window");
+      } else {
+        window.setVibrancy(null);
+        window.setBackgroundColor(solidBackground);
+      }
+    } else {
+      window.setBackgroundColor(solidBackground);
+    }
   }
 }
 
@@ -245,6 +290,15 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(IPC_CHANNELS.reorderRecentWorkspaces, async (event, payload: unknown) =>
+    handleCommand("reorderRecentWorkspaces", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().reorderRecentWorkspaces(
+        asRecord(payload) as unknown as ReorderRecentWorkspacesInput,
+      );
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.listWorkspaceSessions, async (event, payload: unknown) =>
     handleCommand("listWorkspaceSessions", async () => {
       assertTrustedSender(event, trustedRenderer);
@@ -270,6 +324,62 @@ function registerIpc(): void {
     handleCommand("sendPrompt", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().sendPrompt(asRecord(payload) as unknown as SendPromptInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.steerRun, async (event, payload: unknown) =>
+    handleCommand("steerRun", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().steerRun(asRecord(payload) as unknown as SteerRunInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.queueFollowUp, async (event, payload: unknown) =>
+    handleCommand("queueFollowUp", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().queueFollowUp(asRecord(payload) as unknown as QueueFollowUpInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.pickImages, async (event) =>
+    handleCommand("pickImages", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const result = window
+        ? await dialog.showOpenDialog(window, imageOpenDialogOptions())
+        : await dialog.showOpenDialog(imageOpenDialogOptions());
+      if (result.canceled || result.filePaths.length === 0) {
+        return { images: [] };
+      }
+      const images = [];
+      let firstError: unknown;
+      for (const filePath of result.filePaths.slice(0, MAX_PREPARED_IMAGES)) {
+        try {
+          const prepared = await ingestImageFile(filePath);
+          images.push(await requireApplication().prepareImage(prepared));
+        } catch (error) {
+          firstError ??= error;
+        }
+      }
+      if (images.length === 0 && firstError) {
+        throw firstError;
+      }
+      return { images };
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.pasteImages, async (event, payload: unknown) =>
+    handleCommand("pasteImages", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return ingestPastedImages(asRecord(payload) as unknown as PasteImagesInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.removePreparedImage, async (event, payload: unknown) =>
+    handleCommand("removePreparedImage", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      await requireApplication().removePreparedImage(asRecord(payload) as unknown as RemovePreparedImageInput);
+      return null;
     }),
   );
 
@@ -324,6 +434,13 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(IPC_CHANNELS.trustProjectPermissionRules, async (event) =>
+    handleCommand("trustProjectPermissionRules", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().trustProjectPermissionRules();
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.listCredentialProviders, (event) =>
     handleCommand("listCredentialProviders", async () => {
       assertTrustedSender(event, trustedRenderer);
@@ -337,6 +454,13 @@ function registerIpc(): void {
       return requireApplication().importProviderApiKey(asRecord(payload) as unknown as ImportProviderApiKeyInput);
     }),
   );
+
+  ipcMain.handle(IPC_CHANNELS.searchWorkspaceReferences, async (event, payload: unknown) =>
+    handleCommand("searchWorkspaceReferences", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().searchWorkspaceReferences(asRecord(payload) as unknown as SearchWorkspaceReferencesInput);
+    }),
+  );
 }
 
 function asRecord(payload: unknown): Record<string, unknown> {
@@ -344,6 +468,63 @@ function asRecord(payload: unknown): Record<string, unknown> {
     return {};
   }
   return payload as Record<string, unknown>;
+}
+
+async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesResult> {
+  const supplied = Array.isArray(input.images) ? input.images : [];
+  const prepared = [];
+  if (supplied.length > 0) {
+    for (const item of supplied.slice(0, MAX_PREPARED_IMAGES)) {
+      const name = typeof item.name === "string" && item.name.trim() !== "" ? item.name : "pasted-image.png";
+      const data = typeof item.data === "string" ? item.data : "";
+      if (data.trim() === "") {
+        continue;
+      }
+      prepared.push(await ingestImageBytes(Buffer.from(data, "base64"), name, "pasteImages"));
+    }
+    if (prepared.length === 0) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidImage,
+        message: "That paste did not contain a supported image.",
+        operation: "pasteImages",
+        recoverable: true,
+      });
+    }
+  } else {
+    const native = clipboard.readImage();
+    if (native.isEmpty()) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidImage,
+        message: "The clipboard does not contain a supported image.",
+        operation: "pasteImages",
+        recoverable: true,
+      });
+    }
+    prepared.push(ingestNativeImage(native, "pasted-image.png", "pasteImages"));
+  }
+
+  const images = [];
+  let firstError: unknown;
+  for (const item of prepared) {
+    try {
+      images.push(await requireApplication().prepareImage(item));
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (images.length === 0 && firstError) {
+    throw firstError;
+  }
+  return { images };
+}
+
+function imageOpenDialogOptions(): Electron.OpenDialogOptions {
+  return {
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] },
+    ],
+  };
 }
 
 function configureSession(): void {
@@ -357,9 +538,14 @@ function configureSession(): void {
     });
   });
 
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
-    callback(false);
+  // Default-deny Chromium permissions. Allow only clipboard write so copy
+  // buttons can use navigator.clipboard.writeText in the sandboxed renderer.
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(isAllowedWebPermission(permission));
   });
+  session.defaultSession.setPermissionCheckHandler((_contents, permission) =>
+    isAllowedWebPermission(permission),
+  );
 }
 
 async function finishQuit(): Promise<void> {
@@ -400,9 +586,11 @@ app.whenReady().then(async () => {
     agentDir,
     appliesToSharedPiAgentDir: Boolean(agentDirOverride),
     resourceLocator: locator,
+    applicationDataDir: app.getPath("userData"),
+    ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
     deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
     testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
-    ...(process.env.PHO_CODE_TEST_FEATURES === "1" ? { featureManifest: createDefaultFeatureManifest(locator) } : {}),
+    ...(process.env.PHO_CODE_TEST_FEATURES === "1" ? { featureManifest: createDefaultFeatureManifest(locator, { agentDir, applicationDataDir: app.getPath("userData") }) } : {}),
   });
   application = createApplicationService({
     runtime,
@@ -411,7 +599,7 @@ app.whenReady().then(async () => {
       embeddedNode: process.versions.node,
     },
     metadataStore: createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json")),
-    appearanceHost: { applyTheme },
+    appearanceHost: { applyAppearance },
   });
   runtime.subscribe(publishRuntimeEvent);
   registerIpc();
