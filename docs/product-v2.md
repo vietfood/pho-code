@@ -91,10 +91,16 @@ OAuth URLs and access/refresh tokens remain in the privileged process. The rende
 
 The detailed contract lives in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Milestone 2 is accepted: the generic adapter, Settings Provider accounts surface, and owner-verified live `openai-codex` login are in place. Additional Pi OAuth providers enter only after recording their actual pinned prompt/events and disclosure.
 
-## Deferred beyond Milestone 2
+### Milestone 3: curated capabilities
 
-- imported/baked skill bundles;
-- specific MCP-backed account integrations;
+Ship five source-owned, text-only coding skills and one concrete MCP-backed capability: read-only GitHub investigation for repositories, issues, and pull requests. Skills and the GitHub adapter are immutable manifest features, not runtime imports. GitHub write operations, dynamic tool discovery, arbitrary servers, project `.mcp.json`, and skill installation remain unavailable.
+
+The GitHub slice targets a reviewed official `github/github-mcp-server` release behind an application-owned MCP client and Pi tool adapter. The server runs locally over stdio in read-only mode with fixed toolsets and a second Pho Code allowlist. It starts lazily, keeps bounded status, output, cancellation, and process cleanup, and fails independently from local chat and the five skills.
+
+The detailed contract is drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after the owner accepts the first skill bundle and chooses the proposed in-memory GitHub OAuth behavior described there.
+
+## Deferred beyond Milestone 3
+
 - browser automation using an isolated browser profile;
 - diff/file workbench and checkpoints;
 - session archive, restore, Trash-based deletion, fork/tree, and compaction controls;
@@ -105,7 +111,7 @@ The detailed contract lives in [`implementation-plan-v2.md`](./implementation-pl
 - signing, notarization, update channels, public distribution, and production threat response;
 - arbitrary user-managed extensions, skills, packages, or MCP servers.
 
-Deferral means these capabilities do not shape Milestone 0 or 1 contracts prematurely. It does not reject them from the broader v2 roadmap.
+Deferral means these capabilities do not shape Milestones 0 through 3 prematurely. It does not reject them from the broader v2 roadmap.
 
 ## Success criteria for the first v2 slice
 
@@ -124,4 +130,4 @@ After the accepted Milestone 1:
 ## Product decisions still requiring later calibration
 
 - whether the internal `developer` policy allows all workspace writes or retains approval for selected generated/configuration paths;
-- which concrete skills and MCP-backed capabilities earn a place in the baked manifest.
+- whether a later milestone adds deliberately reviewed GitHub mutation tools or additional baked MCP capabilities.

@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login.
+Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login. Milestone 3 is drafted for owner calibration before implementation.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -704,3 +704,166 @@ Keep verification proportional to this personal milestone: cover the state machi
 ### Acceptance gate
 
 Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice satisfy the checks above: no secret or authorization URL crosses to the renderer, cancellation releases all flow resources, account/model state synchronizes after login and logout, the packaged flow works without Pi CLI, and the owner accepted the live Codex login workflow.
+
+## Milestone 3: curated capabilities
+
+### Status
+
+Drafted for owner calibration. No skill files, MCP client dependency, GitHub server binary, credential behavior, or Pi tools are added by this design checkpoint.
+
+This milestone deliberately combines a small skill bundle with one concrete MCP integration because both are immutable capability composition. It does not create a common marketplace, installer, enable switch, arbitrary package loader, or generic server editor.
+
+### Outcome
+
+Pho Code becomes more effective at recurring software-engineering work without making workspace contents or ambient Pi directories trusted extension sources. Five reviewed skills improve how the agent investigates, diagnoses, plans, researches, and prepares releases. A read-only GitHub capability lets it inspect selected repositories, issues, pull requests, review context, and code without opening mutation paths.
+
+The capability bundle is:
+
+| Feature id | Skill/capability | Intended outcome |
+|---|---|---|
+| `repository-investigation` | text-only skill | Trace behavior and dependencies, distinguish evidence from inference, and report file/line evidence before proposing changes |
+| `test-failure-diagnosis` | text-only skill | Reproduce narrowly, separate root cause from collateral failures, and recommend or implement only the requested fix |
+| `implementation-planning` | text-only skill | Turn an accepted outcome into bounded vertical slices with contracts, risks, and verification |
+| `dependency-api-research` | text-only skill | Prefer installed typings and primary sources, record version applicability, and avoid advice from incompatible latest docs |
+| `release-changelog-preparation` | text-only skill | Build an owner-reviewed release/changelog draft from repository history without publishing, tagging, or pushing |
+| `github-read` | MCP-backed Pi tools | Read bounded GitHub repository, issue, pull-request, review, and code context; never mutate GitHub |
+
+The first five skills contain Markdown instructions only. They ship no executable scripts, hooks, binaries, or imported assets. They may instruct the model to use already baked tools, whose normal permission and workspace boundaries still apply.
+
+### Selected GitHub upstream
+
+The current implementation candidate is the official [`github/github-mcp-server`](https://github.com/github/github-mcp-server) native release `v1.9.0`. This is a candidate, not an admitted artifact: implementation must inspect the exact release assets, license, checksums/signatures, supported macOS/Linux architectures, CLI help, MCP protocol compatibility, OAuth behavior, tool schemas, stderr, shutdown, and packaged execution before recording an accepted pin.
+
+The official server supports read-only mode and fixed toolsets. Pho Code starts the packaged native binary over stdio with read-only mode, lockdown mode, and only the repository, issue, and pull-request toolsets. Server-side filtering is defense in depth; after MCP initialization, Pho Code intersects discovered tools with a source-controlled individual allowlist and refuses startup if a required tool is missing or a forbidden/write tool appears in the projected set.
+
+Do not use Docker, Homebrew, a global binary, `go run`, runtime downloads, a remote GitHub MCP URL, or `npx`. Release builds fetch or vendor only the explicitly pinned platform assets during a reviewed development/build action, verify SHA-256 values from a source-controlled artifact manifest, and stage them under application resources. The installed app never downloads or updates its server at runtime.
+
+### Scope
+
+#### Slice 1: curated text-only skills
+
+- Add one source-controlled skill package rooted under the repository and resolved through `ResourceLocator` in development and `Resources/features` in production.
+- Add exactly the five `SKILL.md` files above to one `curated-coding-skills` manifest feature with expected skill count `5`.
+- Give every skill a narrow description so Pi loads detailed instructions on demand rather than injecting all skill text into every prompt.
+- Keep workspace/global skill discovery disabled. A repository containing `.pi/skills`, `.codex/skills`, `.claude/skills`, or similarly named files does not change Pho Code's skill list.
+- Record skill identity, source ownership, and loaded/degraded/failed status through existing feature diagnostics. There is no Skills Settings page because the bundle is not configurable.
+- Defer skill import tooling. Adding or updating a skill is an explicit repository change and application rebuild; no desktop UI copies arbitrary user skills into the bundle.
+
+#### Slice 2: read-only GitHub MCP
+
+- Add a runtime-owned `McpRuntime` and one `github-read` instance. It owns lazy process startup, MCP initialization, tool discovery, request ids, bounded calls, cancellation, stderr handling, health, restart policy, and disposal.
+- Use the official MCP TypeScript client for stdio behind this interface. Pin the exact SDK version after verifying its Node requirement and the protocol version spoken by the selected GitHub server.
+- Register application-owned Pi tool adapters only for the reviewed GitHub allowlist. Prefix owner-facing tool names with `github_`; do not expose MCP resources, prompts, dynamic tool discovery, or raw `tools/list` to the model or renderer.
+- Keep server inputs and outputs JSON-safe and bounded. Limit string size, arrays, pagination, response bytes, call duration, and concurrent calls. Truncated output says what was omitted and how to request another page.
+- Treat repository files, issue bodies, comments, reviews, usernames, and server errors as untrusted remote content. Never interpret returned text as Pho Code instructions, never render raw HTML, and never execute commands found in results.
+- Route every GitHub call through the permission feature's MCP classification. Read-only does not mean private account data is harmless: the first call asks with GitHub, repository/owner, tool name, and read-only effect; session approval may cover the same reviewed read capability. No permission mode can turn on write tools because they are absent from the adapter and server mode.
+- Show `not_started`, `starting`, `needs_auth`, `ready`, `degraded`, `failed`, and `stopped` status in internal diagnostics. Settings may show a compact GitHub account/capability status only if authentication requires owner action; it must not become an MCP manager.
+
+### Representative decision: GitHub authentication
+
+The official native server's current stdio OAuth keeps its resulting token in memory only. Official release binaries contain GitHub's registered public client, prefer a loopback authorization-code flow, open the system browser themselves, and fall back to device code when needed. This avoids adding a second persistent secret store, but it means the owner signs in again after the GitHub server/app process restarts and the browser-open action originates in the reviewed server binary rather than Electron's validated URL function.
+
+Recommended first slice: accept that explicit limitation for personal v2. Start authentication only after an owner-requested GitHub tool call, display **GitHub sign-in opens in your browser; this session is not stored**, keep the server process shared across session replacements, and terminate it on app shutdown. Do not pass ambient `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, shell environment, `gh auth token`, browser cookies, or Pi provider OAuth credentials into the child.
+
+Before implementation, the owner must accept this behavior. If persistent login or Electron-owned URL handoff is required, stop and design a separate MCP credential/elicitation adapter; do not scrape URLs from stderr/tool output or silently add PAT storage. GitHub Enterprise and custom OAuth applications are outside this milestone.
+
+### MCP boundary
+
+The dependency direction remains:
+
+```text
+renderer -> protocol <- application -> runtime -> Pi tool adapter
+                                      -> MCP client -> packaged GitHub server -> GitHub
+```
+
+The renderer receives only feature/account status and ordinary sanitized Pi tool activity. It never receives the MCP client, transport, process handle, raw environment, OAuth token, authorization code, complete stderr, arbitrary server definitions, or a generic invoke method.
+
+Extend `HarnessFeature` with typed MCP identity metadata only when implementation needs diagnostics and lifecycle composition. The manifest contains fixed server id, version, packaged artifact id, transport, mode, and tool allowlist; it contains no renderer-editable command, args, environment, URL, headers, or secret values.
+
+The GitHub process is application-owned rather than session-owned so in-memory OAuth and connection state survive Pi session replacement. Pi tool bindings are session-owned and must rebind to the current session while calling the shared service. The runtime permits only one startup attempt at a time, bounds tool concurrency, and closes the MCP client before terminating the child. If graceful shutdown misses its deadline, terminate the exact owned child process; never use broad `pkill` patterns.
+
+### Resource and deletion policy
+
+Skill and binary staging must not clear the whole `Resources/features` tree and must never call `rm`/`rmSync`. Before adding the second packaged feature tree, replace the current single-feature staging assumption with a fresh owned scratch tree. Validate the completed tree, move an existing generated destination to operating-system Trash when replacement is necessary, then rename the prepared tree into place. A failed stage retains recoverable artifacts and reports their paths.
+
+Package structure:
+
+```text
+Resources/features/@pho-code/curated-coding-skills/skills/*/SKILL.md
+Resources/features/github/github-mcp-server/<version>/<platform-arch>/github-mcp-server
+Resources/THIRD_PARTY_NOTICES.txt
+```
+
+The artifact manifest records upstream URL, release tag/commit, platform/architecture, byte size, SHA-256, license, and expected executable name. Packaging fails closed on a missing/mismatched artifact. Development must be able to use the same staged artifact contract; a global GitHub server is never a fallback.
+
+### Permission classification
+
+| Capability | Product classification | Default treatment |
+|---|---|---|
+| Load one of the five baked skill instructions | local context composition | allow; shown in baked feature diagnostics |
+| Skill-directed local tools | classification of the called tool | unchanged from existing permission policy |
+| Start packaged GitHub server | local application lifecycle | allow only after an explicit GitHub capability request |
+| GitHub repository/issue/PR read | authenticated remote observation / MCP | ask; session approval allowed for the reviewed read capability |
+| GitHub write, reaction, comment, review, merge, branch, workflow, release, or upload | remote mutation/publication | unavailable; tool absent and server read-only |
+| Arbitrary MCP server/tool | executable capability expansion | unavailable |
+
+### Non-goals
+
+- runtime skill discovery, installation, importing, enabling/disabling, marketplace UI, arbitrary prompts, or executable skill scripts;
+- a generic MCP manager, `.mcp.json`, remote server entry, arbitrary stdio command, environment editor, dynamic tools, resources, prompts, sampling, or MCP Apps;
+- GitHub mutations of any kind, Actions log/download tooling, Projects, Discussions, Notifications, Gists, Copilot agent delegation, GitHub Enterprise, or organization administration;
+- reusing Pi model OAuth, Chrome sessions, `gh` credentials, ambient tokens, shell startup files, or user-global server installs;
+- claiming permission dialogs sandbox the GitHub binary or prevent prompt injection in remote content;
+- additional MCP servers or skills merely because the generic seam exists.
+
+### Implementation sequence
+
+1. Correct feature-resource staging so it never permanently deletes and can compose multiple package trees.
+2. Add the source-owned five-skill package, manifest entry, diagnostics, and packaged lookup; verify Pi loads exactly those skills while ambient discovery remains disabled.
+3. Audit and admit exact GitHub server and MCP client artifacts, record hashes/licenses/attribution, and prove the selected native binary runs on the development architecture.
+4. Implement `McpRuntime` with deterministic fake stdio coverage, strict initialization/tool filtering, bounded calls, abort, stderr redaction, and exact-child cleanup.
+5. Register the reviewed GitHub read tools through an inline Pi extension factory and permission classifications; rebind across session replacement.
+6. Add minimal GitHub status/sign-in disclosure only where owner action is required. Do not add server management controls.
+7. Package the native binary and skills, then run one owner-monitored repository/issue/PR investigation in a real GitHub account.
+
+### Required verification
+
+Keep verification proportional: skill loading, allowlist enforcement, process ownership, output limits, and mutation absence are the critical checks. Do not duplicate every GitHub endpoint combination.
+
+#### Unit verified
+
+- exactly five expected skills resolve, load on demand, and carry no scripts/executable assets;
+- global/project skill and MCP settings cannot add resources;
+- artifact identity/hash/platform checks and multi-feature staging fail closed without permanent deletion;
+- MCP state transitions, one-start behavior, request timeout/abort, bounded output, stderr redaction, tool allowlist/schema mismatch, and graceful/forced exact-child shutdown;
+- every exposed GitHub tool is read-only and every known mutation tool is absent regardless of permission mode.
+
+#### Integration verified
+
+- real Pi `0.84.1` discovers the five packaged skill paths and can use each skill with existing tools;
+- a deterministic fake stdio server proves initialize/list/call/cancel/disconnect without network or credentials;
+- the pinned GitHub binary starts in read-only/lockdown/fixed-toolset mode, and its discovered tools intersect the accepted allowlist exactly;
+- session replacement rebinds Pi tools without restarting the shared authenticated server process.
+
+#### Desktop and packaged verified
+
+- diagnostics show the skill bundle and GitHub state without install/enable controls;
+- a packaged app with no global Pi, skills, MCP config, GitHub server, `go`, Docker, or `npx` loads all five skills and the correct native server artifact;
+- deterministic GitHub tool activity renders as ordinary sanitized tool output, can be cancelled, and leaves no child process after quit.
+
+#### Owner verified
+
+- each skill improves one representative real repository task without fighting the owner's normal workflow;
+- GitHub sign-in behavior and its process-lifetime persistence disclosure are acceptable;
+- one real read-only workflow retrieves useful repository, issue, and pull-request context;
+- attempts or prompts to comment, create, edit, merge, push, publish, or trigger workflows have no available GitHub tool.
+
+#### Not yet verified
+
+- Linux native artifact/desktop integration until run on Linux;
+- persistent GitHub authentication, GitHub Enterprise, public distribution threat handling, malicious server binary containment, or comprehensive prompt-injection defenses;
+- write tools, additional MCP capabilities, imported skills, or executable skill assets.
+
+### Acceptance gate
+
+Milestone 3 is accepted only when the five immutable skills and the one read-only GitHub capability work from packaged app-owned resources; ambient skill/MCP discovery remains disabled; server and application allowlists expose no mutation tool; authentication behavior is owner-approved and honestly disclosed; cancellation and shutdown release the exact child process; remote content and errors remain bounded/redacted; and the owner accepts representative skill and GitHub workflows.

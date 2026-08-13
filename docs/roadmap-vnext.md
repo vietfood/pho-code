@@ -2,7 +2,7 @@
 
 This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
 
-The owner has promoted and accepted the autonomy foundation, retrieval, and provider-account milestones in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 2.
+The owner has promoted and accepted the autonomy foundation, retrieval, and provider-account milestones, and has promoted curated skills plus read-only GitHub MCP into a draft Milestone 3 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 3.
 
 ## Rules carried forward
 
@@ -20,9 +20,9 @@ The owner has promoted and accepted the autonomy foundation, retrieval, and prov
 - Preserve Pi JSONL validity and keep session metadata derived from Pi rather than duplicating transcripts.
 - Define how missing workspaces and archived sessions appear before adding bulk actions.
 
-## Candidate milestone: baked MCP capabilities
+## Candidate milestone: additional baked MCP capabilities
 
-Begin only after the owner specifies the exact MCP-backed capabilities. This is source/build configuration, not an end-user server manager.
+Milestone 3 owns the first read-only GitHub capability. Begin another MCP capability only after the owner specifies the exact recurring task it solves. This remains source/build configuration, not an end-user server manager.
 
 - Implement the internal `McpRuntime` boundary.
 - Select, review, and exactly pin an adapter version.
@@ -36,7 +36,7 @@ Pho Code will not discover arbitrary `.mcp.json` files, expose server add/edit/r
 
 ## Candidate milestone: additional baked features
 
-Begin only after the owner names the extension-, skill-, prompt-, or service-backed behavior.
+Milestone 3 owns the first five text-only skills. Begin another extension-, skill-, prompt-, or service-backed feature only after the owner names its behavior.
 
 - Inventory license, dependency, Pi-version, host-UI, and packaging requirements.
 - Use a pinned Pi package/path for portable features and named inline factories/services for desktop-dependent behavior.

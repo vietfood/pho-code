@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 is accepted through Milestone 5. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and `@gotgenes/pi-permission-system` `24.0.0` is the first baked feature. v2 Milestone 0 adds the application-owned `recoverable-trash` inline feature. Typed settings change supported baked-feature behavior without making the feature set customizable, and packaged builds resolve third-party features only from app-owned resources. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
+Personal v1 and v2 Milestones 0 through 2 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 is drafted as five source-owned text-only skills and one application-owned adapter for a pinned read-only GitHub MCP server. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -173,7 +173,7 @@ The runtime must call the pinned SDK's public extension-binding API with an `Ext
 
 ## MCP seam
 
-MCP is deferred until the owner names the exact integrations. It follows the same baked-feature rule, with an internal boundary:
+Milestone 3 proposes the first exact integration: read-only GitHub repository, issue, and pull-request investigation. It follows the same baked-feature rule, with an internal boundary:
 
 ```ts
 interface McpRuntime {

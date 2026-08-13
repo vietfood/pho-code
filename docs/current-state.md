@@ -65,10 +65,11 @@ The owner approved this initial milestone split:
 - **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
 - **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
 - **Milestone 2 — accounts and subscription login:** accepted as provider-owned OAuth through Pi `ModelRuntime`, with a Provider accounts Settings surface, opaque system-browser handles, cancellation, logout, and model-list synchronization. The deterministic fake-provider journey is in the Electron and packaged lanes. The owner completed a live `openai-codex` login and confirmed it works.
+- **Milestone 3 — curated capabilities:** drafted for owner calibration as five text-only baked skills plus one read-only GitHub MCP capability. The design preserves immutable composition, packages a pinned native server, exposes only reviewed read tools, and does not add a skill store or MCP manager.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 2 contracts. Later capabilities remain candidates until explicitly promoted.
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 2 contracts and the draft Milestone 3 contract.
 
-Skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
+Browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 
 ## Run it
 
