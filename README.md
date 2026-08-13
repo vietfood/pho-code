@@ -1,130 +1,94 @@
 # Pho Code
 
-Pho Code is a personal, local-first desktop coding harness built directly on the [Pi SDK](https://pi.dev/docs/latest/sdk). The first release is intentionally small: open a workspace, start or resume a Pi session, stream a conversation, inspect tool activity, stop a run, and use a curated set of capabilities baked into the application.
+A bowl of [Pi](https://github.com/earendil-works/pi), served on the desktop.
 
-The product is new code. [`refs/pi-gui`](./refs/pi-gui), [`refs/pi-web`](./refs/pi-web), and [`refs/t3code`](./refs/t3code) are MIT-licensed read-only implementation/product references, not the application base. Meaningful code or components copied or materially adapted from a reference must be recorded in [the attribution log](./docs/references-and-attribution.md).
+Pho Code is the window I wanted to live in: open a workspace, talk to the model, watch it change the files in front of you. Pi is the agent. This app is everything around it — the conversation, the permissions, and a feature bundle that ships in the install. You should not need a second Pi installation to make it useful.
 
-## Repository status
+## Philosophy
 
-Milestones 0 through 5 are accepted, and the personal v1 is complete. The application has persistent multi-turn Pi chat, immutable source-controlled feature composition, the pinned permission system with desktop dialogs and settings, in-app API-key import, and a self-contained unsigned macOS bundle. V2 planning now focuses on quieter effect-aware permissions, recoverable removal, and bounded local/web retrieval.
+Always free. I built this for myself. You can use it too.
 
-The confirmed identity is `Pho Code` / `pho-code`, package scope `@pho-code/*`, environment prefix `PHO_CODE_*`, bridge `window.phoCode`, IPC namespace `pho-code:v1:*`, and bundle identifier `dev.vietfood.phocode`. Normal runs keep Pi-compatible operational data under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override.
+- Hate it? Fork it and make the version you want.
+- Want to sell it? That's your problem, not mine.
+- Love it? Give it a star. Love you.
 
-See the archived [Milestone 5 code review](./docs/archive/v1/reviews/milestone-5-code-review.md) for v1 acceptance evidence. The complete historical record lives in the [personal-v1 archive](./docs/archive/v1/README.md), while active work lives in the [v2 product definition](./docs/product-v2.md) and [v2 implementation plan](./docs/implementation-plan-v2.md).
+No plan, no paywall, no "open core." The source is the product.
 
-Start with:
+## What it does
 
-1. [Current state: what exists and what is next](./docs/current-state.md)
-2. [Product v2 scope](./docs/product-v2.md)
-3. [V2 implementation plan](./docs/implementation-plan-v2.md)
-4. [Architecture](./docs/architecture/overview.md)
-5. [Electron decision](./docs/architecture/desktop-shell.md)
-6. [Extension model](./docs/extension-model.md)
-7. [Development and runbook](./docs/development.md)
-8. [Later roadmap](./docs/roadmap-vnext.md)
-9. [Personal-v1 archive](./docs/archive/v1/README.md)
+- Open a local workspace and start or resume a persistent Pi session
+- Stream assistant text, thinking, Markdown, math, code, and diagrams
+- Watch tool activity as it happens, then Stop, steer the current run, or queue a follow-up
+- Mention files and folders with `@`, search the workspace, and attach images the model can see
+- Fetch public web pages and search the open web through bounded, application-owned tools
+- Choose how much autonomy to grant: **baby**, **okay**, **you got it**, or **with great power comes great responsibility**
+- Move files to the operating-system Trash instead of deleting them forever
+- Import a provider API key in Settings; stored secrets never reach the renderer
+- Run as a self-contained unsigned macOS app, with Pi and every baked feature inside the bundle
 
-Agents and contributors must also follow [`AGENTS.md`](./AGENTS.md).
+macOS is the verified desktop. Linux-compatible path and process behavior is required in the code. Windows is out of scope.
 
-## Product principles
+## Permissions
 
-- **Usable before broad.** The first milestone is one reliable local chat loop, not a plugin marketplace or production distribution system.
-- **Pi remains the agent runtime.** Use Pi's SDK, session format, resource loader, tools, model runtime, and extension contracts. Do not reimplement its agent loop.
-- **Standalone feature bundle.** The installed harness embeds its pinned Pi runtime and every baked extension, skill, prompt, MCP integration, dependency, and asset. Users never prepare a separate Pi installation to supply application features.
-- **The renderer is a view.** React renders state and sends typed intents. It does not import Pi, Electron internals, Node filesystem APIs, or MCP clients.
-- **Local and personal by default.** v1 assumes the owner trusts selected workspaces and the source-reviewed feature bundle shipped by the application.
-- **Boundaries now, isolation later.** Interfaces must permit moving the runtime to a utility process or Tauri sidecar later, but v1 may run it inside Electron's main process.
-- **Curated features.** Extensions, skills, prompts, and later MCP integrations are selected in source, pinned, and shipped as application features. Users may configure deliberately exposed behavior of those features, but cannot change which feature code is loaded.
-- **Evidence over claims.** A command, test, package, or platform is supported only after it has been exercised on that surface.
+Pi does not include a built-in sandbox. By default it runs with the permissions of the process that launched it.
 
-## v1 at a glance
+Pho Code adds an owner-facing permission layer on top of that: named modes, confirmation dialogs, and a dedicated recoverable Trash tool. That layer gates recognized operations. It does not contain arbitrary extension code, and it is not a substitute for a container, VM, or operating-system sandbox.
 
-The first usable release targets macOS and is written to remain compatible with Linux. Windows is out of scope.
+Be honest with yourself about the workspace you open. Selected folders and the source-reviewed feature bundle are trusted. Renderer sandboxing protects the desktop UI boundary. It does not sandbox Pi.
 
-Included in the personal v1:
+## Run it
 
-- Electron desktop shell with a React and TypeScript renderer
-- direct `@earendil-works/pi-coding-agent` SDK integration
-- provider/model discovery through Pi
-- new and resumed persistent Pi sessions
-- streaming assistant text and thinking state
-- tool-call lifecycle display and cancellation
-- workspace selection
-- baked-in permission-system feature with native decision dialogs
-- explicit source-controlled seams for later baked skills and MCP-backed features
-- internal feature diagnostics and typed settings for supported baked-feature behavior, without install/enable/disable controls
-- a shell-neutral, versioned bridge contract
-- a standalone unsigned macOS bundle that embeds Pi and all baked feature resources without requiring Pi CLI/user-global packages
-
-Moved to the next-version roadmap:
-
-- sandboxing, containers, VMs, and remote execution
-- automatic auditing or signing of extensions and packages
-- plugin marketplace, remote catalog, and automatic package installation
-- unspecified extensions, skills, and MCP servers
-- comprehensive MCP management UI
-- multi-agent orchestration, worktrees, integrated terminal, diff editor, and updater
-- code signing, notarization, automatic updates, and public distribution hardening
-- Windows support
-
-These items are outside the accepted v1 rather than unfinished v1 work.
-
-## Why Electron for v1
-
-Pi and its extension ecosystem are Node.js and TypeScript-first. Electron already embeds a compatible Node runtime and provides React rendering, native windows, process APIs, and a narrow preload bridge. Tauri would require a separately packaged long-lived Node sidecar or Pi RPC process before it could run the same SDK and extensions.
-
-The renderer will communicate through a shell-neutral `DesktopBridge`. A future Tauri shell can implement the same JSON-safe commands and events over Tauri invoke/channels while hosting the runtime in a Node sidecar or Pi RPC process. The detailed decision is in [desktop-shell.md](./docs/architecture/desktop-shell.md).
-
-## Current workspace layout
-
-The implemented workspace has this ownership structure:
-
-```text
-.
-├── apps/
-│   └── desktop/
-│       ├── electron/          # Electron main and preload adapters
-│       ├── src/               # React conversation renderer
-│       ├── tests/             # Playwright Electron smoke, chat, host-UI, permission, settings, credentials, packaged lanes
-│       ├── electron.vite.config.ts
-│       └── playwright.config.ts
-├── packages/
-│   ├── protocol/              # JSON-safe commands, events, errors, versions
-│   ├── runtime/               # Pi SDK session and baked feature ownership
-│   ├── application/           # shell-neutral use cases and state projection
-│   └── ui/                    # reusable React components and tokens
-├── docs/
-│   └── reviews/               # dated implementation reviews and closure evidence
-├── refs/
-│   ├── pi-gui/                # reference only
-│   ├── pi-web/                # reference only
-│   └── t3code/                # reference only
-├── AGENTS.md
-├── bun.lock
-├── bunfig.toml
-├── eslint.config.js
-└── package.json
-```
-
-The current import direction is:
-
-```text
-renderer -> ui -> protocol
-renderer -> protocol
-Electron main -> application -> runtime -> Pi SDK 0.84.1
-Electron main/preload -> protocol
-```
-
-## Current commands
-
-Install and launch from the repository root:
+Pho Code is built from this repository. There is no public installer yet.
 
 ```bash
+git submodule update --init --recursive
 bun install --frozen-lockfile
 bun run dev
 ```
 
-Required verification commands:
+Then:
+
+1. Choose a local workspace.
+2. Import a provider API key in Settings if you have not already.
+3. Start a session and send a prompt.
+
+A normal run keeps Pi-compatible auth, models, sessions, and permission state under the app's own data directory. `PHO_CODE_AGENT_DIR` is an explicit override for sharing that directory with another Pi process; Settings labels it as shared.
+
+Prerequisites, isolation env vars, and the optional real-provider recipe live in the [development runbook](./docs/development.md).
+
+## Package a local macOS app
+
+```bash
+bun run package:mac
+bun run test:packaged
+```
+
+`package:mac` writes an unsigned `Pho Code.app` under `apps/desktop/release`. `test:packaged` smokes that artifact with isolated user data and a PATH that does not contain `pi`. Signing, notarization, and auto-update are not part of this product yet.
+
+## Some notes
+
+This is early, personal software. Expect bugs. The first usable release exists; the daily-driver work is still in progress.
+
+Capabilities enter the app as source-controlled, pinned features. Settings change documented behavior of those features. There is no plugin marketplace, no generic MCP manager, and no "paste an extension path" screen.
+
+## Documentation
+
+Start here if you want to use or extend the app:
+
+- [Current state](./docs/current-state.md) — what exists today
+- [Product v2](./docs/product-v2.md) — the daily-driver boundary
+- [Development runbook](./docs/development.md) — commands, isolation, and verification
+- [Architecture](./docs/architecture/overview.md) — ownership and dependency direction
+- [Desktop shell](./docs/architecture/desktop-shell.md) — why Electron
+- [Extension model](./docs/extension-model.md) — baked features, not a plugin platform
+- [Conversation UI](./docs/plans/conversation-ui.md) — transcript, sidebar, and chrome
+- [V2 implementation plan](./docs/implementation-plan-v2.md) — active milestone work
+- [Later roadmap](./docs/roadmap-vnext.md) — work not yet promoted
+- [Personal v1 archive](./docs/archive/v1/README.md) — the closed first release
+
+Agents and contributors should follow [`AGENTS.md`](./AGENTS.md).
+
+## Development
 
 ```bash
 bun run typecheck
@@ -134,44 +98,44 @@ bun run test:desktop
 bun run build
 ```
 
-`bun run build` produces Electron main, preload, and renderer bundles under `apps/desktop/out`; it does not create an installer.
+`bun run build` produces Electron main, preload, and renderer bundles under `apps/desktop/out`. It does not create an installer.
 
-Milestone 5 packaging commands:
-
-```bash
-bun run package:mac
-bun run test:packaged
+```text
+renderer -> ui -> protocol
+renderer -> protocol
+Electron main -> application -> runtime -> Pi SDK
+Electron main/preload -> protocol
 ```
 
-`package:mac` produces an unsigned local macOS `.app` under `apps/desktop/release`. `test:packaged` smokes that artifact with isolated user data and a PATH that does not contain `pi`. `package:linux` remains later until a real Linux artifact is in scope. Signing and notarization remain deferred.
+The renderer is a view. It talks through a typed bridge. It does not import Electron internals, Node filesystem APIs, or the Pi SDK.
 
-Use [the development runbook](./docs/development.md) for prerequisites, isolation env vars, the desktop chat lane, and the optional real-provider recipe.
+## Acknowledgements
 
-## Accepted v1 baseline
+Pho Code is new code. It would not exist in this shape without the projects below. Reading them for architecture required no copying. Where code, CSS, or component structure was adapted, the exact source, revision, and extent are recorded in [the attribution log](./docs/references-and-attribution.md).
 
-The following first-usable criteria have been demonstrated in the Electron application:
+### Agent runtime
 
-1. The user selects a local directory.
-2. The app creates a persistent Pi session in that directory.
-3. The user sends a prompt and sees streaming assistant text.
-4. At least one Pi tool call renders start, update, and completion states.
-5. Stop cancels the active run without corrupting the session.
-6. Closing and reopening the app can resume the session from Pi's JSONL file.
-7. The baked permission feature loads without relying on global/project package discovery, and its allow/deny dialog settles one gated tool call.
-8. Renderer sandboxing, context isolation, and disabled Node integration are verified.
-9. Unit tests, type checking, and one Electron smoke test pass.
+- **[Pi](https://github.com/earendil-works/pi)** by [Earendil Works](https://github.com/earendil-works) — the reason this app exists. Pho Code embeds [`@earendil-works/pi-coding-agent`](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) and [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) as the agent engine, session format, model runtime, resource loader, and tool loop. The Pi TUI also informed composer usage chrome (context, tokens, cache, cost). See [pi.dev](https://pi.dev).
 
-## Documentation authority
+### Desktop and conversation
 
-- [`docs/current-state.md`](./docs/current-state.md) is the short tracking brief and must be updated at milestone transitions.
-- [`docs/product-v2.md`](./docs/product-v2.md) defines the active product scope and acceptance criteria.
-- [`docs/architecture/overview.md`](./docs/architecture/overview.md) defines component ownership and dependency direction.
-- [`docs/architecture/desktop-shell.md`](./docs/architecture/desktop-shell.md) records the Electron decision.
-- [`docs/extension-model.md`](./docs/extension-model.md) defines the baked feature manifest, feature-settings boundary, permission host UI, and future MCP-feature boundary.
-- [`docs/implementation-plan-v2.md`](./docs/implementation-plan-v2.md) is the active milestone and exit-criteria record.
-- [`docs/development.md`](./docs/development.md) defines development and verification commands.
-- [`docs/roadmap-vnext.md`](./docs/roadmap-vnext.md) owns work not yet promoted into an active milestone.
-- [`docs/archive/v1`](./docs/archive/v1/README.md) preserves the closed v1 product, implementation, and review record.
-- [`AGENTS.md`](./AGENTS.md) defines contribution behavior for coding agents.
+- **[T3 Code](https://github.com/pingdotgg/t3code)** by [T3 Tools](https://t3.codes) — the primary product and UI reference for a dense agent conversation: hidden-inset desktop chrome, zinc theme, sidebar and composer dock, work-entry timeline, Markdown, Shiki, and inline approval cards. Pho Code is not a T3 Code fork and does not control other coding agents.
+- **[pi-gui](https://github.com/minghinmatthewlam/pi-gui)** by Matthew Lam — the closest existing Electron home for Pi. Sidebar density, collapse chrome, and "a native window around the Pi SDK" are the useful lessons. Pho Code does not take pi-gui's worktrees, terminal, or multi-agent orchestration.
+- **[pi-web](https://github.com/agegr/pi-web)** by agegr — an earlier Pi chat surface that informed the first shell, session list, clipboard copy, and Markdown image lightbox.
 
-When documents disagree, use the most specific document. Product scope overrides implementation convenience; security boundaries override UI convenience.
+### Visual language
+
+- **Codex desktop** — turn-level "Worked for …" collapse and the purple emphasis on the highest thinking level. Visual inspiration only; no Codex source is in this repository.
+- **Cursor desktop** — shell chrome: sidebar actions, soft panels, composer footer selectors, empty-session hero, and inline `@` chips. Visual inspiration only; no Cursor source is in this repository.
+- **[Beautiful UI](https://www.beautifului.dev/)** by Shane Levine — optional AI-native interface patterns.
+- **[Simple Icons](https://simpleicons.org/)** — provider mark path data.
+- **[Gruvbox](https://github.com/morhetz/gruvbox)**, **[Catppuccin](https://github.com/catppuccin/catppuccin)**, **[Flexoki](https://stephango.com/flexoki)**, **[GitHub Primer](https://primer.style)**, and Atom One Dark — palette values mapped onto Pho Code's theme tokens.
+
+### Baked capabilities
+
+- **[`@gotgenes/pi-permission-system`](https://www.npmjs.com/package/@gotgenes/pi-permission-system)** by Chris Lasher — the first baked feature: policy, confirm/select/input host UI, and the permission modes Settings exposes.
+- **[`@ff-labs/fff-node`](https://www.npmjs.com/package/@ff-labs/fff-node)** by Dmitry Kovalenko, with tool names informed by [`@ff-labs/pi-fff`](https://www.npmjs.com/package/@ff-labs/pi-fff) — workspace-scoped local retrieval and `@` suggestions. Pho Code owns the adapter and index location; it does not load the Pi TUI extension.
+- **[`pi-web-access`](https://www.npmjs.com/package/pi-web-access)** by Nico Bailon — policy and DuckDuckGo parsing that informed the application-owned `pho-web` tools. Pho Code does not load that extension.
+- **[Readability](https://github.com/mozilla/readability)**, **[linkedom](https://github.com/WebReflection/linkedom)**, and **[Turndown](https://github.com/mixmark-io/turndown)** — public-page extraction behind `fetch_content`.
+
+Local checkouts of T3 Code, pi-gui, and pi-web live under [`refs/`](./refs) as read-only references. They are not the application base.
