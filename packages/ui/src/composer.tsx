@@ -22,6 +22,8 @@ import type {
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import { findAtQuery, insertAtMention } from "./lib/at-mention";
+import { composerHighlight } from "./lib/composer-highlight";
+import { findSlashQuery } from "./lib/slash-query";
 import {
   clipboardLooksLikeImage,
   collectPastedImageFiles,
@@ -47,7 +49,9 @@ import { ModelPicker } from "./model-picker";
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
 // controls and empty-session hero layout are harness-owned Cursor-inspired chrome.
-// Slash menus and stash omitted. Image attach is Milestone 1 Slice 4.
+// Highlight ring and / token stub adapted from Beautiful UI PromptBar.tsx
+// (MIT, Shane Levine, retrieved 2026-08-13): omitted dictation, glimm sweep,
+// autoplay, and fake source/command catalogs. Image attach is Milestone 1 Slice 4.
 // Usage strip inspired by Pi TUI footer / AI Elements Context (bar, not ring).
 // @ mention chips are Cursor-inspired (visual reference only; harness-owned).
 
@@ -115,11 +119,19 @@ export function Composer({
   const hero = variant === "hero";
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState(0);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PathSuggestion[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchStatus, setSearchStatus] = useState<string | null>(null);
   const canSend = value.trim() !== "" || images.length > 0;
   const menuOpen = mentionQuery !== null && Boolean(onSearchReferences);
+  const slashOpen = slashQuery !== null;
+  const maxThinking = isMaxThinkingLevel(thinkingLevel, availableThinkingLevels);
+  const highlight = composerHighlight({
+    mentionOpen: mentionQuery !== null,
+    slashOpen,
+    maxThinking,
+  });
   const fieldDisabled = disabled && !running;
   const supportsImages = selectedModel?.supportsImages === true;
   const canAttach = Boolean(onPickImages) && supportsImages && images.length < 5;
@@ -179,20 +191,36 @@ export function Composer({
     setSearchStatus(null);
   }
 
-  function syncMentionFromEditor(): void {
+  function closeSlash(): void {
+    setSlashQuery(null);
+  }
+
+  function closeComposerMenus(): void {
+    closeMention();
+    closeSlash();
+  }
+
+  function syncComposerTokensFromEditor(): void {
     const editor = editorRef.current;
-    if (!editor || !onSearchReferences) {
+    if (!editor) {
       return;
     }
     const next = serializeComposerEditable(editor);
     const cursor = getComposerCaretOffset(editor);
     const mention = findAtQuery(next, cursor);
-    if (!mention) {
-      closeMention();
+    if (mention) {
+      closeSlash();
+      setMentionStart(mention.start);
+      setMentionQuery(mention.query);
       return;
     }
-    setMentionStart(mention.start);
-    setMentionQuery(mention.query);
+    closeMention();
+    const slash = findSlashQuery(next, cursor);
+    if (slash) {
+      setSlashQuery(slash.query);
+      return;
+    }
+    closeSlash();
   }
 
   function handleEditorInput(): void {
@@ -202,17 +230,7 @@ export function Composer({
     }
     const next = serializeComposerEditable(editor);
     onChange(next);
-    if (!onSearchReferences) {
-      return;
-    }
-    const cursor = getComposerCaretOffset(editor);
-    const mention = findAtQuery(next, cursor);
-    if (!mention) {
-      closeMention();
-      return;
-    }
-    setMentionStart(mention.start);
-    setMentionQuery(mention.query);
+    syncComposerTokensFromEditor();
   }
 
   function selectSuggestion(suggestion: PathSuggestion): void {
@@ -229,7 +247,7 @@ export function Composer({
       }
       field.focus();
       setComposerCaretOffset(field, next.cursor);
-      syncMentionFromEditor();
+      syncComposerTokensFromEditor();
     });
   }
 
@@ -254,7 +272,7 @@ export function Composer({
             data-testid="thinking-selector"
             className={cn(
               "composer-meta-select composer-thinking-select",
-              isMaxThinkingLevel(thinkingLevel, availableThinkingLevels) && "is-max",
+              maxThinking && "is-max",
             )}
             value={thinkingLevel}
             disabled={selectorsDisabled || availableThinkingLevels.length === 0}
@@ -282,7 +300,7 @@ export function Composer({
         disabled={disabled || !canSend}
         onClick={() => {
           if (!disabled && canSend) {
-            closeMention();
+            closeComposerMenus();
             onSteer?.();
           }
         }}
@@ -299,7 +317,7 @@ export function Composer({
         disabled={disabled || !canSend}
         onClick={() => {
           if (!disabled && canSend) {
-            closeMention();
+            closeComposerMenus();
             onFollowUp?.();
           }
         }}
@@ -344,7 +362,7 @@ export function Composer({
       onSubmit={(event) => {
         event.preventDefault();
         if (!running && canSend) {
-          closeMention();
+          closeComposerMenus();
           onSubmit();
         }
       }}
@@ -366,7 +384,10 @@ export function Composer({
           ))}
         </div>
       ) : null}
-      <div className="chat-composer-shell">
+      <div
+        className={cn("chat-composer-shell", highlight !== "none" && `is-${highlight}`)}
+        data-composer-highlight={highlight}
+      >
         <div className={cn("chat-composer-host", hero ? "px-3.5 pt-3 pb-2.5" : "px-3 pt-2.5 pb-2")}>
           <div className="relative z-10 flex flex-col">
             <div
@@ -386,8 +407,8 @@ export function Composer({
                 hero ? "max-h-[min(52em,70vh)] min-h-[4.5em]" : "max-h-[min(48em,58vh)] min-h-[1.5em]",
               )}
               onInput={handleEditorInput}
-              onKeyUp={syncMentionFromEditor}
-              onClick={syncMentionFromEditor}
+              onKeyUp={syncComposerTokensFromEditor}
+              onClick={syncComposerTokensFromEditor}
               onPaste={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -421,7 +442,7 @@ export function Composer({
                 }
                 const next = insertComposerPlainText(value, getComposerSelectionOffsets(editor), pasted);
                 pendingCaretRef.current = next.cursor;
-                closeMention();
+                closeComposerMenus();
                 onChange(next.text);
               }}
               onKeyDown={(event) => {
@@ -444,16 +465,16 @@ export function Composer({
                     }
                     return;
                   }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeMention();
-                    return;
-                  }
+                }
+                if (event.key === "Escape" && (menuOpen || slashOpen)) {
+                  event.preventDefault();
+                  closeComposerMenus();
+                  return;
                 }
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
                   if (!running && !disabled && canSend) {
-                    closeMention();
+                    closeComposerMenus();
                     onSubmit();
                   }
                 }
@@ -485,6 +506,19 @@ export function Composer({
                     </button>
                   ))
                 )}
+              </div>
+            ) : null}
+            {slashOpen ? (
+              <div
+                className="composer-mention-menu"
+                role="status"
+                aria-label="Skills"
+                data-testid="composer-skills"
+              >
+                <div className="composer-mention-empty">
+                  Skills aren't available yet.
+                  {slashQuery ? ` "/${slashQuery}" will match baked skills later.` : ""}
+                </div>
               </div>
             ) : null}
             {images.length > 0 ? (

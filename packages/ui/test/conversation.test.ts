@@ -109,6 +109,7 @@ describe("empty session hero", () => {
     expect(markup).toContain("M23.748 4.651");
     expect(markup).toContain('data-testid="thinking-selector"');
     expect(markup).toContain("composer-thinking-select is-max");
+    expect(markup).toContain('data-composer-highlight="max"');
     expect(markup).toContain("Max");
   });
 
@@ -199,6 +200,27 @@ describe("empty session hero", () => {
     expect(markup).toContain("Steer · go left");
     expect(markup).toContain("Follow-up · then wrap up");
     expect(markup).not.toContain('aria-label="Send"');
+  });
+
+  test("shows the pixel-grid loader while the agent is working with no tokens yet", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+          run: {
+            status: "streaming",
+            runId: "r1",
+            streamingText: "",
+            work: [],
+            startedAt: "2026-08-13T00:00:00.000Z",
+          },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="agent-loading"');
+    expect(markup).toContain("Working");
+    expect(markup).toContain("loading-state-grid");
   });
 });
 

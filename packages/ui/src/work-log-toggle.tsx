@@ -1,17 +1,23 @@
 import { ChevronRightIcon } from "lucide-react";
 import { cn } from "./lib/cn";
+import { LoadingState } from "./loading-state";
 
 // Codex-inspired single “Worked for …” disclosure for an entire assistant turn.
 // Visual reference only (no Codex source). Collapses all thinking/tool steps at once.
+// Live waiting chrome uses Beautiful UI LoadingState (MIT, Shane Levine).
 
 export function WorkLogToggle({
   label,
   expanded,
   onToggle,
+  live = false,
+  elapsed,
 }: {
   label: string;
   expanded: boolean;
   onToggle: () => void;
+  live?: boolean;
+  elapsed?: string;
 }) {
   return (
     <button
@@ -25,7 +31,11 @@ export function WorkLogToggle({
       data-testid="work-log-toggle"
       onClick={onToggle}
     >
-      <span className="min-w-0 truncate font-medium">{label}</span>
+      {live && elapsed ? (
+        <LoadingState label="Working" elapsed={elapsed} />
+      ) : (
+        <span className="min-w-0 truncate font-medium">{label}</span>
+      )}
       <ChevronRightIcon
         className={cn(
           "size-3.5 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",

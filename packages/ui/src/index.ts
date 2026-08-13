@@ -20,6 +20,10 @@ export { DiagnosticsPanel } from "./diagnostics-panel";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ToolRow } from "./tool-row";
+export { LoadingState } from "./loading-state";
+export { formatElapsedTenths, elapsedSince } from "./lib/elapsed";
+export { composerHighlight } from "./lib/composer-highlight";
+export { findSlashQuery } from "./lib/slash-query";
 export { WorkLogToggle } from "./work-log-toggle";
 export {
   countWorkBlocks,

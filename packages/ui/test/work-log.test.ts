@@ -91,6 +91,23 @@ describe("work log toggle", () => {
     expect(markup).toContain("Worked for 8m 41s");
     expect(markup).toContain('data-testid="work-log-toggle"');
     expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('data-testid="agent-loading"');
+  });
+
+  test("uses the pixel-grid loader while a run is live", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkLogToggle, {
+        label: "Working for 1m 12s",
+        expanded: true,
+        live: true,
+        elapsed: "72.0s",
+        onToggle: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="agent-loading"');
+    expect(markup).toContain("Working");
+    expect(markup).toContain("72.0s");
+    expect(markup).not.toContain("Working for 1m 12s");
   });
 });
 

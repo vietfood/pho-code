@@ -86,6 +86,7 @@ describe("tool row", () => {
     expect(markup).toContain("Bash completed");
     expect(markup).toContain("ls -la docs");
     expect(markup).toContain('data-testid="tool-card"');
+    expect(markup).toContain('data-testid="tool-chip"');
     expect(markup).toContain('aria-label="Completed"');
     expect(markup).not.toContain('data-testid="tool-detail"');
     expect(markup).toContain('aria-expanded="false"');

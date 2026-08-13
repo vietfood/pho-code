@@ -12,8 +12,10 @@ import {
   workedForLabel,
 } from "./lib/work-log";
 import { isNearBottom } from "./lib/stick-to-bottom";
+import { elapsedSince } from "./lib/elapsed";
 import { ConservativeMarkdown } from "./markdown";
 import { MentionChip } from "./mention-chip";
+import { LoadingState } from "./loading-state";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
@@ -57,9 +59,10 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
     if (!running || !snapshot.run.startedAt) {
       return;
     }
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    const fineClock = !snapshot.run.streamingText;
+    const id = window.setInterval(() => setNowMs(Date.now()), fineClock ? 100 : 1000);
     return () => window.clearInterval(id);
-  }, [running, snapshot.run.startedAt]);
+  }, [running, snapshot.run.startedAt, snapshot.run.streamingText]);
 
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
@@ -71,6 +74,7 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
 
   const liveWorkCounts = countWorkBlocks(snapshot.run.work);
   const segments = groupTranscriptSegments(snapshot.messages);
+  const liveElapsed = elapsedSince(snapshot.run.startedAt, nowMs);
   const liveLabel = workedForLabel({
     live: true,
     ...(snapshot.run.startedAt ? { startedAt: snapshot.run.startedAt } : {}),
@@ -112,6 +116,8 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
             <WorkLogToggle
               label={liveLabel}
               expanded={liveWorkExpanded}
+              live={running}
+              elapsed={liveElapsed}
               onToggle={() => setLiveWorkExpanded((value) => !value)}
             />
             {liveWorkExpanded
@@ -134,7 +140,7 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
       ) : null}
       {running && !snapshot.run.streamingText && liveWorkCounts.steps === 0 ? (
         <div className="mx-auto w-full max-w-3xl px-1 pb-4 pt-1">
-          <p className="text-[12px] font-medium text-secondary-label">{liveLabel}</p>
+          <LoadingState label="Working" elapsed={liveElapsed} />
         </div>
       ) : null}
       {snapshot.run.error ? (

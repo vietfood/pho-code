@@ -11,9 +11,10 @@ import {
 } from "./tool-presentation";
 import { WorkEntryIcon } from "./work-entry-icon";
 
-// PlainWorkEntryRow adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
-// Agent spawn rows, tooltips, and LegendList omitted; Pi tool blocks only.
-// Expanded body is harness-owned: labeled Input/Output panels with parsed payloads.
+// Collapsed chrome adapted from Beautiful UI ToolChips.tsx (MIT, Shane Levine,
+// https://www.beautifului.dev/ retrieved 2026-08-13): icon + label + preview chip.
+// Demo autoplay, fake diffs, and ice-cream copy omitted. Expanded body remains
+// harness-owned labeled Input/Output panels. T3 work-entry headings/icons retained.
 
 export function ToolRow({ block, open = false }: { block: TranscriptToolBlock; open?: boolean }) {
   const [expanded, setExpanded] = useState(open);
@@ -31,7 +32,7 @@ export function ToolRow({ block, open = false }: { block: TranscriptToolBlock; o
   return (
     <div
       className={cn(
-        "flex flex-col rounded-md px-0.5 py-0.5 transition-colors motion-reduce:transition-none",
+        "tool-chip-row flex flex-col rounded-md px-0.5 py-0.5 transition-colors motion-reduce:transition-none",
         canExpand &&
           "cursor-pointer hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
       )}
@@ -52,58 +53,60 @@ export function ToolRow({ block, open = false }: { block: TranscriptToolBlock; o
           }
         : {})}
     >
-      <div className="flex select-none items-center gap-1.5">
+      <div className="group/row flex h-7 min-w-0 select-none items-center gap-2">
         <span
           className={cn(
-            "flex size-5 shrink-0 items-center justify-center",
+            "relative flex size-4 shrink-0 items-center justify-center",
             failed ? "text-destructive" : "text-icon-muted",
           )}
         >
-          <WorkEntryIcon name={iconName} className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
+          <WorkEntryIcon
+            name={iconName}
+            className={cn(
+              "block size-3.5 shrink-0 stroke-[1.8] opacity-80 transition-opacity duration-100",
+              canExpand && "group-hover/row:opacity-0",
+              expanded && "opacity-0",
+            )}
+          />
+          {canExpand ? (
+            <ChevronDownIcon
+              className={cn(
+                "absolute size-3 shrink-0 opacity-0 transition-[opacity,transform] duration-150 motion-reduce:transition-none",
+                "group-hover/row:opacity-70",
+                expanded ? "rotate-0 opacity-70" : "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+          ) : null}
         </span>
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="flex min-w-0 w-full items-baseline gap-1.5 text-[12px] leading-5">
-              <span
-                className={cn(
-                  "min-w-0 shrink truncate font-medium",
-                  failed ? "text-destructive" : "text-foreground",
-                )}
-              >
-                {heading}
-              </span>
-              {displayPreview ? (
-                <span className="min-w-0 flex-1 truncate text-secondary-label">{displayPreview}</span>
-              ) : null}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-px text-icon-muted">
-            <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden={!canExpand}>
-              {canExpand ? (
-                <ChevronDownIcon
-                  className={cn(
-                    "size-3 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",
-                    expanded && "rotate-180",
-                  )}
-                  aria-hidden="true"
-                />
-              ) : null}
-            </span>
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              {failed ? (
-                <XIcon className="block size-3 shrink-0 text-destructive" aria-label="Failed" />
-              ) : completed ? (
-                <CheckIcon className="block size-3 shrink-0 stroke-current" aria-label="Completed" />
-              ) : running ? (
-                <span className="size-1.5 rounded-full bg-muted-foreground/50" aria-label="Running" />
-              ) : null}
-            </span>
-          </div>
-        </div>
+        <span
+          className={cn(
+            "shrink-0 text-[12.5px] font-medium",
+            failed ? "text-destructive" : "text-foreground",
+          )}
+        >
+          {heading}
+        </span>
+        {displayPreview ? (
+          <span className="tool-chip min-w-0 flex-1 truncate font-mono" data-testid="tool-chip">
+            {displayPreview}
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1" />
+        )}
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {failed ? (
+            <XIcon className="block size-3 shrink-0 text-destructive" aria-label="Failed" />
+          ) : completed ? (
+            <CheckIcon className="block size-3 shrink-0 stroke-current" aria-label="Completed" />
+          ) : running ? (
+            <span className="size-1.5 rounded-full bg-muted-foreground/50" aria-label="Running" />
+          ) : null}
+        </span>
       </div>
       {expanded && canExpand ? (
         <div
-          className="tool-detail mt-1 ms-7 cursor-default border-s border-border/45 ps-3 pt-0.5"
+          className="tool-detail mt-1 ms-6 cursor-default border-s border-border/45 ps-3 pt-0.5"
           data-testid="tool-detail"
           onClick={stopRowToggle}
           onPointerDown={stopRowToggle}
