@@ -5,12 +5,14 @@ import { describe, expect, test } from "bun:test";
 import { HARNESS_ERROR_CODES } from "@pho-code/protocol";
 import {
   BALANCED_PERMISSION,
+  DEVELOPER_PERMISSION,
   GUARDED_PERMISSION,
   applyPermissionSettingsPatch,
   detectPermissionProfile,
   patchPermissionConfig,
   permissionPolicyForProfile,
   readPermissionSettings,
+  PERMISSION_PRESET_VERSION,
 } from "../src/permission-settings";
 
 async function makeAgentDir() {
@@ -21,11 +23,14 @@ async function makeAgentDir() {
 }
 
 describe("permission settings adapter", () => {
-  test("maps Guarded and Balanced to the reviewed policies", () => {
+  test("keeps stable keys for the three v3 owner-facing modes", () => {
+    expect(PERMISSION_PRESET_VERSION).toBe(3);
     expect(permissionPolicyForProfile("guarded")).toEqual(GUARDED_PERMISSION);
     expect(permissionPolicyForProfile("balanced")).toEqual(BALANCED_PERMISSION);
+    expect(permissionPolicyForProfile("developer")).toEqual(DEVELOPER_PERMISSION);
     expect(detectPermissionProfile(GUARDED_PERMISSION)).toBe("guarded");
     expect(detectPermissionProfile(BALANCED_PERMISSION)).toBe("balanced");
+    expect(detectPermissionProfile(DEVELOPER_PERMISSION)).toBe("developer");
     expect(detectPermissionProfile({ "*": "allow" })).toBe("custom");
     expect(detectPermissionProfile(undefined)).toBe("custom");
   });
@@ -114,6 +119,33 @@ describe("permission settings adapter", () => {
     expect(written.permission).toEqual(GUARDED_PERMISSION);
     expect(written.permissionReviewLog).toBe(false);
     expect(Object.keys(written.permission as object)).toEqual(Object.keys(GUARDED_PERMISSION));
+  });
+
+  test("recognizes existing Guarded and Balanced files without rewriting them", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(configPath, `${JSON.stringify({ permission: BALANCED_PERMISSION }, null, 2)}\n`);
+    expect(readPermissionSettings({ agentDir }).profile).toBe("balanced");
+    await writeFile(configPath, `${JSON.stringify({ permission: GUARDED_PERMISSION }, null, 2)}\n`);
+    expect(readPermissionSettings({ agentDir }).profile).toBe("guarded");
+    const next = applyPermissionSettingsPatch({ agentDir, patch: { profile: "developer" } });
+    expect(next.profile).toBe("developer");
+    const written = JSON.parse(await readFile(configPath, "utf8")) as { permission: unknown };
+    expect(detectPermissionProfile(written.permission)).toBe("developer");
+  });
+
+  test("every v3 preset explicitly denies permanent removal", () => {
+    for (const profile of ["guarded", "balanced", "developer"] as const) {
+      const permission = permissionPolicyForProfile(profile);
+      const bash = permission.bash as Record<string, unknown>;
+      for (const command of ["rm *", "unlink *", "rmdir *", "shred *", "find * -delete"]) {
+        expect(bash[command]).toEqual({
+          action: "deny",
+          reason: "Permanent removal is unavailable. Use the move_to_trash tool.",
+        });
+      }
+    }
   });
 
   test("detects a project override without editing it", async () => {

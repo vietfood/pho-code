@@ -8,8 +8,10 @@ import {
   type PermissionSettings,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
+import { BALANCED_PERMISSION, DEVELOPER_PERMISSION, GUARDED_PERMISSION } from "./permission-presets";
 
-export const PERMISSION_PRESET_VERSION = 1 as const;
+export const PERMISSION_PRESET_VERSION = 3 as const;
+export { BALANCED_PERMISSION, DEVELOPER_PERMISSION, GUARDED_PERMISSION } from "./permission-presets";
 export const PERMISSION_CONFIG_RELATIVE_PATH = path.join(
   "extensions",
   "pi-permission-system",
@@ -35,39 +37,6 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "permission",
   "shellTools",
 ]);
-
-export const GUARDED_PERMISSION = {
-  "*": "ask",
-  path: {
-    "*": "ask",
-    "*.env": "deny",
-    "*.env.*": "deny",
-    "*.env.example": "ask",
-    "~/.ssh/*": "deny",
-  },
-  external_directory: "ask",
-} as const;
-
-export const BALANCED_PERMISSION = {
-  "*": "ask",
-  path: {
-    "*": "allow",
-    "*.env": "deny",
-    "*.env.*": "deny",
-    "*.env.example": "allow",
-    "~/.ssh/*": "deny",
-  },
-  read: "allow",
-  find: "allow",
-  grep: "allow",
-  ls: "allow",
-  write: "ask",
-  edit: "ask",
-  bash: "ask",
-  skill: "ask",
-  mcp: "ask",
-  external_directory: "ask",
-} as const;
 
 type PermissionDecision = "allow" | "ask" | "deny";
 
@@ -99,6 +68,8 @@ export function readPermissionSettings(input: {
     yoloMode,
     permissionReviewLog: loaded.config.permissionReviewLog !== false,
     projectOverridePresent: projectPermissionOverridePresent(input.workspacePath),
+    projectPermissionRulesTrusted: false,
+    projectPermissionRulesRemembered: false,
     appliesToSharedPiAgentDir: input.appliesToSharedPiAgentDir === true,
   };
 }
@@ -126,17 +97,72 @@ export function detectPermissionProfile(permission: unknown): PermissionProfileI
   if (permission === undefined) {
     return "custom";
   }
-  if (permissionPoliciesEquivalent(permission, GUARDED_PERMISSION)) {
+  if (
+    permissionPoliciesEquivalent(permission, GUARDED_PERMISSION) ||
+    permissionPoliciesEquivalent(permission, LEGACY_V2_GUARDED_PERMISSION)
+  ) {
     return "guarded";
   }
-  if (permissionPoliciesEquivalent(permission, BALANCED_PERMISSION)) {
+  if (
+    permissionPoliciesEquivalent(permission, BALANCED_PERMISSION) ||
+    permissionPoliciesEquivalent(permission, LEGACY_V2_BALANCED_PERMISSION)
+  ) {
     return "balanced";
+  }
+  if (permissionPoliciesEquivalent(permission, DEVELOPER_PERMISSION)) {
+    return "developer";
   }
   return "custom";
 }
 
+// Recognition-only snapshots preserve existing v2 files without rewriting their decisions.
+// An explicit owner selection writes the v3 template with the permanent-removal invariant.
+const LEGACY_V2_GUARDED_PERMISSION = {
+  "*": "ask",
+  path: {
+    "*": "ask",
+    "*.env": "deny",
+    "*.env.*": "deny",
+    "*.env.example": "ask",
+    "~/.ssh/*": "deny",
+  },
+  external_directory: "ask",
+} as const;
+
+const LEGACY_V2_BALANCED_PERMISSION = {
+  "*": "ask",
+  path: {
+    "*": "allow",
+    "*.env": "deny",
+    "*.env.*": "deny",
+    "*.env.example": "allow",
+    "~/.ssh/*": "deny",
+  },
+  read: "allow",
+  find: "allow",
+  grep: "allow",
+  ls: "allow",
+  write: "ask",
+  edit: "ask",
+  bash: "ask",
+  skill: "ask",
+  mcp: "ask",
+  external_directory: "ask",
+} as const;
+
 export function permissionPolicyForProfile(profile: ManagedPermissionProfileId): Record<string, unknown> {
-  return cloneJson(profile === "guarded" ? GUARDED_PERMISSION : BALANCED_PERMISSION) as Record<string, unknown>;
+  switch (profile) {
+    case "guarded":
+      return cloneJson(GUARDED_PERMISSION) as Record<string, unknown>;
+    case "balanced":
+      return cloneJson(BALANCED_PERMISSION) as Record<string, unknown>;
+    case "developer":
+      return cloneJson(DEVELOPER_PERMISSION) as Record<string, unknown>;
+    default: {
+      const exhaustive: never = profile;
+      return exhaustive;
+    }
+  }
 }
 
 export function patchPermissionConfig(
