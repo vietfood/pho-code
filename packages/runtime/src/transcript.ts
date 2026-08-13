@@ -1,6 +1,7 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
+import { isImageMimeType, type TranscriptBlock, type TranscriptMessage } from "@pho-code/protocol";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
+import { displayToolName } from "./tool-display";
 
 type SessionMessage = AgentSession["messages"][number];
 
@@ -21,10 +22,11 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
     switch (message.role) {
       case "user": {
         const createdAt = toCreatedAt(message.timestamp);
+        const blocks = projectUserContentBlocks(message.content);
         projected.push({
           id: `user:${message.timestamp}:${index}`,
           role: "user",
-          blocks: [{ type: "text", text: userText(message.content) }],
+          blocks: blocks.length > 0 ? blocks : [{ type: "text", text: "" }],
           ...(createdAt ? { createdAt } : {}),
         });
         return;
@@ -54,7 +56,7 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
               blocks.push({
                 type: "tool",
                 callId: part.id,
-                name: part.name,
+                name: displayToolName(part.name),
                 status,
                 inputPreview: previewUnknown(part.arguments),
                 outputPreview: result?.output ?? "",
@@ -109,6 +111,32 @@ function toCreatedAt(timestamp: unknown): string | undefined {
     }
   }
   return undefined;
+}
+
+export function projectUserContentBlocks(
+  content: string | Array<{ type: string; text?: string; mimeType?: string }>,
+): TranscriptBlock[] {
+  if (typeof content === "string") {
+    return content.length > 0 ? [{ type: "text", text: content }] : [];
+  }
+
+  const blocks: TranscriptBlock[] = [];
+  let imageIndex = 0;
+  for (const part of content) {
+    if (part.type === "text" && typeof part.text === "string" && part.text.length > 0) {
+      blocks.push({ type: "text", text: part.text });
+      continue;
+    }
+    if (part.type === "image") {
+      imageIndex += 1;
+      blocks.push({
+        type: "image",
+        name: `image-${imageIndex}`,
+        mimeType: isImageMimeType(part.mimeType) ? part.mimeType : "image/png",
+      });
+    }
+  }
+  return blocks;
 }
 
 function userText(content: string | Array<{ type: string; text?: string }>): string {

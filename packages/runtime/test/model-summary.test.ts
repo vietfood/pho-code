@@ -19,4 +19,17 @@ describe("projectModelSummary", () => {
       cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
     });
   });
+
+  test("projects image input capability", () => {
+    expect(
+      projectModelSummary({
+        provider: "anthropic",
+        id: "claude-vision",
+        name: "Claude Vision",
+        contextWindow: 200_000,
+        input: ["text", "image"],
+        cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+      }).supportsImages,
+    ).toBe(true);
+  });
 });
