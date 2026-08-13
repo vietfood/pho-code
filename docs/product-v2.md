@@ -83,9 +83,16 @@ The accepted implementation is:
 
 The implementation and owner workflow are accepted. FFF remains additive rather than replacing Pi's built-in search tools, and a synthetic benchmark record is not required after owner verification in representative workspaces.
 
-## Deferred beyond Milestones 0 and 1
+### Milestone 2: accounts and subscription login
 
-- OAuth/subscription provider login and logout;
+Add provider-owned OAuth login, logout, status, cancellation, and model-list synchronization through Pi `0.84.1`'s existing `ModelRuntime` authentication abstraction. The first fully verified provider is `openai-codex` (OpenAI ChatGPT Plus/Pro), while the desktop interaction adapter remains generic enough to support other reviewed Pi providers without provider-specific renderer code.
+
+OAuth URLs and access/refresh tokens remain in the privileged process. The renderer receives provider metadata, redacted progress, device codes, bounded prompt definitions, and opaque link handles. Opening an authorization or verification page uses the existing validated system-browser path; Pho Code does not embed a login webview, reuse browser cookies, or present every OAuth method as equivalent subscription allowance.
+
+The detailed contract is drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after owner calibration of that contract and proceeds as one OpenAI Codex vertical slice before additional providers.
+
+## Deferred beyond Milestone 2
+
 - imported/baked skill bundles;
 - specific MCP-backed account integrations;
 - browser automation using an isolated browser profile;
@@ -117,5 +124,4 @@ After the accepted Milestone 1:
 ## Product decisions still requiring later calibration
 
 - whether the internal `developer` policy allows all workspace writes or retains approval for selected generated/configuration paths;
-- which provider OAuth flow becomes the first post-retrieval milestone;
 - which concrete skills and MCP-backed capabilities earn a place in the baked manifest.

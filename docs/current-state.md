@@ -64,10 +64,11 @@ The owner approved this initial milestone split:
 
 - **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
 - **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
+- **Milestone 2 — accounts and subscription login:** design checkpoint drafted around Pi-owned OAuth, an OpenAI Codex first vertical slice, privileged URL handling, redacted renderer state, cancellation, logout, and model-list synchronization. Implementation awaits owner calibration.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 contract and all four accepted Milestone 1 slices. The next milestone must be promoted explicitly before implementation.
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 contract, all four accepted Milestone 1 slices, and the draft Milestone 2 contract.
 
-OAuth subscriptions, skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
+Skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 
 ## Run it
 

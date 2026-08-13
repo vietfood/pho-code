@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestones 0 and 1 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof.
+Milestones 0 and 1 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 is drafted for owner calibration before implementation.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -550,3 +550,159 @@ Milestone 1 acceptance evidence:
 - only supported images cross the model boundary, with explicit privacy disclosure and no absolute-path leakage;
 - every capability works from packaged app-owned resources and fails independently without breaking local chat;
 - closure checks passed: typecheck, lint, 240 unit/integration tests, 9 Electron journeys, production build, macOS package, and 1 packaged smoke.
+
+## Milestone 2: accounts and subscription login
+
+### Status
+
+Drafted for owner calibration. No OAuth implementation or credential migration is included in this design checkpoint.
+
+The installed Pi `0.84.1` API is the source of truth. Its `ModelRuntime` already exposes provider authentication methods, non-secret status, serialized credential writes, login, logout, OAuth refresh, `isUsingOAuth`, and `isUsingSubscription`. Pho Code must adapt Pi's `AuthInteraction`; it must not implement provider token exchange, refresh, or a second credential store.
+
+### Outcome
+
+The owner can inspect the login methods supported by each baked Pi provider, sign in through a provider-owned OAuth flow, cancel or recover from an incomplete flow, log out, and immediately use the resulting models. Provider status is understandable without exposing credential material.
+
+The first fully verified provider is Pi's built-in `openai-codex` provider, displayed as **OpenAI (ChatGPT Plus/Pro)**. The pinned implementation supports browser login and device-code login through one provider-owned selector. The desktop adapter is provider-neutral: later reviewed providers use the same typed prompt and notification contracts rather than adding renderer-specific OAuth implementations.
+
+Pho Code treats Pi's `isSubscription` flag as an authentication classification, not a billing guarantee. A source-controlled provider disclosure may explain known product semantics, but the UI must not claim that every OAuth login consumes an included plan allowance or has the same cost behavior.
+
+### Scope
+
+- List providers with stable id/name, supported `api_key` and/or `oauth` methods, configured status, active stored method when known, Pi's subscription classification, and a source-controlled disclosure key.
+- Preserve the existing API-key import path while presenting API key and OAuth as methods under one **Provider accounts** section.
+- Start one OAuth flow at a time; project provider progress, select/text/secret/manual-code prompts, device codes, expiration, completion, cancellation, and normalized failure.
+- Open validated authorization and verification pages in the system browser through an opaque privileged link handle.
+- Log out a selected provider through `ModelRuntime.logout`, then synchronize provider status and the existing model picker.
+- Abort an active flow on explicit cancel, app shutdown, or invalidated ownership; discard late prompt responses and late provider notifications.
+- Disable credential mutation while an agent run is active, matching the existing API-key import behavior and avoiding mid-request credential replacement.
+
+### Non-goals
+
+- upgrading Pi, changing its provider OAuth implementations, copying provider client secrets, or implementing token exchange/refresh in Pho Code;
+- returning access tokens, refresh tokens, full credential objects, authorization URLs, callback URLs, or `auth.json` contents to the renderer;
+- embedded login webviews, Chrome profile/cookie reuse, browser automation, arbitrary redirect navigation, or renderer network access;
+- arbitrary provider/plugin installation, extension-defined account UI, MCP OAuth, organization/account management, payments, usage-plan inference, or subscription purchasing;
+- migrating Pi-compatible credentials into Keychain or a new encrypted store; broader at-rest credential hardening remains a distribution-track decision;
+- proving every Pi OAuth provider in this milestone. Additional providers enter only after the generic adapter passes the OpenAI Codex slice.
+
+### Boundary design
+
+The dependency direction remains:
+
+```text
+renderer -> protocol <- Electron IPC -> application auth coordinator -> runtime -> Pi ModelRuntime
+                                      -> validated system browser
+```
+
+The runtime owns provider discovery and calls `ModelRuntime.login(providerId, "oauth", interaction)` / `ModelRuntime.logout(providerId)`. The application owns the active-flow state machine, validates command ownership, projects only JSON-safe redacted state, and refreshes the existing provider/model summaries after a successful mutation. Electron owns `shell.openExternal` and accepts only an application-issued opaque link handle whose retained target passes the existing `http:`/`https:` validation. React renders account and prompt state but never receives the retained target.
+
+Authorization URLs may contain state or other transient values even when they do not contain final tokens. Treat them as privileged transient data: keep them in an in-memory flow registry, bind each handle to its flow, expire the handle when the flow ends, redact it from logs/errors, and never persist it in application metadata or Pi sessions.
+
+Pi remains authoritative for credentials. Pho Code stores only non-secret UI state while the process is alive; reopening Settings reconstructs account summaries from `ModelRuntime`, not from duplicated account metadata.
+
+### Representative decision: auth interaction state machine
+
+At most one flow exists in the application:
+
+```text
+idle -> starting -> awaiting_prompt | awaiting_external | polling -> completed
+                                                       \-> failed
+                                                       \-> cancelled
+```
+
+Every state carries a random `flowId`, provider id, monotonically increasing revision, and public timestamps. Commands must include the current `flowId`; prompt responses also include `promptId`. Unknown, completed, replaced, or stale identifiers fail visibly and never reach Pi.
+
+`AuthInteraction.prompt()` creates exactly one pending public prompt and returns a promise. Supported Pi prompt types map as follows:
+
+| Pi prompt | Renderer projection | Response handling |
+|---|---|---|
+| `select` | Message plus bounded id/label/description options | Return only an id present in the current prompt |
+| `text` | Message, optional placeholder, ordinary input | Trim/length-limit according to the prompt contract |
+| `secret` | Message, optional placeholder, password input | Pass directly to the waiting promise; never echo, log, persist, or include in events |
+| `manual_code` | Message, optional placeholder, code input | Treat as secret-like transient input and support Pi's per-prompt abort race |
+
+If `AuthPrompt.signal` aborts because a browser callback won the race, the coordinator closes only that prompt and ignores a later renderer response. Cancelling the whole flow aborts the `AuthInteraction.signal`, rejects any pending prompt, invalidates every link handle, and waits for the Pi login promise to settle before returning to `idle`.
+
+`AuthInteraction.notify()` maps provider events without leaking URLs:
+
+- `info`: bounded text plus opaque handles for validated links;
+- `auth_url`: an opaque handle, display hostname, and bounded instructions; the main process may auto-open it once after validation, while an **Open browser** retry uses the same handle;
+- `device_code`: public user code, expiration/countdown metadata, and an opaque verification-link handle;
+- `progress`: one bounded status line, replacing rather than accumulating unbounded provider output.
+
+A successful Pi login produces no credential-bearing protocol value. The coordinator asks the runtime for fresh account summaries and available-model state, emits a completed snapshot, and clears transient prompt/link material. A failure emits a normalized redacted error with retryability; raw provider errors go only to the existing redacted diagnostics path.
+
+### Protocol contract
+
+Use named additive commands rather than a generic auth channel:
+
+- `listProviderAccounts(): Promise<ProviderAccountSummary[]>`
+- `startProviderLogin({ providerId, method }): Promise<ProviderAuthFlowSnapshot>`
+- `respondProviderAuthPrompt({ flowId, promptId, value }): Promise<ProviderAuthFlowSnapshot>`
+- `openProviderAuthLink({ flowId, linkId }): Promise<void>`
+- `cancelProviderLogin({ flowId }): Promise<ProviderAuthFlowSnapshot>`
+- `logoutProvider({ providerId }): Promise<ProviderAccountsResult>`
+
+The existing API-key import command may remain during the first slice, but its provider list must be derived from the same account-summary service. Do not add `invokeAuth`, raw callback registration, a renderer-supplied URL, or a credential getter.
+
+Provider summaries expose capabilities and status, not secrets. Flow snapshots expose only the current public state. Before crossing IPC, recursively assert JSON safety and reject values containing the submitted secret/manual-code response. Redaction tests must use canary values and inspect command results, event envelopes, errors, diagnostics, and serialized UI state.
+
+This is an additive bridge change under the existing internal protocol convention; it does not rename the `pho-code:v1:*` namespace or product data roots.
+
+### Settings interaction
+
+Replace the narrow **Provider API keys** block with **Provider accounts** while keeping the rest of Settings unchanged. Each provider row shows configured/not configured, available login methods, the active source/method when Pi can report it, and an honest subscription label. Selecting OAuth starts the projected flow; selecting API key uses the existing secret field. Logout requires an explicit provider-scoped confirmation because it removes a stored credential, but it does not route through agent command permissions.
+
+The flow UI must support keyboard operation, focus the current prompt, preserve a displayed device code while polling, expose cancel, show expiry/failure, and return focus to the provider row on completion. Closing Settings does not silently cancel a running browser/device flow; the global flow remains observable when Settings is reopened. App shutdown does cancel it.
+
+### First vertical slice
+
+1. Add protocol account summaries, flow snapshots, commands, validation, and a deterministic fake-auth interaction used only by repository-owned checks.
+2. Add a runtime account service over the real pinned `ModelRuntime` provider/auth APIs; retain the current API-key importer through that service.
+3. Add the application coordinator, one-flow state machine, abort behavior, opaque URL registry, redaction, and model-summary synchronization.
+4. Add narrow IPC/preload methods and system-browser opening by retained handle; never accept a renderer URL.
+5. Replace the Settings credential block with the provider-account UI and projected prompt/device/progress states.
+6. Exercise the complete fake flow in Electron and the packaged app, then perform one owner-monitored live `openai-codex` browser or device-code login, model selection/chat, refresh-on-use, and logout.
+7. Add other Pi OAuth providers only after recording their actual pinned prompt/events and provider-specific disclosure. Do not claim them accepted from generic unit coverage alone.
+
+### Required verification
+
+Keep verification proportional to this personal milestone: cover the state machine and secret boundary thoroughly, then rely on one desktop/package journey and one owner-monitored live provider flow rather than duplicating every provider combination.
+
+#### Unit verified
+
+- provider/method projection uses the installed Pi provider definitions and never filters out OAuth-only providers;
+- stale flow/prompt/link identifiers, invalid select ids, oversized inputs, concurrent starts, active-run mutation, cancellation, prompt abort races, and expiration fail predictably;
+- canary access/refresh tokens, API keys, manual codes, and authorization URLs never appear in protocol results, events, diagnostics, or persisted metadata;
+- URL handles accept only retained validated HTTP(S) targets and expire with the flow;
+- logout and successful login rebuild non-secret account/model summaries.
+
+#### Integration verified
+
+- real Pi `0.84.1` provider discovery reports `openai-codex` OAuth and its subscription classification;
+- a deterministic fake provider drives select, external URL, device-code/manual-code, progress, success, failure, cancellation, and per-prompt abort without network credentials;
+- login/logout use Pi's credential store in an isolated temporary agent directory and never touch the owner's real auth file.
+
+#### Desktop and packaged verified
+
+- Settings completes the deterministic OAuth journey by keyboard and pointer, opens only the retained test URL through the guarded main-process path, updates the model picker, and logs out;
+- cancelling or closing the app leaves no unresolved prompt or open callback/listener;
+- the packaged app provides the same account surface without a Pi CLI installation or renderer network permission.
+
+#### Owner verified
+
+- a live `openai-codex` browser or device-code login completes in the system browser;
+- a Codex model becomes selectable and completes a real prompt;
+- a later request proves Pi refresh behavior without exposing tokens;
+- logout removes the stored provider credential and returns the account/model UI to the expected state;
+- the subscription disclosure is understandable and does not imply unsupported billing semantics.
+
+#### Not yet verified
+
+- other Pi OAuth providers, Linux browser integration, hostile local users/processes, Keychain-backed storage, public-distribution threat handling, and MCP OAuth;
+- any provider billing or allowance behavior beyond what the pinned provider API classifies and the owner verifies with their account.
+
+### Acceptance gate
+
+Milestone 2 is accepted only when the generic adapter and OpenAI Codex vertical slice satisfy the checks above, no secret or authorization URL crosses to the renderer, cancellation releases all flow resources, account/model state synchronizes after login and logout, the packaged flow works without Pi CLI, and the owner accepts the live provider workflow and disclosure.
