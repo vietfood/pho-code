@@ -147,6 +147,8 @@ describe("assistant turn work collapse", () => {
     expect(markup).toContain('data-testid="assistant-turn"');
     expect(markup).toContain("Worked for 8m 41s");
     expect(markup).toContain("Final answer only.");
+    expect(markup).toContain('data-testid="copy-assistant-output"');
+    expect(markup).toContain('aria-label="Copy"');
     expect(markup).not.toContain("hidden thought from first assistant message");
     expect(markup).not.toContain("Bash completed");
     // One turn-level toggle, not one per assistant message.

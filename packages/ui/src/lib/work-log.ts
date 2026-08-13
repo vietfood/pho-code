@@ -48,6 +48,15 @@ export function collectTurnBlocks(messages: readonly TranscriptMessage[]): Trans
   return blocks;
 }
 
+/** Plain-text agent output for a turn (text blocks only; thinking/tools omitted). */
+export function turnTextOutput(blocks: readonly TranscriptBlock[]): string {
+  return blocks
+    .filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text")
+    .map((block) => block.text)
+    .join("\n\n")
+    .trim();
+}
+
 export function countWorkBlocks(blocks: readonly TranscriptBlock[] | readonly RunWorkEntry[]): WorkLogCounts {
   let thoughts = 0;
   let tools = 0;
@@ -60,6 +69,7 @@ export function countWorkBlocks(blocks: readonly TranscriptBlock[] | readonly Ru
         tools += 1;
         break;
       case "text":
+      case "image":
         break;
       default: {
         const exhaustive: never = block;

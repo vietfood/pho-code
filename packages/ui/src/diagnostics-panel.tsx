@@ -5,7 +5,7 @@ export function DiagnosticsPanel({ state }: { state: BootstrapState }) {
   const failures = features.filter((feature) => feature.status !== "loaded");
 
   return (
-    <details className="min-w-0 overflow-hidden text-[11px] text-sidebar-muted-foreground">
+    <details className="min-w-0 overflow-hidden text-[0.6875rem] leading-snug text-sidebar-muted-foreground">
       <summary
         className="cursor-pointer list-none truncate text-muted-foreground [&::-webkit-details-marker]:hidden"
         data-testid="bootstrap-state"
