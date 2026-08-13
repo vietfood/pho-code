@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -184,7 +184,7 @@ export function prepareMacPackageStage(): void {
   run("bun", ["run", "build"], DESKTOP_DIR);
 
   if (existsSync(STAGE_DIR)) {
-    rmSync(STAGE_DIR, { recursive: true, force: true });
+    run("/usr/bin/trash", [STAGE_DIR], DESKTOP_DIR);
   }
   mkdirSync(STAGE_DIR, { recursive: true });
   cpSync(path.join(DESKTOP_DIR, "out"), path.join(STAGE_DIR, "out"), { recursive: true });
@@ -197,6 +197,38 @@ function copyProductionNodeModules(destination: string, packages: readonly Resol
   for (const pkg of packages) {
     copyPackageTree(pkg.root, path.join(destination, ...pkg.name.split("/")));
   }
+  patchStagedFffAsarResolver(destination);
+}
+
+export function patchFffAsarResolverSource(source: string): string {
+  const pathImport = 'import { dirname, join } from "node:path";';
+  const binaryReturn = "            return binaryPath;";
+  if (!source.includes(pathImport) || !source.includes(binaryReturn)) {
+    throw new Error("FFF 0.10.1 binary resolver changed; refusing to apply the packaged ASAR patch.");
+  }
+  const helper = `
+// Pho Code packaged adaptation: ffi-rs cannot dlopen Electron's virtual app.asar path.
+function resolveAsarUnpackedBinary(binaryPath) {
+    const marker = \`\${sep}app.asar\${sep}\`;
+    if (!binaryPath.includes(marker))
+        return binaryPath;
+    const unpackedPath = binaryPath.replace(marker, \`\${sep}app.asar.unpacked\${sep}\`);
+    return existsSync(unpackedPath) ? unpackedPath : binaryPath;
+}
+`;
+  return source
+    .replace(pathImport, 'import { dirname, join, sep } from "node:path";')
+    .replace("/**\n * Try to resolve the binary from the platform-specific npm package.", `${helper}/**\n * Try to resolve the binary from the platform-specific npm package.`)
+    .replace(binaryReturn, "            return resolveAsarUnpackedBinary(binaryPath);");
+}
+
+function patchStagedFffAsarResolver(nodeModulesDir: string): void {
+  const resolverPath = path.join(nodeModulesDir, "@ff-labs", "fff-node", "dist", "src", "binary.js");
+  if (!existsSync(resolverPath)) {
+    throw new Error("Staged @ff-labs/fff-node binary resolver is missing.");
+  }
+  const source = readFileSync(resolverPath, "utf8");
+  writeFileSync(resolverPath, patchFffAsarResolverSource(source));
 }
 
 function assertWorkspaceManifestIntact(): void {

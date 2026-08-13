@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { APP_OWNED_TOOL_NAMES, displayToolName, displayToolNamesInText } from "../src/tool-display";
 
 const EXPECTED = new Map([
-  ["ffgrep", "grep"],
-  ["fffind", "find"],
-  ["fff-multi-grep", "multi-grep"],
+  ["ffgrep", "FFF grep"],
+  ["fffind", "FFF find"],
+  ["fff-multi-grep", "FFF multi-grep"],
   ["web_search", "web search"],
   ["fetch_content", "fetch"],
   ["move_to_trash", "move to trash"],

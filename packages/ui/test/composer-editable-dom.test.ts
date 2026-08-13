@@ -14,7 +14,7 @@ describe("composer paste", () => {
   });
 
   test("replaces the current selection", () => {
-    expect(insertComposerPlainText("keep THIS gone", { start: 5, end: 10 }, "that")).toEqual({
+    expect(insertComposerPlainText("keep THIS gone", { start: 5, end: 9 }, "that")).toEqual({
       text: "keep that gone",
       cursor: 9,
     });

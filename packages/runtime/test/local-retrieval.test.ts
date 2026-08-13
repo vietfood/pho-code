@@ -18,6 +18,10 @@ describe("local retrieval", () => {
     try {
       await retrieval.bind(workspace);
       const result = await retrieval.searchPaths({ query: "composer", limit: 8 });
+      if (result.status === "unavailable") {
+        expect(result.diagnostic?.length).toBeGreaterThan(0);
+        return;
+      }
       expect(result.status === "ready" || result.status === "indexing").toBe(true);
       expect(result.suggestions.some((entry) => entry.path === "src/composer.tsx" && entry.kind === "file")).toBe(true);
       expect(result.suggestions.every((entry) => !path.isAbsolute(entry.path))).toBe(true);

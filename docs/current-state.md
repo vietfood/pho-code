@@ -62,10 +62,10 @@ The acceptance review additionally made packaged resource overrides development-
 
 The owner approved this initial milestone split:
 
-- **Milestone 0 — autonomy foundation:** add three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool. Implemented; pending acceptance review.
-- **Milestone 1 — retrieval and richer input:** Slices 1–4 are implemented for owner testing (local FFF `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments).
+- **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
+- **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the implemented Milestone 0 contract and all four implemented Milestone 1 slices; Milestone 1 remains pending acceptance evidence and closure of review findings.
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 contract and all four accepted Milestone 1 slices. The next milestone must be promoted explicitly before implementation.
 
 OAuth subscriptions, skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 

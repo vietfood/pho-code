@@ -26,19 +26,41 @@ describe("web URL policy", () => {
   });
 
   test("denies redirects onto private addresses", async () => {
-    const fetchImpl = (async () =>
-      new Response(null, { status: 302, headers: { location: "http://127.0.0.1/secret" } })) as typeof fetch;
+    const request = async () =>
+      new Response(null, { status: 302, headers: { location: "http://127.0.0.1/secret" } });
     await expect(
       fetchPublicHttpUrl(
         "https://example.com/",
         { method: "GET" },
         {
-          fetch: fetchImpl,
+          request,
           lookup: async (hostname) =>
             hostname === "example.com" ? [{ address: "93.184.216.34", family: 4 }] : [{ address: "127.0.0.1", family: 4 }],
         },
       ),
     ).rejects.toBeInstanceOf(WebResearchError);
+  });
+
+  test("passes only the validated DNS addresses to the network request", async () => {
+    let lookups = 0;
+    const requested: Array<{ hostname: string; addresses: string[] }> = [];
+    const result = await fetchPublicHttpUrl(
+      "https://public.example/docs",
+      { method: "GET" },
+      {
+        lookup: async () => {
+          lookups += 1;
+          return [{ address: "93.184.216.34", family: 4 }];
+        },
+        request: async (url, _init, addresses) => {
+          requested.push({ hostname: url.hostname, addresses: addresses.map((entry) => entry.address) });
+          return new Response("ok", { status: 200 });
+        },
+      },
+    );
+    expect(result.finalUrl).toBe("https://public.example/docs");
+    expect(lookups).toBe(1);
+    expect(requested).toEqual([{ hostname: "public.example", addresses: ["93.184.216.34"] }]);
   });
 });
 

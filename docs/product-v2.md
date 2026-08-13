@@ -67,21 +67,21 @@ The product must not claim that a dialog, command parser, Electron renderer sand
 
 Replace the noisy all-shell-command approval experience with three owner-facing permission modes, safe command-family treatment, a dedicated recoverable Trash tool, clearer approval context, and regression evidence that the convenience rules do not weaken sensitive-path or external-directory gates.
 
-Milestone 0 is implemented in [`implementation-plan-v2.md`](./implementation-plan-v2.md). The independent-review corrections narrow execution-capable search commands, make project permission-rule trust explicit and persistent inside Pho Code, and make process cancellation wait for child termination. Owner acceptance remains the gate for starting Milestone 1 implementation.
+Milestone 0 is accepted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). The independent-review corrections narrow execution-capable search commands, make project permission-rule trust explicit and persistent inside Pho Code, and make process cancellation wait for child termination.
 
 ### Milestone 1: retrieval and richer input
 
 Add fast local repository retrieval, explicit file/folder references, bounded web research, Pi-native steering/follow-up, and image attachments. These form one information-ingress milestone but remain separately gated vertical slices because they have different trust, persistence, network, model-capability, and failure semantics.
 
-The initial direction is:
+The accepted implementation is:
 
 - FFF begins behind a runtime-owned local-retrieval adapter. The agent tool slice uses `tools-only` semantics; Pho Code owns composer `@` suggestions because Pi editor autocomplete is not projected through this desktop host.
-- Web access begins with a source-controlled `pho-web` adapter targeting exact `pi-web-access` `0.22.0` as its primary upstream, subject to artifact audit before lockfile admission, and `supi-web` only as a secondary extraction reference. The adapter exposes bounded public search and HTTP(S) text extraction; ambient credentials, automatic provider fallback, authenticated browser automation, cookie reuse, hosted extraction fallback, local paths, GitHub cloning, PDF/video handling, form submission, file upload, and arbitrary browsing remain outside the milestone.
+- Web access uses a source-controlled `pho-web` adapter informed by reviewed `pi-web-access` `0.22.0`, with keyless DuckDuckGo search and application-owned bounded HTTP(S) extraction. `pi-web-access` and `supi-web` are not loaded. Ambient credentials, automatic provider fallback, authenticated browser automation, cookie reuse, hosted extraction fallback, local paths, GitHub cloning, PDF/video handling, form submission, file upload, and arbitrary browsing remain outside the milestone.
 - Steering and follow-up call Pi `0.84.1`'s native queues and expose their pending state rather than implementing another agent queue.
 - The first attachment type is an image accepted by the selected model. Ordinary files and folders remain validated `@` references rather than opaque binary uploads.
 - Every executable feature remains an immutable baked capability with typed settings and fail-closed packaged lookup.
 
-The expanded design is approved. Implementation begins only after Milestone 0 is accepted.
+The implementation and owner workflow are accepted. FFF remains additive rather than replacing Pi's built-in search tools, and a synthetic benchmark record is not required after owner verification in representative workspaces.
 
 ## Deferred beyond Milestones 0 and 1
 
@@ -102,7 +102,7 @@ Deferral means these capabilities do not shape Milestone 0 or 1 contracts premat
 
 ## Success criteria for the first v2 slice
 
-After Milestone 1 is accepted:
+After the accepted Milestone 1:
 
 1. Ordinary repository inspection and common local validation no longer produce repeated permission dialogs under **with great power comes great responsibility**.
 2. Sensitive paths, external paths, irreversible removal, privileged commands, and externally visible operations retain reviewed gates.
@@ -116,9 +116,6 @@ After Milestone 1 is accepted:
 
 ## Product decisions still requiring later calibration
 
-- the exact FFF and web-access package versions after license, dependency, and packaged-runtime review;
-- the initial web provider and whether zero-key fallback is acceptable;
-- quantitative FFF benchmark fixtures and pass thresholds;
 - whether the internal `developer` policy allows all workspace writes or retains approval for selected generated/configuration paths;
 - which provider OAuth flow becomes the first post-retrieval milestone;
 - which concrete skills and MCP-backed capabilities earn a place in the baked manifest.

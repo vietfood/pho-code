@@ -186,44 +186,26 @@ Milestone 0 verification classes:
 - **packaged verified:** unsigned local `.app` loads `permission-system 24.0.0` and `recoverable-trash 1.0.0` from app-owned resources, completes recoverable Trash with isolated data and a PATH that does not contain `pi`
 - **not verified:** Linux desktop and real Linux Trash; owner-monitored real-provider daily-driver proof; treating the permission layer as a sandbox
 
-v2 Milestone 1 Slice 1 implementation evidence, recorded 2026-08-13, pending owner harness testing:
+v2 Milestone 1 acceptance evidence, recorded 2026-08-13:
 
 ```text
 bun run typecheck     PASS
 bun run lint          PASS
-bun test packages/protocol/test/protocol.test.ts
-         packages/runtime/test/workspace-reference.test.ts
-         packages/runtime/test/local-retrieval.test.ts
-         packages/ui/test/at-mention.test.ts
-                      21/21 PASS (local-retrieval needs native FFI; sandbox-blocked runs fail)
+bun test              PASS — 240 tests
+bun run test:desktop  PASS — 9 Electron tests
+bun run build         PASS
+bun run package:mac   PASS — unsigned Apple Silicon app
+bun run test:packaged PASS — 1 packaged smoke
 ```
 
-Slice 1 verification classes:
+Milestone 1 verification classes:
 
-- **unit verified:** workspace-relative `@` tokens reject absolute/parent/sensitive paths and serialize without absolute paths; composer mention parsing; protocol JSON-safety for reference tokens
-- **integration verified:** `FileFinder` indexes an owned temp workspace and returns relative path suggestions
-- **desktop verified:** not run; owner should exercise `bun run dev`
-- **packaged verified:** not run; native `dlopen` from asar remains a later packaging check
-- **not verified:** owner-monitored inline `@path` mentions and `fffind`/`ffgrep` against a real workspace; FFF benchmark gate; Linux index behavior
-
-v2 Milestone 1 Slice 2 implementation evidence, recorded 2026-08-13, pending owner harness testing:
-
-```text
-bun run typecheck     PASS
-bun run lint          PASS
-bun test packages/protocol/test/protocol.test.ts
-         packages/runtime/test/web-url.test.ts
-         packages/runtime/test/permission-settings.test.ts
-                      29/29 PASS
-```
-
-Slice 2 verification classes:
-
-- **unit verified:** SSRF rejects file/credentials/localhost/private/link-local/metadata addresses; redirects onto private IPs are denied; DuckDuckGo HTML parse skips ads and decodes `uddg` URLs; protocol JSON-safety for source records; Developer maps `web_search=ask` and `fetch_content=allow`
-- **integration verified:** not run against live DuckDuckGo or arbitrary internet hosts
-- **desktop verified:** not run; owner should exercise `bun run dev`
-- **packaged verified:** not run
-- **not verified:** owner-monitored `web_search` / `fetch_content` on a real workspace; Linux DNS/SSRF; adversarial DNS rebinding during the connect window
+- **unit verified:** canonical workspace references; additive/distinct FFF tool labels; public-address and redirect rejection; validated-address binding for the subsequent web connection; pre-decode base64 limits; Pi queue and image admission behavior; package dependency boundaries
+- **integration verified:** real FFF indexes an owned workspace when native loading is available and reports a bounded diagnostic when it is not; Pi owns steer/follow-up state; recoverable removal uses an injected non-destructive boundary in sandboxed tests while OS-adapter tests prove no permanent fallback
+- **desktop verified:** all nine Electron journeys pass outside the process-launch sandbox
+- **packaged verified:** the unsigned app loads the permission, Trash, FFF-native, and web resources without Pi CLI; the staged FFF resolver selects the unpacked dylib; Great Power mode auto-approves ordinary asks while recoverable Trash completes
+- **owner verified:** FFF and the remaining Milestone 1 workflows were exercised in the Pho Code harness; no synthetic FFF benchmark record is required
+- **not verified:** Linux native packaging/desktop/Trash; authenticated browsing, private-network fetch, uploads, or other deferred web capabilities
 
 
 ## Recorded runtime compatibility

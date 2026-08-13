@@ -1,7 +1,7 @@
 const APP_TOOL_DISPLAY_NAMES = {
-  ffgrep: "grep",
-  fffind: "find",
-  "fff-multi-grep": "multi-grep",
+  ffgrep: "FFF grep",
+  fffind: "FFF find",
+  "fff-multi-grep": "FFF multi-grep",
   web_search: "web search",
   fetch_content: "fetch",
   move_to_trash: "move to trash",

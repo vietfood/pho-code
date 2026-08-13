@@ -65,12 +65,9 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
 
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
-      await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByTestId("extension-dialog")).toContainText("Permission Required");
-      await page.getByRole("radio", { name: "Yes", exact: true }).check();
-      await page.getByTestId("extension-dialog-confirm").click();
       await expandSettledWorkLog(page, 0);
       await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
+      await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
 
       await page.getByTestId("composer").fill("USE_TRASH");
       await page.getByRole("button", { name: "Send" }).click();

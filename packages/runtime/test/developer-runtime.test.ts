@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rename, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -13,8 +13,7 @@ import {
   displayToolName,
 } from "../src/index";
 import { applyPermissionSettingsPatch } from "../src/permission-settings";
-import { createArgvProcessLauncher, type ArgvProcessLaunchInput } from "../src/process-launch";
-import { createOsTrashRemovalService } from "../src/recoverable-removal";
+import type { RecoverableRemovalService } from "../src/recoverable-removal";
 import { TEST_PROMPT } from "../src/test-model";
 import { TRASH_FEATURE_ID } from "../src/trash-feature";
 import { TRASH_TOOL_NAME } from "../src/trash-target";
@@ -61,30 +60,32 @@ function toolOutput(events: RuntimeEvent[], name: string): string {
 }
 
 describe("Developer profile runtime", () => {
-  test("allows safe shell work, denies rm, asks for wrappers, and moves an owned fixture to Trash", async () => {
+  test("allows safe shell work, denies rm, asks for wrappers, and uses the recoverable-removal boundary", async () => {
     const { root, agentDir, workspaceDir } = await makeIsolatedDirs();
     initGitRepo(workspaceDir);
     const fixturePath = path.join(workspaceDir, "disposable-fixture.txt");
     await writeFile(fixturePath, "owned\n");
+    const canonicalWorkspaceDir = await realpath(workspaceDir);
+    const canonicalFixturePath = path.join(canonicalWorkspaceDir, path.basename(fixturePath));
     applyPermissionSettingsPatch({ agentDir, patch: { profile: "developer" } });
 
-    const launches: ArgvProcessLaunchInput[] = [];
-    const realLauncher = createArgvProcessLauncher();
+    const simulatedTrashDir = path.join(root, "simulated-os-trash");
+    const simulatedTrashPath = path.join(simulatedTrashDir, path.basename(fixturePath));
+    const removal: RecoverableRemovalService = {
+      async moveToTrash(input) {
+        expect(input.canonicalPath).toBe(canonicalFixturePath);
+        expect(input.workspacePath).toBe(canonicalWorkspaceDir);
+        await mkdir(simulatedTrashDir);
+        await rename(input.canonicalPath, simulatedTrashPath);
+        return { method: "macos-trash" };
+      },
+    };
     const runtime = await createPhoCodeRuntime({
       agentDir,
       deterministicTestModel: true,
       featureManifest: createDefaultFeatureManifest(createNodeModuleResourceLocator(), {
         agentDir,
-        removal: createOsTrashRemovalService({
-          launcher: {
-            async run(input) {
-              launches.push(input);
-              expect(input.executable).not.toContain("rm");
-              expect(input.args.includes("rm")).toBe(false);
-              return realLauncher.run(input);
-            },
-          },
-        }),
+        removal,
       }),
     });
     const events: RuntimeEvent[] = [];
@@ -147,7 +148,7 @@ describe("Developer profile runtime", () => {
       expect(events.some((event) => event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest)).toBe(false);
       expect(toolOutput(events, displayToolName(TRASH_TOOL_NAME))).toContain("recoverable");
       expect(existsSync(fixturePath)).toBe(false);
-      expect(launches.some((call) => call.executable === "/usr/bin/trash" || call.executable.includes("trash"))).toBe(true);
+      expect(existsSync(simulatedTrashPath)).toBe(true);
 
       const reopened = await runtime.openSession(workspace.workspace.id, created.session.id);
       expect(reopened.features.features.some((feature) => feature.id === TRASH_FEATURE_ID)).toBe(true);

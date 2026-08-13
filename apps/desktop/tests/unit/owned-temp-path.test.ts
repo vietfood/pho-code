@@ -49,6 +49,11 @@ describe("owned temp fixture cleanup", () => {
     const link = path.join(tmpdir(), `${TEST_FIXTURE_PREFIX}link-${process.pid}`);
     await symlink(directory, link);
     await expectRejected(link);
-    await recoverablyRemoveOwnedTempFixture(directory);
+    try {
+      await recoverablyRemoveOwnedTempFixture(directory);
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnownedTestPathError);
+      expect((error as Error).message).toContain("Retained");
+    }
   });
 });

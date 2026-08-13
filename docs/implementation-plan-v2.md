@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestone 0 is implemented with its independent-review corrections applied and awaits owner acceptance. Milestone 1 Slices 1–4 are implemented for owner-harness testing.
+Milestones 0 and 1 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -27,7 +27,7 @@ Every v2 milestone must:
 
 ### Status
 
-Implemented, including the independent-review corrections. Awaiting owner acceptance against the gate below.
+Accepted, including the independent-review corrections.
 
 The three owner-facing permission modes, recoverable Trash tool, and characterization tests are in the tree. Stable config keys remain `guarded`, `balanced`, and `developer`; Custom policies are preserved.
 
@@ -314,7 +314,7 @@ Milestone 0 is accepted only when:
 
 ### Status
 
-Slices 1–4 are implemented for owner testing but Milestone 1 is not accepted. The 2026-08-13 review found two boundary blockers: DNS validation is not bound to the address used by the subsequent fetch, leaving a DNS-rebinding time-of-check/time-of-use gap; and pasted base64 is decoded before its encoded length is bounded at the Electron IPC adapter. The full unit lane also has stale dependency-boundary expectations and a mismatched composer-selection fixture, while FFF benchmark, real-provider, packaged-native, and full desktop evidence remain outstanding. Preserve a green checkpoint after each correction.
+Accepted on 2026-08-13. The review blockers are closed: web requests connect only through the public addresses validated for that request and repeat validation on redirects; pasted IPC base64 is bounded and syntax-checked before decode; stale dependency/composer expectations are corrected; FFF remains additive and its owner-facing labels distinguish it from Pi `find`/`grep`; and the packaged app resolves FFF's native library through `app.asar.unpacked`. The owner confirmed FFF's usefulness through daily agent use and explicitly waived a synthetic numeric benchmark record.
 
 ### Outcome
 
@@ -342,7 +342,7 @@ Introduce narrow runtime interfaces for local retrieval, web research, and image
 
 Every capability is a named source-controlled manifest feature with an exact dependency pin, expected resource count, diagnostics, abort/dispose behavior, packaged lookup, license attribution, and a failure state that does not break ordinary local chat.
 
-#### Selected upstreams still require source and packaging audits
+#### Reviewed upstreams and selected dependencies
 
 The selected upstreams and references are:
 
@@ -350,7 +350,7 @@ The selected upstreams and references are:
 - [`pi-web-access`](https://pi.dev/packages/pi-web-access) `0.22.0`, selected as the primary web-search and fetch upstream because it already contains general search, attributable sources, SSRF and redirect controls, bounded retrieval, and cancellation-aware provider paths;
 - [`@mrclrchtr/supi-web`](https://github.com/mrclrchtr/supi/tree/main/packages/supi-web), retained only as a secondary extraction reference for content negotiation, Markdown sibling discovery, Readability conversion, and context-window handling. It is not the Milestone 1 search provider or an approved runtime dependency.
 
-The versions above are approved integration directions, not accepted dependency artifacts. Before editing the lockfile, inspect the exact tarballs or pinned source revisions, transitive/native dependencies, lifecycle hooks, data locations, configuration precedence, tool registration, network destinations, credential reads, telemetry, cancellation, cleanup, Pi `0.84.1` compatibility, Electron Node compatibility, and macOS/Linux packaging. Record every chosen revision and materially adapted surface in `docs/references-and-attribution.md` and third-party notices.
+FFF `0.10.1` is an accepted exact runtime dependency. Its packaged resolver receives the documented build-time ASAR-unpacked adaptation and fails closed if the pinned upstream source shape changes. `pi-web-access` and `supi-web` remain reviewed references rather than runtime dependencies; Pho Code owns the narrow DuckDuckGo/search and content-extraction adapter. Selected dependencies and materially adapted surfaces are recorded in `docs/references-and-attribution.md` and third-party notices.
 
 Do not load either web extension wholesale. `pi-web-access` exposes substantial behavior outside this milestone, while `supi-web` does not provide general web search and its current fetch boundary is not sufficient for the required private-network, redirect, and response-size policy. Build a small application-owned adapter from a pinned, reviewed upstream surface. Do not silently fork copied code; any material adaptation requires license and attribution records.
 
@@ -386,9 +386,9 @@ An accepted `@` suggestion is inserted inline as `@workspace/relative/path` in t
 - Rebind or dispose the index on workspace change, session replacement where required, shutdown, and feature reload.
 - Project files remain local. Diagnostics disclose index state and storage location without exposing filenames from sensitive paths.
 
-#### Benchmark gate
+#### Owner usefulness gate
 
-Create owned fixtures representing a small repository and a large generated repository with known fuzzy-path, exact-symbol, ignored-file, changed-file, and paginated-content queries. Compare warm and cold latency, relevant-result rank, output size, memory, and cancellation against current Pi `find`/`grep`. Accept the slice only if FFF materially improves fuzzy-path ranking or warm retrieval latency without losing boundary correctness; record numeric results rather than claiming it is “faster” generically.
+Use owned fixtures to prove workspace boundaries, result shape, fail-closed native initialization, and cancellation. Product usefulness is an owner acceptance decision based on representative real-workspace use; a synthetic numeric benchmark record is optional and is not a Milestone 1 gate. FFF tools remain additive and visibly named `FFF find`, `FFF grep`, and `FFF multi-grep`, while Pi's built-in `find` and `grep` remain available.
 
 ### Slice 2: bounded public web research
 
@@ -485,7 +485,7 @@ Do not add a generic `invokeTool`, `setSetting`, raw filesystem picker, remote U
 
 1. Audit exact FFF and web package tarballs, dependencies, licenses, configuration, and packaged behavior; write dependency decision records before pinning.
 2. Prove one FFF-native index can serve both additive agent tools and a runtime path-suggestion API. If not, select the underlying library and build application-owned adapters rather than duplicating indexes.
-3. Implement Slice 1 runtime, manifest, storage, protocol, app-owned `@` UI, lifecycle tests, benchmark, desktop journey, and packaged proof.
+3. Implement Slice 1 runtime, manifest, storage, protocol, app-owned `@` UI, lifecycle checks, owner workflow, and packaged proof.
 4. Implement a minimal web adapter with one provider and the approved two-tool surface; add network/egress policy and adversarial URL tests before UI polish.
 5. Add typed Pi-native steering/follow-up commands and queue projection; validate event ordering and session replacement before shortcuts.
 6. Add the image picker, clipboard paste, preparation, and admission path with capability checks and transcript reopen behavior.
@@ -497,7 +497,7 @@ Do not add a generic `invokeTool`, `setSetting`, raw filesystem picker, remote U
 #### Unit verified
 
 - canonical `@` token validation, folder/file distinction, stale/outside/sensitive rejection, result limits, pagination, and JSON safety;
-- FFF storage path derivation, ignore behavior, cancellation, feature diagnostics, and benchmark fixtures;
+- FFF storage path derivation, ignore behavior, cancellation, feature diagnostics, and fail-closed native initialization;
 - URL parsing, special-range rejection for IPv4/IPv6, redirect revalidation, DNS rebinding behavior, response/decompression/text limits, MIME handling, timeout, abort, redaction, and citation normalization;
 - steer/follow-up validation, stale run/session rejection, queue projection, reducer ordering, abort/clear/replacement behavior, and prompt length limits;
 - image signature/MIME validation, count/size/dimension limits, model-capability rejection, draft retention, and transcript placeholder projection.
@@ -527,7 +527,7 @@ Do not add a generic `invokeTool`, `setSetting`, raw filesystem picker, remote U
 
 #### Owner verified
 
-- representative small and large real workspaces confirm that FFF ranking and latency improve daily navigation;
+- representative real-workspace use confirms that FFF improves daily navigation;
 - the selected real web provider returns useful attributable sources at acceptable latency/cost;
 - a real vision-capable model receives an attached image, while a text-only model rejects it before admission;
 - shortcuts and labels make steering versus follow-up predictable during a real tool-using run.
@@ -540,12 +540,13 @@ Do not add a generic `invokeTool`, `setSetting`, raw filesystem picker, remote U
 
 ### Acceptance gate
 
-Milestone 1 is accepted only when:
+Milestone 1 acceptance evidence:
 
-- all four slices pass their own checkpoint in order and the full earlier product lanes remain green;
-- FFF provides recorded measurable value and remains bounded to the active workspace;
+- all four slices passed their checkpoints and the earlier product lanes remain green;
+- the owner confirmed FFF's value in the Pho Code harness; it remains bounded to the active workspace and distinct from Pi's built-in search tools;
 - `@` references are canonical, explicit, and never interpreted as renderer-authorized absolute paths;
 - web results are attributable and every request obeys destination, egress, size, timeout, cancellation, and provider policy;
 - steer/follow-up behavior comes from Pi's native queues and is accurately represented in the UI;
 - only supported images cross the model boundary, with explicit privacy disclosure and no absolute-path leakage;
-- every capability works from packaged app-owned resources and fails independently without breaking local chat.
+- every capability works from packaged app-owned resources and fails independently without breaking local chat;
+- closure checks passed: typecheck, lint, 240 unit/integration tests, 9 Electron journeys, production build, macOS package, and 1 packaged smoke.

@@ -1,5 +1,9 @@
 import { lookup as dnsLookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import net from "node:net";
+import { Readable } from "node:stream";
+import type { LookupFunction } from "node:net";
 import { MAX_WEB_REDIRECTS, WEB_REQUEST_TIMEOUT_MS } from "@pho-code/protocol";
 
 // Public-HTTP SSRF policy informed by pi-web-access 0.22.0 ssrf-protection.ts (MIT).
@@ -7,6 +11,11 @@ import { MAX_WEB_REDIRECTS, WEB_REQUEST_TIMEOUT_MS } from "@pho-code/protocol";
 
 export type LookupAddress = { address: string; family: number };
 export type DnsLookup = (hostname: string) => Promise<LookupAddress[]>;
+export type PublicHttpRequest = (
+  url: URL,
+  init: RequestInit,
+  approvedAddresses: readonly LookupAddress[],
+) => Promise<Response>;
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -56,12 +65,19 @@ export async function validatePublicHttpUrl(
   raw: string | URL,
   options: ValidatePublicHttpUrlOptions = {},
 ): Promise<URL> {
+  return (await resolvePublicHttpUrl(raw, options)).url;
+}
+
+async function resolvePublicHttpUrl(
+  raw: string | URL,
+  options: ValidatePublicHttpUrlOptions = {},
+): Promise<{ url: URL; addresses: LookupAddress[] }> {
   const stage = options.stage ?? "web/ssrf";
   const url = raw instanceof URL ? sanitizePublicHttpUrl(raw.toString(), stage) : sanitizePublicHttpUrl(raw, stage);
   const hostname = normalizeHostname(url.hostname);
   if (net.isIP(hostname)) {
     assertPublicAddress(hostname, hostname, stage);
-    return url;
+    return { url, addresses: [{ address: hostname, family: net.isIP(hostname) }] };
   }
   let addresses: LookupAddress[];
   try {
@@ -76,24 +92,24 @@ export async function validatePublicHttpUrl(
   for (const { address } of addresses) {
     assertPublicAddress(address, hostname, stage);
   }
-  return url;
+  return { url, addresses };
 }
 
 export async function fetchPublicHttpUrl(
   raw: string,
   init: RequestInit,
-  options: ValidatePublicHttpUrlOptions & { fetch?: typeof fetch; maxRedirects?: number; signal?: AbortSignal } = {},
+  options: ValidatePublicHttpUrlOptions & { request?: PublicHttpRequest; maxRedirects?: number; signal?: AbortSignal } = {},
 ): Promise<{ response: Response; finalUrl: string }> {
   const stage = options.stage ?? "web/fetch";
-  const fetchImpl = options.fetch ?? fetch;
+  const request = options.request ?? requestPinnedPublicHttpUrl;
   const maxRedirects = options.maxRedirects ?? MAX_WEB_REDIRECTS;
-  let current = await validatePublicHttpUrl(raw, options);
+  let current = await resolvePublicHttpUrl(raw, options);
   let requestInit: RequestInit = { ...init, redirect: "manual" };
 
   for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
     let response: Response;
     try {
-      response = await fetchImpl(current, requestInit);
+      response = await request(current.url, requestInit, current.addresses);
     } catch (error) {
       if (options.signal?.aborted || isAbortError(error)) {
         throw new WebResearchError(stage, "The request was aborted.", false);
@@ -102,28 +118,106 @@ export async function fetchPublicHttpUrl(
       throw new WebResearchError(stage, `Network request failed: ${message}`, true);
     }
     if (!REDIRECT_STATUSES.has(response.status)) {
-      return { response, finalUrl: current.toString() };
+      return { response, finalUrl: current.url.toString() };
     }
     const location = response.headers.get("location");
     if (!location) {
-      return { response, finalUrl: current.toString() };
+      return { response, finalUrl: current.url.toString() };
     }
     if (redirects === maxRedirects) {
-      throw new WebResearchError(stage, `Too many redirects fetching ${current.toString()}`, false);
+      await response.body?.cancel();
+      throw new WebResearchError(stage, `Too many redirects fetching ${current.url.toString()}`, false);
     }
     let next: URL;
     try {
-      next = new URL(location, current);
+      next = new URL(location, current.url);
     } catch {
       throw new WebResearchError(stage, "Redirect target is not a valid URL.", false);
     }
-    current = await validatePublicHttpUrl(next, options);
+    await response.body?.cancel();
+    current = await resolvePublicHttpUrl(next, options);
     if (response.status === 303) {
       const { body: _body, ...rest } = requestInit;
       requestInit = { ...rest, method: "GET" };
     }
   }
-  throw new WebResearchError(stage, `Too many redirects fetching ${current.toString()}`, false);
+  throw new WebResearchError(stage, `Too many redirects fetching ${current.url.toString()}`, false);
+}
+
+async function requestPinnedPublicHttpUrl(
+  url: URL,
+  init: RequestInit,
+  approvedAddresses: readonly LookupAddress[],
+): Promise<Response> {
+  if (init.body !== undefined && init.body !== null) {
+    throw new WebResearchError("web/fetch", "Request bodies are unavailable for public web research.", false);
+  }
+  const headers = new Headers(init.headers);
+  const requestHeaders: Record<string, string> = {};
+  for (const [name, value] of headers.entries()) {
+    requestHeaders[name] = value;
+  }
+  const lookup = createPinnedLookup(approvedAddresses);
+  const requestImpl = url.protocol === "https:" ? https.request : http.request;
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = requestImpl(
+      url,
+      {
+        method: init.method ?? "GET",
+        headers: requestHeaders,
+        lookup,
+        signal: init.signal ?? undefined,
+      },
+      (incoming) => {
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(incoming.headers)) {
+          if (Array.isArray(value)) {
+            for (const item of value) {
+              responseHeaders.append(name, item);
+            }
+          } else if (value !== undefined) {
+            responseHeaders.set(name, value);
+          }
+        }
+        const body = Readable.toWeb(incoming) as ReadableStream<Uint8Array>;
+        resolve(
+          new Response(body, {
+            status: incoming.statusCode ?? 500,
+            statusText: incoming.statusMessage ?? "",
+            headers: responseHeaders,
+          }),
+        );
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
+}
+
+function createPinnedLookup(approvedAddresses: readonly LookupAddress[]): LookupFunction {
+  const addresses = approvedAddresses.map(({ address, family }) => ({
+    address,
+    family: family === 6 ? 6 : 4,
+  })) as Array<{ address: string; family: 4 | 6 }>;
+
+  return ((_hostname, options, callback) => {
+    const resolvedOptions = typeof options === "number" ? { family: options, all: false } : options;
+    const requestedFamily = resolvedOptions.family === 4 || resolvedOptions.family === 6 ? resolvedOptions.family : 0;
+    const candidates = requestedFamily === 0 ? addresses : addresses.filter((entry) => entry.family === requestedFamily);
+    if (candidates.length === 0) {
+      const error = new Error("No approved address matches the requested address family.") as NodeJS.ErrnoException;
+      error.code = "ENOTFOUND";
+      callback(error, undefined as never);
+      return;
+    }
+    if (resolvedOptions.all) {
+      callback(null, candidates as never);
+      return;
+    }
+    const selected = candidates[0];
+    callback(null, selected?.address as never, selected?.family as never);
+  }) as LookupFunction;
 }
 
 export function combineAbortSignals(signal: AbortSignal | undefined, timeoutMs = WEB_REQUEST_TIMEOUT_MS): AbortSignal {

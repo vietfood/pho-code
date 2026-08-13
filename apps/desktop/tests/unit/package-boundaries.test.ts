@@ -36,14 +36,21 @@ describe("workspace package dependency graph", () => {
     expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
       "@earendil-works/pi-ai",
       "@earendil-works/pi-coding-agent",
+      "@ff-labs/fff-node",
       "@gotgenes/pi-permission-system",
+      "@mozilla/readability",
       "@pho-code/protocol",
+      "linkedom",
+      "turndown",
     ]);
   });
 
   test("ui depends on protocol and small UI libraries, not application or runtime", async () => {
     const manifest = await readPackage("packages/ui");
     expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@dnd-kit/utilities",
       "@pho-code/protocol",
       "class-variance-authority",
       "katex",

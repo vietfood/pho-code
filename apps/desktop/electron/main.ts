@@ -39,6 +39,7 @@ import {
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
+import { decodePastedImageBase64 } from "./image-base64";
 import {
   createDefaultFeatureManifest,
   createNodeModuleResourceLocator,
@@ -480,7 +481,7 @@ async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesRe
       if (data.trim() === "") {
         continue;
       }
-      prepared.push(await ingestImageBytes(Buffer.from(data, "base64"), name, "pasteImages"));
+      prepared.push(await ingestImageBytes(decodePastedImageBase64(data), name, "pasteImages"));
     }
     if (prepared.length === 0) {
       throw createHarnessError({
