@@ -1,6 +1,6 @@
 # Milestone 2 code and UX review
 
-> Historical acceptance record. Later decisions supersede its forward-looking scope; use [`../current-state.md`](../current-state.md), [`milestone-3-code-review.md`](./milestone-3-code-review.md), and [`../implementation-plan.md`](../implementation-plan.md) for the active product model.
+> Historical acceptance record. Later decisions supersede its forward-looking scope; use [`milestone-3-code-review.md`](./milestone-3-code-review.md) and [`../implementation-plan.md`](../implementation-plan.md) for the later v1 record, and [`../../../current-state.md`](../../../current-state.md) for active direction.
 
 Reviewed on 2026-08-13 against the current source tree, the owner-provided real-provider screenshot, the existing focused verification records, and a lightweight lint/typecheck recheck.
 

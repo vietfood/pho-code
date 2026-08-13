@@ -179,7 +179,7 @@ The first usable v1 satisfies the nine criteria in the root README and additiona
 
 ## Decisions deferred beyond v1
 
-These do not block or reopen v1. They belong to the [next-version roadmap](./roadmap-vnext.md):
+These do not block or reopen v1. They belong to the active [next-version roadmap](../../roadmap-vnext.md):
 
 - exact visual identity and icon;
 - richer provider login beyond the implemented API-key import;

@@ -1,6 +1,6 @@
 # Milestone 0 code review
 
-> Historical acceptance record. Current product philosophy and forward sequencing live in [`../current-state.md`](../current-state.md), [`../product-v1.md`](../product-v1.md), and [`../implementation-plan.md`](../implementation-plan.md).
+> Historical acceptance record. The archived v1 product and plan live in [`../product-v1.md`](../product-v1.md) and [`../implementation-plan.md`](../implementation-plan.md); current direction lives in [`../../../current-state.md`](../../../current-state.md).
 
 Review date: 2026-08-13
 
