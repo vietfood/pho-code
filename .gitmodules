@@ -1,0 +1,9 @@
+[submodule "refs/pi-web"]
+	path = refs/pi-web
+	url = https://github.com/agegr/pi-web
+[submodule "refs/pi-gui"]
+	path = refs/pi-gui
+	url = https://github.com/minghinmatthewlam/pi-gui
+[submodule "refs/t3code"]
+	path = refs/t3code
+	url = https://github.com/pingdotgg/t3code
