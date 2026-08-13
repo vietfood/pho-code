@@ -21,6 +21,13 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
     const page = await harness.firstWindow();
     await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
     await expect(page.getByTestId("add-project")).toBeVisible();
+    await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
+    await page.getByTestId("toggle-sidebar").click();
+    await expect(page.getByTestId("app-sidebar")).toHaveCount(0);
+    await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
+    await page.getByTestId("toggle-sidebar").click();
+    await expect(page.getByTestId("app-sidebar")).toBeVisible();
+    await expect(page.getByTestId("add-project")).toBeVisible();
 
     const security = await harness.electronApp.evaluate(async ({ app, BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
@@ -92,12 +99,20 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "listWorkspaceSessions",
       "openRecentWorkspace",
       "openSession",
+      "pasteImages",
+      "pickImages",
       "pickWorkspace",
+      "queueFollowUp",
+      "removePreparedImage",
+      "reorderRecentWorkspaces",
       "resolveHostDialog",
+      "searchWorkspaceReferences",
       "sendPrompt",
       "setSessionModel",
       "setThinkingLevel",
+      "steerRun",
       "subscribe",
+      "trustProjectPermissionRules",
       "updateAppearanceSettings",
       "updatePermissionSettings",
     ]);

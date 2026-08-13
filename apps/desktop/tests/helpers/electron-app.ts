@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { _electron as electron, type ElectronApplication, type Page } from "playwright";
+import { expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
 import { recoverablyRemoveOwnedTempFixture, TEST_FIXTURE_PREFIX } from "./owned-temp-path";
 
 const desktopDir = dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
@@ -67,6 +67,15 @@ Leave a short note when this skill is relevant.
 
 export async function removeTestDirectory(directory: string): Promise<void> {
   await recoverablyRemoveOwnedTempFixture(directory);
+}
+
+export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Promise<void> {
+  const toggle = page.getByTestId("work-log-toggle").nth(priorToggleCount);
+  await expect(toggle).toContainText(/Worked(?: for)?/u, { timeout: 20_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
 }
 
 function desktopLaunchEnv(userDataDir: string, extraEnv: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {

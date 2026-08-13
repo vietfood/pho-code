@@ -127,6 +127,10 @@ export function generateThirdPartyNotices(): string {
     readNoticePackage("@earendil-works/pi-ai"),
     readNoticePackage(PERMISSION_PACKAGE_NAME),
     ...PERMISSION_RUNTIME_DEPS.map((name) => readNoticePackage(name, permissionManifest)),
+    readNoticePackage("@ff-labs/fff-node"),
+    readNoticePackage("@mozilla/readability"),
+    readNoticePackage("linkedom"),
+    readNoticePackage("turndown"),
   ];
   const sections = [
     "# Third-party notices",

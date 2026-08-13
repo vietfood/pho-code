@@ -1,6 +1,10 @@
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { contentSecurityPolicy, isSafeExternalUrl } from "../../electron/security-policy";
+import {
+  contentSecurityPolicy,
+  isAllowedWebPermission,
+  isSafeExternalUrl,
+} from "../../electron/security-policy";
 import {
   isTrustedRendererUrl,
   isTrustedSenderFrame,
@@ -85,6 +89,7 @@ describe("security policy", () => {
     expect(csp).toContain("script-src 'self'");
     expect(csp).not.toContain("unsafe-eval");
     expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("img-src 'self' data: https: http:");
   });
 
   test("rejects non-http(s) and credentialed external URLs", () => {
@@ -92,5 +97,12 @@ describe("security policy", () => {
     expect(isSafeExternalUrl("file:///etc/passwd")).toBe(false);
     expect(isSafeExternalUrl("javascript:alert(1)")).toBe(false);
     expect(isSafeExternalUrl("https://user:pass@example.com/")).toBe(false);
+  });
+
+  test("allows only clipboard-sanitized-write among Chromium permissions", () => {
+    expect(isAllowedWebPermission("clipboard-sanitized-write")).toBe(true);
+    expect(isAllowedWebPermission("clipboard-read")).toBe(false);
+    expect(isAllowedWebPermission("media")).toBe(false);
+    expect(isAllowedWebPermission("geolocation")).toBe(false);
   });
 });
