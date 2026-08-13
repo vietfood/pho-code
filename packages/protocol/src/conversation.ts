@@ -1,5 +1,7 @@
+import type { ImageMimeType } from "./attachments";
 import type { HarnessError } from "./errors";
 import type { FeatureSnapshot } from "./resources";
+import type { WorkspaceReferenceToken } from "./retrieval";
 import type { ModelSummary, SessionSummary, ThinkingLevel, WorkspaceSummary } from "./workspace";
 
 export type TranscriptRole = "user" | "assistant";
@@ -27,7 +29,46 @@ export interface TranscriptToolBlock {
   outputPreview: string;
 }
 
-export type TranscriptBlock = TranscriptTextBlock | TranscriptThinkingBlock | TranscriptToolBlock;
+/** Reopened/admitted image placeholder. Never includes bytes or an absolute path. */
+export interface TranscriptImageBlock {
+  type: "image";
+  name: string;
+  mimeType: ImageMimeType;
+}
+
+export type TranscriptBlock =
+  | TranscriptTextBlock
+  | TranscriptThinkingBlock
+  | TranscriptToolBlock
+  | TranscriptImageBlock;
+
+export const QUEUE_MODES = ["all", "one-at-a-time"] as const;
+
+export type QueueMode = (typeof QUEUE_MODES)[number];
+
+export function isQueueMode(value: unknown): value is QueueMode {
+  return value === "all" || value === "one-at-a-time";
+}
+
+export interface QueueMessagePreview {
+  text: string;
+}
+
+export interface SessionQueueState {
+  steering: QueueMessagePreview[];
+  followUp: QueueMessagePreview[];
+  steeringMode: QueueMode;
+  followUpMode: QueueMode;
+}
+
+export function emptyQueueState(): SessionQueueState {
+  return {
+    steering: [],
+    followUp: [],
+    steeringMode: "all",
+    followUpMode: "all",
+  };
+}
 
 export interface TranscriptMessage {
   id: string;
@@ -102,6 +143,7 @@ export interface SessionSnapshot {
   modelError?: string;
   contextUsage?: ContextUsageSummary;
   usage?: SessionUsageSummary;
+  queue?: SessionQueueState;
 }
 
 export interface PromptAdmission {
@@ -124,6 +166,33 @@ export interface CreateSessionInput {
 export interface SendPromptInput {
   sessionId: string;
   text: string;
+  /** Optional extra workspace-relative paths. Inline `@path` mentions in `text` are also extracted. */
+  references?: WorkspaceReferenceToken[];
+  /** Prepared image ids from `pickImages` / `pasteImages`. Dropped after successful admission. */
+  imageIds?: string[];
+}
+
+export interface SteerRunInput {
+  sessionId: string;
+  runId: string;
+  text: string;
+  references?: WorkspaceReferenceToken[];
+  imageIds?: string[];
+}
+
+export interface QueueFollowUpInput {
+  sessionId: string;
+  runId: string;
+  text: string;
+  references?: WorkspaceReferenceToken[];
+  imageIds?: string[];
+}
+
+export interface QueueAdmission {
+  sessionId: string;
+  runId: string;
+  admitted: boolean;
+  queue: SessionQueueState;
 }
 
 export interface AbortRunInput {
@@ -137,6 +206,10 @@ export interface OpenRecentWorkspaceInput {
 
 export interface ListWorkspaceSessionsInput {
   workspaceId: string;
+}
+
+export interface ReorderRecentWorkspacesInput {
+  workspaceIds: string[];
 }
 
 export interface SetSessionModelInput {

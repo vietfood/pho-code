@@ -6,10 +6,16 @@ export const PROTOCOL_COMMANDS = {
   getBootstrapState: "getBootstrapState",
   pickWorkspace: "pickWorkspace",
   openRecentWorkspace: "openRecentWorkspace",
+  reorderRecentWorkspaces: "reorderRecentWorkspaces",
   listWorkspaceSessions: "listWorkspaceSessions",
   createSession: "createSession",
   openSession: "openSession",
   sendPrompt: "sendPrompt",
+  steerRun: "steerRun",
+  queueFollowUp: "queueFollowUp",
+  pickImages: "pickImages",
+  pasteImages: "pasteImages",
+  removePreparedImage: "removePreparedImage",
   abortRun: "abortRun",
   setSessionModel: "setSessionModel",
   setThinkingLevel: "setThinkingLevel",
@@ -17,8 +23,10 @@ export const PROTOCOL_COMMANDS = {
   getSettings: "getSettings",
   updateAppearanceSettings: "updateAppearanceSettings",
   updatePermissionSettings: "updatePermissionSettings",
+  trustProjectPermissionRules: "trustProjectPermissionRules",
   listCredentialProviders: "listCredentialProviders",
   importProviderApiKey: "importProviderApiKey",
+  searchWorkspaceReferences: "searchWorkspaceReferences",
 } as const;
 
 export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOCOL_COMMANDS];

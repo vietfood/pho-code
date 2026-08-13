@@ -1,15 +1,20 @@
 import type { BootstrapState } from "./bootstrap";
+import type { PasteImagesInput, PickImagesResult, RemovePreparedImageInput } from "./attachments";
 import type {
   AbortRunInput,
   CreateSessionInput,
   ListWorkspaceSessionsInput,
   OpenRecentWorkspaceInput,
   OpenSessionInput,
+  ReorderRecentWorkspacesInput,
   PromptAdmission,
+  QueueAdmission,
+  QueueFollowUpInput,
   SendPromptInput,
   SessionSnapshot,
   SetSessionModelInput,
   SetThinkingLevelInput,
+  SteerRunInput,
 } from "./conversation";
 import type {
   CredentialProviderSummary,
@@ -18,21 +23,28 @@ import type {
 } from "./credentials";
 import type { RuntimeEventEnvelope, Unsubscribe } from "./events";
 import type { ResolveHostDialogInput } from "./resources";
+import type { SearchWorkspaceReferencesInput, SearchWorkspaceReferencesResult } from "./retrieval";
 import type {
   HarnessSettingsSnapshot,
   UpdateAppearanceSettingsInput,
   UpdatePermissionSettingsInput,
 } from "./settings";
-import type { SessionSummary, WorkspaceSnapshot } from "./workspace";
+import type { RecentWorkspaceRecord, SessionSummary, WorkspaceSnapshot } from "./workspace";
 
 export interface DesktopBridge {
   getBootstrapState(): Promise<BootstrapState>;
   pickWorkspace(): Promise<WorkspaceSnapshot | null>;
   openRecentWorkspace(input: OpenRecentWorkspaceInput): Promise<WorkspaceSnapshot>;
+  reorderRecentWorkspaces(input: ReorderRecentWorkspacesInput): Promise<RecentWorkspaceRecord[]>;
   listWorkspaceSessions(input: ListWorkspaceSessionsInput): Promise<SessionSummary[]>;
   createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
   openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
+  steerRun(input: SteerRunInput): Promise<QueueAdmission>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
+  pickImages(): Promise<PickImagesResult>;
+  pasteImages(input?: PasteImagesInput): Promise<PickImagesResult>;
+  removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
@@ -40,7 +52,9 @@ export interface DesktopBridge {
   getSettings(): Promise<HarnessSettingsSnapshot>;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
+  trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
 }
