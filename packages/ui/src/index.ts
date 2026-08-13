@@ -8,7 +8,15 @@ export { DiagnosticsPanel } from "./diagnostics-panel";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ToolRow } from "./tool-row";
+export { WorkLogToggle } from "./work-log-toggle";
 export {
+  countWorkBlocks,
+  formatWorkDuration,
+  groupTranscriptSegments,
+  workedForLabel,
+} from "./lib/work-log";
+export {
+  buildToolExpandedSections,
   toolWorkEntryHeading,
   toolWorkEntryIcon,
   toolWorkEntryPreview,

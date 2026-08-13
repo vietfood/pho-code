@@ -1,10 +1,11 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "./lib/cn";
+import { ConservativeMarkdown } from "./markdown";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 // Thinking work-entry row adapted from refs/t3code MessagesTimeline.tsx tone:"thinking"
-// PlainWorkEntryRow (MIT, T3 Tools Inc., 6bc6cb6).
+// PlainWorkEntryRow (MIT, T3 Tools Inc., 6bc6cb6). Expanded body uses harness markdown.
 
 export function ThinkingBlock({
   text,
@@ -19,25 +20,35 @@ export function ThinkingBlock({
   const preview = text.replace(/\s+/gu, " ").trim();
   const shortPreview = preview.length > 100 ? `${preview.slice(0, 97)}…` : preview;
 
+  useEffect(() => {
+    if (live) {
+      setExpanded(true);
+      return;
+    }
+    if (open === false) {
+      setExpanded(false);
+    }
+  }, [live, open]);
+
   return (
-    <div
-      className={cn(
-        "thinking-block flex flex-col rounded-md px-0.5 py-0.5 transition-colors motion-reduce:transition-none",
-        "cursor-pointer hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
-      )}
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
-      data-testid={live ? "thinking-status" : "thinking-block"}
-      onClick={() => setExpanded((value) => !value)}
-      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          setExpanded((value) => !value);
-        }
-      }}
-    >
-      <div className="flex select-none items-center gap-1.5">
+    <div className="thinking-block flex flex-col rounded-md px-0.5 py-0.5">
+      <div
+        className={cn(
+          "flex cursor-pointer select-none items-center gap-1.5 rounded-md transition-colors motion-reduce:transition-none",
+          "hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
+        )}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        data-testid={live ? "thinking-status" : "thinking-block"}
+        onClick={() => setExpanded((value) => !value)}
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setExpanded((value) => !value);
+          }
+        }}
+      >
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground">
           <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
         </span>
@@ -71,10 +82,22 @@ export function ThinkingBlock({
         </div>
       </div>
       {expanded ? (
-        <div className="thinking-block-body mt-1 ms-7 border-s border-border/45 ps-3 pt-0.5">
-          <p className="m-0 whitespace-pre-wrap text-[12px] leading-relaxed text-secondary-label">{text}</p>
+        <div
+          className="thinking-block-body mt-1 ms-7 border-s border-border/45 ps-3 pt-0.5"
+          onClick={stopRowToggle}
+          onPointerDown={stopRowToggle}
+        >
+          <ConservativeMarkdown
+            text={text}
+            isStreaming={live}
+            className="chat-markdown-dense text-[12px] leading-relaxed text-secondary-label"
+          />
         </div>
       ) : null}
     </div>
   );
+}
+
+function stopRowToggle(event: MouseEvent<HTMLDivElement>): void {
+  event.stopPropagation();
 }

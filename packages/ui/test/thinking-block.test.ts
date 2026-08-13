@@ -12,5 +12,21 @@ describe("thinking block", () => {
     expect(markup).toContain("I should inspect the docs first.");
     expect(markup).toContain('data-testid="thinking-block"');
     expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('data-testid="markdown"');
+  });
+
+  test("renders sanitized markdown when expanded", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ThinkingBlock, {
+        open: true,
+        text: "Check **docs** and `tool-row.tsx`.\n\n- parse input\n- split output",
+      }),
+    );
+    expect(markup).toContain('data-testid="markdown"');
+    expect(markup).toContain("chat-markdown-dense");
+    expect(markup).toContain("<strong>");
+    expect(markup).toContain("<code>");
+    expect(markup).toContain("<li>");
+    expect(markup).not.toContain("<script");
   });
 });

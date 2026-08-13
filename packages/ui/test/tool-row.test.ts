@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { ToolRow } from "../src/tool-row";
-import { toolWorkEntryHeading, toolWorkEntryIcon, toolWorkEntryPreview } from "../src/tool-presentation";
+import {
+  buildToolExpandedSections,
+  toolWorkEntryHeading,
+  toolWorkEntryIcon,
+  toolWorkEntryPreview,
+} from "../src/tool-presentation";
 import type { TranscriptToolBlock } from "@pho-code/protocol";
 
 const block: TranscriptToolBlock = {
@@ -22,6 +27,57 @@ describe("tool presentation", () => {
     expect(toolWorkEntryIcon("read")).toBe("eye");
     expect(toolWorkEntryPreview("bash", '{"command":"ls -la docs"}', "")).toBe("ls -la docs");
   });
+
+  test("parses shell input into a command section without raw JSON", () => {
+    const sections = buildToolExpandedSections(
+      "bash",
+      '{"command":"git diff packages/ui/src/tool-row.tsx"}',
+      "diff --git a/tool-row.tsx",
+    );
+    expect(sections).toEqual([
+      {
+        id: "input",
+        label: "Command",
+        language: "bash",
+        text: "git diff packages/ui/src/tool-row.tsx",
+      },
+      {
+        id: "output",
+        label: "Output",
+        language: "text",
+        text: "diff --git a/tool-row.tsx",
+      },
+    ]);
+    expect(sections[0]?.text).not.toContain("{");
+  });
+
+  test("pretty-prints multi-field JSON input and JSON output", () => {
+    const sections = buildToolExpandedSections(
+      "edit",
+      '{"path":"a.ts","old_string":"x","new_string":"y"}',
+      '{"ok":true}',
+    );
+    expect(sections[0]).toMatchObject({ id: "input", label: "Input", language: "json" });
+    expect(sections[0]?.text).toContain('"path": "a.ts"');
+    expect(sections[1]).toEqual({
+      id: "output",
+      label: "Output",
+      language: "json",
+      text: '{\n  "ok": true\n}',
+    });
+  });
+
+  test("uses a path label for single-field read input", () => {
+    const sections = buildToolExpandedSections("read", '{"path":"docs/plans/conversation-ui.md"}', "");
+    expect(sections).toEqual([
+      {
+        id: "input",
+        label: "Path",
+        language: "text",
+        text: "docs/plans/conversation-ui.md",
+      },
+    ]);
+  });
 });
 
 describe("tool row", () => {
@@ -31,7 +87,18 @@ describe("tool row", () => {
     expect(markup).toContain("ls -la docs");
     expect(markup).toContain('data-testid="tool-card"');
     expect(markup).toContain('aria-label="Completed"');
-    expect(markup).not.toContain("<pre");
+    expect(markup).not.toContain('data-testid="tool-detail"');
     expect(markup).toContain('aria-expanded="false"');
+  });
+
+  test("expanded shell body shows labeled command and output panels", () => {
+    const markup = renderToStaticMarkup(createElement(ToolRow, { block, open: true }));
+    expect(markup).toContain('data-testid="tool-detail"');
+    expect(markup).toContain("Command");
+    expect(markup).toContain("Output");
+    expect(markup).toContain("$ ls -la docs");
+    expect(markup).toContain("ok");
+    expect(markup).not.toContain('{"command"');
+    expect(markup).toContain('data-language="bash"');
   });
 });

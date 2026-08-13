@@ -410,6 +410,44 @@
   font-weight: 600;
 }
 
+/* Denser markdown for expanded thinking rows. */
+.chat-markdown.chat-markdown-dense {
+  font-size: 0.75rem;
+  line-height: 1.625;
+  color: var(--secondary-label, var(--muted-foreground));
+}
+
+.chat-markdown.chat-markdown-dense p,
+.chat-markdown.chat-markdown-dense ul,
+.chat-markdown.chat-markdown-dense ol,
+.chat-markdown.chat-markdown-dense blockquote,
+.chat-markdown.chat-markdown-dense pre,
+.chat-markdown.chat-markdown-dense .chat-markdown-table-container,
+.chat-markdown.chat-markdown-dense .chat-markdown-codeblock,
+.chat-markdown.chat-markdown-dense .chat-markdown-mermaid {
+  margin: 0.35rem 0;
+}
+
+.chat-markdown.chat-markdown-dense h1,
+.chat-markdown.chat-markdown-dense h2,
+.chat-markdown.chat-markdown-dense h3,
+.chat-markdown.chat-markdown-dense h4,
+.chat-markdown.chat-markdown-dense h5,
+.chat-markdown.chat-markdown-dense h6 {
+  margin: 0.55rem 0 0.3rem;
+  font-size: 0.75rem;
+  color: var(--secondary-label, var(--muted-foreground));
+}
+
+.chat-markdown.chat-markdown-dense :not(pre) > code {
+  font-size: 0.6875rem;
+}
+
+.chat-markdown.chat-markdown-dense pre code,
+.chat-markdown.chat-markdown-dense .chat-markdown-shiki code {
+  font-size: 0.6875rem;
+}
+
 .chat-composer-shell::before {
   pointer-events: none;
   position: absolute;

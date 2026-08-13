@@ -10,6 +10,15 @@ export type WorkEntryIconName =
   | "wrench"
   | "bot";
 
+export type ToolPayloadLanguage = "bash" | "json" | "text";
+
+export interface ToolExpandedSection {
+  id: "input" | "output";
+  label: string;
+  language: ToolPayloadLanguage;
+  text: string;
+}
+
 export function capitalizePhrase(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
@@ -80,19 +89,160 @@ export function toolWorkEntryPreview(name: string, inputPreview: string, outputP
   return compactOneLine(inputPreview);
 }
 
-export function buildToolExpandedBody(inputPreview: string, outputPreview: string): string | null {
-  const blocks: string[] = [];
-  if (inputPreview.trim()) {
-    blocks.push(inputPreview.trim());
+export function buildToolExpandedSections(
+  name: string,
+  inputPreview: string,
+  outputPreview: string,
+): ToolExpandedSection[] {
+  const sections: ToolExpandedSection[] = [];
+  const input = formatToolInput(name, inputPreview);
+  if (input) {
+    sections.push({
+      id: "input",
+      label: input.label,
+      language: input.language,
+      text: input.text,
+    });
   }
-  if (outputPreview.trim()) {
-    blocks.push(outputPreview.trim());
+  const output = formatToolOutput(outputPreview);
+  if (output) {
+    sections.push({
+      id: "output",
+      label: "Output",
+      language: output.language,
+      text: output.text,
+    });
   }
-  return blocks.length > 0 ? blocks.join("\n\n") : null;
+  return sections;
+}
+
+function formatToolInput(
+  name: string,
+  inputPreview: string,
+): { label: string; language: ToolPayloadLanguage; text: string } | null {
+  const trimmed = inputPreview.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = tryParseJson(trimmed);
+  if (parsed && isPlainObject(parsed)) {
+    const key = normalizeToolName(name);
+    if (isShellTool(key)) {
+      const command = firstString(parsed, ["command", "cmd"]);
+      if (command) {
+        return { label: "Command", language: "bash", text: command };
+      }
+    }
+
+    const primary = primaryToolField(key, parsed);
+    if (primary) {
+      const remainingKeys = Object.keys(parsed).filter((field) => field !== primary.field);
+      if (remainingKeys.length === 0) {
+        return {
+          label: labelForField(primary.field),
+          language: primary.language,
+          text: primary.value,
+        };
+      }
+    }
+
+    return {
+      label: "Input",
+      language: "json",
+      text: JSON.stringify(parsed, null, 2),
+    };
+  }
+
+  if (typeof parsed === "string") {
+    return {
+      label: isShellTool(normalizeToolName(name)) ? "Command" : "Input",
+      language: isShellTool(normalizeToolName(name)) ? "bash" : "text",
+      text: parsed,
+    };
+  }
+
+  return { label: "Input", language: "text", text: trimmed };
+}
+
+function formatToolOutput(outputPreview: string): { language: ToolPayloadLanguage; text: string } | null {
+  const trimmed = outputPreview.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = tryParseJson(trimmed);
+  if (parsed !== undefined && (isPlainObject(parsed) || Array.isArray(parsed))) {
+    return { language: "json", text: JSON.stringify(parsed, null, 2) };
+  }
+  return { language: "text", text: trimmed };
+}
+
+function primaryToolField(
+  toolKey: string,
+  record: Record<string, unknown>,
+): { field: string; value: string; language: ToolPayloadLanguage } | null {
+  const pathFields = ["path", "file_path", "filePath", "filename"];
+  const queryFields = ["query", "pattern", "glob", "url"];
+  const ordered =
+    toolKey === "read" ||
+    toolKey.includes("read") ||
+    toolKey === "write" ||
+    toolKey === "edit" ||
+    toolKey.includes("write") ||
+    toolKey.includes("str_replace") ||
+    toolKey.includes("apply_patch")
+      ? [...pathFields, ...queryFields, "command", "cmd"]
+      : toolKey.includes("grep") ||
+          toolKey.includes("search") ||
+          toolKey.includes("glob") ||
+          toolKey.includes("find") ||
+          toolKey.includes("web") ||
+          toolKey.includes("fetch")
+        ? [...queryFields, ...pathFields, "command", "cmd"]
+        : ["command", "cmd", ...pathFields, ...queryFields];
+
+  for (const field of ordered) {
+    const value = record[field];
+    if (typeof value === "string" && value.trim()) {
+      return {
+        field,
+        value,
+        language: field === "command" || field === "cmd" ? "bash" : "text",
+      };
+    }
+  }
+  return null;
+}
+
+function labelForField(field: string): string {
+  switch (field) {
+    case "command":
+    case "cmd":
+      return "Command";
+    case "path":
+    case "file_path":
+    case "filePath":
+    case "filename":
+      return "Path";
+    case "query":
+      return "Query";
+    case "pattern":
+      return "Pattern";
+    case "glob":
+      return "Glob";
+    case "url":
+      return "URL";
+    default:
+      return capitalizePhrase(field.replace(/_/gu, " "));
+  }
 }
 
 function normalizeToolName(name: string): string {
   return name.trim().replace(/^mcp__/u, "").replace(/_/gu, " ").toLowerCase();
+}
+
+function isShellTool(key: string): boolean {
+  return key === "bash" || key === "shell" || key.includes("terminal") || key.includes("exec");
 }
 
 function extractPreviewFromPayload(name: string, inputPreview: string): string | null {
@@ -120,10 +270,12 @@ function extractPreviewFromPayload(name: string, inputPreview: string): string |
         return compactOneLine(candidate);
       }
     }
-    if (key.includes("bash") || key.includes("shell")) {
-      const firstString = Object.values(parsed).find((value) => typeof value === "string" && value.trim());
-      if (typeof firstString === "string") {
-        return compactOneLine(firstString);
+    if (isShellTool(key)) {
+      const firstStringValue = Object.values(parsed).find(
+        (value) => typeof value === "string" && value.trim(),
+      );
+      if (typeof firstStringValue === "string") {
+        return compactOneLine(firstStringValue);
       }
     }
   } catch {
@@ -138,4 +290,26 @@ function compactOneLine(value: string): string | null {
     return null;
   }
   return compact.length > 120 ? `${compact.slice(0, 117)}…` : compact;
+}
+
+function tryParseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstString(record: Record<string, unknown>, fields: string[]): string | null {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+  return null;
 }

@@ -30,16 +30,14 @@ const sanitizeSchema = {
   },
 };
 
-function PlainCodeBlock({ language, className, text, ...props }: { language: string; className?: string; text: string } & Record<string, unknown>) {
+function PlainCodeBlock({ language, className, text }: { language: string; className?: string; text: string }) {
   return (
     <div className="chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32">
       <div className="chat-markdown-codeblock-header select-none">
         <span className="chat-markdown-codeblock-title">{language || "code"}</span>
       </div>
       <pre>
-        <code className={className} {...props}>
-          {text}
-        </code>
+        <code className={className}>{text}</code>
       </pre>
     </div>
   );
@@ -53,21 +51,21 @@ function createComponents(isStreaming: boolean): Components {
       }
       return <a href={href}>{children}</a>;
     },
-    code({ className, children, ...props }) {
+    code({ className, children }) {
       const text = String(children).replace(/\n$/u, "");
       const isBlock = Boolean(className) || text.includes("\n");
       if (!isBlock) {
-        return <code {...props}>{children}</code>;
+        return <code>{children}</code>;
       }
       const language = className?.replace(/^language-/u, "") ?? "";
       if (language === "mermaid") {
         if (isStreaming) {
-          return <PlainCodeBlock language={language} className={className} text={text} {...props} />;
+          return <PlainCodeBlock language={language} className={className} text={text} />;
         }
         return <MermaidDiagram source={text} />;
       }
       if (isStreaming) {
-        return <PlainCodeBlock language={language} className={className} text={text} {...props} />;
+        return <PlainCodeBlock language={language} className={className} text={text} />;
       }
       return (
         <div className="chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32">
