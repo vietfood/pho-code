@@ -4,7 +4,7 @@
 
 Active / partially implemented. Milestone 3 is accepted; this independent track continues to own conversation chrome on Pi. It does not expand Milestone 4's settings scope.
 
-Implemented slices: docs split, sanitized dense markdown, T3-faithful work-entry tool/thinking timeline, Cursor-inspired shell chrome (sidebar actions, soft panels, composer footer model/thinking selectors, user message chip, empty-session hero composer), collapsible project/session sidebar, `listWorkspaceSessions`, Pi model/thinking selectors, reduced-motion-safe working/streaming chrome, KaTeX math, Shiki code highlighting, and Mermaid diagrams.
+Implemented slices: docs split, sanitized dense markdown, T3-faithful work-entry tool/thinking timeline (including ordered live `run.work` segments so think → tool → think stays interleaved while streaming), Cursor-inspired shell chrome (sidebar actions, soft panels, composer footer model/thinking selectors, user message chip, empty-session hero composer), collapsible project/session sidebar, `listWorkspaceSessions`, Pi model/thinking selectors, reduced-motion-safe working/streaming chrome, KaTeX math, Shiki code highlighting, and Mermaid diagrams. Permission select/confirm dock dialogs confirm with Enter.
 
 Visual split: shell/sidebar/composer chrome is harness-owned Cursor-inspired language; the assistant timeline (thinking/tool rows, markdown density) remains T3-adapted.
 
@@ -108,7 +108,7 @@ When a live session has no messages and no active run, center a hero composer wi
 
 ## Verification
 
-- Unit: markdown sanitization (no raw HTML), KaTeX output without scripts, Mermaid streaming vs settled wrappers, thinking collapse defaults, sidebar grouping helpers when present, empty-session hero vs docked layout.
+- Unit: markdown sanitization (no raw HTML), KaTeX output without scripts, Mermaid streaming vs settled wrappers, thinking collapse defaults, interleaved streaming `run.work` (think → tool → think), Enter confirm for select/confirm dialogs, sidebar grouping helpers when present, empty-session hero vs docked layout.
 - Runtime/application: list sessions without runtime swap; model/thinking commands update snapshots.
 - Desktop: new empty session shows the centered composer; open two recents, expand both, switch session, stream markdown; About remains collapsed; reduced-motion still usable.
 - Attribution current.
