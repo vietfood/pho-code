@@ -1,12 +1,46 @@
-export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
-export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+export const APPEARANCE_PALETTES = [
+  "default",
+  "gruvbox",
+  "catppuccin",
+  "flexoki",
+  "github",
+  "one-dark",
+] as const;
+export type AppearancePalette = (typeof APPEARANCE_PALETTES)[number];
 
-export const PERMISSION_PROFILE_IDS = ["guarded", "balanced", "custom"] as const;
+export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
+export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
+
+/** Resolved light/dark after System follows the OS. */
+export type ResolvedAppearance = "light" | "dark";
+
+export const PERMISSION_PROFILE_IDS = ["guarded", "balanced", "developer", "custom"] as const;
 export type PermissionProfileId = (typeof PERMISSION_PROFILE_IDS)[number];
 export type ManagedPermissionProfileId = Exclude<PermissionProfileId, "custom">;
 
+/** Root rem base for chrome/UI. Narrow range keeps layout intact. */
+export const MIN_UI_FONT_SIZE = 12;
+export const MAX_UI_FONT_SIZE = 20;
+export const DEFAULT_UI_FONT_SIZE = 16;
+
+/** Absolute px size for chat transcript and composer text. */
+export const MIN_CHAT_FONT_SIZE = 12;
+export const MAX_CHAT_FONT_SIZE = 20;
+export const DEFAULT_CHAT_FONT_SIZE = 14;
+
+/** Frosted chrome strength when glass is enabled (0 = subtle, 100 = strong). */
+export const MIN_GLASS_STRENGTH = 0;
+export const MAX_GLASS_STRENGTH = 100;
+export const DEFAULT_GLASS_STRENGTH = 55;
+export const DEFAULT_GLASS_ENABLED = false;
+
 export interface AppearanceSettings {
-  theme: ThemePreference;
+  palette: AppearancePalette;
+  mode: AppearanceMode;
+  glassEnabled: boolean;
+  glassStrength: number;
+  uiFontSize: number;
+  chatFontSize: number;
 }
 
 export interface PermissionSettings {
@@ -14,6 +48,8 @@ export interface PermissionSettings {
   yoloMode: boolean;
   permissionReviewLog: boolean;
   projectOverridePresent: boolean;
+  projectPermissionRulesTrusted: boolean;
+  projectPermissionRulesRemembered: boolean;
   appliesToSharedPiAgentDir: boolean;
 }
 
@@ -23,7 +59,12 @@ export interface HarnessSettingsSnapshot {
 }
 
 export interface UpdateAppearanceSettingsInput {
-  theme: ThemePreference;
+  palette?: AppearancePalette;
+  mode?: AppearanceMode;
+  glassEnabled?: boolean;
+  glassStrength?: number;
+  uiFontSize?: number;
+  chatFontSize?: number;
 }
 
 export interface UpdatePermissionSettingsInput {
@@ -36,23 +77,176 @@ export interface PermissionStatusPayload {
   yoloMode: boolean;
 }
 
-export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === "system" || value === "light" || value === "dark";
+const PALETTE_SET = new Set<string>(APPEARANCE_PALETTES);
+const MODE_SET = new Set<string>(APPEARANCE_MODES);
+
+/** Palettes that only expose dark tokens. Light and System are unavailable. */
+const DARK_ONLY_PALETTES = new Set<AppearancePalette>(["one-dark"]);
+
+/** Opaque window fill colors for Electron chrome (hex). */
+const WINDOW_BACKGROUNDS: Record<AppearancePalette, Record<ResolvedAppearance, string>> = {
+  default: { light: "#fafafa", dark: "#0a0a0a" },
+  gruvbox: { light: "#fbf1c7", dark: "#282828" },
+  catppuccin: { light: "#eff1f5", dark: "#1e1e2e" },
+  flexoki: { light: "#fffcf0", dark: "#100f0f" },
+  github: { light: "#ffffff", dark: "#0d1117" },
+  "one-dark": { light: "#282c34", dark: "#282c34" },
+};
+
+export function isAppearancePalette(value: unknown): value is AppearancePalette {
+  return typeof value === "string" && PALETTE_SET.has(value);
+}
+
+export function isAppearanceMode(value: unknown): value is AppearanceMode {
+  return typeof value === "string" && MODE_SET.has(value);
 }
 
 export function isManagedPermissionProfileId(value: unknown): value is ManagedPermissionProfileId {
-  return value === "guarded" || value === "balanced";
+  return value === "guarded" || value === "balanced" || value === "developer";
+}
+
+export function isUiFontSize(value: unknown): value is number {
+  return isIntegerInRange(value, MIN_UI_FONT_SIZE, MAX_UI_FONT_SIZE);
+}
+
+export function isChatFontSize(value: unknown): value is number {
+  return isIntegerInRange(value, MIN_CHAT_FONT_SIZE, MAX_CHAT_FONT_SIZE);
+}
+
+export function isGlassStrength(value: unknown): value is number {
+  return isIntegerInRange(value, MIN_GLASS_STRENGTH, MAX_GLASS_STRENGTH);
+}
+
+export function clampUiFontSize(value: number): number {
+  return clampInteger(value, MIN_UI_FONT_SIZE, MAX_UI_FONT_SIZE, DEFAULT_UI_FONT_SIZE);
+}
+
+export function clampChatFontSize(value: number): number {
+  return clampInteger(value, MIN_CHAT_FONT_SIZE, MAX_CHAT_FONT_SIZE, DEFAULT_CHAT_FONT_SIZE);
+}
+
+export function clampGlassStrength(value: number): number {
+  return clampInteger(value, MIN_GLASS_STRENGTH, MAX_GLASS_STRENGTH, DEFAULT_GLASS_STRENGTH);
+}
+
+export function paletteSupportsMode(palette: AppearancePalette, mode: AppearanceMode): boolean {
+  if (!DARK_ONLY_PALETTES.has(palette)) {
+    return true;
+  }
+  return mode === "dark";
+}
+
+export function supportedAppearanceModes(palette: AppearancePalette): readonly AppearanceMode[] {
+  if (DARK_ONLY_PALETTES.has(palette)) {
+    return ["dark"];
+  }
+  return APPEARANCE_MODES;
+}
+
+/**
+ * Coerce palette/mode so dark-only palettes never keep light or system.
+ * Unknown values fall back to defaults before coercion.
+ */
+export function coerceAppearance(input: {
+  palette?: unknown;
+  mode?: unknown;
+}): Pick<AppearanceSettings, "palette" | "mode"> {
+  const palette = isAppearancePalette(input.palette) ? input.palette : "default";
+  let mode = isAppearanceMode(input.mode) ? input.mode : "system";
+  if (!paletteSupportsMode(palette, mode)) {
+    mode = "dark";
+  }
+  return { palette, mode };
+}
+
+/** Native/Electron themeSource for a stored mode after palette coercion. */
+export function nativeThemeSourceForAppearance(
+  palette: AppearancePalette,
+  mode: AppearanceMode,
+): AppearanceMode {
+  return coerceAppearance({ palette, mode }).mode;
+}
+
+export function resolveAppearanceMode(
+  mode: AppearanceMode,
+  prefersDark: boolean,
+): ResolvedAppearance {
+  switch (mode) {
+    case "light":
+      return "light";
+    case "dark":
+      return "dark";
+    case "system":
+      return prefersDark ? "dark" : "light";
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+export function windowBackgroundForAppearance(
+  palette: AppearancePalette,
+  resolved: ResolvedAppearance,
+): string {
+  const coerced = coerceAppearance({ palette, mode: resolved });
+  return WINDOW_BACKGROUNDS[coerced.palette][resolved];
+}
+
+/** CSS blur/opacity tokens derived from the glass strength slider. */
+export function glassCssTokens(strength: number): {
+  blurPx: number;
+  sidebarBlurPx: number;
+  opacityPercent: number;
+  sidebarOpacityPercent: number;
+  composerOpacityPercent: number;
+} {
+  const clamped = clampGlassStrength(strength);
+  const t = clamped / 100;
+  // Mild frost: macOS vibrancy already blurs the desktop. Keep fills readable so
+  // wallpaper tints chrome instead of dominating it. Composer sits between the
+  // main pane and a solid card so the input block visibly frosts.
+  const blurPx = Math.round(8 + t * 16);
+  const sidebarBlurPx = Math.round(blurPx * 1.2);
+  const opacityPercent = Math.round(84 - t * 20);
+  const sidebarOpacityPercent = Math.max(52, Math.round(opacityPercent - 12));
+  const composerOpacityPercent = Math.min(90, opacityPercent + 10);
+  return { blurPx, sidebarBlurPx, opacityPercent, sidebarOpacityPercent, composerOpacityPercent };
+}
+
+export function emptyAppearanceSettings(): AppearanceSettings {
+  return {
+    palette: "default",
+    mode: "system",
+    glassEnabled: DEFAULT_GLASS_ENABLED,
+    glassStrength: DEFAULT_GLASS_STRENGTH,
+    uiFontSize: DEFAULT_UI_FONT_SIZE,
+    chatFontSize: DEFAULT_CHAT_FONT_SIZE,
+  };
 }
 
 export function emptySettingsSnapshot(): HarnessSettingsSnapshot {
   return {
-    appearance: { theme: "system" },
+    appearance: emptyAppearanceSettings(),
     permission: {
       profile: "custom",
       yoloMode: false,
       permissionReviewLog: true,
       projectOverridePresent: false,
+      projectPermissionRulesTrusted: false,
+      projectPermissionRulesRemembered: false,
       appliesToSharedPiAgentDir: false,
     },
   };
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function clampInteger(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
