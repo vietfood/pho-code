@@ -14,10 +14,40 @@ describe("sanitized markdown", () => {
     expect(html).toContain("Title");
     expect(html).toContain("const ok = true;");
     expect(html).toContain("<strong>");
-    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('href="https://example.com/');
+    expect(html).toContain('data-testid="copy-code-block"');
+    expect(html).toContain('aria-label="Copy"');
     expect(html).not.toContain("<script");
     expect(html).not.toContain("javascript:");
     expect(html).not.toContain("alert(1)");
+  });
+
+  test("renders safe https and data images with markdown-image chrome", () => {
+    const tinyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        text: `![remote](https://example.com/shot.png)\n\n![embedded](${tinyPng})`,
+      }),
+    );
+    expect(html).toContain('data-testid="markdown-image"');
+    expect(html).toContain('src="https://example.com/shot.png"');
+    expect(html).toContain(`src="${tinyPng}"`);
+    expect(html).toContain('referrerPolicy="no-referrer"');
+    expect(html).not.toContain("<script");
+  });
+
+  test("rejects file, javascript, and relative markdown images", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        text: "![local](file:///tmp/a.png)\n\n![js](javascript:alert(1))\n\n![rel](./shot.png)",
+      }),
+    );
+    expect(html).not.toContain('src="file:');
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain('src="./shot.png"');
+    expect(html).not.toContain('data-testid="markdown-image"');
+    expect(html).toContain('data-testid="markdown-image-fallback"');
   });
 
   test("renders KaTeX for inline and display math without scripts", () => {

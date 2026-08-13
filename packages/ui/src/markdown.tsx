@@ -6,22 +6,27 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "./lib/cn";
+import { markdownUrlTransform, safeMarkdownImageSrc } from "./lib/safe-markdown-image-src";
+import { MarkdownCodeBlock } from "./markdown-codeblock";
+import { MarkdownImage } from "./markdown-image";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ShikiCodeBlock } from "./shiki-code";
 import "katex/dist/katex.min.css";
 
 // Chat markdown presentation adapted from refs/t3code ChatMarkdown.tsx + index.css
-// (MIT, T3 Tools Inc., 6bc6cb6). rehype-raw, file-link graph, and clipboard menus
-// omitted. Shiki highlighting adapted separately in shiki-code.tsx. KaTeX via
-// remark-math + rehype-katex after sanitize (official safe order).
+// (MIT, T3 Tools Inc., 6bc6cb6). rehype-raw and file-link graph omitted; code-block
+// copy uses harness CopyButton (T3 chrome pattern). Shiki highlighting adapted
+// separately in shiki-code.tsx. KaTeX via remark-math + rehype-katex after sanitize
+// (official safe order). Markdown images: http(s)/data only with lightbox;
+// workspace/file: deferred.
 
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
     href: ["http", "https"],
+    src: ["http", "https", "data"],
   },
-  tagNames: (defaultSchema.tagNames ?? []).filter((tag) => tag !== "img"),
   attributes: {
     ...defaultSchema.attributes,
     code: [...(defaultSchema.attributes?.code ?? []), ["className", /^language-/u, "math-inline", "math-display"]],
@@ -32,14 +37,20 @@ const sanitizeSchema = {
 
 function PlainCodeBlock({ language, className, text }: { language: string; className?: string; text: string }) {
   return (
-    <div className="chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32">
-      <div className="chat-markdown-codeblock-header select-none">
-        <span className="chat-markdown-codeblock-title">{language || "code"}</span>
-      </div>
+    <MarkdownCodeBlock language={language} text={text}>
       <pre>
         <code className={className}>{text}</code>
       </pre>
-    </div>
+    </MarkdownCodeBlock>
+  );
+}
+
+function ImageFallback({ alt }: { alt?: string }) {
+  const text = alt?.trim() || "Image unavailable";
+  return (
+    <span className="chat-markdown-image-fallback text-muted-foreground" data-testid="markdown-image-fallback">
+      {text}
+    </span>
   );
 }
 
@@ -50,6 +61,13 @@ function createComponents(isStreaming: boolean): Components {
         return <span>{children}</span>;
       }
       return <a href={href}>{children}</a>;
+    },
+    img({ src, alt }) {
+      const safeSrc = safeMarkdownImageSrc(typeof src === "string" ? src : null);
+      if (!safeSrc) {
+        return <ImageFallback alt={typeof alt === "string" ? alt : undefined} />;
+      }
+      return <MarkdownImage src={safeSrc} alt={typeof alt === "string" ? alt : ""} />;
     },
     code({ className, children }) {
       const text = String(children).replace(/\n$/u, "");
@@ -68,12 +86,9 @@ function createComponents(isStreaming: boolean): Components {
         return <PlainCodeBlock language={language} className={className} text={text} />;
       }
       return (
-        <div className="chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32">
-          <div className="chat-markdown-codeblock-header select-none">
-            <span className="chat-markdown-codeblock-title">{language || "code"}</span>
-          </div>
+        <MarkdownCodeBlock language={language} text={text}>
           <ShikiCodeBlock code={text} language={language} className={className} />
-        </div>
+        </MarkdownCodeBlock>
       );
     },
     pre({ children }) {
@@ -105,6 +120,7 @@ export function ConservativeMarkdown({
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        urlTransform={markdownUrlTransform}
         components={components}
       >
         {text}

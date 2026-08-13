@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useResolvedAppearance } from "./lib/use-resolved-appearance";
+import { MarkdownCodeBlock } from "./markdown-codeblock";
 
 type MermaidThemeName = "dark" | "default";
 
@@ -7,29 +9,8 @@ function preferredMermaidTheme(prefersDark: boolean): MermaidThemeName {
 }
 
 function useMermaidTheme(): MermaidThemeName {
-  const [theme, setTheme] = useState<MermaidThemeName>(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return "default";
-    }
-    return preferredMermaidTheme(window.matchMedia("(prefers-color-scheme: dark)").matches);
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      return;
-    }
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      setTheme(preferredMermaidTheme(media.matches));
-    };
-    onChange();
-    media.addEventListener("change", onChange);
-    return () => {
-      media.removeEventListener("change", onChange);
-    };
-  }, []);
-
-  return theme;
+  const appearance = useResolvedAppearance();
+  return preferredMermaidTheme(appearance === "dark");
 }
 
 async function renderMermaidSvg(source: string, theme: MermaidThemeName, renderId: string): Promise<string> {
@@ -77,14 +58,11 @@ export function MermaidDiagram({ source }: { source: string }) {
 
   if (failed) {
     return (
-      <div className="chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32">
-        <div className="chat-markdown-codeblock-header select-none">
-          <span className="chat-markdown-codeblock-title">mermaid</span>
-        </div>
+      <MarkdownCodeBlock language="mermaid" text={source}>
         <pre>
           <code className="language-mermaid">{source}</code>
         </pre>
-      </div>
+      </MarkdownCodeBlock>
     );
   }
 
