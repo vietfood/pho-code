@@ -45,7 +45,6 @@ import {
   type SetSessionModelInput,
   type SetThinkingLevelInput,
   type ThinkingLevel,
-  type ToolActivity,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
   type WorkspaceSnapshot,
@@ -60,7 +59,7 @@ import {
   type HarnessFeatureManifest,
 } from "./features";
 import type { HarnessRuntime, InspectWorkspaceInput } from "./harness-runtime";
-import { previewText, previewUnknown } from "./preview";
+import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
 import { applyPermissionSettingsPatch, readPermissionSettings } from "./permission-settings";
@@ -267,8 +266,7 @@ export async function createPhoCodeRuntime(
           runId: activeRun.runId,
           status: activeRun.abortRequested ? ("cancelled" as const) : ("streaming" as const),
           streamingText: "",
-          thinkingText: "",
-          tools: [] as ToolActivity[],
+          work: [],
         }
       : idleRunState();
 
@@ -481,7 +479,7 @@ export async function createPhoCodeRuntime(
             name: event.toolName,
             status: "running",
             inputPreview: previewUnknown(event.args),
-            outputPreview: previewUnknown(event.partialResult),
+            outputPreview: previewToolResult(event.partialResult),
           },
         });
         return;
@@ -498,8 +496,9 @@ export async function createPhoCodeRuntime(
             callId: event.toolCallId,
             name: event.toolName,
             status: event.isError ? "failed" : "completed",
+            // End events omit args; reducer keeps the prior inputPreview.
             inputPreview: "",
-            outputPreview: previewUnknown(event.result),
+            outputPreview: previewToolResult(event.result),
           },
         });
         return;

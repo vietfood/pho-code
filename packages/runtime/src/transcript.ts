@@ -1,6 +1,6 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
-import { previewText, previewUnknown } from "./preview";
+import { previewText, previewToolResult, previewUnknown } from "./preview";
 
 type SessionMessage = AgentSession["messages"][number];
 
@@ -11,7 +11,7 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
       continue;
     }
     toolResults.set(message.toolCallId, {
-      output: previewUnknown(textFromToolContent(message.content)),
+      output: previewToolResult({ content: message.content }),
       isError: message.isError,
     });
   }
@@ -96,13 +96,6 @@ function userText(content: string | Array<{ type: string; text?: string }>): str
     .filter((part) => part.type === "text" && typeof part.text === "string")
     .map((part) => part.text ?? "")
     .join("");
-}
-
-function textFromToolContent(content: Array<{ type: string; text?: string }>): string {
-  return content
-    .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text ?? "")
-    .join("\n");
 }
 
 export function firstUserPreview(messages: readonly SessionMessage[]): string | undefined {

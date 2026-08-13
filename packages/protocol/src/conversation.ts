@@ -43,12 +43,24 @@ export interface ToolActivity {
   outputPreview: string;
 }
 
+/** Ordered think/tool segments for the in-flight assistant turn. */
+export type RunWorkEntry =
+  | { type: "thinking"; text: string }
+  | {
+      type: "tool";
+      callId: string;
+      name: string;
+      status: ToolStatus;
+      inputPreview: string;
+      outputPreview: string;
+    };
+
 export interface RunState {
   runId?: string;
   status: RunStatus;
   streamingText: string;
-  thinkingText: string;
-  tools: ToolActivity[];
+  /** Live think → tool → think sequence; mirrors settled assistant work blocks. */
+  work: RunWorkEntry[];
   error?: HarnessError;
 }
 
@@ -117,7 +129,6 @@ export function idleRunState(): RunState {
   return {
     status: "idle",
     streamingText: "",
-    thinkingText: "",
-    tools: [],
+    work: [],
   };
 }

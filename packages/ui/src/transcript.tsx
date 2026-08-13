@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { UserIcon } from "lucide-react";
-import type { SessionSnapshot, TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
+import type { RunWorkEntry, SessionSnapshot, TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
 import { isNearBottom } from "./lib/stick-to-bottom";
 import { ConservativeMarkdown } from "./markdown";
 import { ThinkingBlock } from "./thinking-block";
@@ -43,7 +43,7 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
       return;
     }
     scroller.scrollTop = scroller.scrollHeight;
-  }, [snapshot.messages, snapshot.run.streamingText, snapshot.run.thinkingText, snapshot.run.tools]);
+  }, [snapshot.messages, snapshot.run.streamingText, snapshot.run.work]);
 
   return (
     <div
@@ -55,26 +55,19 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
       {snapshot.messages.map((message) => (
         <MessageRow key={message.id} message={message} />
       ))}
-      {(snapshot.run.thinkingText || snapshot.run.tools.length > 0) && (
+      {snapshot.run.work.length > 0 ? (
         <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-clip pb-2">
           <div className="-mx-1 space-y-px px-1 py-0.5">
-            {snapshot.run.thinkingText ? <ThinkingBlock text={snapshot.run.thinkingText} open={running} live /> : null}
-            {snapshot.run.tools.map((tool) => (
-              <ToolRow
-                key={tool.callId}
-                block={{
-                  type: "tool",
-                  callId: tool.callId,
-                  name: tool.name,
-                  status: tool.status,
-                  inputPreview: tool.inputPreview,
-                  outputPreview: tool.outputPreview,
-                }}
+            {snapshot.run.work.map((entry, index) => (
+              <LiveWorkEntryView
+                key={liveWorkKey(entry, index)}
+                entry={entry}
+                live={running && index === snapshot.run.work.length - 1 && entry.type === "thinking"}
               />
             ))}
           </div>
         </div>
-      )}
+      ) : null}
       {snapshot.run.streamingText ? (
         <article className="mx-auto w-full min-w-0 max-w-3xl overflow-x-clip px-1 py-0.5 pb-4 streaming-text" data-testid="streaming-text">
           <ConservativeMarkdown text={snapshot.run.streamingText} isStreaming />
@@ -100,6 +93,43 @@ export function Transcript({ snapshot }: { snapshot: SessionSnapshot }) {
       ) : null}
     </div>
   );
+}
+
+function liveWorkKey(entry: RunWorkEntry, index: number): string {
+  switch (entry.type) {
+    case "thinking":
+      return `thinking:${index}`;
+    case "tool":
+      return `tool:${entry.callId}`;
+    default: {
+      const exhaustive: never = entry;
+      return exhaustive;
+    }
+  }
+}
+
+function LiveWorkEntryView({ entry, live }: { entry: RunWorkEntry; live: boolean }) {
+  switch (entry.type) {
+    case "thinking":
+      return <ThinkingBlock text={entry.text} open={live} live={live} />;
+    case "tool":
+      return (
+        <ToolRow
+          block={{
+            type: "tool",
+            callId: entry.callId,
+            name: entry.name,
+            status: entry.status,
+            inputPreview: entry.inputPreview,
+            outputPreview: entry.outputPreview,
+          }}
+        />
+      );
+    default: {
+      const exhaustive: never = entry;
+      return exhaustive;
+    }
+  }
 }
 
 function MessageRow({ message }: { message: TranscriptMessage }) {

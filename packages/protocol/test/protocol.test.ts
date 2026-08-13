@@ -269,6 +269,122 @@ describe("protocol serialization", () => {
     expect(state.dialog).toBeNull();
   });
 
+  test("interleaves thinking and tool work while streaming", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-a", delta: "plan A" },
+      occurredAt: "2026-08-13T00:00:01.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 3,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "t1",
+        name: "bash",
+        status: "running",
+        inputPreview: '{"command":"ls"}',
+        outputPreview: "",
+      },
+      occurredAt: "2026-08-13T00:00:02.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 4,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-a", delta: "plan B" },
+      occurredAt: "2026-08-13T00:00:03.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 5,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "t1",
+        name: "bash",
+        status: "completed",
+        inputPreview: "",
+        outputPreview: "ok",
+      },
+      occurredAt: "2026-08-13T00:00:04.000Z",
+      runId: "run-a",
+    });
+
+    expect(state.snapshot?.run.work).toEqual([
+      { type: "thinking", text: "plan A" },
+      {
+        type: "tool",
+        callId: "t1",
+        name: "bash",
+        status: "completed",
+        inputPreview: '{"command":"ls"}',
+        outputPreview: "ok",
+      },
+      { type: "thinking", text: "plan B" },
+    ]);
+  });
+
+  test("mid-run session snapshots preserve live work and streaming text", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-a", delta: "keep me" },
+      occurredAt: "2026-08-13T00:00:01.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 3,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-a", delta: "hello" },
+      occurredAt: "2026-08-13T00:00:02.000Z",
+      runId: "run-a",
+    });
+
+    const wiped = sampleSessionSnapshot("run-a");
+    wiped.run = { ...idleRunState(), runId: "run-a", status: "streaming" };
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 4,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: wiped,
+      occurredAt: "2026-08-13T00:00:03.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+
+    expect(state.snapshot?.run.streamingText).toBe("hello");
+    expect(state.snapshot?.run.work).toEqual([{ type: "thinking", text: "keep me" }]);
+  });
+
   test("settings snapshots are JSON-safe", () => {
     const snapshot = {
       appearance: { theme: "dark" as const },

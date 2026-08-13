@@ -8,9 +8,11 @@ export { commandFail, commandOk, isCommandResult, unwrapCommandResult } from "./
 export type { CommandResult } from "./command-result";
 
 export {
+  appendThinkingDelta,
   applyRuntimeEvent,
   emptyConversationState,
   RUNTIME_EVENT_TYPES,
+  upsertToolWork,
 } from "./events";
 export type {
   ConversationViewState,
@@ -64,6 +66,7 @@ export type {
   PromptAdmission,
   RunState,
   RunStatus,
+  RunWorkEntry,
   SendPromptInput,
   SessionSnapshot,
   SetSessionModelInput,

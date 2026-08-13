@@ -1,5 +1,5 @@
 import type { HarnessError } from "./errors";
-import type { PromptAdmission, RunStatus, SessionSnapshot, ToolActivity } from "./conversation";
+import type { PromptAdmission, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
 import type { ExtensionNotification, FeatureSnapshot, HostDialogRequest } from "./resources";
 import type { HarnessSettingsSnapshot, PermissionStatusPayload } from "./settings";
 import type { ProtocolVersion } from "./version";
@@ -105,6 +105,76 @@ function isRunEstablishingEvent(type: string): boolean {
   return type === RUNTIME_EVENT_TYPES.sessionSnapshot || type === RUNTIME_EVENT_TYPES.runAdmitted;
 }
 
+export function appendThinkingDelta(work: readonly RunWorkEntry[], delta: string): RunWorkEntry[] {
+  if (delta.length === 0) {
+    return [...work];
+  }
+  const last = work[work.length - 1];
+  if (last?.type === "thinking") {
+    return [...work.slice(0, -1), { type: "thinking", text: last.text + delta }];
+  }
+  return [...work, { type: "thinking", text: delta }];
+}
+
+export function upsertToolWork(work: readonly RunWorkEntry[], tool: ToolActivity): RunWorkEntry[] {
+  const index = work.findIndex((entry) => entry.type === "tool" && entry.callId === tool.callId);
+  if (index < 0) {
+    return [
+      ...work,
+      {
+        type: "tool",
+        callId: tool.callId,
+        name: tool.name,
+        status: tool.status,
+        inputPreview: tool.inputPreview,
+        outputPreview: tool.outputPreview,
+      },
+    ];
+  }
+
+  const existing = work[index];
+  if (existing?.type !== "tool") {
+    return [...work];
+  }
+
+  const next = [...work];
+  next[index] = {
+    type: "tool",
+    callId: tool.callId,
+    name: tool.name,
+    status: tool.status,
+    // Empty end/update payloads must not wipe the command preview shown while running.
+    inputPreview: tool.inputPreview || existing.inputPreview,
+    outputPreview: tool.outputPreview,
+  };
+  return next;
+}
+
+function preserveLiveRunFields(
+  current: SessionSnapshot | null,
+  incoming: SessionSnapshot,
+): SessionSnapshot {
+  if (!current) {
+    return incoming;
+  }
+  const sameActiveRun =
+    Boolean(incoming.run.runId) &&
+    current.run.runId === incoming.run.runId &&
+    !isTerminalRunStatus(current.run.status) &&
+    !isTerminalRunStatus(incoming.run.status);
+  if (!sameActiveRun) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    run: {
+      ...incoming.run,
+      streamingText: current.run.streamingText || incoming.run.streamingText,
+      work: current.run.work.length > 0 ? current.run.work : incoming.run.work,
+    },
+  };
+}
+
 export function applyRuntimeEvent(
   state: ConversationViewState,
   event: RuntimeEventEnvelope,
@@ -124,6 +194,13 @@ export function applyRuntimeEvent(
 
   switch (event.type) {
     case RUNTIME_EVENT_TYPES.sessionSnapshot:
+      return {
+        lastSequence: event.sequence,
+        snapshot: preserveLiveRunFields(state.snapshot, event.payload as SessionSnapshot),
+        dialog: state.dialog,
+        notification: state.notification,
+        settings: state.settings,
+      };
     case RUNTIME_EVENT_TYPES.runSettled:
       return {
         lastSequence: event.sequence,
@@ -146,8 +223,7 @@ export function applyRuntimeEvent(
             runId: admission.runId,
             status: "admitted",
             streamingText: "",
-            thinkingText: "",
-            tools: [],
+            work: [],
           },
         },
         dialog: state.dialog,
@@ -189,7 +265,7 @@ export function applyRuntimeEvent(
           run: {
             ...snapshot.run,
             status: "streaming",
-            thinkingText: snapshot.run.thinkingText + payload.delta,
+            work: appendThinkingDelta(snapshot.run.work, payload.delta),
           },
         },
         dialog: state.dialog,
@@ -203,14 +279,6 @@ export function applyRuntimeEvent(
         return { ...state, lastSequence: event.sequence };
       }
       const payload = event.payload as ToolEventPayload;
-      const tools = snapshot.run.tools.filter((tool) => tool.callId !== payload.callId);
-      tools.push({
-        callId: payload.callId,
-        name: payload.name,
-        status: payload.status,
-        inputPreview: payload.inputPreview,
-        outputPreview: payload.outputPreview,
-      });
       return {
         lastSequence: event.sequence,
         snapshot: {
@@ -218,7 +286,13 @@ export function applyRuntimeEvent(
           run: {
             ...snapshot.run,
             status: "streaming",
-            tools,
+            work: upsertToolWork(snapshot.run.work, {
+              callId: payload.callId,
+              name: payload.name,
+              status: payload.status,
+              inputPreview: payload.inputPreview,
+              outputPreview: payload.outputPreview,
+            }),
           },
         },
         dialog: state.dialog,
