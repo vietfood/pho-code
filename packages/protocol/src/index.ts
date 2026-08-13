@@ -169,7 +169,7 @@ export type {
   RemovePreparedImageInput,
 } from "./attachments";
 
-export { emptyQueueState, idleRunState, isQueueMode, QUEUE_MODES } from "./conversation";
+export { emptyQueueState, idleRunState, isQueueMode, MAX_ASSISTANT_REWRITE_CHARS, QUEUE_MODES } from "./conversation";
 export type {
   AbortRunInput,
   ContextUsageSummary,
@@ -183,6 +183,7 @@ export type {
   QueueMessagePreview,
   QueueMode,
   ReorderRecentWorkspacesInput,
+  RewriteAssistantOutputInput,
   RunState,
   RunStatus,
   RunWorkEntry,

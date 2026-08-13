@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 and v2 Milestones 0 through 2 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 is drafted as five source-owned text-only skills and one application-owned adapter for a pinned read-only GitHub MCP server. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
+Personal v1 and v2 Milestones 0 through 2 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 now owns session continuity/lifecycle; the five source-owned text-only skills and application-owned adapter for a pinned read-only GitHub MCP server move to draft Milestone 4. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -173,7 +173,7 @@ The runtime must call the pinned SDK's public extension-binding API with an `Ext
 
 ## MCP seam
 
-Milestone 3 proposes the first exact integration: read-only GitHub repository, issue, and pull-request investigation. It follows the same baked-feature rule, with an internal boundary:
+Milestone 4 proposes the first exact integration: read-only GitHub repository, issue, and pull-request investigation. It follows the same baked-feature rule, with an internal boundary:
 
 ```ts
 interface McpRuntime {
@@ -202,10 +202,10 @@ When a specific MCP feature is implemented:
 
 - Global services may be shared only when their SDK contract supports it.
 - Workspace resource loaders are owned by a workspace runtime context.
-- Session extension runners and UI state are owned by a session.
+- Session extension runners, host-dialog queues, run state, prepared attachments, and UI projections are owned by a session controller. Milestone 3's registry may keep several such controllers resident; selecting one must not transfer or dispose another controller's state.
 - Long-lived resources should be created on session start and cleaned up on session shutdown according to Pi extension guidance.
-- A session replacement must rebind the new session.
-- An app shutdown disposes sessions before shared services.
+- A Pi-internal session replacement must rebind that controller's new session. Ordinary Pho Code chat switching selects another controller and is not a Pi session replacement.
+- An app shutdown disposes all session controllers before shared services under one bounded aggregate deadline.
 - A failed extension must not prevent unrelated diagnostics or sessions from being shown when Pi can continue safely.
 
 ## Trust statement

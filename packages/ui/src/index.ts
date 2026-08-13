@@ -29,6 +29,8 @@ export {
   countWorkBlocks,
   formatWorkDuration,
   groupTranscriptSegments,
+  lastTextBearingMessage,
+  rewrittenOriginalText,
   turnTextOutput,
   workedForLabel,
 } from "./lib/work-log";

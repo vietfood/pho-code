@@ -37,6 +37,7 @@ export function Conversation({
   onPickImages,
   onPasteImages,
   onRemoveImage,
+  onRewrite,
 }: {
   snapshot: SessionSnapshot;
   draft: string;
@@ -58,6 +59,7 @@ export function Conversation({
   onPickImages?: () => void;
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
+  onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
@@ -125,7 +127,7 @@ export function Conversation({
           </EmptySessionStage>
         ) : (
           <>
-            <Transcript snapshot={snapshot} />
+            <Transcript snapshot={snapshot} {...(onRewrite ? { onRewrite } : {})} />
             <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1.5 pb-4 sm:pt-2 sm:pb-5">
               <div className="pointer-events-auto mx-auto w-full max-w-3xl">
                 {hostDialog}

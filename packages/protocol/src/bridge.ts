@@ -12,6 +12,7 @@ import type {
   QueueFollowUpInput,
   SendPromptInput,
   SessionSnapshot,
+  RewriteAssistantOutputInput,
   SetSessionModelInput,
   SetThinkingLevelInput,
   SteerRunInput,
@@ -55,6 +56,7 @@ export interface DesktopBridge {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): Promise<HarnessSettingsSnapshot>;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;

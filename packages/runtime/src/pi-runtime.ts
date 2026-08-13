@@ -31,6 +31,7 @@ import {
   isProviderAuthMethod,
   isThinkingLevel,
   isWorkspaceReferenceToken,
+  MAX_ASSISTANT_REWRITE_CHARS,
   MAX_QUEUE_MESSAGE_PREVIEW,
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
@@ -54,6 +55,7 @@ import {
   type RemovePreparedImageInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RewriteAssistantOutputInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -95,6 +97,13 @@ import { projectModelSummary, modelSupportsImages } from "./model-summary";
 import { createPreparedImageStore } from "./image-store";
 import { createDeterministicTestProvider, createHarnessMarkTool, TEST_TOOL_NAME } from "./test-model";
 import { firstUserPreview, projectMessages } from "./transcript";
+import {
+  applyRewriteOverlays,
+  ASSISTANT_REWRITE_CUSTOM_TYPE,
+  collectRewriteOverlays,
+  joinedText,
+  originalJoinedText,
+} from "./assistant-rewrite";
 import {
   collectWorkspaceReferenceTokens,
   serializeWorkspaceReferences,
@@ -407,7 +416,7 @@ export async function createPhoCodeRuntime(
         ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
       },
       workspace,
-      messages: projectMessages(session.messages),
+      messages: projectSessionMessages(session),
       run: activeRun && !activeRun.settled ? { ...run, status: "streaming" } : idleRunState(),
       models,
       sessions: mergeActiveSession(sessions, {
@@ -1164,6 +1173,61 @@ export async function createPhoCodeRuntime(
       });
       return snapshot;
     },
+    async rewriteAssistantOutput(input: RewriteAssistantOutputInput) {
+      assertNotDisposed();
+      const session = requireSession();
+      if (input.sessionId !== session.sessionId) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionNotFound,
+          message: "The rewrite target is not the active session.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      if (typeof input.text !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Rewritten text is required.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      if (input.text.length > MAX_ASSISTANT_REWRITE_CHARS) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The rewritten text is too long.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      const projected = projectSessionMessages(session);
+      const target = projected.find((message) => message.id === input.messageId);
+      if (!target || target.role !== "assistant") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That assistant message is not in this session.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      const displayed = joinedText(target.blocks);
+      if (input.text === displayed) {
+        return buildSnapshot({ refreshCatalog: false });
+      }
+      const original = originalJoinedText(target.blocks);
+      session.sessionManager.appendCustomEntry(ASSISTANT_REWRITE_CUSTOM_TYPE, {
+        messageId: input.messageId,
+        text: input.text === original ? null : input.text,
+        rewrittenAt: new Date().toISOString(),
+      });
+      const snapshot = await buildSnapshot({ refreshCatalog: false });
+      emit({
+        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+        sessionId: snapshot.session.id,
+        payload: snapshot,
+      });
+      return snapshot;
+    },
     async resolveHostDialog(input: ResolveHostDialogInput) {
       assertNotDisposed();
       extensionHost?.resolveDialog(input);
@@ -1646,6 +1710,13 @@ function toHarnessError(error: unknown, operation: string, code: string): Harnes
     operation,
     recoverable: true,
   });
+}
+
+function projectSessionMessages(session: AgentSession) {
+  return applyRewriteOverlays(
+    projectMessages(session.messages),
+    collectRewriteOverlays(session.sessionManager.getEntries()),
+  );
 }
 
 function projectSessionUsage(session: AgentSession): {

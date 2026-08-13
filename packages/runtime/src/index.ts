@@ -16,6 +16,7 @@ export {
   resolvePermissionFeature,
 } from "./features";
 export type { HarnessFeature, HarnessFeatureManifest } from "./features";
+export { ASSISTANT_REWRITE_CUSTOM_TYPE } from "./assistant-rewrite";
 export { TRASH_FEATURE_ID, TRASH_FEATURE_VERSION, createTrashFeature } from "./trash-feature";
 export { TRASH_TOOL_NAME } from "./trash-target";
 export { RETRIEVAL_FEATURE_ID, RETRIEVAL_FEATURE_VERSION, createRetrievalFeature } from "./retrieval-feature";

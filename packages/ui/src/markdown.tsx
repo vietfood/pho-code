@@ -6,6 +6,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "./lib/cn";
+import { rehypeStreamTail } from "./lib/rehype-stream-tail";
 import { markdownUrlTransform, safeMarkdownImageSrc } from "./lib/safe-markdown-image-src";
 import { MarkdownCodeBlock } from "./markdown-codeblock";
 import { MarkdownImage } from "./markdown-image";
@@ -108,10 +109,14 @@ export function ConservativeMarkdown({
   text,
   className,
   isStreaming = false,
+  streamTail = false,
+  streamCaret = false,
 }: {
   text: string;
   className?: string;
   isStreaming?: boolean;
+  streamTail?: boolean;
+  streamCaret?: boolean;
 }) {
   const components = useMemo(() => createComponents(isStreaming), [isStreaming]);
 
@@ -119,7 +124,13 @@ export function ConservativeMarkdown({
     <div className={cn("chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80", className)} data-testid="markdown">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeSanitize, sanitizeSchema], rehypeKatex]}
+        rehypePlugins={
+          streamTail
+            ? // Wrap the last word after sanitize/KaTeX so stream-in CSS cannot
+              // inject unsanitized HTML. Code and math subtrees are left intact.
+              [[rehypeSanitize, sanitizeSchema], rehypeKatex, [rehypeStreamTail, { caret: streamCaret }]]
+            : [[rehypeSanitize, sanitizeSchema], rehypeKatex]
+        }
         urlTransform={markdownUrlTransform}
         components={components}
       >

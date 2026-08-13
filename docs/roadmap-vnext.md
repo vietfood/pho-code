@@ -2,7 +2,7 @@
 
 This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
 
-The owner has promoted and accepted the autonomy foundation, retrieval, and provider-account milestones, and has promoted curated skills plus read-only GitHub MCP into a draft Milestone 3 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 3.
+The owner has accepted the autonomy foundation, retrieval, and provider-account milestones; promoted session continuity, archive/restore, and recoverable chat removal into Milestone 3; and moved curated skills plus read-only GitHub MCP to draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
 
 ## Rules carried forward
 
@@ -13,16 +13,9 @@ The owner has promoted and accepted the autonomy foundation, retrieval, and prov
 - Packaged builds resolve immutable features only from application resources and fail closed when a feature is missing or mismatched.
 - Mutable credentials, sessions, permission state, and application metadata remain outside the application bundle.
 
-## Candidate milestone: session lifecycle
-
-- Add explicit archive and restore commands for app-owned Pi sessions.
-- Add deletion only through the operating system's recoverable Trash.
-- Preserve Pi JSONL validity and keep session metadata derived from Pi rather than duplicating transcripts.
-- Define how missing workspaces and archived sessions appear before adding bulk actions.
-
 ## Candidate milestone: additional baked MCP capabilities
 
-Milestone 3 owns the first read-only GitHub capability. Begin another MCP capability only after the owner specifies the exact recurring task it solves. This remains source/build configuration, not an end-user server manager.
+Milestone 4 owns the first read-only GitHub capability. Begin another MCP capability only after the owner specifies the exact recurring task it solves. This remains source/build configuration, not an end-user server manager.
 
 - Implement the internal `McpRuntime` boundary.
 - Select, review, and exactly pin an adapter version.
@@ -36,7 +29,7 @@ Pho Code will not discover arbitrary `.mcp.json` files, expose server add/edit/r
 
 ## Candidate milestone: additional baked features
 
-Milestone 3 owns the first five text-only skills. Begin another extension-, skill-, prompt-, or service-backed feature only after the owner names its behavior.
+Milestone 4 owns the first five text-only skills. Begin another extension-, skill-, prompt-, or service-backed feature only after the owner names its behavior.
 
 - Inventory license, dependency, Pi-version, host-UI, and packaging requirements.
 - Use a pinned Pi package/path for portable features and named inline factories/services for desktop-dependent behavior.

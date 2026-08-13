@@ -91,19 +91,27 @@ OAuth URLs and access/refresh tokens remain in the privileged process. The rende
 
 The detailed contract lives in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Milestone 2 is accepted: the generic adapter, Settings Provider accounts surface, and owner-verified live `openai-codex` login are in place. Additional Pi OAuth providers enter only after recording their actual pinned prompt/events and disclosure.
 
-### Milestone 3: curated capabilities
+### Milestone 3: session continuity and lifecycle
+
+Make chats independent working contexts rather than views over one replaceable runtime. An agent run continues when the owner opens another chat or workspace, and every live session retains its own run, queue, prepared attachments, extension binding, permission dialog, and event stream. The sidebar projects bounded working, attention, completed, failed, archived, and selected state without making the renderer authoritative for session lifecycle.
+
+Add archive and restore as reversible application metadata over Pi-owned transcripts. Add owner-initiated session removal only through a dedicated validated operation that moves the exact settled Pi session artifact to the operating-system Trash. Permanent deletion and `rm` remain unavailable in every permission mode, including YOLO. A session with an active run or unresolved host interaction cannot be removed; the owner must let it settle or stop it explicitly first.
+
+The first slice keeps concurrency local and bounded. It does not introduce multi-agent orchestration, worktrees, fork/tree navigation, remote workers, or unattended execution. The detailed ownership, protocol, restart, shutdown, removal, and verification contract is in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
+
+### Milestone 4: curated capabilities
 
 Ship five source-owned, text-only coding skills and one concrete MCP-backed capability: read-only GitHub investigation for repositories, issues, and pull requests. Skills and the GitHub adapter are immutable manifest features, not runtime imports. GitHub write operations, dynamic tool discovery, arbitrary servers, project `.mcp.json`, and skill installation remain unavailable.
 
 The GitHub slice targets a reviewed official `github/github-mcp-server` release behind an application-owned MCP client and Pi tool adapter. The server runs locally over stdio in read-only mode with fixed toolsets and a second Pho Code allowlist. It starts lazily, keeps bounded status, output, cancellation, and process cleanup, and fails independently from local chat and the five skills.
 
-The detailed contract is drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after the owner accepts the first skill bundle and chooses the proposed in-memory GitHub OAuth behavior described there.
+The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after Milestone 3 proves concurrent session ownership and after the owner accepts the first skill bundle and proposed GitHub authentication behavior described there.
 
-## Deferred beyond Milestone 3
+## Deferred beyond Milestone 4
 
 - browser automation using an isolated browser profile;
 - diff/file workbench and checkpoints;
-- session archive, restore, Trash-based deletion, fork/tree, and compaction controls;
+- session fork/tree navigation and compaction controls;
 - arbitrary document/binary attachments and richer previews beyond the first image slice;
 - integrated terminal;
 - multi-agent orchestration and worktree automation;
@@ -111,7 +119,7 @@ The detailed contract is drafted in [`implementation-plan-v2.md`](./implementati
 - signing, notarization, update channels, public distribution, and production threat response;
 - arbitrary user-managed extensions, skills, packages, or MCP servers.
 
-Deferral means these capabilities do not shape Milestones 0 through 3 prematurely. It does not reject them from the broader v2 roadmap.
+Deferral means these capabilities do not shape Milestones 0 through 4 prematurely. It does not reject them from the broader v2 roadmap.
 
 ## Success criteria for the first v2 slice
 
@@ -131,3 +139,4 @@ After the accepted Milestone 1:
 
 - whether the internal `developer` policy allows all workspace writes or retains approval for selected generated/configuration paths;
 - whether a later milestone adds deliberately reviewed GitHub mutation tools or additional baked MCP capabilities.
+- whether later session controls include fork/tree navigation, compaction controls, pinning, or draft persistence.

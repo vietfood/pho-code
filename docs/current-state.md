@@ -10,7 +10,7 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - local workspace selection and recent-project navigation;
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
-- multi-turn streaming chat, thinking blocks, sanitized Markdown with KaTeX/Shiki/Mermaid, copy for settled assistant output and fenced code blocks, tool activity, Stop, and error states;
+- multi-turn streaming chat, thinking blocks, sanitized Markdown with KaTeX/Shiki/Mermaid, copy and owner rewrite for settled assistant output and copy for fenced code blocks, tool activity, Stop, and error states;
 - a T3-inspired conversation UI with a wider collapsible project/session sidebar (manual folder order, no MRU bump on session switch), a centered empty-session composer, and an anchored composer after the first message;
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;
@@ -60,16 +60,17 @@ The acceptance review additionally made packaged resource overrides development-
 
 ## Active v2 planning
 
-The owner approved this initial milestone split:
+The owner approved this current milestone order:
 
 - **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
 - **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
 - **Milestone 2 — accounts and subscription login:** accepted as provider-owned OAuth through Pi `ModelRuntime`, with a Provider accounts Settings surface, opaque system-browser handles, cancellation, logout, and model-list synchronization. The deterministic fake-provider journey is in the Electron and packaged lanes. The owner completed a live `openai-codex` login and confirmed it works.
-- **Milestone 3 — curated capabilities:** drafted for owner calibration as five text-only baked skills plus one read-only GitHub MCP capability. The design preserves immutable composition, packages a pinned native server, exposes only reviewed read tools, and does not add a skill store or MCP manager.
+- **Milestone 3 — session continuity and lifecycle:** promoted for implementation. It will replace the single replaceable live-session model with a bounded registry of independently owned Pi session controllers so runs and permission requests remain attached to their chats while the owner switches. It adds metadata-only archive/restore and exact-artifact session removal through OS Trash only.
+- **Milestone 4 — curated capabilities:** moved from the former Milestone 3. It remains drafted as five text-only baked skills plus one read-only GitHub MCP capability. The design preserves immutable composition, packages a pinned native server, exposes only reviewed read tools, and does not add a skill store or MCP manager.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 2 contracts and the draft Milestone 3 contract.
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 2 contracts, the active Milestone 3 contract, and the draft Milestone 4 contract.
 
-Browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
+Browser automation, diff/checkpoint workflows, session fork/tree and compaction controls, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 
 ## Run it
 

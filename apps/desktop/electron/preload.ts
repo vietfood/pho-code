@@ -23,6 +23,7 @@ const bridge: DesktopBridge = {
   abortRun: (input) => invoke(IPC_CHANNELS.abortRun, input),
   setSessionModel: (input) => invoke(IPC_CHANNELS.setSessionModel, input),
   setThinkingLevel: (input) => invoke(IPC_CHANNELS.setThinkingLevel, input),
+  rewriteAssistantOutput: (input) => invoke(IPC_CHANNELS.rewriteAssistantOutput, input),
   resolveHostDialog: (input) => invoke(IPC_CHANNELS.resolveHostDialog, input),
   getSettings: () => invoke(IPC_CHANNELS.getSettings),
   updateAppearanceSettings: (input) => invoke(IPC_CHANNELS.updateAppearanceSettings, input),

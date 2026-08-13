@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 are accepted. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 2 are accepted. V2 Milestone 3 is the active session-continuity/lifecycle design; the former curated-capabilities Milestone 3 is now draft Milestone 4. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
 
 After a fresh clone, materialize the references with:
 
@@ -34,7 +34,7 @@ Do not run install/build commands inside a reference submodule as if that built 
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, and prepared image summaries |
+| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, and `rewriteAssistantOutput` |
 | `packages/runtime` | Pi session/loader ownership, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, deterministic test model |
 | `packages/application` | Workspace/session/prompt/settings/credential use cases, recent-workspace and appearance metadata, validation, shutdown |
 | `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, Permissions) with deferred API-key import and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
@@ -112,7 +112,7 @@ Desktop tests must set `PHO_CODE_USER_DATA_DIR` through the shared launcher. Wit
 
 ## Current verification status
 
-Implementing agents recorded this Milestone 3 baseline on 2026-08-13:
+Implementing agents recorded this personal-v1 Milestone 3 baseline on 2026-08-13:
 
 ```text
 bun run typecheck     PASS
@@ -122,7 +122,7 @@ bun run test:desktop  PASS — 6 Electron tests (smoke, security, shutdown, chat
 bun run build         PASS — main, preload, and renderer bundles
 ```
 
-Milestone 4 implementation evidence, recorded 2026-08-13 and accepted after focused review:
+Personal-v1 Milestone 4 implementation evidence, recorded 2026-08-13 and accepted after focused review:
 
 ```text
 bun run typecheck     PASS
@@ -138,9 +138,9 @@ Verification classes for this change:
 - **integration verified:** isolated-directory Pi session create, stream, tool, second prompt, abort, dispose, reopen, process-lifetime trust, baked-feature isolation, select/input dialog/rebind, real permission-package select, dispose during a pending dialog, feature-health false-positive rejection
 - **desktop verified:** Electron chat with the deterministic test model including a second consecutive prompt, JSONL reopen, and immediate session-list appearance; test-host select dialog; baked permission-system select dialog; Settings palette/mode/glass and font-size persistence across relaunch and Guarded profile applied to the next gated tool call
 - **owner verified:** real `deepseek/deepseek-v4-flash` multi-turn chat with thinking and failed/completed tool projection (Milestone 1/2)
-- **not verified (Milestone 4):** packaged installer; Linux desktop; real-provider permission allow/deny
+- **not verified (personal-v1 Milestone 4):** packaged installer; Linux desktop; real-provider permission allow/deny
 
-The Milestone 4 acceptance review reran 12 focused permission-settings/resource/application checks, `bun run typecheck`, `bun run lint`, and `bun run build`; all passed. It intentionally relied on the implementing pass's recorded full unit and Electron results rather than duplicating them.
+The personal-v1 Milestone 4 acceptance review reran 12 focused permission-settings/resource/application checks, `bun run typecheck`, `bun run lint`, and `bun run build`; all passed. It intentionally relied on the implementing pass's recorded full unit and Electron results rather than duplicating them.
 
 Milestone 5 implementation evidence, accepted on 2026-08-13:
 
@@ -335,11 +335,11 @@ Abort, pre-admission vs post-admission failure, dispose, and process-lifetime tr
 
 The protocol reducer example in `packages/protocol/test/protocol.test.ts` proves that `applyRuntimeEvent` accepts a new run after a terminal snapshot and ignores a late first-run delta. `apps/desktop/tests/chat.spec.ts` submits a second prompt (`hello`) after the tool run and expects the deterministic reply.
 
-### Milestone 2 representative lane
+### Personal-v1 Milestone 2 representative lane
 
-Covered historically by `packages/runtime/test/pi-runtime.test.ts`. The Resources catalog, reload command, and extension-command launcher were removed in Milestone 3. The retained value is the loader/host-UI seam and session-replacement rebind.
+Covered historically by `packages/runtime/test/pi-runtime.test.ts`. The Resources catalog, reload command, and extension-command launcher were removed in personal-v1 Milestone 3. The retained value is the loader/host-UI seam and session-replacement rebind.
 
-### Milestone 3 focused lane
+### Personal-v1 Milestone 3 focused lane
 
 Covered by `packages/runtime/test/pi-runtime.test.ts` and `apps/desktop/tests/{chat,host-ui}.spec.ts`:
 
@@ -355,7 +355,7 @@ Deterministic tests default to an empty manifest so they do not load the permiss
 
 Keep these checks focused. Do not add a visual-regression framework or reproduce the complete third-party permission extension suite.
 
-### Milestone 4 focused lane
+### Personal-v1 Milestone 4 focused lane
 
 Covered by `packages/runtime/test/permission-settings.test.ts`, `packages/application/test/settings.test.ts`, and `apps/desktop/tests/settings.spec.ts`:
 
@@ -367,7 +367,7 @@ Covered by `packages/runtime/test/permission-settings.test.ts`, `packages/applic
 
 Do not build a generic schema-form test matrix or copy the third-party package's policy test suite.
 
-### Milestone 5 focused lane
+### Personal-v1 Milestone 5 focused lane
 
 Covered by `packages/runtime/test/{resource-locator,credentials}.test.ts`, `scripts/stage-app-resources.test.ts`, `apps/desktop/tests/credentials.spec.ts`, and `apps/desktop/tests/packaged.spec.ts`:
 

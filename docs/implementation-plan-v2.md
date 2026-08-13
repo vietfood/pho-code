@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login. Milestone 3 is drafted for owner calibration before implementation.
+Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login. Milestone 3 is the active session-continuity and lifecycle design. The former Milestone 3 curated-capabilities design moves intact to Milestone 4 and remains unimplemented.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -705,7 +705,422 @@ Keep verification proportional to this personal milestone: cover the state machi
 
 Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice satisfy the checks above: no secret or authorization URL crosses to the renderer, cancellation releases all flow resources, account/model state synchronizes after login and logout, the packaged flow works without Pi CLI, and the owner accepted the live Codex login workflow.
 
-## Milestone 3: curated capabilities
+## Milestone 3: session continuity and lifecycle
+
+### Status
+
+Promoted for implementation by the owner. This section is the implementation contract; code is not yet accepted.
+
+The current application has one `AgentSessionRuntime`, one `activeRun`, one prepared-image store, one extension-host dialog queue, and one renderer conversation projection. Opening another session calls Pi's session-replacement path and invalidates or disposes the previous live context. That architecture makes a sidebar switch a runtime-lifecycle action and prevents an agent from continuing reliably while the owner reads or starts another chat.
+
+### Outcome
+
+Chats become independently owned working contexts. Selecting another chat changes which context the renderer displays; it does not abort, replace, or dispose an unrelated session controller.
+
+The owner can:
+
+- start work in one chat, switch to another workspace or chat, and return while the first run continues;
+- see which chats are working, waiting for attention, completed with unread output, or failed;
+- stop, steer, follow up, change model/thinking state, or resolve a permission request against the chat that owns that operation;
+- archive and restore a chat without changing its Pi transcript;
+- remove a settled chat by moving its exact Pi session artifact to operating-system Trash, with no `rm` or permanent-deletion fallback in any permission mode;
+- quit with bounded, honest cleanup of every live session.
+
+This milestone improves continuity inside one running Pho Code process. It does not create a daemon: quitting the application stops active runs according to the shutdown policy, and a process crash cannot promise that an in-flight model request resumes.
+
+### Product invariants
+
+1. **Selection is not ownership.** `selectedSessionKey` identifies the conversation being shown. A session controller remains alive because it is running, has unresolved host UI, or is retained by the bounded registry—not because it is selected.
+2. **Pi remains transcript authority.** Pi JSONL files and `SessionManager` remain authoritative for messages, branches, model restoration, and session identity. Pho Code does not copy transcripts into application metadata.
+3. **Application metadata owns lifecycle annotations.** Archive time, last-viewed time, and bounded unread/outcome hints are Pho Code metadata. They do not alter Pi session files.
+4. **Every transient value has one session owner.** Run state, queue state, prepared image bytes, extension UI requests, permission-session approvals, subscriptions, and event correlation belong to a session controller and never follow the selected tab implicitly.
+5. **Removal is recoverable by construction.** Session removal uses the operating-system Trash service after exact target validation. It never calls `rm`, `unlink`, `rmdir`, recursive deletion APIs, or a shell fallback—even in YOLO mode or tests.
+6. **Background does not mean unattended.** A session may continue while another chat is visible, but attention-requiring effects still wait for the owner and remain visibly associated with their originating chat.
+7. **Failure is isolated.** A failed or corrupted session must not dispose another session, clear another draft, consume another dialog response, or prevent the session catalog from loading.
+
+### Terminology and identity
+
+Use these terms consistently:
+
+- **session key:** the composite `{ workspaceId, sessionId }`; do not assume a Pi session id alone is globally unique across workspaces or imported data roots;
+- **selected session:** the session currently projected into the conversation pane;
+- **resident session:** a session with an instantiated controller in the registry;
+- **background session:** a resident session that is not selected;
+- **active run:** an admitted Pi prompt that has not settled, failed, or been cancelled;
+- **attention:** an unresolved host interaction, including a permission confirm/select/input request;
+- **archived session:** a Pi session hidden from the ordinary project list by application metadata;
+- **removed session:** a session whose validated Pi artifact was successfully handed to OS Trash and is no longer in Pho Code's catalog.
+
+Archive and remove are deliberately distinct. Archive is reversible inside Pho Code. Remove relies on the operating system's Trash UI for recovery and must not be labeled delete, erase, or permanent delete.
+
+### Representative decision: application-owned session registry
+
+Replace the single mutable session fields in `createPhoCodeRuntime` with an application-owned registry of session controllers:
+
+```ts
+interface SessionKey {
+  workspaceId: string;
+  sessionId: string;
+}
+
+interface SessionController {
+  readonly key: SessionKey;
+  readonly runtime: AgentSessionRuntime;
+  getSnapshot(options?: { refreshCatalog?: boolean }): Promise<SessionSnapshot>;
+  getActivity(): SessionActivitySummary;
+  sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
+  steer(input: SteerRunInput): Promise<QueueAdmission>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
+  abort(input: AbortRunInput): Promise<void>;
+  rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
+  resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
+  dispose(reason: "evicted" | "removed" | "shutdown"): Promise<void>;
+}
+
+interface SessionRegistry {
+  open(key: SessionKey): Promise<SessionController>;
+  create(workspaceId: string): Promise<SessionController>;
+  select(key: SessionKey): Promise<SessionSnapshot>;
+  get(key: SessionKey): SessionController | undefined;
+  listActivity(): SessionActivitySummary[];
+  disposeAll(): Promise<void>;
+}
+```
+
+`SessionController` is the unit that owns Pi session subscriptions, `ActiveRun`, extension binding, one host-dialog queue, prepared-image records, and snapshot construction. Event callbacks close over that controller's immutable key; they never read a process-global `piRuntime?.session` to infer ownership.
+
+Shared services remain shared only where the pinned SDK contract permits it:
+
+- one `ModelRuntime` and provider-auth coordinator per application runtime;
+- one feature manifest and immutable resource identity per build;
+- one permission configuration source per active Pi agent directory, with session-owned extension bindings;
+- one workspace retrieval context per canonical workspace when the FFF adapter supports sharing safely;
+- one web client may be shared because calls carry their own abort ownership;
+- one prepared-image store per session controller, or one store whose keys are unforgeably namespaced by session key.
+
+Do not create one entire `ModelRuntime` or provider credential store per chat. Do not keep using one global `extensionHost`, `activeRun`, prepared-image store, retrieval binding, or session subscription.
+
+#### Registry bounds and eviction
+
+The first implementation supports at most four concurrent active runs and eight resident session controllers. These are source-owned product limits, not renderer settings. A command that would exceed the active-run limit fails before admission with a recoverable explanation. A ninth idle open evicts the least-recently-selected controller only after it has no active run, queued prompt, unresolved dialog, prepared attachment, or pending disposal.
+
+Running or attention-requiring controllers are never evicted. If all resident controllers are protected, opening another session fails visibly instead of aborting or silently discarding one. Eviction disposes only the in-memory controller; it never archives, removes, truncates, or rewrites its Pi transcript. Reopening reconstructs it from Pi.
+
+The implementation may lower these bounds only from measured desktop evidence recorded in this section; it must not introduce an arbitrary user-facing concurrency slider in Milestone 3.
+
+### Workspace contexts
+
+Canonical workspace validation remains in the privileged runtime/application boundary. Opening a session in another project creates or reuses that workspace's resource context without changing the cwd or permissions of existing controllers.
+
+A workspace context owns resources that are safe and useful to share among its sessions: canonical identity, project-resource trust decision, FFF index, feature-resolution result, and catalog cache. Session settings, Pi messages, run state, host UI, and abort signals remain session-owned. A workspace context stays resident while any controller references it and disposes after its last controller is evicted or removed.
+
+Native picker approval and project permission-rule trust retain their current meanings. Opening one session in a workspace does not grant another workspace access, and background execution does not weaken sensitive-path or external-directory gates.
+
+### Protocol and state model
+
+Keep named commands and JSON-safe values. Add only the session-lifecycle surface required by this milestone:
+
+```ts
+interface SessionActivitySummary {
+  workspaceId: string;
+  sessionId: string;
+  phase: "idle" | "working" | "attention" | "completed" | "failed";
+  selected: boolean;
+  archived: boolean;
+  unread: boolean;
+  runId?: string;
+  startedAt?: string;
+  updatedAt: string;
+}
+
+interface ArchiveSessionInput extends SessionKey {}
+interface RestoreSessionInput extends SessionKey {}
+interface RemoveSessionInput extends SessionKey {
+  confirmationToken: string;
+}
+```
+
+Expected additive commands:
+
+- `listSessionCatalog({ workspaceId, scope: "active" | "archived" | "all" })`;
+- `getSessionSnapshot(SessionKey)` for authoritative recovery after selection or missed events;
+- `archiveSession(ArchiveSessionInput)`;
+- `restoreSession(RestoreSessionInput)`;
+- `prepareRemoveSession(SessionKey)` returning bounded display data plus a short-lived opaque confirmation token;
+- `removeSession(RemoveSessionInput)`;
+- existing prompt, queue, abort, model, thinking, assistant-rewrite, attachment, and host-dialog commands updated to resolve a controller by composite session key.
+
+Do not add a generic session mutation command, renderer-supplied session-file path, raw filesystem handle, arbitrary Trash target, or renderer-controlled runtime identifier. The removal confirmation token binds the exact canonical workspace, Pi session id, resolved artifact identity, and current metadata revision; it expires quickly and is single-use.
+
+Runtime events retain global monotonic `sequence` ordering and always include the owning `sessionId`; multi-workspace session events also carry `workspaceId` in their typed payload or envelope revision. Incremental run and dialog events update only the matching session projection. Catalog/activity events may update sidebar summaries without loading a full transcript into every renderer state entry.
+
+The renderer keeps a keyed cache of conversation projections and one selected key. A full snapshot replaces only its matching entry. A late background delta must never overwrite the selected conversation merely because it arrived last. If an event sequence gap is detected, request a full snapshot for the affected session rather than resetting every chat.
+
+### Session activity and unread behavior
+
+Activity precedence is:
+
+```text
+attention > working > failed > completed-unread > idle
+```
+
+Selection is an independent visual attribute, not an activity phase. A selected session may still be working or waiting for attention.
+
+- **working:** an admitted run or Pi-native queued continuation is active;
+- **attention:** a host request is unresolved; the run may also be technically active, but attention is the useful owner-facing state;
+- **failed:** the most recent background run failed and the failure has not been viewed;
+- **completed:** a background run settled after the session was last viewed;
+- **idle:** no current run or unread terminal outcome.
+
+Application metadata records `lastViewedAt` and a bounded terminal-outcome hint; transcript and detailed errors remain runtime/Pi data. Selecting a session marks it viewed only after its authoritative snapshot is successfully displayed. Merely expanding a project or listing sessions does not clear unread state.
+
+The sidebar shows an accessible text/icon treatment for working, attention, completed, and failed states. Animation is optional and must respect reduced motion. A system notification may announce a background attention request or completion only through an existing typed notification path and only if notification policy permits; notification content must not include unbounded model output, sensitive paths, or tool payloads.
+
+### Permission and host-dialog routing
+
+Every session controller owns its extension host and pending dialog lifecycle. Host requests carry the composite session key and request id. A renderer response must match both; a request id from another session is invalid even if it happens to collide.
+
+When a background session requests permission:
+
+1. its activity becomes `attention`;
+2. the sidebar and bounded notification identify the originating chat and operation category;
+3. the request remains pending in that controller;
+4. selecting the chat renders its dialog in the normal composer dock;
+5. resolving it settles only that session's request and returns activity to working or terminal state.
+
+Switching away does not auto-deny, auto-approve, cancel, or migrate the dialog. YOLO may rewrite `ask` decisions according to the accepted permission feature, but explicit denies and permanent-removal prohibitions still apply. “Approve for session” is scoped to the Pi/permission session that requested it, not every resident controller.
+
+At most one host dialog is shown for the selected session. Other controllers may each retain one serialized queue under the existing extension-host contract. Bounded timeout/abort behavior remains active so an abandoned request cannot hang shutdown forever.
+
+### Drafts, prepared images, queues, and controls
+
+Process-lifetime composer drafts are keyed by session key in renderer state. Prepared image bytes remain privileged and are keyed to the same session controller. Switching chats preserves each draft and prepared-image preview during the process, but Milestone 3 does not persist unsent drafts or image bytes across app restart.
+
+Sending, steering, follow-up, Stop, model changes, thinking changes, owner assistant-output rewrites, and image removal resolve the explicit composite key. They never default to whichever session became selected after the command began. Model/thinking and assistant-rewrite changes apply to one idle target controller. Rewrite overlays remain Pi custom entries owned by that session and must not appear in another controller. Global permission settings and provider credential mutations remain unavailable while any controller has an active run because those shared changes could alter another session mid-request.
+
+Pi-native steering and follow-up queues remain session-owned. A background session may consume its queued work without becoming selected. Queue chips in the conversation pane show the selected session; sidebar activity summarizes background work without copying queue message text.
+
+### Archive and restore
+
+Archive is a metadata operation. It does not dispose a controller merely because the session becomes hidden, and it does not modify, rename, move, truncate, or rewrite the Pi JSONL artifact.
+
+Application metadata advances to a new version with records conceptually shaped as:
+
+```ts
+interface SessionLifecycleRecord {
+  workspaceId: string;
+  sessionId: string;
+  archivedAt?: string;
+  lastViewedAt?: string;
+  lastOutcome?: "completed" | "failed";
+  lastOutcomeAt?: string;
+}
+```
+
+Migration from the current metadata version initializes no archived records and preserves recent workspace order, appearance, permission trust, and selected session. Unknown or malformed lifecycle records are ignored individually; they do not reset unrelated metadata.
+
+Archive behavior:
+
+- available for idle, working, attention, completed, and failed sessions;
+- immediately removes the row from the ordinary project list and adds it to an Archived view grouped by workspace;
+- keeps a working archived session resident and visible in Archived with its activity state;
+- if the selected session is archived, selects the next ordinary session in the same workspace, then another recent workspace session, or creates/shows the workspace's empty-session state according to existing navigation behavior;
+- does not mark unread output as viewed unless the archived chat was actually displayed;
+- is idempotent for an already archived session.
+
+Restore clears `archivedAt`, returns the session to its workspace list without changing Pi data, and preserves its last-viewed/outcome metadata. If the Pi session artifact no longer exists, restore fails as session-not-found and offers metadata cleanup; it never fabricates an empty transcript under the old id.
+
+### Recoverable session removal
+
+The owner-facing action is **Move chat to Trash**. Use “Remove” only as a compact menu label when the confirmation text clearly says the chat's Pi transcript is moved to operating-system Trash and recovery happens through the OS.
+
+Removal is an application command, not an agent tool and not an extension permission decision. It always requires an explicit, session-specific confirmation; YOLO does not bypass it.
+
+#### Eligibility
+
+Refuse removal when the target controller has:
+
+- an active or aborting run;
+- queued steering/follow-up work;
+- an unresolved host dialog;
+- prepared image bytes or an attachment operation in flight;
+- a session replacement/rebind or disposal already in progress;
+- an artifact identity that cannot be resolved exactly from the pinned Pi `SessionManager` result.
+
+The UI explains that the owner can wait or press Stop, then retry after the session settles. Stop and remove remain separate actions; confirmation never implicitly aborts a run.
+
+#### Target validation
+
+The privileged runtime resolves the target by canonical workspace plus Pi session id using `SessionManager.list(workspace)`. It must not accept a path from the renderer. Before invoking Trash, validate that:
+
+1. the session is still listed and its id/path match the prepared confirmation record;
+2. the canonical artifact is a regular Pi session artifact under the expected session directory for the active agent root;
+3. neither the artifact nor its parent resolution escapes through a symlink;
+4. the target is not the session root, agent root, application-data root, workspace, credentials, settings, logs, feature resources, or another session;
+5. file identity and metadata revision still match the short-lived confirmation token;
+6. an externally shared `PHO_CODE_AGENT_DIR` is disclosed in the confirmation because another Pi process may observe the removal.
+
+If the pinned Pi version represents one logical session with more than one artifact, stop and add a version-specific enumerator plus atomic product semantics before implementation. Do not guess related filenames or Trash a directory broadly.
+
+#### Execution order
+
+1. Acquire a per-session lifecycle lock and recheck eligibility.
+2. Invalidate the one-time confirmation token.
+3. Flush Pi/session settings needed for a settled transcript.
+4. Unsubscribe and dispose the target controller without touching other controllers.
+5. Invoke the injected `RecoverableRemovalService` on the exact validated absolute artifact, using `/usr/bin/trash` on macOS or the accepted Linux `trash-put`/`gio trash` order.
+6. Only after Trash reports success, remove lifecycle metadata, refresh the session catalog, and publish a removal event.
+7. If Trash fails, keep archive/view metadata, report a recoverable error, and allow the controller to be reconstructed from Pi on the next open. Never fall back to permanent deletion.
+
+The result reports the session id, original display title, platform method, and `recoverable: true`; it does not expose the absolute session path to the renderer or claim an exact restore destination. Recovery is performed through Finder/Trash or the Linux desktop Trash facility. Pho Code restore applies only to archived sessions, not trashed artifacts.
+
+Tests use an injected fake for ordinary logic and the existing owned-fixture OS Trash boundary for platform proof. Test cleanup itself follows the repository deletion policy.
+
+### Selection, navigation, and UI
+
+Extend the existing project/session sidebar rather than adding a dashboard:
+
+- each ordinary session row has a compact actions menu with Archive and, when eligible, Move to Trash;
+- Archived is a secondary collapsible section or focused view, grouped by workspace, with Restore and Move to Trash;
+- running and attention states stay visible in both ordinary and Archived lists;
+- selecting a session uses an already resident snapshot immediately when safe, then reconciles with an authoritative snapshot without a full-app loading screen;
+- switching preserves project order, sidebar expansion, per-session draft, scroll state where practical, and the conversation shell;
+- keyboard users can open the actions menu, confirm/cancel removal, navigate Archived, and return focus to a predictable row;
+- confirmation names the chat and workspace and distinguishes archive from OS Trash.
+
+Do not add session drag reorder, pinning, bulk archive/remove, transcript export, rename, fork/tree, worktrees, or a changed-files dashboard in this milestone.
+
+### Startup, crash recovery, and external changes
+
+On startup, load application lifecycle metadata, enumerate Pi sessions for remembered workspaces lazily, and restore only the selected session controller. Other controllers become resident when opened or when work starts; a previous process's `working` state is never trusted because runs do not survive process exit.
+
+If the prior process exited during a run, reconstruct the transcript from Pi and show an interrupted/idle outcome only when the pinned SDK exposes enough durable evidence. Do not synthesize assistant completion, replay a prompt, or automatically resume tool execution.
+
+If a session artifact is moved or removed outside Pho Code, omit it from the catalog and prune only its orphaned lifecycle annotation on the next successful metadata save. Never recreate it automatically. If an artifact reappears later with the same valid Pi identity, treat it as an ordinary session; do not infer that OS Trash restored it successfully.
+
+The first slice does not watch every session directory continuously. Refresh catalogs on workspace expansion, session lifecycle operations, relevant runtime settlement, and explicit window focus/bootstrap reconciliation, with debouncing to avoid repeated Pi scans.
+
+### Shutdown
+
+Application quit is distinct from session switching:
+
+1. stop admitting new prompts and lifecycle mutations;
+2. invalidate all removal confirmation tokens;
+3. cancel provider auth according to the accepted Milestone 2 policy;
+4. ask every active controller to abort concurrently;
+5. wait with one bounded aggregate deadline while each controller settles its prompt and host-dialog promises;
+6. flush shared settings and dispose all controllers, workspace contexts, retrieval/web services, and model services in ownership order;
+7. record controllers that missed the deadline in redacted diagnostics, then allow the existing exact-process quit fallback.
+
+Do not dispose controllers sequentially with a full timeout per session, which would multiply quit time. Do not use broad process-kill patterns, rewrite session files, or mark interrupted runs as successfully completed. Closing/quitting Pho Code ends background runs; keeping work alive after application exit requires a later daemon/worker milestone.
+
+### Concurrency, races, and failure handling
+
+- Serialize `open/create/archive/restore/remove` per session key; unrelated keys may proceed concurrently.
+- Deduplicate concurrent opens of the same key into one controller-creation promise.
+- Admit at most one active prompt per session and the global active-run bound across controllers.
+- Bind event subscriptions and host UI before prompt admission; remove them before controller disposal.
+- A selection change during an in-flight command does not retarget the command.
+- A run settling while its session is archived updates Archived activity and metadata without restoring it.
+- An archive racing with remove is resolved by the per-key lifecycle lock; remove wins only after a fresh eligibility and confirmation check.
+- A stale event from a disposed controller is ignored by controller generation as well as session/run id.
+- One controller's snapshot/build failure emits a scoped failure and leaves registry/catalog operations available.
+- Shared permission/provider-setting mutations check all controllers, not only the selected one, for active work.
+
+### Data and privacy boundaries
+
+Application metadata may store composite session identity, archive/view timestamps, and bounded outcome labels. It must not store transcript text, prompts, model output, tool payloads, permission reasons, attachment bytes, OAuth material, absolute session-file paths, or raw errors.
+
+Sidebar notifications use Pi/session titles and bounded workspace display names. When a title derives from a prompt preview, preserve the current truncation/sanitization rules. Archived sessions are not encrypted or hidden from the filesystem; archive is organization, not a privacy boundary.
+
+### Non-goals
+
+- continuing runs after Pho Code quits, crashes, logs out, or the machine sleeps beyond provider/runtime tolerance;
+- remote workers, a background daemon, launch agent, web control plane, or unattended scheduling;
+- multi-agent orchestration, worktrees, git branch automation, or task dependency graphs;
+- session fork/tree navigation, compaction controls, Pi transcript mutation, transcript export/import, rename, pinning, tags, search, or bulk actions; the existing owner rewrite display overlay remains supported because it does not alter Pi messages;
+- automatic OS-Trash restoration or a repository-local `.trash`;
+- permanent deletion, secure erase, empty-Trash actions, `rm`, or a fallback deletion API;
+- changing Pi JSONL format, parsing it as an application database, or copying transcripts into metadata;
+- arbitrary concurrency/resource settings or a generic process manager;
+- solving cross-process concurrent ownership of an explicitly shared Pi agent directory. The UI discloses this interoperability risk and removal fails closed when ownership cannot be established.
+
+### Implementation sequence
+
+1. Characterize pinned Pi `0.84.1` session identity, `SessionManager.list/open/create`, runtime disposal, JSONL artifact layout, and behavior when two independent runtimes share `ModelRuntime` and one workspace.
+2. Add protocol composite keys, activity/catalog projections, archive/restore/remove commands, scoped event routing, and metadata-version migration.
+3. Extract the current single-session fields into a tested `SessionController` without changing visible behavior.
+4. Add the bounded registry, workspace contexts, deduplicated open/create, per-session subscriptions, and concurrent shutdown.
+5. Change application and renderer state from one active snapshot to a keyed cache plus selected key; preserve the current soft-switch UI.
+6. Route prompt, queue, abort, model/thinking, assistant rewrites, prepared images, and extension host dialogs by composite key; add background activity and attention UI.
+7. Implement archive/restore metadata and Archived navigation, including active archived runs.
+8. Implement opaque removal preparation, exact Pi artifact validation, per-session locking, controller disposal, and OS Trash execution with no permanent fallback.
+9. Add focused deterministic multi-session and lifecycle checks, then one Electron journey that proves a background run survives switching and one Trash journey for a settled session.
+10. Package macOS and repeat the representative background/archive/remove flow with isolated application and Pi data.
+11. Inspect metadata migration, shutdown timing, stale-event behavior, removal diagnostics, accessibility, actual diff, and repository status before acceptance.
+
+### Required verification
+
+Keep verification proportional. The critical boundaries are independent run ownership, scoped dialogs/events, metadata-only archive, exact-artifact Trash, and aggregate shutdown. Do not build a large visual-regression suite or duplicate Pi's session parser tests.
+
+#### Unit verified
+
+- composite session-key equality/serialization and rejection of mismatched workspace/session commands;
+- metadata migration, archive/restore idempotence, last-viewed/outcome behavior, orphan cleanup, and preservation of unrelated settings;
+- activity precedence and unread clearing only after successful selection;
+- keyed reducer routing: background events update only their owner and stale controller/run generations are ignored;
+- registry open deduplication, active/resident limits, protected-controller eviction, and per-key lifecycle locks;
+- removal confirmation expiry/single use, busy-state rejection, artifact identity/path validation, symlink/root/agent-data protection, and metadata update only after Trash success;
+- aggregate shutdown bounds and isolated controller failures;
+- JSON safety and absence of transcript, absolute session path, prepared bytes, dialog payloads, and secrets from lifecycle metadata/results.
+
+#### Integration verified
+
+- two real Pi `0.84.1` session runtimes in isolated data share the accepted `ModelRuntime`, run independently, persist distinct transcripts, and dispose without cross-session events;
+- a deterministic prompt continues in session A while session B opens and completes work;
+- Pi-native steer/follow-up, abort, model/thinking state, assistant rewrite overlays, and extension binding remain scoped after repeated selection changes;
+- simultaneous permission requests retain separate request ownership and settle only from matching session responses;
+- archive/restore changes only application metadata and leaves the Pi artifact byte-for-byte untouched;
+- a settled owned fixture session moves through the injected/real Trash boundary, disappears from Pi listing, and never invokes a permanent fallback;
+- a failed Trash call leaves the Pi artifact and lifecycle metadata recoverable;
+- quitting with multiple active controllers aborts them under one bounded aggregate deadline and releases workspace/retrieval resources.
+
+#### Desktop verified
+
+- start a delayed deterministic run in chat A, switch to chat B, use chat B, and return to observe chat A's continued stream and final transcript;
+- background working, attention, completed, and failed states appear on the correct sidebar rows and respect reduced motion;
+- a permission request from chat A cannot appear as or be resolved for chat B;
+- per-session drafts and prepared image previews survive switching during the process without leaking across chats;
+- archive and restore work for idle and running chats, including navigation away from a selected archived chat;
+- Move to Trash requires explicit confirmation, refuses a running chat, succeeds after Stop/settlement, and selects a valid fallback view;
+- relaunch preserves archive state and selected ordinary session while reconstructing transcripts from Pi.
+
+#### Packaged verified
+
+- the unsigned macOS application runs concurrent deterministic sessions from isolated app-owned data without a Pi CLI/global feature dependency;
+- archive/restore metadata persists across packaged relaunch;
+- settled session removal uses `/usr/bin/trash`, never `rm`, and does not affect credentials, settings, another session, or the session directory root;
+- quitting with multiple runs leaves no owned child/process resource behind and the next launch can list intact transcripts.
+
+#### Owner verified
+
+- a real-provider run continues usefully while the owner switches among at least two chats and two recent workspaces;
+- attention and completion indicators are understandable without opening every chat;
+- archive/restore organization feels predictable;
+- the removal confirmation and Finder Trash recovery path are acceptable for personal daily use.
+
+#### Not yet verified
+
+- Linux desktop/package and real Linux Trash until exercised on Linux;
+- surviving app exit/crash, cross-device synchronization, cross-process shared-agent-root ownership, or unattended background execution;
+- fork/tree navigation, compaction controls, worktrees, multi-agent orchestration, bulk session operations, or automatic Trash restoration;
+- public-distribution behavior under hostile workspaces, local users, or malicious baked extensions.
+
+### Acceptance gate
+
+Milestone 3 is accepted only when switching sessions no longer replaces or interrupts unrelated live controllers; multiple bounded runs and host dialogs remain correctly session-scoped; sidebar activity and unread state reconcile from authoritative snapshots; archive/restore modifies only versioned application metadata; a running or ambiguous session cannot be removed; a settled exact Pi artifact is moved only through OS Trash with no permanent fallback; aggregate shutdown is bounded and honest; packaged macOS evidence passes; and the owner accepts a real-provider background-switch plus archive/restore/removal workflow.
+
+## Milestone 4: curated capabilities
 
 ### Status
 
@@ -763,7 +1178,7 @@ Do not use Docker, Homebrew, a global binary, `go run`, runtime downloads, a rem
 
 The official native server's current stdio OAuth keeps its resulting token in memory only. Official release binaries contain GitHub's registered public client, prefer a loopback authorization-code flow, open the system browser themselves, and fall back to device code when needed. This avoids adding a second persistent secret store, but it means the owner signs in again after the GitHub server/app process restarts and the browser-open action originates in the reviewed server binary rather than Electron's validated URL function.
 
-Recommended first slice: accept that explicit limitation for personal v2. Start authentication only after an owner-requested GitHub tool call, display **GitHub sign-in opens in your browser; this session is not stored**, keep the server process shared across session replacements, and terminate it on app shutdown. Do not pass ambient `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, shell environment, `gh auth token`, browser cookies, or Pi provider OAuth credentials into the child.
+Recommended first slice: accept that explicit limitation for personal v2. Start authentication only after an owner-requested GitHub tool call, display **GitHub sign-in opens in your browser; this session is not stored**, keep one server process shared by Milestone 3's resident session controllers, and terminate it on app shutdown. Do not pass ambient `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, shell environment, `gh auth token`, browser cookies, or Pi provider OAuth credentials into the child.
 
 Before implementation, the owner must accept this behavior. If persistent login or Electron-owned URL handoff is required, stop and design a separate MCP credential/elicitation adapter; do not scrape URLs from stderr/tool output or silently add PAT storage. GitHub Enterprise and custom OAuth applications are outside this milestone.
 
@@ -780,7 +1195,7 @@ The renderer receives only feature/account status and ordinary sanitized Pi tool
 
 Extend `HarnessFeature` with typed MCP identity metadata only when implementation needs diagnostics and lifecycle composition. The manifest contains fixed server id, version, packaged artifact id, transport, mode, and tool allowlist; it contains no renderer-editable command, args, environment, URL, headers, or secret values.
 
-The GitHub process is application-owned rather than session-owned so in-memory OAuth and connection state survive Pi session replacement. Pi tool bindings are session-owned and must rebind to the current session while calling the shared service. The runtime permits only one startup attempt at a time, bounds tool concurrency, and closes the MCP client before terminating the child. If graceful shutdown misses its deadline, terminate the exact owned child process; never use broad `pkill` patterns.
+The GitHub process is application-owned rather than session-owned so in-memory OAuth and connection state are shared safely by Milestone 3's resident controllers. Pi tool bindings and permission approvals remain session-owned: every controller binds its own reviewed tool adapters while calling the shared service, and a call retains the originating composite session key for cancellation and activity routing. Evicting or removing one controller releases only its bindings and calls; it does not restart the shared server while another controller uses it. The runtime permits only one startup attempt at a time, bounds tool concurrency, and closes the MCP client after all session controllers release it and before terminating the child. If graceful shutdown misses its deadline, terminate the exact owned child process; never use broad `pkill` patterns.
 
 ### Resource and deletion policy
 
@@ -822,7 +1237,7 @@ The artifact manifest records upstream URL, release tag/commit, platform/archite
 2. Add the source-owned five-skill package, manifest entry, diagnostics, and packaged lookup; verify Pi loads exactly those skills while ambient discovery remains disabled.
 3. Audit and admit exact GitHub server and MCP client artifacts, record hashes/licenses/attribution, and prove the selected native binary runs on the development architecture.
 4. Implement `McpRuntime` with deterministic fake stdio coverage, strict initialization/tool filtering, bounded calls, abort, stderr redaction, and exact-child cleanup.
-5. Register the reviewed GitHub read tools through an inline Pi extension factory and permission classifications; rebind across session replacement.
+5. Register the reviewed GitHub read tools through an inline Pi extension factory and permission classifications; bind them independently in every resident Milestone 3 session controller.
 6. Add minimal GitHub status/sign-in disclosure only where owner action is required. Do not add server management controls.
 7. Package the native binary and skills, then run one owner-monitored repository/issue/PR investigation in a real GitHub account.
 
@@ -843,7 +1258,7 @@ Keep verification proportional: skill loading, allowlist enforcement, process ow
 - real Pi `0.84.1` discovers the five packaged skill paths and can use each skill with existing tools;
 - a deterministic fake stdio server proves initialize/list/call/cancel/disconnect without network or credentials;
 - the pinned GitHub binary starts in read-only/lockdown/fixed-toolset mode, and its discovered tools intersect the accepted allowlist exactly;
-- session replacement rebinds Pi tools without restarting the shared authenticated server process.
+- concurrent resident session controllers bind scoped Pi tools without duplicating or restarting the shared authenticated server process, and controller eviction releases only that controller's calls/bindings;
 
 #### Desktop and packaged verified
 
@@ -866,4 +1281,4 @@ Keep verification proportional: skill loading, allowlist enforcement, process ow
 
 ### Acceptance gate
 
-Milestone 3 is accepted only when the five immutable skills and the one read-only GitHub capability work from packaged app-owned resources; ambient skill/MCP discovery remains disabled; server and application allowlists expose no mutation tool; authentication behavior is owner-approved and honestly disclosed; cancellation and shutdown release the exact child process; remote content and errors remain bounded/redacted; and the owner accepts representative skill and GitHub workflows.
+Milestone 4 is accepted only when the five immutable skills and the one read-only GitHub capability work from packaged app-owned resources; ambient skill/MCP discovery remains disabled; server and application allowlists expose no mutation tool; authentication behavior is owner-approved and honestly disclosed; cancellation and shutdown release the exact child process; remote content and errors remain bounded/redacted; and the owner accepts representative skill and GitHub workflows.

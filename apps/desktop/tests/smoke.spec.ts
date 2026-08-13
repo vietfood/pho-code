@@ -111,6 +111,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "reorderRecentWorkspaces",
       "resolveHostDialog",
       "respondProviderAuthPrompt",
+      "rewriteAssistantOutput",
       "searchWorkspaceReferences",
       "sendPrompt",
       "setSessionModel",

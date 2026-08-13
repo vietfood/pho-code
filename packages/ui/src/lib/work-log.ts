@@ -57,6 +57,26 @@ export function turnTextOutput(blocks: readonly TranscriptBlock[]): string {
     .trim();
 }
 
+export function lastTextBearingMessage(
+  messages: readonly TranscriptMessage[],
+): TranscriptMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== "assistant") {
+      continue;
+    }
+    if (message.blocks.some((block) => block.type === "text")) {
+      return message;
+    }
+  }
+  return undefined;
+}
+
+export function rewrittenOriginalText(blocks: readonly TranscriptBlock[]): string | undefined {
+  const textBlocks = blocks.filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text");
+  return textBlocks.find((block) => block.originalText !== undefined)?.originalText;
+}
+
 export function countWorkBlocks(blocks: readonly TranscriptBlock[] | readonly RunWorkEntry[]): WorkLogCounts {
   let thoughts = 0;
   let tools = 0;

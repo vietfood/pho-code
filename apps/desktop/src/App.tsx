@@ -504,6 +504,20 @@ export function App() {
                     setPreparedImages((current) => current.filter((image) => image.id !== imageId));
                   });
                 }}
+                onRewrite={async ({ messageId, text }) => {
+                  try {
+                    setError(null);
+                    const next = await getDesktopBridge().rewriteAssistantOutput({
+                      sessionId: snapshot.session.id,
+                      messageId,
+                      text,
+                    });
+                    patchSnapshot((current) => ({ ...current, messages: next.messages }));
+                  } catch (cause) {
+                    setError(errorMessage(cause));
+                    throw cause;
+                  }
+                }}
                 onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
                 onStop={() => {
                   const runId = snapshot.run.runId;

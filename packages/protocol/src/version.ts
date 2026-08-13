@@ -19,6 +19,7 @@ export const PROTOCOL_COMMANDS = {
   abortRun: "abortRun",
   setSessionModel: "setSessionModel",
   setThinkingLevel: "setThinkingLevel",
+  rewriteAssistantOutput: "rewriteAssistantOutput",
   resolveHostDialog: "resolveHostDialog",
   getSettings: "getSettings",
   updateAppearanceSettings: "updateAppearanceSettings",

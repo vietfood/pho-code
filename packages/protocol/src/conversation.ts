@@ -13,6 +13,8 @@ export type RunStatus = "idle" | "admitted" | "streaming" | "settled" | "failed"
 export interface TranscriptTextBlock {
   type: "text";
   text: string;
+  /** Present when the owner rewrote this block; Pi JSONL still holds this original. */
+  originalText?: string;
 }
 
 export interface TranscriptThinkingBlock {
@@ -221,6 +223,15 @@ export interface SetSessionModelInput {
 export interface SetThinkingLevelInput {
   sessionId: string;
   level: ThinkingLevel;
+}
+
+/** Owner-edited assistant markdown. Display overlay only; Pi JSONL messages stay unchanged. */
+export const MAX_ASSISTANT_REWRITE_CHARS = 100_000;
+
+export interface RewriteAssistantOutputInput {
+  sessionId: string;
+  messageId: string;
+  text: string;
 }
 
 export function idleRunState(): RunState {

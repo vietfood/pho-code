@@ -15,6 +15,7 @@ import {
   isThinkingLevel,
   isUiFontSize,
   isWorkspaceReferenceToken,
+  MAX_ASSISTANT_REWRITE_CHARS,
   MAX_PREPARED_IMAGES,
   MAX_PROVIDER_AUTH_VALUE,
   MAX_WORKSPACE_REFERENCE_QUERY,
@@ -47,6 +48,7 @@ import {
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RewriteAssistantOutputInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -103,6 +105,7 @@ export interface ApplicationService {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): HarnessSettingsSnapshot;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
@@ -479,6 +482,54 @@ export function createApplicationService(input: {
       };
       assertJsonSafe(snapshot, "setThinkingLevel");
       return snapshot;
+    },
+    async rewriteAssistantOutput(command: RewriteAssistantOutputInput) {
+      assertActive();
+      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "rewriteAssistantOutput");
+      const messageId = requireNonEmptyString(command.messageId, "messageId", "rewriteAssistantOutput");
+      if (typeof command.text !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Rewritten text is required.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      if (command.text.length > MAX_ASSISTANT_REWRITE_CHARS) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The rewritten text is too long.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      if (!session || session.session.id !== sessionId) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionNotFound,
+          message: "Open a session before rewriting assistant output.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
+      try {
+        const snapshot = await input.runtime.rewriteAssistantOutput({
+          sessionId,
+          messageId,
+          text: command.text,
+        });
+        session = snapshot;
+        workspace = {
+          workspace: snapshot.workspace,
+          sessions: snapshot.sessions,
+          models: snapshot.models,
+          features: snapshot.features,
+          ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
+        };
+        assertJsonSafe(snapshot, "rewriteAssistantOutput");
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "rewriteAssistantOutput");
+      }
     },
     async resolveHostDialog(command: ResolveHostDialogInput) {
       assertActive();

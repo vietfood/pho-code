@@ -35,6 +35,7 @@ import {
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RewriteAssistantOutputInput,
   type SearchWorkspaceReferencesInput,
   type SendPromptInput,
   type SetSessionModelInput,
@@ -424,6 +425,13 @@ function registerIpc(): void {
     handleCommand("setThinkingLevel", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().setThinkingLevel(asRecord(payload) as unknown as SetThinkingLevelInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.rewriteAssistantOutput, async (event, payload: unknown) =>
+    handleCommand("rewriteAssistantOutput", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().rewriteAssistantOutput(asRecord(payload) as unknown as RewriteAssistantOutputInput);
     }),
   );
 

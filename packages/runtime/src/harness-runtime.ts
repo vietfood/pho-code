@@ -22,6 +22,7 @@ import {
   type RemovePreparedImageInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RewriteAssistantOutputInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -62,6 +63,7 @@ export interface HarnessRuntime {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getPermissionSettings(): PermissionSettings;
   trustProjectPermissionRules(workspacePath: string): Promise<PermissionSettings>;
@@ -139,6 +141,9 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     setThinkingLevel() {
       return Promise.reject(unavailable("setThinkingLevel"));
+    },
+    rewriteAssistantOutput() {
+      return Promise.reject(unavailable("rewriteAssistantOutput"));
     },
     resolveHostDialog() {
       return Promise.reject(unavailable("resolveHostDialog"));

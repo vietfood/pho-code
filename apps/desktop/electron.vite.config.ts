@@ -84,6 +84,11 @@ export default defineConfig(({ command }) => {
       server: {
         port: devPort,
         strictPort: true,
+        watch: {
+          // Main/preload live beside the renderer root; if Vite watches them it
+          // reloads the page with a stale contextBridge instead of restarting Electron.
+          ignored: ["**/electron/**", "**/tests/**", "**/out/**"],
+        },
       },
       build: {
         outDir: "out/renderer",

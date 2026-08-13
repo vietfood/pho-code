@@ -166,9 +166,51 @@ describe("assistant turn work collapse", () => {
     expect(markup).toContain("Final answer only.");
     expect(markup).toContain('data-testid="copy-assistant-output"');
     expect(markup).toContain('aria-label="Copy"');
+    expect(markup).not.toContain('data-testid="edit-assistant-output"');
     expect(markup).not.toContain("hidden thought from first assistant message");
     expect(markup).not.toContain("Bash completed");
     // One turn-level toggle, not one per assistant message.
     expect(markup.match(/data-testid="work-log-toggle"/gu)?.length).toBe(1);
+  });
+
+  test("offers Edit next to Copy when rewrite is available and marks rewritten output", () => {
+    const snapshot: SessionSnapshot = {
+      session: {
+        id: "s1",
+        workspaceId: "/tmp/ws",
+        title: "Session",
+        updatedAt: "2026-08-13T00:08:41.000Z",
+      },
+      workspace: {
+        id: "/tmp/ws",
+        path: "/tmp/ws",
+        displayName: "ws",
+        lastOpenedAt: "2026-08-13T00:00:00.000Z",
+        projectResourcesApproved: true,
+      },
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          createdAt: "2026-08-13T00:00:00.000Z",
+          blocks: [{ type: "text", text: "$$x^2$$", originalText: "broken latex" }],
+        },
+      ],
+      run: idleRunState(),
+      models: [],
+      sessions: [],
+      features: emptyFeatureSnapshot(),
+      thinkingLevel: "off",
+      availableThinkingLevels: ["off"],
+      supportsThinking: false,
+    };
+
+    const markup = renderToStaticMarkup(
+      createElement(Transcript, { snapshot, onRewrite: () => undefined }),
+    );
+    expect(markup).toContain('data-testid="edit-assistant-output"');
+    expect(markup).toContain('data-testid="rewritten-assistant-output"');
+    expect(markup).toContain("Edited");
+    expect(markup).toContain("x^2");
   });
 });

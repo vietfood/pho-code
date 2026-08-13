@@ -198,6 +198,88 @@ describe("Pi harness runtime", () => {
     }
   }, 30_000);
 
+  test("rewrites settled assistant text as a display overlay that survives reopen", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const admission = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: "hello",
+      });
+      expect(admission.admitted).toBe(true);
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      stop();
+
+      const settled = await runtime.openSession(workspace.workspace.id, created.session.id);
+      const assistant = settled.messages.find(
+        (message) =>
+          message.role === "assistant" &&
+          message.blocks.some((block) => block.type === "text" && block.text.includes("Hello from the test model.")),
+      );
+      expect(assistant).toBeDefined();
+      const rewritten = await runtime.rewriteAssistantOutput({
+        sessionId: created.session.id,
+        messageId: assistant!.id,
+        text: "Hello with $$x^2$$.",
+      });
+      const rewrittenBlock = rewritten.messages
+        .find((message) => message.id === assistant!.id)
+        ?.blocks.find((block) => block.type === "text");
+      expect(rewrittenBlock).toMatchObject({
+        type: "text",
+        text: "Hello with $$x^2$$.",
+        originalText: "Hello from the test model.",
+      });
+    } finally {
+      await runtime.dispose();
+    }
+
+    const reopened = await createTestRuntime(agentDir);
+    try {
+      const listed = await reopened.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const sessionId = listed.sessions[0]?.id;
+      expect(sessionId).toBeDefined();
+      const resumed = await reopened.openSession(listed.workspace.id, sessionId ?? "");
+      const rewrittenBlock = resumed.messages
+        .filter((message) => message.role === "assistant")
+        .flatMap((message) => message.blocks)
+        .find((block) => block.type === "text" && block.text.includes("x^2"));
+      expect(rewrittenBlock).toMatchObject({
+        type: "text",
+        text: "Hello with $$x^2$$.",
+        originalText: "Hello from the test model.",
+      });
+      const assistant = resumed.messages.find((message) =>
+        message.blocks.some((block) => block.type === "text" && block.originalText === "Hello from the test model."),
+      );
+      expect(assistant).toBeDefined();
+      const restored = await reopened.rewriteAssistantOutput({
+        sessionId: resumed.session.id,
+        messageId: assistant!.id,
+        text: "Hello from the test model.",
+      });
+      const restoredBlock = restored.messages
+        .find((message) => message.id === assistant!.id)
+        ?.blocks.find((block) => block.type === "text");
+      expect(restoredBlock).toEqual({ type: "text", text: "Hello from the test model." });
+    } finally {
+      await reopened.dispose();
+    }
+  }, 30_000);
+
   test("rejects a missing session before admission and reports a model error after admission", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     const runtime = await createTestRuntime(agentDir);
