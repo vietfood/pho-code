@@ -146,10 +146,11 @@ export function createProviderAuthFlow(input: {
 
   function emit(flow: ActiveFlow): ProviderAuthFlowSnapshot {
     flow.revision += 1;
-    lastSnapshot = snapshotOf(flow);
-    assertNoCanaries(lastSnapshot, flow.canaries, "providerAuthFlow");
-    input.emit(lastSnapshot);
-    return lastSnapshot;
+    const snapshot = snapshotOf(flow);
+    assertNoCanaries(snapshot, flow.canaries, "providerAuthFlow");
+    lastSnapshot = snapshot;
+    input.emit(snapshot);
+    return snapshot;
   }
 
   function requireActive(flowId: string, operation: string): ActiveFlow {
@@ -182,8 +183,12 @@ export function createProviderAuthFlow(input: {
     if (error) {
       flow.error = redactHarnessError(error, flow.canaries);
     }
-    const snapshot = emit(flow);
-    active = undefined;
+    let snapshot: ProviderAuthFlowSnapshot;
+    try {
+      snapshot = emit(flow);
+    } finally {
+      active = undefined;
+    }
     await input.onSettled?.(snapshot);
     return snapshot;
   }
@@ -656,7 +661,7 @@ function isCancellation(error: unknown, signal: AbortSignal): boolean {
 function redactHarnessError(error: HarnessError, canaries: readonly string[]): HarnessError {
   let message = error.message;
   for (const canary of canaries) {
-    if (canary.length >= 8) {
+    if (canary.length > 0) {
       message = message.split(canary).join("[redacted]");
     }
   }

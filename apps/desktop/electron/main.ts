@@ -117,8 +117,10 @@ function applyUserDataOverride(): void {
   app.setPath("userData", path.resolve(override));
 }
 
-const openedAuthUrls: string[] = [];
-(globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls = openedAuthUrls;
+const openedAuthUrls: string[] | undefined = testMode ? [] : undefined;
+if (openedAuthUrls) {
+  (globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls = openedAuthUrls;
+}
 
 function openValidatedExternalUrl(url: string): void {
   if (testMode || !isSafeExternalUrl(url)) {
@@ -132,7 +134,7 @@ function openValidatedAuthUrl(url: string): void {
   if (!isSafeExternalUrl(url)) {
     return;
   }
-  openedAuthUrls.push(url);
+  openedAuthUrls?.push(url);
   if (testMode) {
     return;
   }
