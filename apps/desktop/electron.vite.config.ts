@@ -18,6 +18,8 @@ const portableAliases = {
 function isExternalRuntimeDependency(id: string): boolean {
   return (
     id.startsWith("@earendil-works/") ||
+    id.startsWith("@ff-labs/") ||
+    id === "ffi-rs" ||
     id === "@silvia-odwyer/photon-node" ||
     id === "typebox" ||
     id === "chalk" ||

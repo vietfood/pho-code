@@ -149,7 +149,15 @@ function writeStagedBuilderConfig(): string {
     },
     files: ["**/*", "!**/node_modules/@gotgenes/**", "!**/node_modules/@pho-code/**"],
     asar: true,
-    asarUnpack: ["**/*.node", "**/*.wasm", "**/node_modules/@silvia-odwyer/photon-node/**/*"],
+    asarUnpack: [
+      "**/*.node",
+      "**/*.wasm",
+      "**/*.dylib",
+      "**/*.so",
+      "**/node_modules/@silvia-odwyer/photon-node/**/*",
+      "**/node_modules/@ff-labs/**/*",
+      "**/node_modules/ffi-rs/**/*",
+    ],
     extraResources: [
       { from: path.join(DESKTOP_RESOURCES_DIR, "features"), to: "features" },
       { from: path.join(DESKTOP_RESOURCES_DIR, "THIRD_PARTY_NOTICES.txt"), to: "THIRD_PARTY_NOTICES.txt" },

@@ -18,7 +18,11 @@ asar: true
 asarUnpack:
   - "**/*.node"
   - "**/*.wasm"
+  - "**/*.dylib"
+  - "**/*.so"
   - "**/node_modules/@silvia-odwyer/photon-node/**/*"
+  - "**/node_modules/@ff-labs/**/*"
+  - "**/node_modules/ffi-rs/**/*"
 
 extraResources:
   - from: resources/features

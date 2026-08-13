@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  expandSettledWorkLog,
   launchDesktop,
   makeAgentDir,
   makeUserDataDir,
@@ -27,7 +28,8 @@ test("streams a tool run in an isolated workspace and restores the transcript af
       await expect(page.getByTestId("session-item")).toBeVisible();
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed", { timeout: 20_000 });
+      await expandSettledWorkLog(page);
+      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");
       await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
       await page.getByTestId("composer").fill("hello");
@@ -44,6 +46,7 @@ test("streams a tool run in an isolated workspace and restores the transcript af
       await page.getByTestId("session-item").click();
       await expect(page.getByTestId("transcript")).toContainText("USE_TOOL");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");
+      await page.getByTestId("work-log-toggle").first().click();
       await expect(page.getByTestId("tool-card")).toContainText("completed");
     } finally {
       await second.close();

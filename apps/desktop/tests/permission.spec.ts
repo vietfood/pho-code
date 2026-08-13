@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  expandSettledWorkLog,
   launchDesktop,
   makeAgentDir,
   makeUserDataDir,
@@ -37,7 +38,8 @@ test("baked permission feature prompts through select host UI", async () => {
       await page.getByRole("radio", { name: "Yes", exact: true }).check();
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed", { timeout: 20_000 });
+      await expandSettledWorkLog(page);
+      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");
     } finally {
       await harness.close();
