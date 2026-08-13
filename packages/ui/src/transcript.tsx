@@ -18,7 +18,6 @@ import { elapsedSince } from "./lib/elapsed";
 import { ConservativeMarkdown } from "./markdown";
 import { MentionChip } from "./mention-chip";
 import { LoadingState } from "./loading-state";
-import { StreamingOutput, useSmoothStreamingText } from "./streaming-output";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
@@ -40,11 +39,6 @@ export function Transcript({
   const stickToBottomRef = useRef(true);
   const wasRunningRef = useRef(false);
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
-  const displayedStreamingText = useSmoothStreamingText(
-    snapshot.run.streamingText,
-    running,
-    snapshot.run.runId,
-  );
   const [liveWorkExpanded, setLiveWorkExpanded] = useState(true);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -85,7 +79,7 @@ export function Transcript({
       return;
     }
     scroller.scrollTop = scroller.scrollHeight;
-  }, [displayedStreamingText, liveWorkExpanded, snapshot.messages, snapshot.run.streamingText, snapshot.run.work]);
+  }, [liveWorkExpanded, snapshot.messages, snapshot.run.streamingText, snapshot.run.work]);
 
   const liveWorkCounts = countWorkBlocks(snapshot.run.work);
   const segments = groupTranscriptSegments(snapshot.messages);
@@ -149,7 +143,10 @@ export function Transcript({
         </div>
       ) : null}
       {snapshot.run.streamingText ? (
-        <StreamingOutput text={displayedStreamingText} running={running} />
+        <article className="chat-text mx-auto w-full min-w-0 max-w-3xl overflow-x-clip px-1 py-0.5 pb-4 streaming-text" data-testid="streaming-text">
+          <ConservativeMarkdown text={snapshot.run.streamingText} isStreaming />
+          {running ? <span className="streaming-caret" aria-hidden="true" /> : null}
+        </article>
       ) : null}
       {running && !snapshot.run.streamingText && liveWorkCounts.steps === 0 ? (
         <div className="mx-auto w-full max-w-3xl px-1 pb-4 pt-1">
