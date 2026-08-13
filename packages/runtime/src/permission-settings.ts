@@ -1,0 +1,357 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import {
+  createHarnessError,
+  HARNESS_ERROR_CODES,
+  type ManagedPermissionProfileId,
+  type PermissionProfileId,
+  type PermissionSettings,
+  type UpdatePermissionSettingsInput,
+} from "@pho-code/protocol";
+
+export const PERMISSION_PRESET_VERSION = 1 as const;
+export const PERMISSION_CONFIG_RELATIVE_PATH = path.join(
+  "extensions",
+  "pi-permission-system",
+  "config.json",
+);
+export const PROJECT_PERMISSION_CONFIG_RELATIVE_PATH = path.join(
+  ".pi",
+  "extensions",
+  "pi-permission-system",
+  "config.json",
+);
+
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  "$schema",
+  "debugLog",
+  "permissionReviewLog",
+  "yoloMode",
+  "doublePressToConfirm",
+  "toolInputPreviewMaxLength",
+  "toolTextSummaryMaxLength",
+  "piInfrastructureReadPaths",
+  "authorizerChain",
+  "permission",
+  "shellTools",
+]);
+
+export const GUARDED_PERMISSION = {
+  "*": "ask",
+  path: {
+    "*": "ask",
+    "*.env": "deny",
+    "*.env.*": "deny",
+    "*.env.example": "ask",
+    "~/.ssh/*": "deny",
+  },
+  external_directory: "ask",
+} as const;
+
+export const BALANCED_PERMISSION = {
+  "*": "ask",
+  path: {
+    "*": "allow",
+    "*.env": "deny",
+    "*.env.*": "deny",
+    "*.env.example": "allow",
+    "~/.ssh/*": "deny",
+  },
+  read: "allow",
+  find: "allow",
+  grep: "allow",
+  ls: "allow",
+  write: "ask",
+  edit: "ask",
+  bash: "ask",
+  skill: "ask",
+  mcp: "ask",
+  external_directory: "ask",
+} as const;
+
+type PermissionDecision = "allow" | "ask" | "deny";
+
+export function globalPermissionConfigPath(agentDir: string): string {
+  return path.join(agentDir, PERMISSION_CONFIG_RELATIVE_PATH);
+}
+
+export function projectPermissionConfigPath(workspacePath: string): string {
+  return path.join(workspacePath, PROJECT_PERMISSION_CONFIG_RELATIVE_PATH);
+}
+
+export function projectPermissionOverridePresent(workspacePath: string | undefined): boolean {
+  if (!workspacePath) {
+    return false;
+  }
+  return existsSync(projectPermissionConfigPath(workspacePath));
+}
+
+export function readPermissionSettings(input: {
+  agentDir: string;
+  appliesToSharedPiAgentDir?: boolean;
+  workspacePath?: string;
+  yoloActive?: boolean;
+}): PermissionSettings {
+  const loaded = loadPermissionConfigFile(globalPermissionConfigPath(input.agentDir));
+  const yoloMode = loaded.config.yoloMode === true || input.yoloActive === true;
+  return {
+    profile: detectPermissionProfile(loaded.config.permission),
+    yoloMode,
+    permissionReviewLog: loaded.config.permissionReviewLog !== false,
+    projectOverridePresent: projectPermissionOverridePresent(input.workspacePath),
+    appliesToSharedPiAgentDir: input.appliesToSharedPiAgentDir === true,
+  };
+}
+
+export function applyPermissionSettingsPatch(input: {
+  agentDir: string;
+  appliesToSharedPiAgentDir?: boolean;
+  patch: UpdatePermissionSettingsInput;
+  workspacePath?: string;
+  yoloActive?: boolean;
+}): PermissionSettings {
+  const filePath = globalPermissionConfigPath(input.agentDir);
+  const loaded = loadPermissionConfigFile(filePath);
+  const next = patchPermissionConfig(loaded.config, input.patch);
+  atomicWriteJson(filePath, next);
+  return readPermissionSettings({
+    agentDir: input.agentDir,
+    appliesToSharedPiAgentDir: input.appliesToSharedPiAgentDir === true,
+    ...(input.workspacePath ? { workspacePath: input.workspacePath } : {}),
+    ...(input.yoloActive !== undefined ? { yoloActive: input.yoloActive } : {}),
+  });
+}
+
+export function detectPermissionProfile(permission: unknown): PermissionProfileId {
+  if (permission === undefined) {
+    return "custom";
+  }
+  if (permissionPoliciesEquivalent(permission, GUARDED_PERMISSION)) {
+    return "guarded";
+  }
+  if (permissionPoliciesEquivalent(permission, BALANCED_PERMISSION)) {
+    return "balanced";
+  }
+  return "custom";
+}
+
+export function permissionPolicyForProfile(profile: ManagedPermissionProfileId): Record<string, unknown> {
+  return cloneJson(profile === "guarded" ? GUARDED_PERMISSION : BALANCED_PERMISSION) as Record<string, unknown>;
+}
+
+export function patchPermissionConfig(
+  existing: Record<string, unknown>,
+  patch: UpdatePermissionSettingsInput,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const key of Object.keys(existing)) {
+    next[key] = cloneJson(existing[key]);
+  }
+  if (patch.profile) {
+    next.permission = permissionPolicyForProfile(patch.profile);
+  }
+  if (patch.yoloMode !== undefined) {
+    next.yoloMode = patch.yoloMode;
+  }
+  if (patch.permissionReviewLog !== undefined) {
+    next.permissionReviewLog = patch.permissionReviewLog;
+  }
+  assertSupportedPermissionConfig(next);
+  return next;
+}
+
+function loadPermissionConfigFile(filePath: string): { config: Record<string, unknown> } {
+  if (!existsSync(filePath)) {
+    return { config: {} };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(filePath, "utf8"));
+  } catch (error) {
+    throw invalidPermissionConfig(
+      `The permission config at ${filePath} is not valid JSON.`,
+      error instanceof Error ? error.message : "parse failed",
+    );
+  }
+  return { config: assertSupportedPermissionConfig(parsed, filePath) };
+}
+
+function assertSupportedPermissionConfig(value: unknown, filePath?: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw invalidPermissionConfig("Permission config must be a JSON object.", filePath);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!KNOWN_TOP_LEVEL_KEYS.has(key)) {
+      throw invalidPermissionConfig(`Permission config has unrecognized field "${key}".`, filePath);
+    }
+  }
+  if (record.$schema !== undefined && typeof record.$schema !== "string") {
+    throw invalidPermissionConfig("Permission config $schema must be a string.", filePath);
+  }
+  assertOptionalBoolean(record, "debugLog", filePath);
+  assertOptionalBoolean(record, "permissionReviewLog", filePath);
+  assertOptionalBoolean(record, "yoloMode", filePath);
+  assertOptionalBoolean(record, "doublePressToConfirm", filePath);
+  assertOptionalPositiveInt(record, "toolInputPreviewMaxLength", filePath);
+  assertOptionalPositiveInt(record, "toolTextSummaryMaxLength", filePath);
+  if (record.piInfrastructureReadPaths !== undefined && !isStringArray(record.piInfrastructureReadPaths)) {
+    throw invalidPermissionConfig("Permission config piInfrastructureReadPaths must be a string array.", filePath);
+  }
+  if (record.authorizerChain !== undefined && !isStringArray(record.authorizerChain)) {
+    throw invalidPermissionConfig("Permission config authorizerChain must be a string array.", filePath);
+  }
+  if (record.permission !== undefined) {
+    assertPermissionPolicy(record.permission, filePath);
+  }
+  if (record.shellTools !== undefined) {
+    assertShellTools(record.shellTools, filePath);
+  }
+  return record;
+}
+
+function assertPermissionPolicy(value: unknown, filePath?: string): void {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw invalidPermissionConfig("Permission policy must be an object.", filePath);
+  }
+  for (const [surface, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (surface.length === 0) {
+      throw invalidPermissionConfig("Permission policy surfaces must be non-empty.", filePath);
+    }
+    if (isPermissionDecision(entry)) {
+      continue;
+    }
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      throw invalidPermissionConfig(`Permission policy for "${surface}" is not a supported value.`, filePath);
+    }
+    for (const [pattern, patternValue] of Object.entries(entry as Record<string, unknown>)) {
+      if (pattern.length === 0) {
+        throw invalidPermissionConfig(`Permission pattern for "${surface}" must be non-empty.`, filePath);
+      }
+      if (!isPermissionDecision(patternValue) && !isDenyWithReason(patternValue)) {
+        throw invalidPermissionConfig(`Permission pattern "${pattern}" on "${surface}" is not a supported value.`, filePath);
+      }
+    }
+  }
+}
+
+function assertShellTools(value: unknown, filePath?: string): void {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw invalidPermissionConfig("Permission config shellTools must be an object.", filePath);
+  }
+  for (const [tool, mapping] of Object.entries(value as Record<string, unknown>)) {
+    if (tool.length === 0 || mapping === null || typeof mapping !== "object" || Array.isArray(mapping)) {
+      throw invalidPermissionConfig("Permission config shellTools entries must be objects.", filePath);
+    }
+    const record = mapping as Record<string, unknown>;
+    if (Object.keys(record).some((key) => key !== "commandArgument" && key !== "workdirArgument")) {
+      throw invalidPermissionConfig("Permission config shellTools entries have unrecognized fields.", filePath);
+    }
+    if (typeof record.commandArgument !== "string" || record.commandArgument.length === 0) {
+      throw invalidPermissionConfig("Permission config shellTools.commandArgument must be a string.", filePath);
+    }
+    if (
+      record.workdirArgument !== undefined &&
+      (typeof record.workdirArgument !== "string" || record.workdirArgument.length === 0)
+    ) {
+      throw invalidPermissionConfig("Permission config shellTools.workdirArgument must be a string.", filePath);
+    }
+  }
+}
+
+function permissionPoliciesEquivalent(left: unknown, right: unknown): boolean {
+  return JSON.stringify(collapsePermissionPolicy(left)) === JSON.stringify(collapsePermissionPolicy(right));
+}
+
+function collapsePermissionPolicy(value: unknown): unknown {
+  if (isPermissionDecision(value) || isDenyWithReason(value)) {
+    return value;
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  const collapsed: Record<string, unknown> = {};
+  for (const key of Object.keys(record)) {
+    collapsed[key] = collapsePermissionPolicy(record[key]);
+  }
+  const keys = Object.keys(collapsed);
+  if (keys.length === 1 && keys[0] === "*" && isPermissionDecision(collapsed["*"])) {
+    return collapsed["*"];
+  }
+  return collapsed;
+}
+
+function atomicWriteJson(filePath: string, value: Record<string, unknown>): void {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.tmp`;
+  try {
+    writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    renameSync(tmpPath, filePath);
+  } catch (error) {
+    try {
+      if (existsSync(tmpPath)) {
+        unlinkSync(tmpPath);
+      }
+    } catch {
+      // Best-effort temp cleanup; the original file is unchanged.
+    }
+    throw invalidPermissionConfig(
+      "Unable to write the permission config.",
+      error instanceof Error ? error.message : "write failed",
+    );
+  }
+}
+
+function assertOptionalBoolean(record: Record<string, unknown>, key: string, filePath?: string): void {
+  if (record[key] !== undefined && typeof record[key] !== "boolean") {
+    throw invalidPermissionConfig(`Permission config ${key} must be a boolean.`, filePath);
+  }
+}
+
+function assertOptionalPositiveInt(record: Record<string, unknown>, key: string, filePath?: string): void {
+  const value = record[key];
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw invalidPermissionConfig(`Permission config ${key} must be a positive integer.`, filePath);
+  }
+}
+
+function isPermissionDecision(value: unknown): value is PermissionDecision {
+  return value === "allow" || value === "ask" || value === "deny";
+}
+
+function isDenyWithReason(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (record.action !== "deny") {
+    return false;
+  }
+  if (record.reason !== undefined && (typeof record.reason !== "string" || record.reason.length > 500)) {
+    return false;
+  }
+  return keys.every((key) => key === "action" || key === "reason");
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function invalidPermissionConfig(message: string, detail?: string) {
+  return createHarnessError({
+    code: HARNESS_ERROR_CODES.invalidPermissionConfig,
+    message,
+    operation: "updatePermissionSettings",
+    recoverable: true,
+    ...(detail ? { details: { detail } } : {}),
+  });
+}

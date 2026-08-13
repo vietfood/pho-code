@@ -1,0 +1,522 @@
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, test } from "bun:test";
+import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, type RuntimeEvent } from "@pho-code/protocol";
+import {
+  PERMISSION_FEATURE_ID,
+  TEST_PROMPT,
+  TEST_TOOL_NAME,
+  createDefaultFeatureManifest,
+  createPhoCodeRuntime,
+  createUnsupportedHostUiExtension,
+} from "../src/index";
+
+async function makeIsolatedDirs() {
+  const root = await mkdtemp(path.join(tmpdir(), "pho-code-test-"));
+  const agentDir = path.join(root, "agent");
+  const workspaceDir = path.join(root, "workspace");
+  await mkdir(agentDir);
+  await mkdir(workspaceDir);
+  return { agentDir, workspaceDir };
+}
+
+async function createTestRuntime(
+  agentDir: string,
+  options: { testHostUi?: boolean; useDefaultManifest?: boolean } = {},
+) {
+  return createPhoCodeRuntime({
+    agentDir,
+    deterministicTestModel: true,
+    ...(options.testHostUi ? { testHostUi: true } : {}),
+    ...(options.useDefaultManifest ? { featureManifest: createDefaultFeatureManifest() } : {}),
+  });
+}
+
+const DIALOG_EXTENSION = `export default function harnessDialog(pi) {
+  pi.registerCommand("harness-confirm", {
+    description: "Open the representative harness confirm dialog",
+    handler: async (_args, ctx) => {
+      const confirmed = await ctx.ui.confirm("Confirm harness action?", "Approve this representative dialog.");
+      ctx.ui.notify(confirmed ? "Confirm accepted" : "Confirm rejected", "info");
+    },
+  });
+}
+`;
+
+const SKILL_MARKDOWN = `---
+name: harness-note
+description: A representative skill for the harness resource slice.
+---
+
+Leave a short note when this skill is relevant.
+`;
+
+async function writeProjectFeatureFixture(workspaceDir: string): Promise<void> {
+  await mkdir(path.join(workspaceDir, ".pi", "extensions"), { recursive: true });
+  await mkdir(path.join(workspaceDir, ".agents", "skills", "harness-note"), { recursive: true });
+  await writeFile(path.join(workspaceDir, "AGENTS.md"), "# Workspace instructions\n");
+  await writeFile(path.join(workspaceDir, ".pi", "extensions", "harness-dialog.ts"), DIALOG_EXTENSION);
+  await writeFile(
+    path.join(workspaceDir, ".pi", "extensions", "harness-broken.ts"),
+    "throw new Error('intentional harness diagnostic');\n",
+  );
+  await writeFile(path.join(workspaceDir, ".agents", "skills", "harness-note", "SKILL.md"), SKILL_MARKDOWN);
+}
+
+describe("Pi harness runtime", () => {
+  test("creates a persistent session, streams a tool run, and reconstructs the transcript on reopen", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(workspace.models).toEqual([
+        { provider: "harness-test", id: "slice", name: "Harness test model" },
+      ]);
+
+      const created = await runtime.createSession(workspace.workspace.id);
+      expect(created.messages).toEqual([]);
+      expect(created.sessions.some((session) => session.id === created.session.id)).toBe(true);
+      expect(created.thinkingLevel).toBeDefined();
+      expect(created.availableThinkingLevels.length).toBeGreaterThan(0);
+      const listedWithoutSwap = await runtime.listWorkspaceSessions(workspace.workspace.id);
+      expect(listedWithoutSwap.some((session) => session.id === created.session.id)).toBe(true);
+      const nextThinking = created.availableThinkingLevels.includes("off")
+        ? "off"
+        : created.availableThinkingLevels[0]!;
+      const afterThinking = await runtime.setThinkingLevel({
+        sessionId: created.session.id,
+        level: nextThinking,
+      });
+      expect(afterThinking.session.id).toBe(created.session.id);
+      expect(afterThinking.thinkingLevel).toBe(nextThinking);
+      expect(afterThinking.models).toEqual(created.models);
+      expect(afterThinking.supportsThinking).toBe(created.supportsThinking);
+      const afterModel = await runtime.setSessionModel({
+        sessionId: created.session.id,
+        provider: created.model!.provider,
+        id: created.model!.id,
+      });
+      expect(afterModel.model).toEqual(created.model);
+      expect(afterModel.models).toEqual(created.models);
+      expect(afterModel.thinkingLevel).toBe(nextThinking);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+
+      const admission = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      expect(admission.admitted).toBe(true);
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+
+      const types = events.map((event) => event.type);
+      const admittedAt = types.indexOf(RUNTIME_EVENT_TYPES.runAdmitted);
+      const settledAt = types.indexOf(RUNTIME_EVENT_TYPES.runSettled);
+      expect(admittedAt).toBeGreaterThan(-1);
+      expect(settledAt).toBeGreaterThan(admittedAt);
+      expect(types.slice(0, admittedAt)).toContain(RUNTIME_EVENT_TYPES.sessionSnapshot);
+      expect(types.slice(admittedAt, settledAt)).toContain(RUNTIME_EVENT_TYPES.toolEvent);
+      expect(types.slice(settledAt + 1)).not.toContain(RUNTIME_EVENT_TYPES.runFailed);
+
+      const afterTool = await runtime.openSession(workspace.workspace.id, created.session.id);
+      expect(afterTool.messages.some((message) => message.role === "user")).toBe(true);
+      expect(
+        afterTool.messages.some((message) =>
+          message.blocks.some(
+            (block) =>
+              block.type === "tool" && block.name === TEST_TOOL_NAME && block.status === "completed",
+          ),
+        ),
+      ).toBe(true);
+      expect(afterTool.messages.some((message) => message.blocks.some((block) => block.type === "text" && block.text.includes("Tool completed.")))).toBe(
+        true,
+      );
+
+      events.length = 0;
+      const second = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: "hello",
+      });
+      expect(second.admitted).toBe(true);
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      const afterHello = await runtime.openSession(workspace.workspace.id, created.session.id);
+      expect(
+        afterHello.messages.some((message) =>
+          message.blocks.some((block) => block.type === "text" && block.text.includes("Hello from the test model.")),
+        ),
+      ).toBe(true);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+
+    const reopened = await createTestRuntime(agentDir);
+    try {
+      const listed = await reopened.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(listed.sessions.length).toBe(1);
+      const sessionId = listed.sessions[0]?.id;
+      expect(sessionId).toBeDefined();
+      const resumed = await reopened.openSession(listed.workspace.id, sessionId ?? "");
+      expect(resumed.messages.some((message) => message.role === "user")).toBe(true);
+      expect(
+        resumed.messages.some((message) =>
+          message.blocks.some((block) => block.type === "text" && block.text.includes("Tool completed.")),
+        ),
+      ).toBe(true);
+    } finally {
+      await reopened.dispose();
+    }
+  }, 30_000);
+
+  test("rejects a missing session before admission and reports a model error after admission", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      await expect(
+        runtime.sendPrompt({ sessionId: "missing", text: "hello" }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.sessionNotFound });
+
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const admission = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.failAfter,
+      });
+      expect(admission.admitted).toBe(true);
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runFailed);
+      expect(events.some((event) => event.type === RUNTIME_EVENT_TYPES.runFailed)).toBe(true);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("abort settles the run and allows another prompt", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+
+      const first = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.abortMe,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runAdmitted);
+      await expect(
+        runtime.sendPrompt({ sessionId: created.session.id, text: "hello" }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.sessionBusy });
+
+      await runtime.abortRun({ sessionId: created.session.id, runId: first.runId });
+      const settled = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      expect(settled.payload).toMatchObject({ run: { status: "cancelled" } });
+
+      const second = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: "hello",
+      });
+      expect(second.admitted).toBe(true);
+      const completed = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === second.runId);
+      expect(completed.payload).toMatchObject({ run: { status: "settled" } });
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("dispose ends subscriptions and refuses later prompts", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    let receivedAfterDispose = 0;
+    const stop = runtime.subscribe(() => {
+      receivedAfterDispose += 1;
+    });
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      await runtime.createSession(workspace.workspace.id);
+      receivedAfterDispose = 0;
+      await runtime.dispose();
+      stop();
+      expect(receivedAfterDispose).toBe(0);
+      await expect(
+        runtime.sendPrompt({ sessionId: "any", text: "hello" }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.shuttingDown });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  test("native-picker approval is process-lifetime and does not write trust.json", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    await mkdir(path.join(workspaceDir, ".pi", "extensions"), { recursive: true });
+    const runtime = await createTestRuntime(agentDir);
+
+    try {
+      const remembered = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: false,
+      });
+      expect(remembered.workspace.projectResourcesApproved).toBe(false);
+      const picked = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(picked.workspace.projectResourcesApproved).toBe(true);
+    } finally {
+      await runtime.dispose();
+    }
+
+    await expect(access(path.join(agentDir, "trust.json"))).rejects.toMatchObject({ code: "ENOENT" });
+
+    const nextProcess = await createTestRuntime(agentDir);
+    try {
+      const afterRestart = await nextProcess.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: false,
+      });
+      expect(afterRestart.workspace.projectResourcesApproved).toBe(false);
+    } finally {
+      await nextProcess.dispose();
+    }
+  });
+
+  test("ignores project extensions and skills while keeping workspace context files", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    await writeProjectFeatureFixture(workspaceDir);
+    const runtime = await createTestRuntime(agentDir);
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(trusted.features.features.some((feature) => feature.id === "harness-note")).toBe(false);
+      expect(trusted.features.diagnostics.some((diagnostic) => diagnostic.message.includes("intentional harness diagnostic"))).toBe(false);
+
+      const created = await runtime.createSession(trusted.workspace.id);
+      const loader = created.features;
+      expect(loader.features.some((feature) => feature.id.includes("harness"))).toBe(false);
+      const settingsPath = path.join(workspaceDir, "AGENTS.md");
+      await access(settingsPath);
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("select and input host dialogs settle and rebind after session replacement", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { testHostUi: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(trusted.workspace.id);
+      expect(created.sessions.some((session) => session.id === created.session.id)).toBe(true);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+
+      const firstPrompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      const dialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      expect(dialog.payload).toMatchObject({ kind: "select", title: "Allow harness_mark?" });
+      const requestId = (dialog.payload as { requestId: string }).requestId;
+      await runtime.resolveHostDialog({ requestId, selected: "not-an-option" });
+      expect(events.some((event) => event.type === RUNTIME_EVENT_TYPES.extensionDialogSettled)).toBe(false);
+      await runtime.resolveHostDialog({ requestId, selected: "Yes" });
+      await firstPrompt;
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+
+      const replacement = await runtime.createSession(trusted.workspace.id);
+      expect(replacement.session.id).not.toBe(created.session.id);
+      expect(replacement.sessions.some((session) => session.id === replacement.session.id)).toBe(true);
+      events.length = 0;
+      const secondPrompt = runtime.sendPrompt({
+        sessionId: replacement.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      const secondDialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      await runtime.resolveHostDialog({
+        requestId: (secondDialog.payload as { requestId: string }).requestId,
+        selected: "No, provide reason",
+      });
+      const inputDialog = await waitForEvent(
+        events,
+        RUNTIME_EVENT_TYPES.extensionDialogRequest,
+        (event) => (event.payload as { kind?: string }).kind === "input",
+      );
+      await runtime.resolveHostDialog({
+        requestId: (inputDialog.payload as { requestId: string }).requestId,
+        value: "not now",
+      });
+      await secondPrompt;
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("unsupported host UI throws a useful Error instead of a stringified object", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createPhoCodeRuntime({
+      agentDir,
+      deterministicTestModel: true,
+      featureManifest: {
+        features: [
+          {
+            id: "harness-unsupported-ui",
+            version: "test",
+            extensionFactories: [createUnsupportedHostUiExtension()],
+          },
+        ],
+      },
+    });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      const after = await runtime.openSession(workspace.workspace.id, created.session.id);
+      const tool = after.messages
+        .flatMap((message) => message.blocks)
+        .find((block) => block.type === "tool" && block.name === TEST_TOOL_NAME);
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").not.toContain("[object Object]");
+      expect(
+        after.features.diagnostics.some((diagnostic) => diagnostic.message.includes("Unsupported host UI capability: custom")) ||
+          (tool && "outputPreview" in tool && tool.outputPreview.includes("Unsupported host UI capability: custom")),
+      ).toBe(true);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("default manifest loads only the baked permission feature", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    await writeProjectFeatureFixture(workspaceDir);
+    const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(trusted.features.features.some((feature) => feature.id === PERMISSION_FEATURE_ID)).toBe(true);
+      expect(trusted.features.features.some((feature) => feature.id === "harness-note")).toBe(false);
+      const created = await runtime.createSession(trusted.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      const dialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      expect(dialog.payload).toMatchObject({ kind: "select" });
+      expect((dialog.payload as { title?: string }).title).toContain(TEST_TOOL_NAME);
+      const options = (dialog.payload as { options?: string[] }).options ?? [];
+      expect(options).toContain("Yes");
+      expect(options).toContain("No");
+      expect(options.some((option) => option.includes("this session"))).toBe(true);
+      await runtime.resolveHostDialog({
+        requestId: (dialog.payload as { requestId: string }).requestId,
+        selected: "Yes",
+      });
+      await prompt;
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 45_000);
+
+  test("dispose settles a pending permission dialog without hanging", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(trusted.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      void runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 45_000);
+});
+
+async function waitForEvent(
+  events: RuntimeEvent[],
+  type: RuntimeEvent["type"],
+  predicate: (event: RuntimeEvent) => boolean = () => true,
+  timeoutMs = 15_000,
+): Promise<RuntimeEvent> {
+  const started = Date.now();
+  while (Date.now() - started <= timeoutMs) {
+    const match = events.find((event) => event.type === type && predicate(event));
+    if (match) {
+      return match;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${type}. Saw: ${events.map((event) => event.type).join(", ")}`);
+}
