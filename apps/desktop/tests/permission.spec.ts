@@ -35,7 +35,7 @@ test("baked permission feature prompts through select host UI", async () => {
       await expect(page.getByTestId("extension-dialog")).toContainText("Permission Required");
       await expect(page.getByTestId("extension-dialog")).toContainText("harness_mark");
       await page.getByRole("radio", { name: "Yes", exact: true }).check();
-      await page.getByTestId("extension-dialog-confirm").click();
+      await page.keyboard.press("Enter");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed", { timeout: 20_000 });
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");

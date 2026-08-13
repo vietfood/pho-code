@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { CheckIcon } from "lucide-react";
 import type { HostDialogRequest, ResolveHostDialogInput } from "@pho-code/protocol";
 import { handleDialogTab } from "./lib/dialog-focus";
+import { hostDialogEnterResolution } from "./lib/host-dialog-keys";
 import { cn } from "./lib/cn";
 import { Button } from "./ui/button";
 
@@ -20,6 +21,7 @@ export function HostDialog({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const onResolveRef = useRef(onResolve);
+  const selectedRef = useRef(request.options?.[0] ?? "");
   const [draft, setDraft] = useState("");
   const [selected, setSelected] = useState(request.options?.[0] ?? "");
 
@@ -29,8 +31,14 @@ export function HostDialog({
 
   useEffect(() => {
     setDraft("");
-    setSelected(request.options?.[0] ?? "");
+    const initial = request.options?.[0] ?? "";
+    setSelected(initial);
+    selectedRef.current = initial;
   }, [request.options, request.requestId]);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   // Focus and key handlers bind once per request. Do not depend on `onResolve`
   // identity — parent re-renders on every stream tick and would steal focus /
@@ -48,14 +56,29 @@ export function HostDialog({
         onResolveRef.current({ cancelled: true });
         return;
       }
-      if (request.kind === "select" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const plain =
+        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && !event.isComposing;
+      if (request.kind === "select" && plain) {
         const digit = Number.parseInt(event.key, 10);
         if (!Number.isNaN(digit) && digit >= 1 && digit <= 9) {
           const option = request.options?.[digit - 1];
           if (option) {
             event.preventDefault();
             setSelected(option);
+            return;
           }
+        }
+      }
+      if (event.key === "Enter" && plain) {
+        // Buttons already activate on Enter; avoid double-resolve.
+        if (event.target instanceof HTMLElement && event.target.closest("button")) {
+          return;
+        }
+        const resolution = hostDialogEnterResolution(request.kind, selectedRef.current);
+        if (resolution) {
+          event.preventDefault();
+          onResolveRef.current(resolution);
+          return;
         }
       }
       const panel = panelRef.current;
@@ -113,19 +136,20 @@ export function HostDialog({
           />
         ) : null}
         {request.kind === "confirm" ? (
-          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => onResolve({ cancelled: true, confirmed: false })}>
+          <form
+            className="mt-4 flex flex-wrap items-center justify-end gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onResolve({ confirmed: true });
+            }}
+          >
+            <Button type="button" variant="outline" size="sm" onClick={() => onResolve({ cancelled: true, confirmed: false })}>
               Decline
             </Button>
-            <Button
-              ref={confirmRef}
-              size="sm"
-              data-testid="extension-dialog-confirm"
-              onClick={() => onResolve({ confirmed: true })}
-            >
+            <Button ref={confirmRef} size="sm" data-testid="extension-dialog-confirm" type="submit">
               Approve
             </Button>
-          </div>
+          </form>
         ) : null}
       </div>
     </div>
@@ -147,7 +171,16 @@ function SelectFields({
 }) {
   const options = request.options ?? [];
   return (
-    <div className="mt-3 grid gap-3">
+    <form
+      className="mt-3 grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (selected.length === 0) {
+          return;
+        }
+        onResolve({ selected });
+      }}
+    >
       <div role="radiogroup" aria-labelledby="host-dialog-title" className="grid gap-1.5">
         {options.map((option, index) => {
           const isSelected = selected === option;
@@ -184,19 +217,14 @@ function SelectFields({
         })}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => onResolve({ cancelled: true })}>
+        <Button type="button" variant="outline" size="sm" onClick={() => onResolve({ cancelled: true })}>
           Cancel
         </Button>
-        <Button
-          size="sm"
-          data-testid="extension-dialog-confirm"
-          disabled={options.length === 0}
-          onClick={() => onResolve({ selected })}
-        >
+        <Button size="sm" data-testid="extension-dialog-confirm" disabled={options.length === 0} type="submit">
           Continue
         </Button>
       </div>
-    </div>
+    </form>
   );
 }
 
