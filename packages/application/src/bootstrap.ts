@@ -6,9 +6,18 @@ import {
   createHarnessError,
   HARNESS_ERROR_CODES,
   isHarnessError,
+  isAppearanceMode,
+  isAppearancePalette,
+  isChatFontSize,
+  isGlassStrength,
   isManagedPermissionProfileId,
   isThinkingLevel,
-  isThemePreference,
+  isUiFontSize,
+  isWorkspaceReferenceToken,
+  MAX_PREPARED_IMAGES,
+  MAX_WORKSPACE_REFERENCE_QUERY,
+  MAX_WORKSPACE_REFERENCE_RESULTS,
+  MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   nodeVersionMeetsMinimum,
   type AbortRunInput,
   type BootstrapState,
@@ -21,22 +30,44 @@ import {
   type ListWorkspaceSessionsInput,
   type OpenRecentWorkspaceInput,
   type OpenSessionInput,
+  type PrepareImageInput,
+  type PreparedImageSummary,
   type PromptAdmission,
+  type QueueAdmission,
+  type QueueFollowUpInput,
+  type RecentWorkspaceRecord,
+  type RemovePreparedImageInput,
+  type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
   type RuntimeEvent,
+  type SearchWorkspaceReferencesInput,
+  type SearchWorkspaceReferencesResult,
   type SendPromptInput,
   type SessionSnapshot,
   type SessionSummary,
+  type AppearanceMode,
+  type AppearancePalette,
+  type AppearanceSettings,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
-  type ThemePreference,
+  type SteerRunInput,
   type Unsubscribe,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type WorkspaceReferenceToken,
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
 import type { HarnessRuntime } from "@pho-code/runtime";
-import { rememberWorkspace, selectSession, setAppearanceTheme, type AppMetadata, type AppMetadataStore } from "./metadata";
+import {
+  isPermissionWorkspaceTrusted,
+  rememberWorkspace,
+  reorderRecentWorkspaces as applyRecentWorkspaceOrder,
+  selectSession,
+  setAppearance,
+  trustPermissionWorkspace,
+  type AppMetadata,
+  type AppMetadataStore,
+} from "./metadata";
 
 export interface ApplicationHostVersions {
   electron: string;
@@ -44,17 +75,22 @@ export interface ApplicationHostVersions {
 }
 
 export interface AppearanceHost {
-  applyTheme(theme: ThemePreference): void;
+  applyAppearance(appearance: Pick<AppearanceSettings, "palette" | "mode" | "glassEnabled" | "glassStrength">): void;
 }
 
 export interface ApplicationService {
   getBootstrapState(): BootstrapState;
   openPickedWorkspace(path: string): Promise<WorkspaceSnapshot>;
   openRecentWorkspace(input: OpenRecentWorkspaceInput): Promise<WorkspaceSnapshot>;
+  reorderRecentWorkspaces(input: ReorderRecentWorkspacesInput): Promise<RecentWorkspaceRecord[]>;
   listWorkspaceSessions(input: ListWorkspaceSessionsInput): Promise<SessionSummary[]>;
   createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
   openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
+  steerRun(input: SteerRunInput): Promise<QueueAdmission>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
+  prepareImage(input: PrepareImageInput): Promise<PreparedImageSummary>;
+  removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
@@ -62,8 +98,10 @@ export interface ApplicationService {
   getSettings(): HarnessSettingsSnapshot;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
+  trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   shutdown(): Promise<void>;
 }
@@ -78,7 +116,12 @@ export function createApplicationService(input: {
 }): ApplicationService {
   let shutdownAttempt: Promise<void> | undefined;
   let metadata = input.metadataStore.load();
-  input.appearanceHost?.applyTheme(metadata.theme);
+  input.appearanceHost?.applyAppearance({
+    palette: metadata.palette,
+    mode: metadata.mode,
+    glassEnabled: metadata.glassEnabled,
+    glassStrength: metadata.glassStrength,
+  });
   let workspace: WorkspaceSnapshot | undefined;
   let session: SessionSnapshot | undefined;
 
@@ -183,7 +226,7 @@ export function createApplicationService(input: {
       }
       const snapshot = await input.runtime.inspectWorkspace({
         path: record.path,
-        approveProjectResources: false,
+        approveProjectResources: isPermissionWorkspaceTrusted(metadata, record.id),
       });
       workspace = snapshot;
       session = undefined;
@@ -200,6 +243,33 @@ export function createApplicationService(input: {
       );
       assertJsonSafe(snapshot, "openRecentWorkspace");
       return snapshot;
+    },
+    async reorderRecentWorkspaces(command: ReorderRecentWorkspacesInput) {
+      assertActive();
+      if (!Array.isArray(command.workspaceIds) || command.workspaceIds.some((id) => typeof id !== "string" || id.trim() === "")) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "workspaceIds must be a non-empty list of workspace ids.",
+          operation: "reorderRecentWorkspaces",
+          recoverable: true,
+        });
+      }
+      const next = applyRecentWorkspaceOrder(
+        metadata,
+        command.workspaceIds.map((id) => id.trim()),
+      );
+      if (next === metadata) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "workspaceIds must be a permutation of the current recent workspaces.",
+          operation: "reorderRecentWorkspaces",
+          recoverable: true,
+        });
+      }
+      await persist(next);
+      const records = next.recentWorkspaces;
+      assertJsonSafe(records, "reorderRecentWorkspaces");
+      return records;
     },
     async listWorkspaceSessions(command: ListWorkspaceSessionsInput) {
       assertActive();
@@ -265,29 +335,72 @@ export function createApplicationService(input: {
     async sendPrompt(command: SendPromptInput) {
       assertActive();
       const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "sendPrompt");
-      const text = requireNonEmptyString(command.text, "text", "sendPrompt");
-      if (text.length > MAX_PROMPT_LENGTH) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The prompt is too long.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
-      }
-      if (!session || session.session.id !== sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "Open a session before sending a prompt.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
-      }
+      const payload = parsePromptPayload(command, "sendPrompt");
+      requireOpenSession(session, sessionId, "sendPrompt");
       try {
-        const admission = await input.runtime.sendPrompt({ sessionId, text });
+        const admission = await input.runtime.sendPrompt({
+          sessionId,
+          ...payload,
+        });
         assertJsonSafe(admission, "sendPrompt");
         return admission;
       } catch (error) {
         throw normalizeCommandError(error, "sendPrompt");
+      }
+    },
+    async steerRun(command: SteerRunInput) {
+      assertActive();
+      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "steerRun");
+      const runId = requireNonEmptyString(command.runId, "runId", "steerRun");
+      const payload = parsePromptPayload(command, "steerRun");
+      requireOpenSession(session, sessionId, "steerRun");
+      try {
+        const admission = await input.runtime.steerRun({
+          sessionId,
+          runId,
+          ...payload,
+        });
+        assertJsonSafe(admission, "steerRun");
+        return admission;
+      } catch (error) {
+        throw normalizeCommandError(error, "steerRun");
+      }
+    },
+    async queueFollowUp(command: QueueFollowUpInput) {
+      assertActive();
+      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "queueFollowUp");
+      const runId = requireNonEmptyString(command.runId, "runId", "queueFollowUp");
+      const payload = parsePromptPayload(command, "queueFollowUp");
+      requireOpenSession(session, sessionId, "queueFollowUp");
+      try {
+        const admission = await input.runtime.queueFollowUp({
+          sessionId,
+          runId,
+          ...payload,
+        });
+        assertJsonSafe(admission, "queueFollowUp");
+        return admission;
+      } catch (error) {
+        throw normalizeCommandError(error, "queueFollowUp");
+      }
+    },
+    async prepareImage(command: PrepareImageInput) {
+      assertActive();
+      try {
+        const summary = await input.runtime.prepareImage(command);
+        assertJsonSafe(summary, "prepareImage");
+        return summary;
+      } catch (error) {
+        throw normalizeCommandError(error, "prepareImage");
+      }
+    },
+    async removePreparedImage(command: RemovePreparedImageInput) {
+      assertActive();
+      const imageId = requireNonEmptyString(command.imageId, "imageId", "removePreparedImage");
+      try {
+        await input.runtime.removePreparedImage({ imageId });
+      } catch (error) {
+        throw normalizeCommandError(error, "removePreparedImage");
       }
     },
     async abortRun(command: AbortRunInput) {
@@ -371,16 +484,102 @@ export function createApplicationService(input: {
     },
     async updateAppearanceSettings(command: UpdateAppearanceSettingsInput) {
       assertActive();
-      if (!isThemePreference(command.theme)) {
+      const patch: {
+        palette?: AppearancePalette;
+        mode?: AppearanceMode;
+        glassEnabled?: boolean;
+        glassStrength?: number;
+        uiFontSize?: number;
+        chatFontSize?: number;
+      } = {};
+      if (command.palette !== undefined) {
+        if (!isAppearancePalette(command.palette)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "Unknown appearance palette.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.palette = command.palette;
+      }
+      if (command.mode !== undefined) {
+        if (!isAppearanceMode(command.mode)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "Unknown appearance mode.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.mode = command.mode;
+      }
+      if (command.glassEnabled !== undefined) {
+        if (typeof command.glassEnabled !== "boolean") {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "glassEnabled must be a boolean.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.glassEnabled = command.glassEnabled;
+      }
+      if (command.glassStrength !== undefined) {
+        if (!isGlassStrength(command.glassStrength)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "Glass strength must be an integer between 0 and 100.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.glassStrength = command.glassStrength;
+      }
+      if (command.uiFontSize !== undefined) {
+        if (!isUiFontSize(command.uiFontSize)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "UI font size must be an integer between 12 and 20.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.uiFontSize = command.uiFontSize;
+      }
+      if (command.chatFontSize !== undefined) {
+        if (!isChatFontSize(command.chatFontSize)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "Chat font size must be an integer between 12 and 20.",
+            operation: "updateAppearanceSettings",
+            recoverable: true,
+          });
+        }
+        patch.chatFontSize = command.chatFontSize;
+      }
+      if (
+        patch.palette === undefined &&
+        patch.mode === undefined &&
+        patch.glassEnabled === undefined &&
+        patch.glassStrength === undefined &&
+        patch.uiFontSize === undefined &&
+        patch.chatFontSize === undefined
+      ) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown appearance theme.",
+          message: "No appearance settings were provided.",
           operation: "updateAppearanceSettings",
           recoverable: true,
         });
       }
-      await persist(setAppearanceTheme(metadata, command.theme));
-      input.appearanceHost?.applyTheme(command.theme);
+      await persist(setAppearance(metadata, patch));
+      input.appearanceHost?.applyAppearance({
+        palette: metadata.palette,
+        mode: metadata.mode,
+        glassEnabled: metadata.glassEnabled,
+        glassStrength: metadata.glassStrength,
+      });
       const snapshot = settingsSnapshot();
       assertJsonSafe(snapshot, "updateAppearanceSettings");
       return snapshot;
@@ -392,7 +591,8 @@ export function createApplicationService(input: {
         if (!isManagedPermissionProfileId(command.profile)) {
           throw createHarnessError({
             code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Choose Guarded or Balanced to replace a custom permission policy.",
+            message:
+              "Choose baby (strict), okay, you got it, or with great power comes great responsibility to replace a custom permission policy.",
             operation: "updatePermissionSettings",
             recoverable: true,
           });
@@ -429,12 +629,41 @@ export function createApplicationService(input: {
           recoverable: true,
         });
       }
-      const permission = await input.runtime.updatePermissionSettings(patch);
+      const permission = decoratePermissionSettings(await input.runtime.updatePermissionSettings(patch));
       const snapshot: HarnessSettingsSnapshot = {
-        appearance: { theme: metadata.theme },
+        appearance: appearanceFromMetadata(metadata),
         permission,
       };
       assertJsonSafe(snapshot, "updatePermissionSettings");
+      return snapshot;
+    },
+    async trustProjectPermissionRules() {
+      assertActive();
+      if (!workspace) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Select a workspace before trusting its project permission rules.",
+          operation: "trustProjectPermissionRules",
+          recoverable: true,
+        });
+      }
+      const permission = await input.runtime.trustProjectPermissionRules(workspace.workspace.path);
+      await persist(trustPermissionWorkspace(metadata, workspace.workspace.id));
+      workspace = {
+        ...workspace,
+        workspace: { ...workspace.workspace, projectResourcesApproved: true },
+      };
+      if (session) {
+        session = {
+          ...session,
+          workspace: { ...session.workspace, projectResourcesApproved: true },
+        };
+      }
+      const snapshot: HarnessSettingsSnapshot = {
+        appearance: appearanceFromMetadata(metadata),
+        permission: { ...permission, projectPermissionRulesRemembered: true },
+      };
+      assertJsonSafe(snapshot, "trustProjectPermissionRules");
       return snapshot;
     },
     async listCredentialProviders() {
@@ -456,6 +685,29 @@ export function createApplicationService(input: {
           operation: "importProviderApiKey",
         });
       }
+      return result;
+    },
+    async searchWorkspaceReferences(command: SearchWorkspaceReferencesInput) {
+      assertActive();
+      if (!workspace) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.workspaceNotSelected,
+          message: "Select a workspace before searching files.",
+          operation: "searchWorkspaceReferences",
+          recoverable: true,
+        });
+      }
+      const query = typeof command.query === "string" ? command.query.slice(0, MAX_WORKSPACE_REFERENCE_QUERY) : "";
+      const limit =
+        typeof command.limit === "number" && Number.isFinite(command.limit)
+          ? Math.max(1, Math.min(Math.floor(command.limit), MAX_WORKSPACE_REFERENCE_RESULTS))
+          : undefined;
+      const result = await input.runtime.searchWorkspaceReferences({
+        query,
+        ...(command.kinds ? { kinds: command.kinds } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      });
+      assertJsonSafe(result, "searchWorkspaceReferences");
       return result;
     },
     subscribe(listener) {
@@ -490,8 +742,29 @@ export function createApplicationService(input: {
 
   function settingsSnapshot(): HarnessSettingsSnapshot {
     return {
-      appearance: { theme: metadata.theme },
-      permission: input.runtime.getPermissionSettings(),
+      appearance: appearanceFromMetadata(metadata),
+      permission: decoratePermissionSettings(input.runtime.getPermissionSettings()),
+    };
+  }
+
+  function decoratePermissionSettings(permission: HarnessSettingsSnapshot["permission"]) {
+    const workspaceId = workspace?.workspace.id;
+    return {
+      ...permission,
+      projectPermissionRulesRemembered: workspaceId
+        ? isPermissionWorkspaceTrusted(metadata, workspaceId)
+        : false,
+    };
+  }
+
+  function appearanceFromMetadata(current: AppMetadata) {
+    return {
+      palette: current.palette,
+      mode: current.mode,
+      glassEnabled: current.glassEnabled,
+      glassStrength: current.glassStrength,
+      uiFontSize: current.uiFontSize,
+      chatFontSize: current.chatFontSize,
     };
   }
 
@@ -514,7 +787,7 @@ export function createApplicationService(input: {
     try {
       const snapshot = await input.runtime.inspectWorkspace({
         path,
-        approveProjectResources: false,
+        approveProjectResources: isPermissionWorkspaceTrusted(metadata, workspaceId),
       });
       workspace = snapshot;
       session = undefined;
@@ -562,6 +835,120 @@ function requireNonEmptyString(value: unknown, field: string, operation: string)
     });
   }
   return value.trim();
+}
+
+function parseWorkspaceReferences(
+  value: unknown,
+  operation: string,
+): WorkspaceReferenceToken[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
+      message: "Workspace references must be an array.",
+      operation,
+      recoverable: true,
+    });
+  }
+  if (value.length > MAX_WORKSPACE_REFERENCES_PER_PROMPT) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
+      message: `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`,
+      operation,
+      recoverable: true,
+    });
+  }
+  return value.map((entry) => {
+    if (!isWorkspaceReferenceToken(entry)) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
+        message: "Each workspace reference must include a relative path.",
+        operation,
+        recoverable: true,
+      });
+    }
+    return { path: entry.path.trim(), kind: entry.kind };
+  });
+}
+
+function parseImageIds(value: unknown, operation: string): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidImage,
+      message: "Image ids must be an array.",
+      operation,
+      recoverable: true,
+    });
+  }
+  if (value.length > MAX_PREPARED_IMAGES) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidImage,
+      message: `A prompt can include at most ${MAX_PREPARED_IMAGES} images.`,
+      operation,
+      recoverable: true,
+    });
+  }
+  return value.map((entry) => {
+    if (typeof entry !== "string" || entry.trim() === "") {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidImage,
+        message: "Each image id must be a non-empty string.",
+        operation,
+        recoverable: true,
+      });
+    }
+    return entry.trim();
+  });
+}
+
+function parsePromptPayload(
+  command: { text?: string; references?: unknown; imageIds?: unknown },
+  operation: string,
+): { text: string; references?: WorkspaceReferenceToken[]; imageIds?: string[] } {
+  const text = typeof command.text === "string" ? command.text : "";
+  const references = parseWorkspaceReferences(command.references, operation);
+  const imageIds = parseImageIds(command.imageIds, operation);
+  if (text.trim() === "" && references.length === 0 && imageIds.length === 0) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+      message: "A prompt, workspace reference, or image is required.",
+      operation,
+      recoverable: true,
+    });
+  }
+  if (text.length > MAX_PROMPT_LENGTH) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+      message: "The prompt is too long.",
+      operation,
+      recoverable: true,
+    });
+  }
+  return {
+    text,
+    ...(references.length > 0 ? { references } : {}),
+    ...(imageIds.length > 0 ? { imageIds } : {}),
+  };
+}
+
+function requireOpenSession(
+  session: SessionSnapshot | undefined,
+  sessionId: string,
+  operation: string,
+): void {
+  if (!session || session.session.id !== sessionId) {
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.sessionNotFound,
+      message: "Open a session before sending a prompt.",
+      operation,
+      recoverable: true,
+    });
+  }
 }
 
 function normalizeCommandError(error: unknown, operation: string) {
