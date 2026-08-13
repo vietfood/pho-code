@@ -14,6 +14,8 @@ import {
   type ResolveHostDialogInput,
   type RuntimeEvent,
 } from "@pho-code/protocol";
+import { splitHostDialogPresentation } from "./host-dialog-presentation";
+import { displayToolNamesInText } from "./tool-display";
 
 type DialogResult = boolean | string | undefined;
 
@@ -202,33 +204,39 @@ function createUiContext(input: {
   unsupported: (capability: string) => never;
 }): ExtensionUIContext {
   return {
-    select: async (title, options, opts) =>
-      requestDialog(input, {
+    select: async (title, options, opts) => {
+      const presentation = splitHostDialogPresentation(title);
+      return requestDialog(input, {
         kind: "select",
-        title,
+        title: displayToolNamesInText(presentation.title),
+        ...(presentation.message ? { message: displayToolNamesInText(presentation.message) } : {}),
         options,
         cancelledValue: undefined,
         timeout: opts?.timeout,
         signal: opts?.signal,
-      }),
+      });
+    },
     confirm: async (title, message, opts) =>
       requestDialog(input, {
         kind: "confirm",
-        title,
-        message,
+        title: displayToolNamesInText(title),
+        message: displayToolNamesInText(message),
         cancelledValue: false,
         timeout: opts?.timeout,
         signal: opts?.signal,
       }),
-    input: async (title, placeholder, opts) =>
-      requestDialog(input, {
+    input: async (title, placeholder, opts) => {
+      const presentation = splitHostDialogPresentation(title);
+      return requestDialog(input, {
         kind: "input",
-        title,
+        title: displayToolNamesInText(presentation.title),
+        ...(presentation.message ? { message: displayToolNamesInText(presentation.message) } : {}),
         placeholder,
         cancelledValue: undefined,
         timeout: opts?.timeout,
         signal: opts?.signal,
-      }),
+      });
+    },
     notify: (message, type) => {
       const notification: ExtensionNotification = {
         requestId: randomUUID(),

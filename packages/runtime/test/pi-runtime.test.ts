@@ -8,6 +8,7 @@ import {
   PERMISSION_FEATURE_ID,
   TEST_PROMPT,
   TEST_TOOL_NAME,
+  TRASH_FEATURE_ID,
   createDefaultFeatureManifest,
   createPhoCodeRuntime,
   createUnsupportedHostUiExtension,
@@ -269,6 +270,79 @@ describe("Pi harness runtime", () => {
     }
   }, 30_000);
 
+  test("steers an active run through Pi's native queue and rejects a stale run id", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const first = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.abortMe,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runAdmitted);
+      await expect(
+        runtime.steerRun({ sessionId: created.session.id, runId: "stale", text: "nope" }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.invalidCommand });
+      const steered = await runtime.steerRun({
+        sessionId: created.session.id,
+        runId: first.runId,
+        text: "go left",
+      });
+      expect(steered.admitted).toBe(true);
+      expect(steered.queue.steering.some((item) => item.text.includes("go left"))).toBe(true);
+      await runtime.abortRun({ sessionId: created.session.id, runId: first.runId });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("rejects images on a text-only model before admission and keeps the draft id", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      expect(created.model?.supportsImages).toBeUndefined();
+      const prepared = await runtime.prepareImage({
+        name: "dot.png",
+        mimeType: "image/png",
+        data: png.toString("base64"),
+        width: 1,
+        height: 1,
+        previewDataUrl: `data:image/png;base64,${png.toString("base64")}`,
+      });
+      await expect(
+        runtime.sendPrompt({
+          sessionId: created.session.id,
+          text: "describe this",
+          imageIds: [prepared.id],
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.imagesUnsupported });
+      await runtime.removePreparedImage({ imageId: prepared.id });
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
   test("dispose ends subscriptions and refuses later prompts", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     const runtime = await createTestRuntime(agentDir);
@@ -295,7 +369,7 @@ describe("Pi harness runtime", () => {
     }
   });
 
-  test("native-picker approval is process-lifetime and does not write trust.json", async () => {
+  test("project permission approval is process-lifetime in runtime and does not write trust.json", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     await mkdir(path.join(workspaceDir, ".pi", "extensions"), { recursive: true });
     const runtime = await createTestRuntime(agentDir);
@@ -306,11 +380,10 @@ describe("Pi harness runtime", () => {
         approveProjectResources: false,
       });
       expect(remembered.workspace.projectResourcesApproved).toBe(false);
-      const picked = await runtime.inspectWorkspace({
-        path: workspaceDir,
-        approveProjectResources: true,
-      });
-      expect(picked.workspace.projectResourcesApproved).toBe(true);
+      const trusted = await runtime.trustProjectPermissionRules(workspaceDir);
+      expect(trusted.projectPermissionRulesTrusted).toBe(true);
+      const approved = await runtime.inspectWorkspace({ path: workspaceDir, approveProjectResources: false });
+      expect(approved.workspace.projectResourcesApproved).toBe(true);
     } finally {
       await runtime.dispose();
     }
@@ -456,7 +529,7 @@ describe("Pi harness runtime", () => {
     }
   }, 30_000);
 
-  test("default manifest loads only the baked permission feature", async () => {
+  test("default manifest loads the baked permission and Trash features", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     await writeProjectFeatureFixture(workspaceDir);
     const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
@@ -468,6 +541,7 @@ describe("Pi harness runtime", () => {
         approveProjectResources: true,
       });
       expect(trusted.features.features.some((feature) => feature.id === PERMISSION_FEATURE_ID)).toBe(true);
+      expect(trusted.features.features.some((feature) => feature.id === TRASH_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === "harness-note")).toBe(false);
       const created = await runtime.createSession(trusted.workspace.id);
       const stop = runtime.subscribe((event) => {
@@ -479,7 +553,9 @@ describe("Pi harness runtime", () => {
       });
       const dialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
       expect(dialog.payload).toMatchObject({ kind: "select" });
-      expect((dialog.payload as { title?: string }).title).toContain(TEST_TOOL_NAME);
+      const dialogTitle = (dialog.payload as { title?: string }).title ?? "";
+      const dialogMessage = (dialog.payload as { message?: string }).message ?? "";
+      expect(`${dialogTitle}\n${dialogMessage}`).toContain(TEST_TOOL_NAME);
       const options = (dialog.payload as { options?: string[] }).options ?? [];
       expect(options).toContain("Yes");
       expect(options).toContain("No");

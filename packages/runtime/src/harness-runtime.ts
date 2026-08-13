@@ -9,14 +9,22 @@ import {
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
   type PermissionSettings,
+  type PrepareImageInput,
+  type PreparedImageSummary,
   type PromptAdmission,
+  type QueueAdmission,
+  type QueueFollowUpInput,
+  type RemovePreparedImageInput,
   type ResolveHostDialogInput,
   type RuntimeEvent,
+  type SearchWorkspaceReferencesInput,
+  type SearchWorkspaceReferencesResult,
   type SendPromptInput,
   type SessionSnapshot,
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SteerRunInput,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
   type WorkspaceSnapshot,
@@ -40,14 +48,20 @@ export interface HarnessRuntime {
   createSession(workspaceId: string): Promise<SessionSnapshot>;
   openSession(workspaceId: string, sessionId: string): Promise<SessionSnapshot>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
+  steerRun(input: SteerRunInput): Promise<QueueAdmission>;
+  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
+  prepareImage(input: PrepareImageInput): Promise<PreparedImageSummary>;
+  removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getPermissionSettings(): PermissionSettings;
+  trustProjectPermissionRules(workspacePath: string): Promise<PermissionSettings>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<PermissionSettings>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   dispose(): Promise<void>;
 }
@@ -92,6 +106,18 @@ export function createDisposableStubHarnessRuntime(options?: {
     sendPrompt() {
       return Promise.reject(unavailable("sendPrompt"));
     },
+    steerRun() {
+      return Promise.reject(unavailable("steerRun"));
+    },
+    queueFollowUp() {
+      return Promise.reject(unavailable("queueFollowUp"));
+    },
+    prepareImage() {
+      return Promise.reject(unavailable("prepareImage"));
+    },
+    removePreparedImage() {
+      return Promise.reject(unavailable("removePreparedImage"));
+    },
     abortRun() {
       return Promise.reject(unavailable("abortRun"));
     },
@@ -110,11 +136,17 @@ export function createDisposableStubHarnessRuntime(options?: {
     updatePermissionSettings() {
       return Promise.reject(unavailable("updatePermissionSettings"));
     },
+    trustProjectPermissionRules() {
+      return Promise.reject(unavailable("trustProjectPermissionRules"));
+    },
     listCredentialProviders() {
       return Promise.reject(unavailable("listCredentialProviders"));
     },
     importProviderApiKey() {
       return Promise.reject(unavailable("importProviderApiKey"));
+    },
+    searchWorkspaceReferences() {
+      return Promise.reject(unavailable("searchWorkspaceReferences"));
     },
     subscribe() {
       return () => undefined;

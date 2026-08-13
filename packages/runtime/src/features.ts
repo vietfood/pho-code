@@ -3,6 +3,11 @@ import path from "node:path";
 import type { InlineExtension } from "@earendil-works/pi-coding-agent";
 import type { ResourceDiagnostic } from "@pho-code/protocol";
 import { createNodeModuleResourceLocator, readPiExtensionPaths, type ResourceLocator } from "./resource-locator";
+import { createTrashFeature, type TrashFeatureOptions } from "./trash-feature";
+import { createRetrievalFeature } from "./retrieval-feature";
+import type { LocalRetrievalRuntime } from "./local-retrieval";
+import { createWebFeature } from "./web-feature";
+import type { WebResearchRuntime } from "./web-client";
 
 export const PERMISSION_FEATURE_ID = "permission-system";
 export const PERMISSION_FEATURE_VERSION = "24.0.0";
@@ -82,10 +87,17 @@ export function resolvePermissionFeature(locator: ResourceLocator): {
 
 export function createDefaultFeatureManifest(
   locator: ResourceLocator = createNodeModuleResourceLocator(),
+  options: TrashFeatureOptions & { retrieval?: LocalRetrievalRuntime; web?: WebResearchRuntime } = {},
 ): HarnessFeatureManifest {
-  return {
-    features: [resolvePermissionFeature(locator).feature],
-  };
+  const features: HarnessFeature[] = [
+    resolvePermissionFeature(locator).feature,
+    createTrashFeature(options),
+    createWebFeature(options.web),
+  ];
+  if (options.retrieval) {
+    features.push(createRetrievalFeature(options.retrieval));
+  }
+  return { features };
 }
 
 export function expectedFeatureResourceCounts(feature: HarnessFeature): {

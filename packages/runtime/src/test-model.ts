@@ -16,6 +16,12 @@ export const TEST_TOOL_NAME = "harness_mark";
 
 export const TEST_PROMPT = {
   useTool: "USE_TOOL",
+  useSafeShell: "USE_SAFE_SHELL",
+  useDangerousShell: "USE_DANGEROUS_SHELL",
+  useCompoundSafe: "USE_COMPOUND_SAFE",
+  useCompoundDangerous: "USE_COMPOUND_DANGEROUS",
+  useWrapper: "USE_WRAPPER",
+  useTrash: "USE_TRASH",
   failAfter: "FAIL_AFTER",
   abortMe: "ABORT_ME",
 } as const;
@@ -87,6 +93,51 @@ function buildTestResponse(context: Context) {
       [
         fauxThinking("Calling the mark tool."),
         fauxToolCall(TEST_TOOL_NAME, { note: "ok" }, { id: "call_harness_mark" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSafeShell)) {
+    return fauxAssistantMessage(
+      [fauxThinking("Inspecting the repository."), fauxToolCall("bash", { command: "git status" }, { id: "call_safe_shell" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useDangerousShell)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Attempting a permanent removal."),
+        fauxToolCall("bash", { command: "rm -rf disposable-fixture.txt" }, { id: "call_dangerous_shell" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useCompoundSafe)) {
+    return fauxAssistantMessage(
+      [fauxThinking("Running a compound inspection."), fauxToolCall("bash", { command: "pwd && git status" }, { id: "call_compound_safe" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useCompoundDangerous)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Mixing inspection with removal."),
+        fauxToolCall("bash", { command: "pwd && rm -rf disposable-fixture.txt" }, { id: "call_compound_dangerous" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useWrapper)) {
+    return fauxAssistantMessage(
+      [fauxThinking("Hiding a command behind a wrapper."), fauxToolCall("bash", { command: "bash -c 'pwd'" }, { id: "call_wrapper" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useTrash)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Moving the fixture to Trash."),
+        fauxToolCall("move_to_trash", { path: "disposable-fixture.txt" }, { id: "call_move_to_trash" }),
       ],
       { stopReason: "toolUse" },
     );

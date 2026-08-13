@@ -5,6 +5,7 @@ export {
 export type { HarnessRuntime, InspectWorkspaceInput, RuntimeCapabilities } from "./harness-runtime";
 export { createPhoCodeRuntime } from "./pi-runtime";
 export type { PhoCodeRuntimeOptions } from "./pi-runtime";
+export { sniffImageMime } from "./image-bytes";
 export {
   PERMISSION_FEATURE_ID,
   PERMISSION_FEATURE_VERSION,
@@ -15,6 +16,17 @@ export {
   resolvePermissionFeature,
 } from "./features";
 export type { HarnessFeature, HarnessFeatureManifest } from "./features";
+export { TRASH_FEATURE_ID, TRASH_FEATURE_VERSION, createTrashFeature } from "./trash-feature";
+export { TRASH_TOOL_NAME } from "./trash-target";
+export { RETRIEVAL_FEATURE_ID, RETRIEVAL_FEATURE_VERSION, createRetrievalFeature } from "./retrieval-feature";
+export { createLocalRetrievalRuntime } from "./local-retrieval";
+export type { LocalRetrievalRuntime } from "./local-retrieval";
+export { WEB_FEATURE_ID, WEB_FEATURE_VERSION, createWebFeature } from "./web-feature";
+export { createWebResearchRuntime } from "./web-client";
+export type { WebResearchRuntime } from "./web-client";
+export { APP_OWNED_TOOL_NAMES, displayToolName, displayToolNamesInText } from "./tool-display";
+export { createOsTrashRemovalService, probeTrashFacility } from "./recoverable-removal";
+export type { RecoverableRemovalService, TrashMethod } from "./recoverable-removal";
 export {
   createNodeModuleResourceLocator,
   createPackagedResourceLocator,
@@ -23,6 +35,7 @@ export {
 export type { ResourceLocator } from "./resource-locator";
 export {
   BALANCED_PERMISSION,
+  DEVELOPER_PERMISSION,
   GUARDED_PERMISSION,
   PERMISSION_PRESET_VERSION,
   applyPermissionSettingsPatch,

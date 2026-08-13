@@ -29,21 +29,34 @@ import {
   HARNESS_ERROR_CODES,
   idleRunState,
   isThinkingLevel,
+  isWorkspaceReferenceToken,
+  MAX_QUEUE_MESSAGE_PREVIEW,
+  MAX_WORKSPACE_REFERENCE_QUERY,
+  MAX_WORKSPACE_REFERENCES_PER_PROMPT,
+  emptyQueueState,
   type AbortRunInput,
   type CredentialProviderSummary,
   type HarnessError,
   type ModelSummary,
+  type PrepareImageInput,
   type PromptAdmission,
   type FeatureSnapshot,
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
+  type QueueAdmission,
+  type QueueFollowUpInput,
+  type RemovePreparedImageInput,
   type ResolveHostDialogInput,
   type RuntimeEvent,
+  type SearchWorkspaceReferencesInput,
+  type SearchWorkspaceReferencesResult,
   type SendPromptInput,
+  type SessionQueueState,
   type SessionSnapshot,
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SteerRunInput,
   type ThinkingLevel,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
@@ -53,23 +66,30 @@ import {
   type WorkspaceSummary,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
-import {
-  emptyFeatureManifest,
-  flattenFeatureManifest,
-  resolvePermissionFeature,
-  PERMISSION_FEATURE_ID,
-  type HarnessFeatureManifest,
-} from "./features";
+import { createDefaultFeatureManifest, emptyFeatureManifest, flattenFeatureManifest, resolvePermissionFeature, PERMISSION_FEATURE_ID, type HarnessFeatureManifest } from "./features";
 import type { HarnessRuntime, InspectWorkspaceInput } from "./harness-runtime";
+import { displayToolName } from "./tool-display";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
 import { applyPermissionSettingsPatch, readPermissionSettings } from "./permission-settings";
 import { importProviderApiKey as persistProviderApiKey, listStoredApiKeyProviders } from "./credentials";
+import { createOsTrashRemovalService, type RecoverableRemovalService } from "./recoverable-removal";
 import { createTestHostUiExtension } from "./test-host-ui";
-import { projectModelSummary } from "./model-summary";
+import { trashFacilityDiagnostics, TRASH_FEATURE_ID } from "./trash-feature";
+import { TRASH_TOOL_NAME } from "./trash-target";
+import { createLocalRetrievalRuntime } from "./local-retrieval";
+import { RETRIEVAL_FEATURE_ID } from "./retrieval-feature";
+import { createWebResearchRuntime } from "./web-client";
+import { projectModelSummary, modelSupportsImages } from "./model-summary";
+import { createPreparedImageStore } from "./image-store";
 import { createDeterministicTestProvider, createHarnessMarkTool, TEST_TOOL_NAME } from "./test-model";
 import { firstUserPreview, projectMessages } from "./transcript";
+import {
+  collectWorkspaceReferenceTokens,
+  serializeWorkspaceReferences,
+  validateWorkspaceReference,
+} from "./workspace-reference";
 import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
 
 export interface PhoCodeRuntimeOptions {
@@ -79,6 +99,9 @@ export interface PhoCodeRuntimeOptions {
   testHostUi?: boolean;
   featureManifest?: HarnessFeatureManifest;
   resourceLocator?: ResourceLocator;
+  applicationDataDir?: string;
+  resourcesRoot?: string;
+  removalService?: RecoverableRemovalService;
 }
 
 interface ActiveRun {
@@ -103,13 +126,29 @@ export async function createPhoCodeRuntime(
   const listeners = new Set<(event: RuntimeEvent) => void>();
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
+  const retrievalDataDir = path.join(options.applicationDataDir ?? agentDir, "retrieval");
+  const retrieval = createLocalRetrievalRuntime({ dataDir: retrievalDataDir });
+  const web = createWebResearchRuntime();
+  const preparedImages = createPreparedImageStore();
   const featureManifest = withTestHostUi(
-    options.featureManifest ?? (options.deterministicTestModel ? emptyFeatureManifest() : { features: [resolvedDefault.feature] }),
+    options.featureManifest ??
+      (options.deterministicTestModel
+        ? emptyFeatureManifest()
+        : createDefaultFeatureManifest(locator, {
+            removal: options.removalService ?? createOsTrashRemovalService(),
+            agentDir,
+            retrieval,
+            web,
+            ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
+            ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
+          })),
     options.testHostUi === true,
   );
-  const compositionDiagnostics = featureManifest.features.some((feature) => feature.id === PERMISSION_FEATURE_ID)
-    ? resolvedDefault.diagnostics
-    : [];
+  const compositionDiagnostics = [
+    ...(featureManifest.features.some((feature) => feature.id === PERMISSION_FEATURE_ID) ? resolvedDefault.diagnostics : []),
+    ...(featureManifest.features.some((feature) => feature.id === TRASH_FEATURE_ID) ? trashFacilityDiagnostics() : []),
+    ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
+  ];
   const flattenedFeatures = flattenFeatureManifest(featureManifest);
   const modelRuntime = await ModelRuntime.create({
     authPath: path.join(agentDir, "auth.json"),
@@ -292,6 +331,7 @@ export async function createPhoCodeRuntime(
       availableThinkingLevels: availableThinkingLevels.length > 0 ? availableThinkingLevels : [thinkingLevel],
       supportsThinking: session.supportsThinking(),
       usage,
+      queue: projectQueue(session),
       ...(contextUsage ? { contextUsage } : {}),
     };
     if (model) {
@@ -351,7 +391,10 @@ export async function createPhoCodeRuntime(
   }
 
   function withHostDiagnostics(snapshot: FeatureSnapshot): FeatureSnapshot {
-    const extra = extensionHost?.takeDiagnostics() ?? [];
+    const extra = [
+      ...(extensionHost?.takeDiagnostics() ?? []),
+      ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
+    ];
     if (extra.length === 0) {
       return snapshot;
     }
@@ -454,7 +497,7 @@ export async function createPhoCodeRuntime(
           payload: {
             runId,
             callId: event.toolCallId,
-            name: event.toolName,
+            name: displayToolName(event.toolName),
             status: "running",
             inputPreview: previewUnknown(event.args),
             outputPreview: "",
@@ -472,7 +515,7 @@ export async function createPhoCodeRuntime(
           payload: {
             runId,
             callId: event.toolCallId,
-            name: event.toolName,
+            name: displayToolName(event.toolName),
             status: "running",
             inputPreview: previewUnknown(event.args),
             outputPreview: previewToolResult(event.partialResult),
@@ -490,7 +533,7 @@ export async function createPhoCodeRuntime(
           payload: {
             runId,
             callId: event.toolCallId,
-            name: event.toolName,
+            name: displayToolName(event.toolName),
             status: event.isError ? "failed" : "completed",
             // End events omit args; reducer keeps the prior inputPreview.
             inputPreview: "",
@@ -498,6 +541,18 @@ export async function createPhoCodeRuntime(
           },
         });
         return;
+      case "queue_update": {
+        if (!sessionId) {
+          return;
+        }
+        emit({
+          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+          sessionId,
+          runId,
+          payload: await buildSnapshot({ refreshCatalog: false }),
+        });
+        return;
+      }
       default:
         return;
     }
@@ -535,7 +590,7 @@ export async function createPhoCodeRuntime(
         ...(testTool
           ? {
               customTools: [testTool],
-              tools: [TEST_TOOL_NAME],
+              tools: [TEST_TOOL_NAME, "bash", TRASH_TOOL_NAME, "read", "write", "edit", "ls", "grep", "find"],
             }
           : {}),
       })),
@@ -552,7 +607,9 @@ export async function createPhoCodeRuntime(
     }
     piRuntime = next;
     activeWorkspace = workspace;
+    await retrieval.bind(workspace.path);
     activeRun = undefined;
+    preparedImages.clear();
     clearCatalogCache();
     reportDiagnostics(next.diagnostics);
     next.setBeforeSessionInvalidate(() => {
@@ -646,6 +703,8 @@ export async function createPhoCodeRuntime(
       if (input.approveProjectResources) {
         approvedProjectPaths.add(cwd);
       }
+      activeWorkspace = workspaceSummary(cwd);
+      await retrieval.bind(cwd);
       const { models, modelError } = await listModels();
       const features = await loadWorkspaceFeatures(cwd);
       const snapshot: WorkspaceSnapshot = {
@@ -699,6 +758,7 @@ export async function createPhoCodeRuntime(
         });
         await replaceRuntime(next, workspace);
       }
+      preparedImages.clear();
       activeWorkspace = workspace;
       const snapshot = await buildSnapshot();
       emit({
@@ -746,6 +806,7 @@ export async function createPhoCodeRuntime(
         });
         await replaceRuntime(next, workspace);
       }
+      preparedImages.clear();
       activeWorkspace = workspace;
       const snapshot = await buildSnapshot();
       emit({
@@ -784,6 +845,25 @@ export async function createPhoCodeRuntime(
         });
       }
 
+      const promptText = await resolvePromptText(input, "sendPrompt");
+      const images = takePreparedImages(input.imageIds, "sendPrompt");
+      if (promptText.trim() === "" && images.length === 0) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "A prompt, workspace reference, or image is required.",
+          operation: "sendPrompt",
+          recoverable: true,
+        });
+      }
+      if (images.length > 0 && !modelSupportsImages(session.model)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.imagesUnsupported,
+          message: "The selected model does not accept images.",
+          operation: "sendPrompt",
+          recoverable: true,
+        });
+      }
+
       const runId = randomUUID();
       let admitted = false;
       let resolvePreflight: (value: boolean) => void = () => undefined;
@@ -801,8 +881,9 @@ export async function createPhoCodeRuntime(
       };
       activeRun = run;
 
-      const promptDone = session.prompt(input.text, {
+      const promptDone = session.prompt(promptText, {
         source: "interactive",
+        ...(images.length > 0 ? { images: images.map((record) => record.content) } : {}),
         preflightResult: (success) => {
           admitted = success;
           if (!success) {
@@ -840,6 +921,7 @@ export async function createPhoCodeRuntime(
           details: { sessionId: session.sessionId, runId },
         });
       }
+      forgetPreparedImages(input.imageIds);
 
       const admission: PromptAdmission = {
         sessionId: session.sessionId,
@@ -860,6 +942,36 @@ export async function createPhoCodeRuntime(
       });
       return admission;
     },
+    async steerRun(input: SteerRunInput) {
+      return enqueueDuringRun(input, "steerRun", async (session, text, images) => {
+        await session.steer(text, images.length > 0 ? images : undefined);
+      });
+    },
+    async queueFollowUp(input: QueueFollowUpInput) {
+      return enqueueDuringRun(input, "queueFollowUp", async (session, text, images) => {
+        await session.followUp(text, images.length > 0 ? images : undefined);
+      });
+    },
+    async prepareImage(input: PrepareImageInput) {
+      assertNotDisposed();
+      requireSession();
+      const summary = preparedImages.add(input, "prepareImage");
+      assertJsonSafe(summary, "prepareImage");
+      return summary;
+    },
+    async removePreparedImage(input: RemovePreparedImageInput) {
+      assertNotDisposed();
+      const imageId = typeof input.imageId === "string" ? input.imageId.trim() : "";
+      if (imageId.length === 0) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidImage,
+          message: "An image id is required.",
+          operation: "removePreparedImage",
+          recoverable: true,
+        });
+      }
+      preparedImages.remove(imageId);
+    },
     async abortRun(input: AbortRunInput) {
       assertNotDisposed();
       const session = requireSession();
@@ -875,6 +987,7 @@ export async function createPhoCodeRuntime(
         return;
       }
       activeRun.abortRequested = true;
+      session.clearQueue();
       await session.abort();
       await activeRun.promptDone.catch(() => undefined);
     },
@@ -1015,6 +1128,36 @@ export async function createPhoCodeRuntime(
       });
       return currentPermissionSettings();
     },
+    async trustProjectPermissionRules(workspacePath: string) {
+      assertNotDisposed();
+      if (activeRun && !activeRun.settled) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before changing project trust.",
+          operation: "trustProjectPermissionRules",
+          recoverable: true,
+        });
+      }
+      const cwd = await canonicalizeWorkspaceDirectory(workspacePath, "trustProjectPermissionRules");
+      approvedProjectPaths.add(cwd);
+      if (piRuntime?.session && piRuntime.cwd === cwd) {
+        await piRuntime.session.reload();
+        await bindHostUi();
+        activeWorkspace = workspaceSummary(cwd);
+        const snapshot = await buildSnapshot();
+        emit({
+          type: RUNTIME_EVENT_TYPES.featureSnapshot,
+          sessionId: snapshot.session.id,
+          payload: snapshot.features,
+        });
+        emit({
+          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+          sessionId: snapshot.session.id,
+          payload: snapshot,
+        });
+      }
+      return currentPermissionSettings();
+    },
     async listCredentialProviders(): Promise<CredentialProviderSummary[]> {
       assertNotDisposed();
       return listStoredApiKeyProviders(modelRuntime);
@@ -1039,6 +1182,25 @@ export async function createPhoCodeRuntime(
         });
       }
       return { providers };
+    },
+    async searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult> {
+      assertNotDisposed();
+      if (!activeWorkspace) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.workspaceNotSelected,
+          message: "Select a workspace before searching files.",
+          operation: "searchWorkspaceReferences",
+          recoverable: true,
+        });
+      }
+      const query = typeof input.query === "string" ? input.query.slice(0, MAX_WORKSPACE_REFERENCE_QUERY) : "";
+      const result = await retrieval.searchPaths({
+        query,
+        ...(input.kinds ? { kinds: input.kinds } : {}),
+        ...(input.limit !== undefined ? { limit: input.limit } : {}),
+      });
+      assertJsonSafe(result, "searchWorkspaceReferences");
+      return result;
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -1076,6 +1238,9 @@ export async function createPhoCodeRuntime(
       try {
         await piRuntime?.dispose();
       } finally {
+        await retrieval.dispose();
+        await web.dispose();
+        preparedImages.clear();
         piRuntime = undefined;
         activeRun = undefined;
         restoreAgentDirEnv(previousAgentDirEnv, options.agentDir);
@@ -1084,12 +1249,18 @@ export async function createPhoCodeRuntime(
   };
 
   function currentPermissionSettings() {
-    return readPermissionSettings({
+    const settings = readPermissionSettings({
       agentDir,
       appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
       ...(activeWorkspace?.path ? { workspacePath: activeWorkspace.path } : {}),
       yoloActive: extensionHost?.yoloActive === true,
     });
+    return {
+      ...settings,
+      projectPermissionRulesTrusted: activeWorkspace?.path
+        ? isProjectApproved(activeWorkspace.path)
+        : false,
+    };
   }
 
   function assertNotDisposed(): void {
@@ -1100,6 +1271,140 @@ export async function createPhoCodeRuntime(
         operation: "runtime",
       });
     }
+  }
+
+  async function resolvePromptText(
+    input: { text?: string; references?: SendPromptInput["references"] },
+    operation: string,
+  ): Promise<string> {
+    const text = typeof input.text === "string" ? input.text : "";
+    const explicit = [];
+    for (const token of input.references ?? []) {
+      if (!isWorkspaceReferenceToken(token)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
+          message: "Each workspace reference must include a relative path.",
+          operation,
+          recoverable: true,
+        });
+      }
+      explicit.push({
+        path: token.path.trim(),
+        ...(token.kind ? { kind: token.kind } : {}),
+      });
+    }
+    const references = collectWorkspaceReferenceTokens(text, explicit);
+    if (references.length > MAX_WORKSPACE_REFERENCES_PER_PROMPT) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
+        message: `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`,
+        operation,
+        recoverable: true,
+      });
+    }
+    if (references.length === 0) {
+      return text;
+    }
+    const workspacePath = activeWorkspace?.path ?? piRuntime?.cwd;
+    if (!workspacePath) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.workspaceNotSelected,
+        message: "Select a workspace before attaching file references.",
+        operation,
+        recoverable: true,
+      });
+    }
+    const validated = [];
+    for (const token of references) {
+      validated.push(await validateWorkspaceReference(token, workspacePath));
+    }
+    return serializeWorkspaceReferences(text, validated);
+  }
+
+  function takePreparedImages(imageIds: readonly string[] | undefined, operation: string) {
+    if (!imageIds || imageIds.length === 0) {
+      return [];
+    }
+    return preparedImages.lookup(imageIds, operation);
+  }
+
+  function forgetPreparedImages(imageIds: readonly string[] | undefined): void {
+    if (!imageIds || imageIds.length === 0) {
+      return;
+    }
+    preparedImages.forget(imageIds);
+  }
+
+  async function enqueueDuringRun(
+    input: SteerRunInput | QueueFollowUpInput,
+    operation: "steerRun" | "queueFollowUp",
+    enqueue: (
+      session: AgentSession,
+      text: string,
+      images: Array<{ type: "image"; data: string; mimeType: string }>,
+    ) => Promise<void>,
+  ): Promise<QueueAdmission> {
+    assertNotDisposed();
+    const session = requireSession();
+    if (input.sessionId !== session.sessionId) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionNotFound,
+        message: "The queue target is not the active session.",
+        operation,
+        recoverable: true,
+      });
+    }
+    if (!activeRun || activeRun.settled || activeRun.runId !== input.runId) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidCommand,
+        message: operation === "steerRun" ? "Steer requires the current run." : "A follow-up requires the current run.",
+        operation,
+        recoverable: true,
+      });
+    }
+    const promptText = await resolvePromptText(input, operation);
+    const records = takePreparedImages(input.imageIds, operation);
+    if (promptText.trim() === "" && records.length === 0) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidCommand,
+        message: "A prompt, workspace reference, or image is required.",
+        operation,
+        recoverable: true,
+      });
+    }
+    if (records.length > 0 && !modelSupportsImages(session.model)) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.imagesUnsupported,
+        message: "The selected model does not accept images.",
+        operation,
+        recoverable: true,
+      });
+    }
+    try {
+      await enqueue(
+        session,
+        promptText,
+        records.map((record) => record.content),
+      );
+    } catch (error) {
+      throw toHarnessError(error, operation, HARNESS_ERROR_CODES.promptRejected);
+    }
+    forgetPreparedImages(input.imageIds);
+    const snapshot = await buildSnapshot({ refreshCatalog: false });
+    emit({
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      sessionId: session.sessionId,
+      runId: activeRun.runId,
+      payload: snapshot,
+    });
+    const admission: QueueAdmission = {
+      sessionId: session.sessionId,
+      runId: activeRun.runId,
+      admitted: true,
+      queue: snapshot.queue ?? emptyQueueState(),
+    };
+    assertJsonSafe(admission, operation);
+    return admission;
   }
 
   return runtime;
@@ -1141,6 +1446,23 @@ function sessionSummaryFromInfo(workspaceId: string, info: SessionInfo): Session
     updatedAt: info.modified.toISOString(),
     ...(preview ? { preview: previewText(preview) } : {}),
   };
+}
+
+function projectQueue(session: AgentSession): SessionQueueState {
+  return {
+    steering: session.getSteeringMessages().map((text) => ({ text: previewQueueMessage(text) })),
+    followUp: session.getFollowUpMessages().map((text) => ({ text: previewQueueMessage(text) })),
+    steeringMode: session.steeringMode,
+    followUpMode: session.followUpMode,
+  };
+}
+
+function previewQueueMessage(text: string): string {
+  const compact = text.trim().replace(/\s+/gu, " ");
+  if (compact.length <= MAX_QUEUE_MESSAGE_PREVIEW) {
+    return compact;
+  }
+  return `${compact.slice(0, MAX_QUEUE_MESSAGE_PREVIEW)}…`;
 }
 
 function restoreAgentDirEnv(previous: string | undefined, override: string | undefined): void {

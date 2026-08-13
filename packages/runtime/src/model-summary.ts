@@ -6,12 +6,17 @@ export interface ProjectableModel {
   id: string;
   name?: string;
   contextWindow: number;
+  input?: readonly string[];
   cost: {
     input: number;
     output: number;
     cacheRead: number;
     cacheWrite: number;
   };
+}
+
+export function modelSupportsImages(model: { input?: readonly string[] } | undefined): boolean {
+  return Array.isArray(model?.input) && model.input.includes("image");
 }
 
 export function projectModelSummary(model: ProjectableModel): ModelSummary {
@@ -26,5 +31,6 @@ export function projectModelSummary(model: ProjectableModel): ModelSummary {
       cacheRead: model.cost.cacheRead,
       cacheWrite: model.cost.cacheWrite,
     },
+    ...(modelSupportsImages(model) ? { supportsImages: true } : {}),
   };
 }
