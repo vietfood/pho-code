@@ -938,6 +938,14 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
+      if (activeRun && !activeRun.settled) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before changing the thinking level.",
+          operation: "setThinkingLevel",
+          recoverable: true,
+        });
+      }
       if (!isThinkingLevel(input.level)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
