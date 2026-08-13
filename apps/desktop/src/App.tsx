@@ -4,27 +4,42 @@ import {
   emptyConversationState,
   emptyFeatureSnapshot,
   isHarnessError,
+  MAX_PREPARED_IMAGES,
+  MAX_SOURCE_IMAGE_BYTES,
   type BootstrapState,
   type ConversationViewState,
   type CredentialProviderSummary,
   type HarnessSettingsSnapshot,
   type ModelSummary,
+  type PreparedImageSummary,
   type ResolveHostDialogInput,
+  type SessionSnapshot,
   type SessionSummary,
-  type ThemePreference,
   type ThinkingLevel,
+  type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
 import {
   AppShell,
   AppSidebar,
+  applyAppearanceFonts,
+  applyAppearanceTheme,
   Conversation,
   NotificationToast,
+  fileToBase64,
+  pastedImageDisplayName,
+  readSidebarCollapsed,
   SettingsView,
   WorkspacePicker,
+  writeSidebarCollapsed,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
+
+type PendingSession = {
+  workspaceId: string;
+  sessionId: string | null;
+};
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapState | null>(null);
@@ -32,11 +47,22 @@ export function App() {
   const [conversation, setConversation] = useState<ConversationViewState>(emptyConversationState);
   const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionSummary[]>>({});
   const [draft, setDraft] = useState("");
+  const [preparedImages, setPreparedImages] = useState<PreparedImageSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [credentialProviders, setCredentialProviders] = useState<CredentialProviderSummary[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const composerAfterRun = useRef(false);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      writeSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
 
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionSummary[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
@@ -115,6 +141,14 @@ export function App() {
     };
   }, [refreshBootstrap, rememberSessions]);
 
+  const appearance = conversation.settings?.appearance;
+  useEffect(() => {
+    if (appearance) {
+      applyAppearanceFonts(appearance);
+      applyAppearanceTheme(appearance);
+    }
+  }, [appearance]);
+
   useEffect(() => {
     const snapshot = conversation.snapshot;
     if (!snapshot) {
@@ -161,9 +195,9 @@ export function App() {
     }
   }
 
-  function applySessionSnapshot(snapshot: NonNullable<ConversationViewState["snapshot"]>): void {
+  function applySessionSnapshot(snapshot: SessionSnapshot): void {
     setConversation((current) => ({
-      lastSequence: 0,
+      lastSequence: current.lastSequence,
       snapshot,
       dialog: null,
       notification: null,
@@ -194,6 +228,31 @@ export function App() {
     });
   }
 
+  async function switchSession(
+    workspaceId: string,
+    sessionId: string | null,
+    action: () => Promise<SessionSnapshot>,
+  ): Promise<void> {
+    if (sessionId && sessionId === conversation.snapshot?.session.id) {
+      return;
+    }
+    setPendingSession({ workspaceId, sessionId });
+    setError(null);
+    setDraft("");
+    setPreparedImages([]);
+    setSettingsOpen(false);
+    try {
+      const opened = await action();
+      applySessionSnapshot(opened);
+      setPendingSession(null);
+      // Soft metadata refresh; do not block or remount the shell.
+      void refreshBootstrap().catch(() => undefined);
+    } catch (cause) {
+      setError(errorMessage(cause));
+      setPendingSession(null);
+    }
+  }
+
   if (!bootstrap) {
     return (
       <div className="flex h-full items-center justify-center bg-background p-8 text-foreground">
@@ -218,55 +277,135 @@ export function App() {
 
   const snapshot = conversation.snapshot;
   const projects = bootstrap.recentWorkspaces;
-  const activeWorkspaceId = snapshot?.workspace.id ?? workspace?.workspace.id;
+  const switchingSession = pendingSession !== null;
+  const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
+  const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
   const settingsVisible = settingsOpen && Boolean(conversation.settings);
+
+  function admitComposer(kind: "send" | "steer" | "followUp"): void {
+    if (!snapshot) {
+      return;
+    }
+    void runCommand(async () => {
+      const text = draft.trim();
+      const imageIds = preparedImages.map((image) => image.id);
+      if (!text && imageIds.length === 0) {
+        return;
+      }
+      const previousDraft = draft;
+      const previousImages = preparedImages;
+      setDraft("");
+      setPreparedImages([]);
+      const payload = {
+        sessionId: snapshot.session.id,
+        text,
+        ...(imageIds.length > 0 ? { imageIds } : {}),
+      };
+      try {
+        switch (kind) {
+          case "send":
+            await getDesktopBridge().sendPrompt(payload);
+            return;
+          case "steer": {
+            const runId = snapshot.run.runId;
+            if (!runId) {
+              throw new Error("Steer requires the current run.");
+            }
+            await getDesktopBridge().steerRun({ ...payload, runId });
+            return;
+          }
+          case "followUp": {
+            const runId = snapshot.run.runId;
+            if (!runId) {
+              throw new Error("A follow-up requires the current run.");
+            }
+            await getDesktopBridge().queueFollowUp({ ...payload, runId });
+            return;
+          }
+          default: {
+            const exhaustive: never = kind;
+            return exhaustive;
+          }
+        }
+      } catch (cause) {
+        setDraft(previousDraft);
+        setPreparedImages(previousImages);
+        throw cause;
+      }
+    });
+  }
 
   return (
     <AppShell
       sidebar={
-        <AppSidebar
-          projects={projects}
-          sessionsByWorkspace={sessionsByWorkspace}
-          bootstrap={{
-            ...bootstrap,
-            ...(snapshot?.features ? { features: snapshot.features } : workspace?.features ? { features: workspace.features } : {}),
-          }}
-          busy={busy}
-          onAddProject={() => {
-            void runCommand(async () => {
-              const picked = await getDesktopBridge().pickWorkspace();
-              if (picked) {
-                setWorkspace(picked);
-                setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
-                rememberSessions(picked.workspace.id, picked.sessions);
-                await refreshBootstrap();
+        sidebarCollapsed ? null : (
+          <AppSidebar
+            projects={projects}
+            sessionsByWorkspace={sessionsByWorkspace}
+            bootstrap={{
+              ...bootstrap,
+              ...(snapshot?.features
+                ? { features: snapshot.features }
+                : workspace?.features
+                  ? { features: workspace.features }
+                  : {}),
+            }}
+            busy={busy || switchingSession}
+            onToggleCollapsed={toggleSidebar}
+            onAddProject={() => {
+              void runCommand(async () => {
+                const picked = await getDesktopBridge().pickWorkspace();
+                if (picked) {
+                  setWorkspace(picked);
+                  setDraft("");
+                  setPreparedImages([]);
+                  setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
+                  rememberSessions(picked.workspace.id, picked.sessions);
+                  await refreshBootstrap();
+                }
+              });
+            }}
+            onExpandProject={(workspaceId) => {
+              void runCommand(
+                async () => {
+                  const sessions = await getDesktopBridge().listWorkspaceSessions({ workspaceId });
+                  rememberSessions(workspaceId, sessions);
+                },
+                { busy: false },
+              );
+            }}
+            onNewSession={(workspaceId) => {
+              void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
+            }}
+            onOpenSession={(workspaceId, sessionId) => {
+              void switchSession(workspaceId, sessionId, () =>
+                getDesktopBridge().openSession({ workspaceId, sessionId }),
+              );
+            }}
+            onReorderProjects={(workspaceIds) => {
+              const previous = bootstrap.recentWorkspaces;
+              const byId = new Map(previous.map((entry) => [entry.id, entry]));
+              const optimistic = workspaceIds
+                .map((id) => byId.get(id))
+                .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+              if (optimistic.length !== previous.length) {
+                return;
               }
-            });
-          }}
-          onExpandProject={(workspaceId) => {
-            void runCommand(async () => {
-              const sessions = await getDesktopBridge().listWorkspaceSessions({ workspaceId });
-              rememberSessions(workspaceId, sessions);
-            });
-          }}
-          onNewSession={(workspaceId) => {
-            void runCommand(async () => {
-              const created = await getDesktopBridge().createSession({ workspaceId });
-              applySessionSnapshot(created);
-              await refreshBootstrap();
-            });
-          }}
-          onOpenSession={(workspaceId, sessionId) => {
-            void runCommand(async () => {
-              const opened = await getDesktopBridge().openSession({ workspaceId, sessionId });
-              applySessionSnapshot(opened);
-              await refreshBootstrap();
-            });
-          }}
-          onOpenSettings={() => setSettingsOpen(true)}
-          {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
-          {...(snapshot?.session.id ? { selectedSessionId: snapshot.session.id } : {})}
-        />
+              setBootstrap((current) => (current ? { ...current, recentWorkspaces: optimistic } : current));
+              void getDesktopBridge()
+                .reorderRecentWorkspaces({ workspaceIds })
+                .then((records) => {
+                  setBootstrap((current) => (current ? { ...current, recentWorkspaces: records } : current));
+                })
+                .catch(() => {
+                  setBootstrap((current) => (current ? { ...current, recentWorkspaces: previous } : current));
+                });
+            }}
+            onOpenSettings={() => setSettingsOpen(true)}
+            {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
+            {...(selectedSessionId ? { selectedSessionId } : {})}
+          />
+        )
       }
     >
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
@@ -280,93 +419,156 @@ export function App() {
             }
             aria-hidden={settingsVisible}
           >
-            <Conversation
-              snapshot={snapshot}
-              draft={draft}
-              onDraftChange={setDraft}
-              dialog={conversation.dialog}
-              onResolveDialog={resolveHostDialog}
-              {...(conversation.settings?.permission.yoloMode ? { yoloMode: true } : {})}
-              onSubmit={() => {
-                void runCommand(async () => {
-                  const text = draft.trim();
-                  if (!text) {
+            <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
+              <Conversation
+                snapshot={snapshot}
+                draft={draft}
+                onDraftChange={setDraft}
+                dialog={conversation.dialog}
+                onResolveDialog={resolveHostDialog}
+                switching={switchingSession}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={toggleSidebar}
+                {...(conversation.settings?.permission.yoloMode ? { yoloMode: true } : {})}
+                onSubmit={() => {
+                  void admitComposer("send");
+                }}
+                onSteer={() => {
+                  void admitComposer("steer");
+                }}
+                onFollowUp={() => {
+                  void admitComposer("followUp");
+                }}
+                images={preparedImages}
+                onPickImages={() => {
+                  void runCommand(async () => {
+                    const result = await getDesktopBridge().pickImages();
+                    setPreparedImages((current) => [...current, ...result.images].slice(0, MAX_PREPARED_IMAGES));
+                  });
+                }}
+                onPasteImages={(files) => {
+                  void runCommand(async () => {
+                    if (snapshot.model?.supportsImages !== true) {
+                      throw new Error("The selected model does not accept images.");
+                    }
+                    const remaining = MAX_PREPARED_IMAGES - preparedImages.length;
+                    if (remaining <= 0) {
+                      throw new Error(`A prompt can include at most ${MAX_PREPARED_IMAGES} images.`);
+                    }
+                    const result =
+                      files.length > 0
+                        ? await getDesktopBridge().pasteImages({
+                            images: await Promise.all(
+                              files.slice(0, remaining).map(async (file, index) => {
+                                if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+                                  throw new Error("That image is empty or larger than 10 MiB.");
+                                }
+                                return {
+                                  name: pastedImageDisplayName(file.name, index),
+                                  data: await fileToBase64(file),
+                                };
+                              }),
+                            ),
+                          })
+                        : await getDesktopBridge().pasteImages();
+                    if (result.images.length === 0) {
+                      throw new Error("That paste did not contain a supported image.");
+                    }
+                    setPreparedImages((current) => [...current, ...result.images].slice(0, MAX_PREPARED_IMAGES));
+                  });
+                }}
+                onRemoveImage={(imageId) => {
+                  void runCommand(async () => {
+                    await getDesktopBridge().removePreparedImage({ imageId });
+                    setPreparedImages((current) => current.filter((image) => image.id !== imageId));
+                  });
+                }}
+                onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
+                onStop={() => {
+                  const runId = snapshot.run.runId;
+                  if (!runId) {
                     return;
                   }
-                  setDraft("");
-                  await getDesktopBridge().sendPrompt({
-                    sessionId: snapshot.session.id,
-                    text,
+                  void runCommand(async () => {
+                    await getDesktopBridge().abortRun({
+                      sessionId: snapshot.session.id,
+                      runId,
+                    });
                   });
-                });
-              }}
-              onStop={() => {
-                const runId = snapshot.run.runId;
-                if (!runId) {
-                  return;
-                }
-                void runCommand(async () => {
-                  await getDesktopBridge().abortRun({
-                    sessionId: snapshot.session.id,
-                    runId,
-                  });
-                });
-              }}
-              onModelChange={(model: ModelSummary) => {
-                const previous = snapshot.model;
-                patchSnapshot((current) => ({ ...current, model }));
-                void runCommand(
-                  async () => {
-                    try {
-                      await getDesktopBridge().setSessionModel({
-                        sessionId: snapshot.session.id,
-                        provider: model.provider,
-                        id: model.id,
-                      });
-                    } catch (cause) {
-                      patchSnapshot((current) => {
-                        if (previous) {
-                          return { ...current, model: previous };
-                        }
-                        const next = { ...current };
-                        delete next.model;
-                        return next;
-                      });
-                      throw cause;
-                    }
-                  },
-                  { busy: false },
-                );
-              }}
-              onThinkingChange={(level: ThinkingLevel) => {
-                const previous = snapshot.thinkingLevel;
-                patchSnapshot((current) => ({ ...current, thinkingLevel: level }));
-                void runCommand(
-                  async () => {
-                    try {
-                      await getDesktopBridge().setThinkingLevel({
-                        sessionId: snapshot.session.id,
-                        level,
-                      });
-                    } catch (cause) {
-                      patchSnapshot((current) => ({ ...current, thinkingLevel: previous }));
-                      throw cause;
-                    }
-                  },
-                  { busy: false },
-                );
-              }}
-            />
+                }}
+                onModelChange={(model: ModelSummary) => {
+                  const previous = snapshot.model;
+                  patchSnapshot((current) => ({ ...current, model }));
+                  void runCommand(
+                    async () => {
+                      try {
+                        await getDesktopBridge().setSessionModel({
+                          sessionId: snapshot.session.id,
+                          provider: model.provider,
+                          id: model.id,
+                        });
+                      } catch (cause) {
+                        patchSnapshot((current) => {
+                          if (previous) {
+                            return { ...current, model: previous };
+                          }
+                          const next = { ...current };
+                          delete next.model;
+                          return next;
+                        });
+                        throw cause;
+                      }
+                    },
+                    { busy: false },
+                  );
+                }}
+                onThinkingChange={(level: ThinkingLevel) => {
+                  const previous = snapshot.thinkingLevel;
+                  patchSnapshot((current) => ({ ...current, thinkingLevel: level }));
+                  void runCommand(
+                    async () => {
+                      try {
+                        await getDesktopBridge().setThinkingLevel({
+                          sessionId: snapshot.session.id,
+                          level,
+                        });
+                      } catch (cause) {
+                        patchSnapshot((current) => ({ ...current, thinkingLevel: previous }));
+                        throw cause;
+                      }
+                    },
+                    { busy: false },
+                  );
+                }}
+              />
+            </div>
+          </div>
+        ) : switchingSession ? (
+          <div
+            className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+            data-testid="session-switching"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div className="session-switch-veil">
+              <span className="session-switch-pulse" aria-hidden="true" />
+              <span className="sr-only">Opening session…</span>
+            </div>
           </div>
         ) : (
           <WorkspacePicker
             recents={bootstrap.recentWorkspaces}
             busy={busy}
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={toggleSidebar}
             onPick={() => {
               void runCommand(async () => {
                 const picked = await getDesktopBridge().pickWorkspace();
                 if (picked) {
                   setWorkspace(picked);
+                  setDraft("");
+                  setPreparedImages([]);
                   setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
                   rememberSessions(picked.workspace.id, picked.sessions);
                   await refreshBootstrap();
@@ -377,6 +579,8 @@ export function App() {
               void runCommand(async () => {
                 const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId });
                 setWorkspace(opened);
+                setDraft("");
+                setPreparedImages([]);
                 setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
                 rememberSessions(opened.workspace.id, opened.sessions);
                 await refreshBootstrap();
@@ -391,17 +595,29 @@ export function App() {
           running={snapshot?.run.status === "admitted" || snapshot?.run.status === "streaming"}
           busy={busy}
           credentialProviders={credentialProviders}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={toggleSidebar}
           onClose={() => setSettingsOpen(false)}
-          onAppearanceChange={(theme: ThemePreference) => {
-            void runCommand(async () => {
-              const next = await getDesktopBridge().updateAppearanceSettings({ theme });
-              applySettings(next);
-            });
+          onAppearanceChange={(input: UpdateAppearanceSettingsInput) => {
+            void runCommand(
+              async () => {
+                const next = await getDesktopBridge().updateAppearanceSettings(input);
+                applySettings(next);
+              },
+              { busy: false },
+            );
           }}
           onPermissionApply={async (input: UpdatePermissionSettingsInput) => {
             await runCommand(async () => {
               const next = await getDesktopBridge().updatePermissionSettings(input);
               applySettings(next);
+            });
+          }}
+          onTrustProjectPermissionRules={async () => {
+            await runCommand(async () => {
+              const next = await getDesktopBridge().trustProjectPermissionRules();
+              applySettings(next);
+              await refreshBootstrap();
             });
           }}
           onImportApiKey={async (input) => {
