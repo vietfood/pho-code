@@ -1,99 +1,25 @@
 /* Desktop theme tokens adapted from refs/t3code/apps/web/src/index.css
-   (MIT, T3 Tools Inc., 6bc6cb6). Stage artwork, terminal, and hosted themes omitted. */
+   (MIT, T3 Tools Inc., 6bc6cb6). Stage artwork, terminal, and hosted themes omitted.
+   Palette color blocks live in theme-palettes.css and activate via data-palette/data-appearance. */
+
+@import "./theme-palettes.css";
 
 :root {
-  color-scheme: light;
+  --font-size-ui: 16px;
+  --font-size-chat: 14px;
   --radius: 0.75rem;
   --control-radius: 0.625rem;
   --composer-radius: 1.25rem;
-  --sidebar-width: 14.5rem;
-  --workspace-topbar-height: 44px;
-  --workspace-titlebar-inset: 72px;
-  --glass-blur: 14px;
-  --glass-opacity: 88%;
+  --sidebar-width: 18.25rem;
+  --workspace-topbar-height: 2.75rem;
+  --workspace-titlebar-inset: 4.5rem;
+  --glass-blur: 0px;
+  --sidebar-glass-blur: 0px;
+  --glass-opacity: 100%;
+  --sidebar-glass-opacity: 100%;
+  --composer-glass-opacity: 100%;
   --glass-saturation: 1.12;
   --app-scrollbar-width: 6px;
-  --app-scrollbar-thumb: rgb(217 217 217);
-  --background: oklch(99.2% 0 0);
-  --foreground: #27272a;
-  --card: #ffffff;
-  --card-foreground: #27272a;
-  --popover: #ffffff;
-  --popover-foreground: #27272a;
-  --primary: oklch(0.488 0.217 264);
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #27272a;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f0f0f2;
-  --accent-foreground: #18181b;
-  --destructive: #ef4444;
-  --destructive-foreground: #b91c1c;
-  --border: #e8e8ec;
-  --input: #d4d4d8;
-  --ring: oklch(0.488 0.217 264);
-  --message-surface: #ececee;
-  --message-foreground: #27272a;
-  --message-action: oklch(0.488 0.217 264);
-  --message-action-foreground: #ffffff;
-  --error: #ef4444;
-  --error-foreground: #b91c1c;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --sidebar: #f7f7f8;
-  --sidebar-foreground: #27272a;
-  --sidebar-muted-foreground: #71717a;
-  --sidebar-row-hover: rgb(0 0 0 / 4%);
-  --sidebar-row-selected: rgb(0 0 0 / 6%);
-  --sidebar-border: transparent;
-  --secondary-label: var(--muted-foreground);
-  --icon-muted: var(--muted-foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #0a0a0a;
-    --foreground: #ececec;
-    --card: #141414;
-    --card-foreground: #ececec;
-    --popover: #1a1a1a;
-    --popover-foreground: #ececec;
-    --primary: oklch(0.62 0.19 255);
-    --primary-foreground: #ffffff;
-    --secondary: rgb(255 255 255 / 5%);
-    --secondary-foreground: #ececec;
-    --muted: rgb(255 255 255 / 5%);
-    --muted-foreground: #8a8a8a;
-    --accent: rgb(255 255 255 / 6%);
-    --accent-foreground: #ececec;
-    --destructive: color-mix(in srgb, #ef4444 90%, #ffffff);
-    --destructive-foreground: #f87171;
-    --border: rgb(255 255 255 / 5%);
-    --input: rgb(255 255 255 / 8%);
-    --ring: oklch(0.62 0.19 255);
-    --message-surface: #1e1e1e;
-    --message-foreground: #ececec;
-    --message-action: oklch(0.62 0.19 255);
-    --message-action-foreground: #ffffff;
-    --error: color-mix(in srgb, #ef4444 90%, #ffffff);
-    --error-foreground: #f87171;
-    --success: #34d399;
-    --warning: #fbbf24;
-    --sidebar: #0f0f0f;
-    --sidebar-foreground: #ececec;
-    --sidebar-muted-foreground: #8a8a8a;
-    --sidebar-row-hover: rgb(255 255 255 / 5%);
-    --sidebar-row-selected: rgb(255 255 255 / 8%);
-    --sidebar-border: transparent;
-    --app-scrollbar-thumb: rgb(255 255 255 / 10%);
-    --glass-blur: 18px;
-    --glass-opacity: 72%;
-    --glass-saturation: 1.06;
-    --secondary-label: var(--muted-foreground);
-    --icon-muted: var(--muted-foreground);
-  }
 }
 
 @theme inline {
@@ -152,12 +78,270 @@
     overscroll-behavior: none;
   }
 
+  html {
+    font-size: var(--font-size-ui);
+  }
+
   body {
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
+}
+
+.chat-text {
+  font-size: var(--font-size-chat);
+  line-height: 1.625;
+}
+
+/*
+ * Composer prompt follows chat size but stays a step under transcript body so the
+ * docked field doesn't dominate the model/thinking chrome beside/below it.
+ */
+.chat-composer-input {
+  font-size: calc(var(--font-size-chat) * 0.92);
+  line-height: 1.4;
+  padding-block: 0.2em;
+}
+
+.composer-mention-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
+  z-index: 20;
+  max-height: 14rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--popover);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
+  padding: 0.3rem;
+}
+
+.composer-mention-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.4rem 0.5rem;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.composer-mention-option:hover,
+.composer-mention-option.is-active {
+  background: var(--accent);
+}
+
+.composer-mention-empty {
+  padding: 0.55rem 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.composer-queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  padding-inline: 0.15rem;
+}
+
+.composer-queue-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+.composer-queue-chip.is-steer {
+  background: color-mix(in oklab, var(--accent) 70%, transparent);
+  color: var(--accent-foreground);
+}
+
+.composer-queue-chip.is-follow-up {
+  background: color-mix(in oklab, var(--muted) 80%, transparent);
+  color: var(--muted-foreground);
+}
+
+.composer-queue-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted) 75%, transparent);
+  padding: 0 0.55rem;
+  color: var(--foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.composer-queue-action:hover {
+  background: var(--accent);
+}
+
+.composer-queue-action:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.composer-attach-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.composer-attach-button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.composer-attach-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.composer-image-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.composer-image-thumb {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--muted);
+}
+
+.composer-image-thumb .chat-markdown-image-trigger {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.composer-image-thumb .chat-markdown-image-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.composer-image-thumb .chat-markdown-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.composer-image-remove {
+  position: absolute;
+  z-index: 1;
+  top: 0.15rem;
+  right: 0.15rem;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 55%);
+  color: white;
+  cursor: pointer;
+}
+
+.composer-image-disclosure {
+  margin: 0.4rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  line-height: 1.35;
+}
+
+/* Cursor-inspired @ reference chips (visual reference only; harness-owned). */
+.mention-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.28em;
+  margin-inline: 0.05em;
+  padding: 0.08em 0.42em 0.08em 0.28em;
+  border-radius: 0.4em;
+  background: color-mix(in oklab, #0f766e 16%, transparent);
+  color: #0f766e;
+  font-weight: 500;
+  font-size: 0.92em;
+  line-height: 1.25;
+  vertical-align: baseline;
+  white-space: nowrap;
+  user-select: none;
+}
+
+html[data-appearance="dark"] .mention-chip {
+  background: color-mix(in oklab, #2dd4bf 22%, transparent);
+  color: #5eead4;
+}
+
+.mention-chip-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.mention-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-composer-editable {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chat-composer-editable:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.chat-composer-editable .mention-chip {
+  cursor: default;
 }
 
 .workspace-topbar {
@@ -176,11 +360,14 @@
 .drag-region input,
 .drag-region textarea,
 .drag-region select,
-.drag-region a {
+.drag-region a,
+.no-drag {
   -webkit-app-region: no-drag;
 }
 
 .chat-composer-horizontal-inset {
+  position: relative;
+  z-index: 2;
   padding-inline: calc(0.75rem);
 }
 
@@ -207,17 +394,18 @@
   background: radial-gradient(ellipse at center, rgb(0 0 0 / 5%), transparent 70%);
 }
 
-@media (prefers-color-scheme: dark) {
-  .empty-session-glow {
-    background: radial-gradient(ellipse at center, rgb(255 255 255 / 7%), transparent 70%);
-  }
+html[data-appearance="dark"] .empty-session-glow {
+  background: radial-gradient(ellipse at center, rgb(255 255 255 / 7%), transparent 70%);
 }
 
-/* Chat markdown adapted from refs/t3code/apps/web/src/index.css (MIT, T3 Tools Inc., 6bc6cb6). */
+/* Chat markdown adapted from refs/t3code/apps/web/src/index.css (MIT, T3 Tools Inc., 6bc6cb6).
+   Base size is --font-size-chat; internal sizes use em so they track chat, not UI rem. */
 .chat-markdown {
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+  font-size: var(--font-size-chat);
+  line-height: 1.625;
 }
 
 .chat-markdown > :first-child {
@@ -252,21 +440,21 @@
 }
 
 .chat-markdown h1 {
-  font-size: 1.25rem;
+  font-size: 1.25em;
 }
 
 .chat-markdown h2 {
-  font-size: 1.125rem;
+  font-size: 1.125em;
 }
 
 .chat-markdown h3 {
-  font-size: 1rem;
+  font-size: 1em;
 }
 
 .chat-markdown h4,
 .chat-markdown h5,
 .chat-markdown h6 {
-  font-size: 0.875rem;
+  font-size: 0.875em;
 }
 
 .chat-markdown ul {
@@ -289,6 +477,102 @@
   text-underline-offset: 2px;
 }
 
+.chat-markdown .chat-markdown-image-trigger {
+  display: block;
+  max-width: 100%;
+  margin: 0.65rem 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: zoom-in;
+  text-align: left;
+}
+
+.chat-markdown .chat-markdown-image-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+.chat-markdown .chat-markdown-image {
+  display: block;
+  max-width: min(100%, 36rem);
+  max-height: 24rem;
+  width: auto;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--secondary);
+  object-fit: contain;
+}
+
+.chat-markdown .chat-markdown-image-fallback {
+  display: inline;
+  font-style: italic;
+}
+
+.chat-markdown-image-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  padding: 2.5rem 1.5rem 1.5rem;
+  border: none;
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  color: var(--foreground);
+}
+
+.chat-markdown-image-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.chat-markdown-image-dialog-img {
+  max-width: min(96vw, 72rem);
+  max-height: min(88vh, 56rem);
+  width: auto;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  object-fit: contain;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 35%);
+}
+
+.chat-markdown-image-dialog-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.chat-markdown-image-dialog-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-markdown-image-dialog,
+  .chat-markdown-image-dialog::backdrop {
+    transition: none;
+  }
+}
+
 .chat-markdown blockquote {
   margin-left: 0;
   border-left: 2px solid var(--border);
@@ -300,9 +584,9 @@
   border: 1px solid var(--border);
   border-radius: 0.375rem;
   background: var(--muted);
-  padding: 0.1rem 0.35rem;
+  padding: 0.1em 0.35em;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.85em;
 }
 
 .chat-markdown pre {
@@ -310,7 +594,7 @@
   overflow: auto;
   border-radius: 0.75rem;
   background: var(--muted);
-  padding: 0.8rem 0.9rem;
+  padding: 0.8em 0.9em;
 }
 
 .chat-markdown pre code {
@@ -318,7 +602,7 @@
   background: transparent;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.85em;
   line-height: 1.5;
 }
 
@@ -339,7 +623,7 @@
 
 .chat-markdown .chat-markdown-codeblock-title {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.8em;
   text-transform: lowercase;
 }
 
@@ -365,7 +649,7 @@
   background: transparent;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.85em;
   line-height: 1.5;
 }
 
@@ -395,7 +679,7 @@
 .chat-markdown table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.9em;
 }
 
 .chat-markdown th,
@@ -412,7 +696,7 @@
 
 /* Denser markdown for expanded thinking rows. */
 .chat-markdown.chat-markdown-dense {
-  font-size: 0.75rem;
+  font-size: calc(var(--font-size-chat) * 0.85);
   line-height: 1.625;
   color: var(--secondary-label, var(--muted-foreground));
 }
@@ -434,18 +718,18 @@
 .chat-markdown.chat-markdown-dense h4,
 .chat-markdown.chat-markdown-dense h5,
 .chat-markdown.chat-markdown-dense h6 {
-  margin: 0.55rem 0 0.3rem;
-  font-size: 0.75rem;
+  margin: 0.55em 0 0.3em;
+  font-size: 1em;
   color: var(--secondary-label, var(--muted-foreground));
 }
 
 .chat-markdown.chat-markdown-dense :not(pre) > code {
-  font-size: 0.6875rem;
+  font-size: 0.9em;
 }
 
 .chat-markdown.chat-markdown-dense pre code,
 .chat-markdown.chat-markdown-dense .chat-markdown-shiki code {
-  font-size: 0.6875rem;
+  font-size: 0.9em;
 }
 
 .chat-composer-shell::before {
@@ -454,7 +738,7 @@
   z-index: 0;
   inset: 0;
   border-radius: var(--composer-radius);
-  background: color-mix(in srgb, var(--card) var(--glass-opacity), transparent);
+  background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   content: "";
@@ -477,19 +761,17 @@
   content: "";
 }
 
-@media (prefers-color-scheme: dark) {
-  .chat-composer-shell::before {
-    background: color-mix(in srgb, #1a1a1a var(--glass-opacity), transparent);
-  }
+html[data-appearance="dark"] .chat-composer-shell::before {
+  background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
+}
 
-  .chat-composer-host {
-    box-shadow: 0 18px 40px -24px rgb(0 0 0 / 70%);
-  }
+html[data-appearance="dark"] .chat-composer-host {
+  box-shadow: 0 18px 40px -24px rgb(0 0 0 / 70%);
+}
 
-  .chat-composer-host::after {
-    border-color: rgb(255 255 255 / 6%);
-    box-shadow: inset 0 1px rgb(255 255 255 / 4%);
-  }
+html[data-appearance="dark"] .chat-composer-host::after {
+  border-color: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 4%);
 }
 
 .composer-meta-select {
@@ -553,47 +835,199 @@
   font-weight: 600;
 }
 
-@media (prefers-color-scheme: dark) {
-  .composer-thinking-select.is-max {
-    color: #d8b4fe;
-  }
+html[data-appearance="dark"] .composer-thinking-select.is-max {
+  color: #d8b4fe;
+}
+
+.composer-model-picker-panel {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 17rem;
+  width: max-content;
+  max-width: min(22rem, 84vw);
+  max-height: 22rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.85rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 4%),
+    0 12px 32px -16px rgb(0 0 0 / 28%);
+}
+
+html[data-appearance="dark"] .composer-model-picker-panel {
+  border-color: rgb(255 255 255 / 8%);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 4%),
+    0 16px 36px -18px rgb(0 0 0 / 72%);
+}
+
+.composer-model-picker-filter {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.4rem 0.45rem 0.15rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.composer-model-picker-filter:focus-within {
+  border-color: color-mix(in srgb, var(--border) 80%, var(--foreground) 12%);
+  background: color-mix(in srgb, var(--muted) 70%, var(--popover));
+  color: var(--foreground);
+}
+
+.composer-model-picker-filter-icon {
+  flex-shrink: 0;
+  width: 0.8rem;
+  height: 0.8rem;
+  opacity: 0.7;
+}
+
+.composer-model-picker-filter-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  outline: none;
+}
+
+.composer-model-picker-filter-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.composer-model-picker-filter-input::-webkit-search-cancel-button {
+  display: none;
 }
 
 .composer-model-picker-list {
-  position: absolute;
-  z-index: 40;
-  bottom: calc(100% + 0.35rem);
-  left: 0;
-  min-width: 16rem;
-  max-width: min(22rem, 80vw);
-  max-height: 16rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   margin: 0;
-  padding: 0.25rem;
+  padding: 0.2rem 0.35rem 0.4rem;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--popover);
-  color: var(--popover-foreground);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.composer-model-picker-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-model-picker-group + .composer-model-picker-group {
+  margin-top: 0.35rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.composer-model-picker-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem 0.2rem;
+  background: color-mix(in srgb, var(--popover) 92%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.composer-model-picker-group-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .composer-model-picker-option {
   display: flex;
   width: 100%;
-  align-items: flex-start;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.5rem;
   border: 0;
-  border-radius: calc(var(--control-radius) - 2px);
+  border-radius: 0.55rem;
   background: transparent;
-  padding: 0.4rem 0.5rem;
+  padding: 0.38rem 0.55rem;
   text-align: left;
   cursor: pointer;
+  color: inherit;
 }
 
-.composer-model-picker-option:hover,
-.composer-model-picker-option.is-selected {
+.composer-model-picker-option:hover {
   background: var(--accent);
+}
+
+.composer-model-picker-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 88%, var(--foreground) 4%);
+}
+
+.composer-model-picker-option-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--foreground);
+}
+
+.composer-model-picker-option-meta {
+  display: block;
+  margin-top: 0.12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+  line-height: 1.25;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-model-picker-option-sep {
+  margin: 0 0.28rem;
+  opacity: 0.55;
+}
+
+.composer-model-picker-check,
+.composer-model-picker-check-slot {
+  flex-shrink: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.composer-model-picker-check {
+  color: var(--foreground);
+  opacity: 0.72;
+}
+
+.composer-model-picker-empty {
+  padding: 1rem 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  text-align: center;
 }
 
 .composer-usage-trigger {
@@ -666,9 +1100,53 @@
   }
 }
 
-@media (prefers-color-scheme: light) {
-  .composer-meta-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+html[data-appearance="light"] .composer-meta-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Frosted window chrome: root stays clear so vibrancy/wallpaper show through panels.
+   Main pane uses a translucent fill only — extra CSS blur here double-frosts macOS
+   vibrancy and flattens nested composer/settings glass into opaque cards. */
+html[data-glass="on"] body,
+html[data-glass="on"] #root,
+html[data-glass="on"] .app-shell-root {
+  background: transparent !important;
+}
+
+html[data-glass="on"] .app-shell-main {
+  background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent) !important;
+}
+
+html[data-glass="on"] .app-sidebar-panel {
+  background: color-mix(in srgb, var(--sidebar) var(--sidebar-glass-opacity), transparent) !important;
+  -webkit-backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
+  border-right: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
+}
+
+html[data-glass="on"] .workspace-topbar {
+  background: transparent;
+}
+
+html[data-glass="on"] .glass-panel {
+  background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+
+html[data-glass="on"] .glass-field {
+  background: color-mix(in srgb, var(--background) var(--composer-glass-opacity), transparent) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-glass="on"] .app-sidebar-panel,
+  html[data-glass="on"] .glass-panel,
+  html[data-glass="on"] .glass-field,
+  html[data-glass="on"] .chat-composer-shell::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
@@ -720,6 +1198,57 @@
   }
 }
 
+.session-pane-enter {
+  animation: session-pane-enter 180ms ease-out;
+}
+
+@keyframes session-pane-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.session-switching .session-pane-body {
+  opacity: 0.4;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.session-switch-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.session-switch-pulse {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  animation: session-switch-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes session-switch-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
 @keyframes thinking-expand {
   from {
     opacity: 0.35;
@@ -758,5 +1287,15 @@
 
   .empty-session-glow {
     display: none;
+  }
+
+  .session-switching .session-pane-body {
+    transition: none;
+  }
+
+  .session-switch-pulse {
+    animation: none;
+    opacity: 0.7;
+    transform: none;
   }
 }

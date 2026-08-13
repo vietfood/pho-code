@@ -86,6 +86,7 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="transcript"');
     expect(markup).toContain("hello");
     expect(markup).toContain("Send follow-up");
+    expect(markup).toContain("overflow-y-auto");
   });
 
   test("shows usage strip and model selector chrome", () => {
@@ -109,6 +110,95 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="thinking-selector"');
     expect(markup).toContain("composer-thinking-select is-max");
     expect(markup).toContain("Max");
+  });
+
+  test("renders @ references in user messages as mention chips", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [{ type: "text", text: "Can you read @AGENTS.md" }],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-mention-path="AGENTS.md"');
+    expect(markup).toContain("mention-chip");
+    expect(markup).toContain("AGENTS.md");
+    expect(markup).toContain("Can you read ");
+  });
+
+  test("lets prepared composer images open a lightbox", () => {
+    const preview =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot(),
+        images: [
+          {
+            id: "img-1",
+            name: "shot.png",
+            mimeType: "image/png",
+            byteLength: 80,
+            width: 1,
+            height: 1,
+            previewDataUrl: preview,
+          },
+        ],
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="prepared-image"');
+    expect(markup).toContain('data-testid="markdown-image"');
+    expect(markup).toContain(`src="${preview}"`);
+    expect(markup).toContain('aria-label="Remove shot.png"');
+  });
+
+  test("keeps conversation chrome mounted while switching sessions", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+        }),
+        switching: true,
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="session-switching"');
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain('data-testid="transcript"');
+    expect(markup).toContain("hello");
+  });
+
+  test("shows steer and follow-up actions while a run is streaming", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+          run: { status: "streaming", runId: "r1", streamingText: "working", work: [] },
+          queue: {
+            steering: [{ text: "go left" }],
+            followUp: [{ text: "then wrap up" }],
+            steeringMode: "all",
+            followUpMode: "all",
+          },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="steer-button"');
+    expect(markup).toContain("Steer current run");
+    expect(markup).toContain('data-testid="follow-up-button"');
+    expect(markup).toContain("Add follow-up");
+    expect(markup).toContain("Steer or add a follow-up");
+    expect(markup).toContain("Steer · go left");
+    expect(markup).toContain("Follow-up · then wrap up");
+    expect(markup).not.toContain('aria-label="Send"');
   });
 });
 
