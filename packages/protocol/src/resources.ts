@@ -1,0 +1,58 @@
+export const FEATURE_TRUST_NOTICE =
+  "Baked features run with this application's local permissions. Skills and later MCP features can cause tools or external actions to run. Renderer sandboxing does not sandbox feature code.";
+
+export type ResourceDiagnosticType = "warning" | "error" | "collision" | "compatibility";
+
+export interface ResourceDiagnostic {
+  type: ResourceDiagnosticType;
+  message: string;
+  path?: string;
+}
+
+export type FeatureStatus = "loaded" | "degraded" | "failed";
+
+export interface HarnessFeatureSummary {
+  id: string;
+  version: string;
+  status: FeatureStatus;
+  diagnostics: ResourceDiagnostic[];
+}
+
+export interface FeatureSnapshot {
+  features: HarnessFeatureSummary[];
+  diagnostics: ResourceDiagnostic[];
+  trustNotice: string;
+}
+
+export type HostDialogKind = "confirm" | "select" | "input";
+
+export interface HostDialogRequest {
+  requestId: string;
+  kind: HostDialogKind;
+  title: string;
+  message?: string;
+  options?: string[];
+  placeholder?: string;
+}
+
+export interface ExtensionNotification {
+  requestId: string;
+  message: string;
+  level: "info" | "warning" | "error";
+}
+
+export interface ResolveHostDialogInput {
+  requestId: string;
+  cancelled?: boolean;
+  confirmed?: boolean;
+  selected?: string;
+  value?: string;
+}
+
+export function emptyFeatureSnapshot(): FeatureSnapshot {
+  return {
+    features: [],
+    diagnostics: [],
+    trustNotice: FEATURE_TRUST_NOTICE,
+  };
+}
