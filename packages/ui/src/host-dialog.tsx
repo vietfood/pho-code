@@ -96,7 +96,7 @@ export function HostDialog({
   return (
     <div
       ref={panelRef}
-      className="mb-2 overflow-hidden rounded-[22px] border border-border/70 bg-card/95 text-card-foreground shadow-sm"
+      className="glass-panel mb-2 overflow-hidden rounded-[22px] border border-border/70 bg-card/95 text-card-foreground shadow-sm"
       role="dialog"
       aria-labelledby="host-dialog-title"
       data-testid="extension-dialog"
@@ -111,7 +111,7 @@ export function HostDialog({
           {request.title}
         </h2>
         {request.message ? (
-          <div className="mt-3 rounded-lg border border-border/65 bg-background/70 p-3">
+          <div className="glass-panel mt-3 rounded-lg border border-border/65 bg-background/70 p-3">
             <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground">
               {request.message}
             </pre>
@@ -251,7 +251,7 @@ function InputFields({
     >
       <input
         ref={inputRef}
-        className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="glass-field h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-testid="extension-dialog-input"
         placeholder={request.placeholder ?? ""}
         value={draft}

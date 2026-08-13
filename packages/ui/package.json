@@ -6,7 +6,8 @@
   "sideEffects": ["**/*.css"],
   "exports": {
     ".": "./src/index.ts",
-    "./theme.css": "./src/theme.css"
+    "./theme.css": "./src/theme.css",
+    "./theme-palettes.css": "./src/theme-palettes.css"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -22,6 +23,9 @@
     "react-dom": "19.1.1"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@pho-code/protocol": "workspace:*",
     "class-variance-authority": "0.7.1",
     "katex": "0.16.22",

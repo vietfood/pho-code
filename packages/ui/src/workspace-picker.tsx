@@ -1,5 +1,8 @@
 import { FolderIcon, FolderOpenIcon } from "lucide-react";
 import type { RecentWorkspaceRecord } from "@pho-code/protocol";
+import { cn } from "./lib/cn";
+import { isMacDesktop } from "./lib/platform";
+import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { Button } from "./ui/button";
 
 export function WorkspacePicker({
@@ -7,15 +10,34 @@ export function WorkspacePicker({
   onPick,
   onOpenRecent,
   busy,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
   recents: readonly RecentWorkspaceRecord[];
   onPick: () => void;
   onOpenRecent: (workspaceId: string) => void;
   busy: boolean;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }) {
+  const mac = isMacDesktop();
+  const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
+
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-labelledby="workspace-heading">
-      <header className="workspace-topbar drag-region px-5">
+      <header
+        className={cn(
+          "workspace-topbar drag-region gap-3 px-5",
+          showToggle && mac ? "pl-[var(--workspace-titlebar-inset)]" : undefined,
+        )}
+      >
+        {showToggle && onToggleSidebar ? (
+          <SidebarToggleButton
+            collapsed
+            onToggle={onToggleSidebar}
+            className="text-muted-foreground hover:text-foreground"
+          />
+        ) : null}
         <span className="text-xs text-muted-foreground">No active session</span>
       </header>
       <div className="flex min-h-0 flex-1 flex-col items-start justify-center px-8 py-12">

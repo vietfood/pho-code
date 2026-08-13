@@ -1,12 +1,35 @@
+import { isMacDesktop } from "./lib/platform";
+import { cn } from "./lib/cn";
+import { SidebarToggleButton } from "./sidebar-toggle-button";
+
 export function ChatHeader({
   modelError,
   yoloMode,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
   modelError?: string;
   yoloMode?: boolean;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }) {
+  const mac = isMacDesktop();
+  const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
+
   return (
-    <header className="workspace-topbar drag-region gap-3 px-3 sm:px-5">
+    <header
+      className={cn(
+        "workspace-topbar drag-region gap-3 px-3 sm:px-5",
+        showToggle && mac ? "pl-[var(--workspace-titlebar-inset)]" : undefined,
+      )}
+    >
+      {showToggle && onToggleSidebar ? (
+        <SidebarToggleButton
+          collapsed
+          onToggle={onToggleSidebar}
+          className="text-muted-foreground hover:text-foreground"
+        />
+      ) : null}
       <div className="min-w-0 flex-1" aria-hidden="true" />
       {yoloMode ? (
         <p
@@ -14,7 +37,7 @@ export function ChatHeader({
           role="status"
           data-testid="yolo-indicator"
         >
-          YOLO on
+          Great power mode
         </p>
       ) : null}
       {modelError ? (

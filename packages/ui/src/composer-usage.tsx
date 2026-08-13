@@ -104,7 +104,7 @@ function UsageRow({
   emphasize?: boolean;
 }) {
   return (
-    <div className={cn("flex items-center justify-between gap-4 text-[11px]", emphasize && "font-medium")}>
+    <div className={cn("flex items-center justify-between gap-4 text-[0.6875rem]", emphasize && "font-medium")}>
       <span className="text-muted-foreground">{label}</span>
       <span className="tabular-nums text-foreground">{value}</span>
     </div>

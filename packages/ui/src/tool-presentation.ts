@@ -71,7 +71,7 @@ export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   if (key.includes("web") || key.includes("fetch") || key.includes("http")) {
     return "globe";
   }
-  if (key.includes("ls") || key.includes("list") || key.includes("dir")) {
+  if (key.includes("ls") || key.includes("list") || key.includes("dir") || key.includes("trash")) {
     return "folder";
   }
   return "wrench";
