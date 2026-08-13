@@ -1,0 +1,32 @@
+{
+  "name": "pho-code",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "bun": ">=1.3.14",
+    "node": ">=22.19.0"
+  },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun run --filter @pho-code/desktop dev",
+    "build": "bun run --filter @pho-code/desktop build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "eslint .",
+    "test": "bun test",
+    "test:desktop": "bun run --filter @pho-code/desktop test:desktop",
+    "package:mac": "bun run --filter @pho-code/desktop package:mac",
+    "test:packaged": "bun run --filter @pho-code/desktop test:packaged"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.32.0",
+    "@types/node": "24.2.1",
+    "eslint": "9.32.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.3.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0"
+  },
+  "trustedDependencies": ["electron", "esbuild"]
+}

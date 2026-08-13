@@ -1,0 +1,6 @@
+[install]
+exact = true
+
+[test]
+# Ignore reference submodules and Playwright window specs. Unit tests use *.test.ts.
+pathIgnorePatterns = ["refs/**", "**/*.spec.ts"]
