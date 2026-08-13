@@ -47,6 +47,8 @@ import {
   type ThinkingLevel,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
+  type ContextUsageSummary,
+  type SessionUsageSummary,
   type WorkspaceSnapshot,
   type WorkspaceSummary,
 } from "@pho-code/protocol";
@@ -65,6 +67,7 @@ import { projectFeatureSnapshot } from "./resources";
 import { applyPermissionSettingsPatch, readPermissionSettings } from "./permission-settings";
 import { importProviderApiKey as persistProviderApiKey, listStoredApiKeyProviders } from "./credentials";
 import { createTestHostUiExtension } from "./test-host-ui";
+import { projectModelSummary } from "./model-summary";
 import { createDeterministicTestProvider, createHarnessMarkTool, TEST_TOOL_NAME } from "./test-model";
 import { firstUserPreview, projectMessages } from "./transcript";
 import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
@@ -172,23 +175,13 @@ export async function createPhoCodeRuntime(
     if (testProvider) {
       const model = testProvider.getModel();
       return {
-        models: [
-          {
-            provider: model.provider,
-            id: model.id,
-            name: model.name ?? model.id,
-          },
-        ],
+        models: [projectModelSummary(model)],
       };
     }
 
     try {
       const available = await modelRuntime.getAvailable();
-      const models = available.map((model) => ({
-        provider: model.provider,
-        id: model.id,
-        name: model.name ?? model.id,
-      }));
+      const models = available.map((model) => projectModelSummary(model));
       if (models.length === 0) {
         return {
           models,
@@ -259,9 +252,7 @@ export async function createPhoCodeRuntime(
     const session = requireSession();
     const workspace = activeWorkspace ?? workspaceSummary(session.sessionManager.getCwd());
     const { models, modelError, sessions } = await resolveCatalog(workspace.path, refreshCatalog);
-    const model = session.model
-      ? { provider: session.model.provider, id: session.model.id, name: session.model.name ?? session.model.id }
-      : models[0];
+    const model = session.model ? projectModelSummary(session.model) : models[0];
     const run = activeRun
       ? {
           runId: activeRun.runId,
@@ -276,6 +267,7 @@ export async function createPhoCodeRuntime(
     const availableThinkingLevels = uniqueThinkingLevels(
       session.getAvailableThinkingLevels().map(projectThinkingLevel),
     );
+    const { usage, contextUsage } = projectSessionUsage(session);
     const snapshot: SessionSnapshot = {
       session: {
         id: session.sessionId,
@@ -299,6 +291,8 @@ export async function createPhoCodeRuntime(
       thinkingLevel,
       availableThinkingLevels: availableThinkingLevels.length > 0 ? availableThinkingLevels : [thinkingLevel],
       supportsThinking: session.supportsThinking(),
+      usage,
+      ...(contextUsage ? { contextUsage } : {}),
     };
     if (model) {
       snapshot.model = model;
@@ -1189,6 +1183,33 @@ function toHarnessError(error: unknown, operation: string, code: string): Harnes
     operation,
     recoverable: true,
   });
+}
+
+function projectSessionUsage(session: AgentSession): {
+  usage: SessionUsageSummary;
+  contextUsage?: ContextUsageSummary;
+} {
+  const stats = session.getSessionStats();
+  const context = stats.contextUsage ?? session.getContextUsage();
+  return {
+    usage: {
+      input: stats.tokens.input,
+      output: stats.tokens.output,
+      cacheRead: stats.tokens.cacheRead,
+      cacheWrite: stats.tokens.cacheWrite,
+      total: stats.tokens.total,
+      costUsd: stats.cost,
+    },
+    ...(context
+      ? {
+          contextUsage: {
+            tokens: context.tokens,
+            contextWindow: context.contextWindow,
+            percent: context.percent,
+          },
+        }
+      : {}),
+  };
 }
 
 function projectThinkingLevel(value: string): ThinkingLevel {

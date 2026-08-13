@@ -77,11 +77,26 @@ describe("Pi harness runtime", () => {
         approveProjectResources: true,
       });
       expect(workspace.models).toEqual([
-        { provider: "harness-test", id: "slice", name: "Harness test model" },
+        {
+          provider: "harness-test",
+          id: "slice",
+          name: "Harness test model",
+          contextWindow: 32_000,
+          cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+        },
       ]);
 
       const created = await runtime.createSession(workspace.workspace.id);
       expect(created.messages).toEqual([]);
+      expect(created.usage).toEqual({
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+        costUsd: 0,
+      });
+      expect(created.contextUsage?.contextWindow).toBe(32_000);
       expect(created.sessions.some((session) => session.id === created.session.id)).toBe(true);
       expect(created.thinkingLevel).toBeDefined();
       expect(created.availableThinkingLevels.length).toBeGreaterThan(0);
@@ -127,6 +142,9 @@ describe("Pi harness runtime", () => {
       expect(types.slice(settledAt + 1)).not.toContain(RUNTIME_EVENT_TYPES.runFailed);
 
       const afterTool = await runtime.openSession(workspace.workspace.id, created.session.id);
+      expect(afterTool.usage).toBeDefined();
+      expect(afterTool.usage!.total).toBeGreaterThan(0);
+      expect(afterTool.contextUsage?.contextWindow).toBe(32_000);
       expect(afterTool.messages.some((message) => message.role === "user")).toBe(true);
       expect(
         afterTool.messages.some((message) =>

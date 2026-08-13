@@ -11,10 +11,20 @@ export interface WorkspaceSummary extends RecentWorkspaceRecord {
   projectResourcesApproved: boolean;
 }
 
+/** USD per million tokens; matches Pi `ModelCost` base rates (tiers omitted). */
+export interface ModelCostRatesSummary {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
 export interface ModelSummary {
   provider: string;
   id: string;
   name: string;
+  contextWindow: number;
+  cost: ModelCostRatesSummary;
 }
 
 /** Pi thinking levels projected for JSON-safe UI selectors. */

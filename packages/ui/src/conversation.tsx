@@ -64,6 +64,8 @@ export function Conversation({
       variant={empty ? "hero" : "docked"}
       {...(empty ? {} : { metaHint: snapshot.workspace.displayName })}
       {...(snapshot.model ? { selectedModel: snapshot.model } : {})}
+      {...(snapshot.usage ? { usage: snapshot.usage } : {})}
+      {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
     />
   );
   const hostDialog = dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;

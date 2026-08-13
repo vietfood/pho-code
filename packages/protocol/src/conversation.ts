@@ -68,6 +68,25 @@ export interface RunState {
   error?: HarnessError;
 }
 
+/** Projected from Pi `ContextUsage` for the live session. */
+export interface ContextUsageSummary {
+  /** Estimated context tokens, or null when unknown (e.g. right after compaction). */
+  tokens: number | null;
+  contextWindow: number;
+  /** Percent of context window used, or null when tokens is unknown. */
+  percent: number | null;
+}
+
+/** Cumulative session token/cost totals from Pi `SessionStats`. */
+export interface SessionUsageSummary {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+  costUsd: number;
+}
+
 export interface SessionSnapshot {
   session: SessionSummary;
   workspace: WorkspaceSummary;
@@ -81,6 +100,8 @@ export interface SessionSnapshot {
   availableThinkingLevels: ThinkingLevel[];
   supportsThinking: boolean;
   modelError?: string;
+  contextUsage?: ContextUsageSummary;
+  usage?: SessionUsageSummary;
 }
 
 export interface PromptAdmission {

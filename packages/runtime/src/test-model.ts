@@ -52,6 +52,7 @@ export function createDeterministicTestProvider(): FauxProviderHandle {
         input: ["text"],
         contextWindow: 32_000,
         maxTokens: 2_048,
+        cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
       },
     ],
     tokensPerSecond: 80,

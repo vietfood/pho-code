@@ -399,6 +399,16 @@ describe("protocol serialization", () => {
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
   });
+
+  test("session usage and model cost fields survive a JSON round trip", () => {
+    const snapshot = sampleSessionSnapshot("run-usage");
+    expect(snapshot.usage?.costUsd).toBe(0.012);
+    expect(snapshot.contextUsage?.percent).toBe(0.78);
+    expect(snapshot.model?.cost.input).toBe(1);
+    expect(snapshot.model?.contextWindow).toBe(128_000);
+    expect(isJsonSafeValue(snapshot)).toBe(true);
+    expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+  });
 });
 
 function sampleSessionSnapshot(runId: string): SessionSnapshot {
@@ -418,11 +428,35 @@ function sampleSessionSnapshot(runId: string): SessionSnapshot {
     },
     messages: [],
     run: { ...idleRunState(), runId, status: "admitted" },
-    models: [],
+    models: [
+      {
+        provider: "test",
+        id: "echo",
+        name: "Echo",
+        contextWindow: 128_000,
+        cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+      },
+    ],
+    model: {
+      provider: "test",
+      id: "echo",
+      name: "Echo",
+      contextWindow: 128_000,
+      cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+    },
     sessions: [],
     features: emptyFeatureSnapshot(),
     thinkingLevel: "off",
     availableThinkingLevels: ["off"],
     supportsThinking: false,
+    contextUsage: { tokens: 1_000, contextWindow: 128_000, percent: 0.78 },
+    usage: {
+      input: 800,
+      output: 200,
+      cacheRead: 100,
+      cacheWrite: 50,
+      total: 1_150,
+      costUsd: 0.012,
+    },
   };
 }

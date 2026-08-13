@@ -1,12 +1,21 @@
 import { useLayoutEffect, useRef } from "react";
 import { ArrowUpIcon, FolderIcon, SquareIcon } from "lucide-react";
-import type { ModelSummary, ThinkingLevel } from "@pho-code/protocol";
+import type {
+  ContextUsageSummary,
+  ModelSummary,
+  SessionUsageSummary,
+  ThinkingLevel,
+} from "@pho-code/protocol";
 import { cn } from "./lib/cn";
+import { ComposerUsage } from "./composer-usage";
+import { isMaxThinkingLevel, thinkingLevelLabel } from "./lib/thinking-labels";
+import { ModelPicker } from "./model-picker";
 
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
 // controls and empty-session hero layout are harness-owned Cursor-inspired chrome.
 // Slash menus, attachments, and stash omitted.
+// Usage strip inspired by Pi TUI footer / AI Elements Context (bar, not ring).
 
 export function Composer({
   value,
@@ -24,6 +33,8 @@ export function Composer({
   onModelChange,
   onThinkingChange,
   metaHint,
+  usage,
+  contextUsage,
   variant = "docked",
 }: {
   value: string;
@@ -41,10 +52,11 @@ export function Composer({
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
   metaHint?: string;
+  usage?: SessionUsageSummary;
+  contextUsage?: ContextUsageSummary;
   variant?: "docked" | "hero";
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const modelValue = selectedModel ? `${selectedModel.provider}/${selectedModel.id}` : "";
   const showThinking = supportsThinking || availableThinkingLevels.length > 1;
   const hero = variant === "hero";
 
@@ -62,26 +74,12 @@ export function Composer({
       <label className="sr-only" htmlFor="model-selector">
         Model
       </label>
-      <select
-        id="model-selector"
-        data-testid="model-selector"
-        className="composer-meta-select composer-field-select"
-        value={modelValue}
+      <ModelPicker
+        models={models}
         disabled={selectorsDisabled || models.length === 0}
-        onChange={(event) => {
-          const next = models.find((model) => `${model.provider}/${model.id}` === event.target.value);
-          if (next) {
-            onModelChange(next);
-          }
-        }}
-      >
-        {models.length === 0 ? <option value="">No model</option> : null}
-        {models.map((model) => (
-          <option key={`${model.provider}/${model.id}`} value={`${model.provider}/${model.id}`}>
-            {model.name || `${model.provider}/${model.id}`}
-          </option>
-        ))}
-      </select>
+        onModelChange={onModelChange}
+        {...(selectedModel ? { selectedModel } : {})}
+      />
       {showThinking ? (
         <>
           <label className="sr-only" htmlFor="thinking-selector">
@@ -90,14 +88,17 @@ export function Composer({
           <select
             id="thinking-selector"
             data-testid="thinking-selector"
-            className="composer-meta-select capitalize"
+            className={cn(
+              "composer-meta-select composer-thinking-select",
+              isMaxThinkingLevel(thinkingLevel, availableThinkingLevels) && "is-max",
+            )}
             value={thinkingLevel}
             disabled={selectorsDisabled || availableThinkingLevels.length === 0}
             onChange={(event) => onThinkingChange(event.target.value as ThinkingLevel)}
           >
             {availableThinkingLevels.map((level) => (
               <option key={level} value={level}>
-                {level}
+                {thinkingLevelLabel(level)}
               </option>
             ))}
           </select>
@@ -128,6 +129,14 @@ export function Composer({
       <ArrowUpIcon className="size-3.5 stroke-[2.2]" aria-hidden="true" />
     </button>
   );
+
+  const usageStrip =
+    usage || contextUsage ? (
+      <ComposerUsage
+        {...(usage ? { usage } : {})}
+        {...(contextUsage ? { contextUsage } : {})}
+      />
+    ) : null;
 
   return (
     <form
@@ -188,10 +197,15 @@ export function Composer({
           </div>
         </div>
       </div>
-      {!hero && metaHint ? (
-        <div className="mt-1.5 flex min-w-0 items-center gap-1 px-1 text-[11px] text-muted-foreground">
-          <FolderIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
-          <span className="min-w-0 truncate">{metaHint}</span>
+      {usageStrip || (!hero && metaHint) ? (
+        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 px-1 text-[11px] text-muted-foreground">
+          <div className="min-w-0">{usageStrip}</div>
+          {!hero && metaHint ? (
+            <div className="flex min-w-0 items-center gap-1">
+              <FolderIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+              <span className="min-w-0 truncate">{metaHint}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </form>

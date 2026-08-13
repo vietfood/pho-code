@@ -59,6 +59,7 @@ export type {
 export { idleRunState } from "./conversation";
 export type {
   AbortRunInput,
+  ContextUsageSummary,
   CreateSessionInput,
   ListWorkspaceSessionsInput,
   OpenRecentWorkspaceInput,
@@ -69,6 +70,7 @@ export type {
   RunWorkEntry,
   SendPromptInput,
   SessionSnapshot,
+  SessionUsageSummary,
   SetSessionModelInput,
   SetThinkingLevelInput,
   ToolActivity,
@@ -99,6 +101,7 @@ export type {
 
 export { isThinkingLevel, THINKING_LEVELS } from "./workspace";
 export type {
+  ModelCostRatesSummary,
   ModelSummary,
   RecentWorkspaceRecord,
   SessionSummary,

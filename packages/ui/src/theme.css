@@ -535,6 +535,137 @@
   font-weight: 500;
 }
 
+.composer-model-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 14rem;
+}
+
+.composer-thinking-select {
+  max-width: 7.5rem;
+  font-weight: 500;
+}
+
+/* Max: purple text only. Native <option> menus stay platform-styled. */
+.composer-thinking-select.is-max {
+  color: #7e22ce;
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .composer-thinking-select.is-max {
+    color: #d8b4fe;
+  }
+}
+
+.composer-model-picker-list {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  min-width: 16rem;
+  max-width: min(22rem, 80vw);
+  max-height: 16rem;
+  overflow: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.composer-model-picker-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: calc(var(--control-radius) - 2px);
+  background: transparent;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-model-picker-option:hover,
+.composer-model-picker-option.is-selected {
+  background: var(--accent);
+}
+
+.composer-usage-trigger {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  padding: 0.1rem 0.2rem;
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.composer-usage-trigger:hover,
+.composer-usage-trigger:focus-visible {
+  color: var(--foreground);
+  background: var(--accent);
+  outline: none;
+}
+
+.composer-usage-sep {
+  opacity: 0.45;
+}
+
+.composer-usage-cost {
+  color: color-mix(in srgb, var(--warning) 85%, var(--foreground));
+}
+
+.composer-usage-popover {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 14rem;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.context-usage-bar {
+  position: relative;
+  display: inline-block;
+  width: 2.75rem;
+  height: 0.45rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+}
+
+.context-usage-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 160ms ease, background-color 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-usage-bar__fill {
+    transition: none;
+  }
+}
+
 @media (prefers-color-scheme: light) {
   .composer-meta-select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");

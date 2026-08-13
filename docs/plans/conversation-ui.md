@@ -4,7 +4,7 @@
 
 Active / partially implemented. Milestone 3 is accepted; this independent track continues to own conversation chrome on Pi. It does not expand Milestone 4's settings scope.
 
-Implemented slices: docs split, sanitized dense markdown, T3-faithful work-entry tool/thinking timeline (including ordered live `run.work` segments so think → tool → think stays interleaved while streaming), Codex-inspired turn-level “Worked for …” collapse (one disclosure for all thinking/tools across consecutive assistant messages in a user→assistant turn; final text outside), Cursor-inspired shell chrome (sidebar actions, soft panels, composer footer model/thinking selectors, user message chip, empty-session hero composer), collapsible project/session sidebar, `listWorkspaceSessions`, Pi model/thinking selectors, reduced-motion-safe working/streaming chrome, KaTeX math, Shiki code highlighting, Mermaid diagrams, dense sanitized markdown in expanded thinking rows, and polished tool expand panels (parsed command/path input, labeled Input/Output, no raw JSON dump for simple shell calls). Permission select/confirm dock dialogs confirm with Enter.
+Implemented slices: docs split, sanitized dense markdown, T3-faithful work-entry tool/thinking timeline (including ordered live `run.work` segments so think → tool → think stays interleaved while streaming), Codex-inspired turn-level “Worked for …” collapse (one disclosure for all thinking/tools across consecutive assistant messages in a user→assistant turn; final text outside), Cursor-inspired shell chrome (sidebar actions, soft panels, composer footer model/thinking selectors, user message chip, empty-session hero composer), collapsible project/session sidebar, `listWorkspaceSessions`, Pi model/thinking selectors, reduced-motion-safe working/streaming chrome, KaTeX math, Shiki code highlighting, Mermaid diagrams, dense sanitized markdown in expanded thinking rows, polished tool expand panels (parsed command/path input, labeled Input/Output, no raw JSON dump for simple shell calls), and composer usage chrome (linear reddening context bar, ↑↓ tokens, cache R/W, session $, custom model picker with provider icons and $/M rates from Pi). Permission select/confirm dock dialogs confirm with Enter.
 
 Visual split: shell/sidebar/composer chrome is harness-owned Cursor-inspired language; assistant tool rows remain T3-adapted; turn collapse is Codex-inspired.
 
@@ -106,11 +106,15 @@ Fenced `mermaid` blocks auto-render when settled with `securityLevel: "strict"` 
 
 When a live session has no messages and no active run, center a hero composer with workspace and local-machine context chips. After the first prompt is admitted, return to the docked transcript and composer. Do not add Plan/Multitask, attachments, microphone, git branch switching, or Cursor branding.
 
+### 10. Usage chrome and model picker
+
+Project Pi `getSessionStats()` / `getContextUsage()` and model `cost` / `contextWindow` into the protocol. Show a Pi-inspired composer usage strip: linear context bar (fill + color shifting toward red as usage rises), ↑ input / ↓ output, R/W cache when non-zero, and session `$` cost. Detail breakdown opens on click. Replace the native model `<select>` with a custom picker that shows provider icons and `$in/$out per 1M` rates. UX reference only: [AI Elements Context](https://elements.ai-sdk.dev/components/context) (bar instead of circle); do not depend on AI Elements or tokenlens—costs come from Pi.
+
 ## Verification
 
-- Unit: markdown sanitization (no raw HTML), KaTeX output without scripts, Mermaid streaming vs settled wrappers, thinking collapse defaults, interleaved streaming `run.work` (think → tool → think), turn-level “Worked for …” collapse across consecutive assistant messages, Enter confirm for select/confirm dialogs, sidebar grouping helpers when present, empty-session hero vs docked layout.
-- Runtime/application: list sessions without runtime swap; model/thinking commands update snapshots.
-- Desktop: new empty session shows the centered composer; open two recents, expand both, switch session, stream markdown; About remains collapsed; reduced-motion still usable.
+- Unit: markdown sanitization (no raw HTML), KaTeX output without scripts, Mermaid streaming vs settled wrappers, thinking collapse defaults, interleaved streaming `run.work` (think → tool → think), turn-level “Worked for …” collapse across consecutive assistant messages, Enter confirm for select/confirm dialogs, sidebar grouping helpers when present, empty-session hero vs docked layout, usage strip markup, token/cost formatters, context-bar color scale.
+- Runtime/application: list sessions without runtime swap; model/thinking commands update snapshots; snapshots include usage/contextUsage and model cost/window.
+- Desktop: new empty session shows the centered composer; open two recents, expand both, switch session, stream markdown; About remains collapsed; reduced-motion still usable; after a turn the usage strip shows ↑↓ and $.
 - Attribution current.
 
 ## Exit evidence for this track
@@ -120,5 +124,8 @@ When a live session has no messages and no active run, center a hero composer wi
 - Sanitized markdown/code in the transcript with KaTeX, Shiki (settled), and Mermaid (settled).
 - Thinking/tool hierarchy readable; light motion respects reduced-motion.
 - Model and thinking selectors change the live Pi session.
+- Composer usage strip shows context bar, ↑↓ tokens, cache, and session cost from Pi-projected snapshot fields.
+- Model picker shows provider icons and catalog $/M rates.
+- Thinking level uses the composer select over Pi available levels, with a purple accent when the top level is selected.
 - No MDX, Expressive Code, or `rehype-raw`.
 - No runtime import of reference submodules.
