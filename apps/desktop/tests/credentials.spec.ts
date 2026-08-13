@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { launchDesktop, makeUserDataDir, removeTestDirectory } from "./helpers/electron-app";
+import { launchDesktop, makeUserDataDir, openSettingsSection, removeTestDirectory } from "./helpers/electron-app";
 
 test("imports a provider API key without exposing it to the renderer", async () => {
   const userDataDir = await makeUserDataDir();
@@ -15,14 +15,19 @@ test("imports a provider API key without exposing it to the renderer", async () 
     });
     try {
       const page = await harness.firstWindow();
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "accounts");
       await expect(page.getByTestId("credential-settings")).toBeVisible();
       await expect(page.getByTestId("no-configured-providers")).toBeVisible();
-      await page.getByTestId("credential-provider").selectOption("deepseek");
+      await expect(page.getByTestId("provider-account-deepseek")).toBeVisible();
+      await expect(page.getByTestId("credential-api-key")).toHaveCount(0);
+      await page.getByTestId("provider-account-openai-codex").getByText("About this login").click();
+      await expect(page.getByTestId("provider-disclosure-openai-codex")).toContainText("authentication type");
+      await page.getByTestId("credential-add-key").click();
       await page.getByTestId("credential-api-key").fill(secret);
       await page.getByTestId("credential-import").click();
-      await expect(page.getByTestId("configured-providers")).toContainText("configured");
-      await expect(page.getByTestId("credential-api-key")).toHaveValue("");
+      await expect(page.getByTestId("configured-providers")).toContainText("DeepSeek");
+      await expect(page.getByTestId("configured-providers")).toContainText("Connected");
+      await expect(page.getByTestId("credential-api-key")).toHaveCount(0);
       expect(await page.content()).not.toContain(secret);
     } finally {
       await harness.close();

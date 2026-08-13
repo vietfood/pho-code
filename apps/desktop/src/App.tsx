@@ -3,15 +3,18 @@ import {
   applyRuntimeEvent,
   emptyConversationState,
   emptyFeatureSnapshot,
+  idleProviderAccountsResult,
   isHarnessError,
+  RUNTIME_EVENT_TYPES,
   MAX_PREPARED_IMAGES,
   MAX_SOURCE_IMAGE_BYTES,
   type BootstrapState,
   type ConversationViewState,
-  type CredentialProviderSummary,
   type HarnessSettingsSnapshot,
   type ModelSummary,
   type PreparedImageSummary,
+  type ProviderAccountsResult,
+  type ProviderAuthFlowSnapshot,
   type ResolveHostDialogInput,
   type SessionSnapshot,
   type SessionSummary,
@@ -52,7 +55,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [credentialProviders, setCredentialProviders] = useState<CredentialProviderSummary[]>([]);
+  const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const composerAfterRun = useRef(false);
 
@@ -70,13 +73,13 @@ export function App() {
 
   const refreshBootstrap = useCallback(async () => {
     const bridge = getDesktopBridge();
-    const [next, settings, providers] = await Promise.all([
+    const [next, settings, accounts] = await Promise.all([
       bridge.getBootstrapState(),
       bridge.getSettings(),
-      bridge.listCredentialProviders(),
+      bridge.listProviderAccounts(),
     ]);
     setBootstrap(next);
-    setCredentialProviders(providers);
+    setProviderAccounts(accounts);
     if (next.selectedWorkspace) {
       const sessions = next.activeSession?.sessions ?? next.sessions;
       setWorkspace({
@@ -106,6 +109,7 @@ export function App() {
         dialog: null,
         notification: null,
         settings,
+        authFlow: current.authFlow,
       };
     });
   }, [rememberSessions]);
@@ -121,6 +125,12 @@ export function App() {
         }
         return next;
       });
+      if (event.type === RUNTIME_EVENT_TYPES.providerAuthFlow) {
+        const phase = (event.payload as { phase?: string }).phase;
+        if (phase === "completed" || phase === "failed" || phase === "cancelled") {
+          void refreshBootstrap().catch(() => undefined);
+        }
+      }
     });
 
     refreshBootstrap()
@@ -202,6 +212,7 @@ export function App() {
       dialog: null,
       notification: null,
       settings: current.settings,
+      authFlow: current.authFlow,
     }));
     setWorkspace({
       workspace: snapshot.workspace,
@@ -211,6 +222,20 @@ export function App() {
       ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
     });
     rememberSessions(snapshot.workspace.id, snapshot.sessions);
+  }
+
+  function applyAuthFlow(snapshot: ProviderAuthFlowSnapshot): void {
+    setConversation((current) => {
+      const currentFlow = current.authFlow;
+      if (
+        currentFlow &&
+        currentFlow.flowId === snapshot.flowId &&
+        currentFlow.revision >= snapshot.revision
+      ) {
+        return current;
+      }
+      return { ...current, authFlow: snapshot };
+    });
   }
 
   function applySettings(settings: HarnessSettingsSnapshot): void {
@@ -359,7 +384,11 @@ export function App() {
                   setWorkspace(picked);
                   setDraft("");
                   setPreparedImages([]);
-                  setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
+                  setConversation((current) => ({
+                    ...emptyConversationState(),
+                    settings: current.settings,
+                    authFlow: current.authFlow,
+                  }));
                   rememberSessions(picked.workspace.id, picked.sessions);
                   await refreshBootstrap();
                 }
@@ -411,15 +440,7 @@ export function App() {
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {snapshot ? (
-          <div
-            className={
-              settingsVisible
-                ? "invisible pointer-events-none absolute inset-0 flex min-h-0 flex-col overflow-hidden"
-                : "flex min-h-0 flex-1 flex-col overflow-hidden"
-            }
-            aria-hidden={settingsVisible}
-          >
-            <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
               <Conversation
                 snapshot={snapshot}
                 draft={draft}
@@ -542,7 +563,6 @@ export function App() {
                 }}
               />
             </div>
-          </div>
         ) : switchingSession ? (
           <div
             className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -569,7 +589,11 @@ export function App() {
                   setWorkspace(picked);
                   setDraft("");
                   setPreparedImages([]);
-                  setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
+                  setConversation((current) => ({
+                    ...emptyConversationState(),
+                    settings: current.settings,
+                    authFlow: current.authFlow,
+                  }));
                   rememberSessions(picked.workspace.id, picked.sessions);
                   await refreshBootstrap();
                 }
@@ -581,22 +605,25 @@ export function App() {
                 setWorkspace(opened);
                 setDraft("");
                 setPreparedImages([]);
-                setConversation((current) => ({ ...emptyConversationState(), settings: current.settings }));
+                setConversation((current) => ({
+                  ...emptyConversationState(),
+                  settings: current.settings,
+                  authFlow: current.authFlow,
+                }));
                 rememberSessions(opened.workspace.id, opened.sessions);
                 await refreshBootstrap();
               });
             }}
           />
         )}
-        {settingsVisible && conversation.settings ? (
-          <div className="absolute inset-0 z-10 flex min-h-0 flex-col overflow-hidden bg-background">
+      </div>
+      {settingsVisible && conversation.settings ? (
         <SettingsView
           settings={conversation.settings}
           running={snapshot?.run.status === "admitted" || snapshot?.run.status === "streaming"}
           busy={busy}
-          credentialProviders={credentialProviders}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={toggleSidebar}
+          providerAccounts={providerAccounts}
+          authFlow={conversation.authFlow ?? providerAccounts.flow}
           onClose={() => setSettingsOpen(false)}
           onAppearanceChange={(input: UpdateAppearanceSettingsInput) => {
             void runCommand(
@@ -622,15 +649,43 @@ export function App() {
           }}
           onImportApiKey={async (input) => {
             await runCommand(async () => {
-              const result = await getDesktopBridge().importProviderApiKey(input);
-              setCredentialProviders(result.providers);
+              await getDesktopBridge().importProviderApiKey(input);
+              await refreshBootstrap();
+            });
+          }}
+          onStartOAuth={async (providerId) => {
+            await runCommand(async () => {
+              const snapshot = await getDesktopBridge().startProviderLogin({ providerId, method: "oauth" });
+              applyAuthFlow(snapshot);
+              setProviderAccounts(await getDesktopBridge().listProviderAccounts());
+            }, { busy: false });
+          }}
+          onRespondAuthPrompt={async (flowId, promptId, value) => {
+            await runCommand(async () => {
+              const snapshot = await getDesktopBridge().respondProviderAuthPrompt({ flowId, promptId, value });
+              applyAuthFlow(snapshot);
+            }, { busy: false });
+          }}
+          onOpenAuthLink={async (flowId, linkId) => {
+            await runCommand(async () => {
+              await getDesktopBridge().openProviderAuthLink({ flowId, linkId });
+            }, { busy: false });
+          }}
+          onCancelAuth={async (flowId) => {
+            await runCommand(async () => {
+              const snapshot = await getDesktopBridge().cancelProviderLogin({ flowId });
+              applyAuthFlow(snapshot);
+              setProviderAccounts(await getDesktopBridge().listProviderAccounts());
+            }, { busy: false });
+          }}
+          onLogoutProvider={async (providerId) => {
+            await runCommand(async () => {
+              setProviderAccounts(await getDesktopBridge().logoutProvider({ providerId }));
               await refreshBootstrap();
             });
           }}
         />
-          </div>
-        ) : null}
-      </div>
+      ) : null}
       {conversation.notification ? (
         <NotificationToast
           notification={conversation.notification}

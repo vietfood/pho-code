@@ -4,6 +4,7 @@ import {
   launchDesktop,
   makeUserDataDir,
   makeWorkspaceDir,
+  openSettingsSection,
   removeTestDirectory,
 } from "./helpers/electron-app";
 
@@ -20,9 +21,8 @@ test("settings persist palette mode glass and apply a managed permission profile
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "appearance");
       await expect(page.getByTestId("settings-view")).toBeVisible();
-      await expect(page.getByTestId("app-agent-dir-notice")).toBeVisible();
       await page.getByTestId("appearance-palette-gruvbox").click();
       await expect(page.getByTestId("appearance-palette-gruvbox")).toHaveAttribute("aria-pressed", "true");
       await page.getByTestId("appearance-mode-dark").click();
@@ -66,6 +66,8 @@ test("settings persist palette mode glass and apply a managed permission profile
       await expect(page.getByTestId("appearance-mode-system")).toBeDisabled();
       await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
 
+      await openSettingsSection(page, "permissions");
+      await expect(page.getByTestId("app-agent-dir-notice")).toBeVisible();
       await page.getByTestId("permission-profile-guarded").check();
       await page.getByTestId("settings-save").click();
       await expect(page.getByTestId("settings-save")).toBeDisabled();
@@ -81,7 +83,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       const page = await second.firstWindow();
       const theme = await second.electronApp.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
       expect(theme).toBe("dark");
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "appearance");
       await expect(page.getByTestId("appearance-palette-one-dark")).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByTestId("appearance-glass-enabled")).toBeChecked();

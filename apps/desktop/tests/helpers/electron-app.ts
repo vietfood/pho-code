@@ -78,6 +78,19 @@ export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Pr
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
 }
 
+export async function openSettingsSection(
+  page: Page,
+  section: "appearance" | "accounts" | "permissions",
+): Promise<void> {
+  const view = page.getByTestId("settings-view");
+  if ((await view.count()) === 0 || !(await view.isVisible())) {
+    await page.getByTestId("open-settings").click();
+    await expect(view).toBeVisible();
+  }
+  await page.getByTestId(`settings-tab-${section}`).click();
+  await expect(page.getByTestId(`settings-panel-${section}`)).toBeVisible();
+}
+
 function desktopLaunchEnv(userDataDir: string, extraEnv: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;

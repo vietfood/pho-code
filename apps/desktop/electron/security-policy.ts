@@ -3,6 +3,8 @@
  * `clipboard-sanitized-write` is required for `navigator.clipboard.writeText`
  * (async Clipboard API). Both request and check handlers must allow it.
  */
+import { isSafeHttpUrl } from "@pho-code/protocol";
+
 export const ALLOWED_WEB_PERMISSIONS = new Set<string>(["clipboard-sanitized-write"]);
 
 export function isAllowedWebPermission(permission: string): boolean {
@@ -37,13 +39,5 @@ export function contentSecurityPolicy(isDev: boolean): string {
 }
 
 export function isSafeExternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.username || parsed.password) {
-      return false;
-    }
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
+  return isSafeHttpUrl(url);
 }

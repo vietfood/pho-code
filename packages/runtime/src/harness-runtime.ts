@@ -4,18 +4,24 @@ import {
   emptyFeatureSnapshot,
   emptySettingsSnapshot,
   type AbortRunInput,
+  type CancelProviderLoginInput,
   type CredentialProviderSummary,
   type FeatureSnapshot,
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
+  type LogoutProviderInput,
+  type OpenProviderAuthLinkInput,
   type PermissionSettings,
   type PrepareImageInput,
   type PreparedImageSummary,
   type PromptAdmission,
+  type ProviderAccountsResult,
+  type ProviderAuthFlowSnapshot,
   type QueueAdmission,
   type QueueFollowUpInput,
   type RemovePreparedImageInput,
   type ResolveHostDialogInput,
+  type RespondProviderAuthPromptInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -24,6 +30,7 @@ import {
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type StartProviderLoginInput,
   type SteerRunInput,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
@@ -61,6 +68,12 @@ export interface HarnessRuntime {
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<PermissionSettings>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  listProviderAccounts(): Promise<ProviderAccountsResult>;
+  startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot>;
+  openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void>;
+  cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   dispose(): Promise<void>;
@@ -144,6 +157,24 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     importProviderApiKey() {
       return Promise.reject(unavailable("importProviderApiKey"));
+    },
+    listProviderAccounts() {
+      return Promise.reject(unavailable("listProviderAccounts"));
+    },
+    startProviderLogin() {
+      return Promise.reject(unavailable("startProviderLogin"));
+    },
+    respondProviderAuthPrompt() {
+      return Promise.reject(unavailable("respondProviderAuthPrompt"));
+    },
+    openProviderAuthLink() {
+      return Promise.reject(unavailable("openProviderAuthLink"));
+    },
+    cancelProviderLogin() {
+      return Promise.reject(unavailable("cancelProviderLogin"));
+    },
+    logoutProvider() {
+      return Promise.reject(unavailable("logoutProvider"));
     },
     searchWorkspaceReferences() {
       return Promise.reject(unavailable("searchWorkspaceReferences"));

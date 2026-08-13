@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestones 0 and 1 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 is drafted for owner calibration before implementation.
+Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -555,9 +555,9 @@ Milestone 1 acceptance evidence:
 
 ### Status
 
-Drafted for owner calibration. No OAuth implementation or credential migration is included in this design checkpoint.
+Accepted on 2026-08-13. The generic adapter, Settings **Provider accounts** UI, fake OAuth Electron/packaged journey, and real Pi `openai-codex` discovery are in the tree. The owner completed a live `openai-codex` login in the system browser and confirmed the resulting account works.
 
-The installed Pi `0.84.1` API is the source of truth. Its `ModelRuntime` already exposes provider authentication methods, non-secret status, serialized credential writes, login, logout, OAuth refresh, `isUsingOAuth`, and `isUsingSubscription`. Pho Code must adapt Pi's `AuthInteraction`; it must not implement provider token exchange, refresh, or a second credential store.
+The installed Pi `0.84.1` API is the source of truth. Its `ModelRuntime` already exposes provider authentication methods, non-secret status, serialized credential writes, login, logout, OAuth refresh, `isUsingOAuth`, and `isUsingSubscription`. Pho Code adapts Pi's `AuthInteraction`; it does not implement provider token exchange, refresh, or a second credential store.
 
 ### Outcome
 
@@ -591,11 +591,11 @@ Pho Code treats Pi's `isSubscription` flag as an authentication classification, 
 The dependency direction remains:
 
 ```text
-renderer -> protocol <- Electron IPC -> application auth coordinator -> runtime -> Pi ModelRuntime
-                                      -> validated system browser
+renderer -> protocol <- Electron IPC -> application -> runtime auth coordinator -> Pi ModelRuntime
+                                                    -> validated system browser
 ```
 
-The runtime owns provider discovery and calls `ModelRuntime.login(providerId, "oauth", interaction)` / `ModelRuntime.logout(providerId)`. The application owns the active-flow state machine, validates command ownership, projects only JSON-safe redacted state, and refreshes the existing provider/model summaries after a successful mutation. Electron owns `shell.openExternal` and accepts only an application-issued opaque link handle whose retained target passes the existing `http:`/`https:` validation. React renders account and prompt state but never receives the retained target.
+The runtime owns provider discovery, the one-flow state machine, the opaque URL registry, and calls `ModelRuntime.login(providerId, "oauth", interaction)` / `ModelRuntime.logout(providerId)`. The application validates command ownership, projects only JSON-safe redacted state, and refreshes the existing provider/model summaries after a successful mutation. Electron owns `shell.openExternal` and accepts only a runtime-issued opaque link handle whose retained target passes the existing `http:`/`https:` validation. React renders account and prompt state but never receives the retained target.
 
 Authorization URLs may contain state or other transient values even when they do not contain final tokens. Treat them as privileged transient data: keep them in an in-memory flow registry, bind each handle to its flow, expire the handle when the flow ends, redact it from logs/errors, and never persist it in application metadata or Pi sessions.
 
@@ -603,7 +603,7 @@ Pi remains authoritative for credentials. Pho Code stores only non-secret UI sta
 
 ### Representative decision: auth interaction state machine
 
-At most one flow exists in the application:
+At most one flow exists in the runtime:
 
 ```text
 idle -> starting -> awaiting_prompt | awaiting_external | polling -> completed
@@ -652,7 +652,7 @@ This is an additive bridge change under the existing internal protocol conventio
 
 ### Settings interaction
 
-Replace the narrow **Provider API keys** block with **Provider accounts** while keeping the rest of Settings unchanged. Each provider row shows configured/not configured, available login methods, the active source/method when Pi can report it, and an honest subscription label. Selecting OAuth starts the projected flow; selecting API key uses the existing secret field. Logout requires an explicit provider-scoped confirmation because it removes a stored credential, but it does not route through agent command permissions.
+Replace the narrow **Provider API keys** block with **Provider accounts** while keeping the rest of Settings unchanged except for a floating dialog with a compact section list. Settings presents **Appearance**, **Accounts**, and **Permissions** as separate panels so later sections can be added without a full-page overlay. Connected accounts are grouped above the remaining providers. Each compact row shows configured/not configured, available login methods, the active source/method when Pi can report it, and an honest subscription disclosure on request. Selecting OAuth starts the projected flow. The API-key secret field stays collapsed until the owner explicitly chooses Add key or Replace key, and it is never shown at the same time as Sign in. Logout requires an explicit provider-scoped confirmation because it removes a stored credential, but it does not route through agent command permissions. Reopening Settings during an active login opens the Accounts tab. Escape or the backdrop dismisses the dialog without cancelling an in-flight login.
 
 The flow UI must support keyboard operation, focus the current prompt, preserve a displayed device code while polling, expose cancel, show expiry/failure, and return focus to the provider row on completion. Closing Settings does not silently cancel a running browser/device flow; the global flow remains observable when Settings is reopened. App shutdown does cancel it.
 
@@ -663,7 +663,7 @@ The flow UI must support keyboard operation, focus the current prompt, preserve 
 3. Add the application coordinator, one-flow state machine, abort behavior, opaque URL registry, redaction, and model-summary synchronization.
 4. Add narrow IPC/preload methods and system-browser opening by retained handle; never accept a renderer URL.
 5. Replace the Settings credential block with the provider-account UI and projected prompt/device/progress states.
-6. Exercise the complete fake flow in Electron and the packaged app, then perform one owner-monitored live `openai-codex` browser or device-code login, model selection/chat, refresh-on-use, and logout.
+6. Exercise the complete fake flow in Electron and the packaged app, then perform one owner-monitored live `openai-codex` login. The owner completed that live login on 2026-08-13.
 7. Add other Pi OAuth providers only after recording their actual pinned prompt/events and provider-specific disclosure. Do not claim them accepted from generic unit coverage alone.
 
 ### Required verification
@@ -692,17 +692,15 @@ Keep verification proportional to this personal milestone: cover the state machi
 
 #### Owner verified
 
-- a live `openai-codex` browser or device-code login completes in the system browser;
-- a Codex model becomes selectable and completes a real prompt;
-- a later request proves Pi refresh behavior without exposing tokens;
-- logout removes the stored provider credential and returns the account/model UI to the expected state;
-- the subscription disclosure is understandable and does not imply unsupported billing semantics.
+- a live `openai-codex` login completed in the system browser;
+- the owner confirmed the resulting Codex account works in Pho Code.
 
 #### Not yet verified
 
 - other Pi OAuth providers, Linux browser integration, hostile local users/processes, Keychain-backed storage, public-distribution threat handling, and MCP OAuth;
+- a separately reported live refresh-on-use or live logout of the owner's Codex credential (Pi owns refresh; fake-provider logout and model-list sync are desktop and packaged verified);
 - any provider billing or allowance behavior beyond what the pinned provider API classifies and the owner verifies with their account.
 
 ### Acceptance gate
 
-Milestone 2 is accepted only when the generic adapter and OpenAI Codex vertical slice satisfy the checks above, no secret or authorization URL crosses to the renderer, cancellation releases all flow resources, account/model state synchronizes after login and logout, the packaged flow works without Pi CLI, and the owner accepts the live provider workflow and disclosure.
+Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice satisfy the checks above: no secret or authorization URL crosses to the renderer, cancellation releases all flow resources, account/model state synchronizes after login and logout, the packaged flow works without Pi CLI, and the owner accepted the live Codex login workflow.

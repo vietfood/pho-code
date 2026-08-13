@@ -17,9 +17,16 @@ import type {
   SteerRunInput,
 } from "./conversation";
 import type {
+  CancelProviderLoginInput,
   CredentialProviderSummary,
   ImportProviderApiKeyInput,
   ImportProviderApiKeyResult,
+  LogoutProviderInput,
+  OpenProviderAuthLinkInput,
+  ProviderAccountsResult,
+  ProviderAuthFlowSnapshot,
+  RespondProviderAuthPromptInput,
+  StartProviderLoginInput,
 } from "./credentials";
 import type { RuntimeEventEnvelope, Unsubscribe } from "./events";
 import type { ResolveHostDialogInput } from "./resources";
@@ -55,6 +62,12 @@ export interface DesktopBridge {
   trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  listProviderAccounts(): Promise<ProviderAccountsResult>;
+  startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot>;
+  openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void>;
+  cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
 }

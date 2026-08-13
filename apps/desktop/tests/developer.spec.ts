@@ -8,6 +8,7 @@ import {
   launchDesktop,
   makeUserDataDir,
   makeWorkspaceDir,
+  openSettingsSection,
   removeTestDirectory,
 } from "./helpers/electron-app";
 
@@ -28,7 +29,7 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "permissions");
       await expect(page.getByTestId("settings-view")).toBeVisible();
       await page.getByTestId("permission-profile-developer").click();
       await page.getByTestId("permission-yolo-confirm").click();
@@ -42,7 +43,7 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
     const second = await launchDesktop(userDataDir, { env });
     try {
       const page = await second.firstWindow();
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "permissions");
       await expect(page.getByTestId("permission-profile-developer")).toBeChecked();
       await page.getByTestId("settings-close").click();
 

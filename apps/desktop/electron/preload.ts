@@ -30,6 +30,12 @@ const bridge: DesktopBridge = {
   trustProjectPermissionRules: () => invoke(IPC_CHANNELS.trustProjectPermissionRules),
   listCredentialProviders: () => invoke(IPC_CHANNELS.listCredentialProviders),
   importProviderApiKey: (input) => invoke(IPC_CHANNELS.importProviderApiKey, input),
+  listProviderAccounts: () => invoke(IPC_CHANNELS.listProviderAccounts),
+  startProviderLogin: (input) => invoke(IPC_CHANNELS.startProviderLogin, input),
+  respondProviderAuthPrompt: (input) => invoke(IPC_CHANNELS.respondProviderAuthPrompt, input),
+  openProviderAuthLink: (input) => invoke(IPC_CHANNELS.openProviderAuthLink, input),
+  cancelProviderLogin: (input) => invoke(IPC_CHANNELS.cancelProviderLogin, input),
+  logoutProvider: (input) => invoke(IPC_CHANNELS.logoutProvider, input),
   searchWorkspaceReferences: (input) => invoke(IPC_CHANNELS.searchWorkspaceReferences, input),
   subscribe(listener) {
     const handler = (_event: Electron.IpcRendererEvent, envelope: RuntimeEventEnvelope) => {

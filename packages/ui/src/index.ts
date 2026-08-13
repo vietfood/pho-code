@@ -38,6 +38,8 @@ export {
 } from "./tool-presentation";
 export { Transcript } from "./transcript";
 export { SettingsView } from "./settings-view";
+export { SETTINGS_SECTIONS, type SettingsSectionId } from "./lib/settings-section";
+export { ProviderAccountsSection } from "./provider-accounts";
 export { WorkspacePicker } from "./workspace-picker";
 export { ConservativeMarkdown } from "./markdown";
 export { WorkEntryIcon } from "./work-entry-icon";

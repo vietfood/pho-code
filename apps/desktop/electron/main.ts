@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, session, shell } from "electron";
 import { createApplicationService, type ApplicationService } from "@pho-code/application";
 import {
+  type CancelProviderLoginInput,
   commandFail,
   commandOk,
   createHarnessError,
@@ -23,6 +24,8 @@ import {
   type CreateSessionInput,
   type ImportProviderApiKeyInput,
   type ListWorkspaceSessionsInput,
+  type LogoutProviderInput,
+  type OpenProviderAuthLinkInput,
   type OpenRecentWorkspaceInput,
   type OpenSessionInput,
   type PasteImagesInput,
@@ -31,10 +34,12 @@ import {
   type RemovePreparedImageInput,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
+  type RespondProviderAuthPromptInput,
   type SearchWorkspaceReferencesInput,
   type SendPromptInput,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type StartProviderLoginInput,
   type SteerRunInput,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
@@ -112,11 +117,25 @@ function applyUserDataOverride(): void {
   app.setPath("userData", path.resolve(override));
 }
 
+const openedAuthUrls: string[] = [];
+(globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls = openedAuthUrls;
+
 function openValidatedExternalUrl(url: string): void {
   if (testMode || !isSafeExternalUrl(url)) {
     return;
   }
 
+  void shell.openExternal(url);
+}
+
+function openValidatedAuthUrl(url: string): void {
+  if (!isSafeExternalUrl(url)) {
+    return;
+  }
+  openedAuthUrls.push(url);
+  if (testMode) {
+    return;
+  }
   void shell.openExternal(url);
 }
 
@@ -456,6 +475,48 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(IPC_CHANNELS.listProviderAccounts, (event) =>
+    handleCommand("listProviderAccounts", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().listProviderAccounts();
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.startProviderLogin, async (event, payload: unknown) =>
+    handleCommand("startProviderLogin", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().startProviderLogin(asRecord(payload) as unknown as StartProviderLoginInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.respondProviderAuthPrompt, async (event, payload: unknown) =>
+    handleCommand("respondProviderAuthPrompt", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().respondProviderAuthPrompt(asRecord(payload) as unknown as RespondProviderAuthPromptInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.openProviderAuthLink, async (event, payload: unknown) =>
+    handleCommand("openProviderAuthLink", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().openProviderAuthLink(asRecord(payload) as unknown as OpenProviderAuthLinkInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.cancelProviderLogin, async (event, payload: unknown) =>
+    handleCommand("cancelProviderLogin", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().cancelProviderLogin(asRecord(payload) as unknown as CancelProviderLoginInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.logoutProvider, async (event, payload: unknown) =>
+    handleCommand("logoutProvider", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().logoutProvider(asRecord(payload) as unknown as LogoutProviderInput);
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.searchWorkspaceReferences, async (event, payload: unknown) =>
     handleCommand("searchWorkspaceReferences", async () => {
       assertTrustedSender(event, trustedRenderer);
@@ -591,6 +652,8 @@ app.whenReady().then(async () => {
     ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
     deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
     testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
+    testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",
+    openValidatedAuthUrl,
     ...(process.env.PHO_CODE_TEST_FEATURES === "1" ? { featureManifest: createDefaultFeatureManifest(locator, { agentDir, applicationDataDir: app.getPath("userData") }) } : {}),
   });
   application = createApplicationService({

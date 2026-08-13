@@ -15,11 +15,14 @@ import {
   idleRunState,
   isCommandResult,
   isJsonSafeValue,
+  isSafeHttpUrl,
+  hostnameFromHttpUrl,
   isSupportedProtocolVersion,
   isWorkspaceReferenceToken,
   isWebSourceRecord,
   jsonRoundTrip,
   nodeVersionMeetsMinimum,
+  providerDisclosureCopy,
   unwrapCommandResult,
   type BootstrapState,
   type SessionSnapshot,
@@ -538,3 +541,52 @@ function sampleSessionSnapshot(runId: string): SessionSnapshot {
     },
   };
 }
+
+describe("provider auth protocol", () => {
+  test("accepts credential-less http(s) URLs and rejects the rest", () => {
+    expect(isSafeHttpUrl("https://example.com/oauth")).toBe(true);
+    expect(isSafeHttpUrl("http://127.0.0.1:8787/callback")).toBe(true);
+    expect(isSafeHttpUrl("https://user:pass@example.com/oauth")).toBe(false);
+    expect(isSafeHttpUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeHttpUrl("file:///etc/passwd")).toBe(false);
+    expect(hostnameFromHttpUrl("https://auth.example.com/authorize?x=1")).toBe("auth.example.com");
+    expect(hostnameFromHttpUrl("javascript:alert(1)")).toBeUndefined();
+  });
+
+  test("subscription disclosure is an authentication classification, not billing", () => {
+    expect(providerDisclosureCopy("subscription-classified")).toContain("authentication type");
+    expect(providerDisclosureCopy("subscription-classified")).toContain("not a guarantee of included plan usage or cost");
+  });
+
+  test("flow snapshots stay JSON-safe and apply through providerAuthFlow events", () => {
+    const snapshot = {
+      flowId: "flow-1",
+      providerId: "openai-codex",
+      method: "oauth" as const,
+      phase: "awaiting_external" as const,
+      revision: 3,
+      startedAt: "2026-08-13T00:00:00.000Z",
+      updatedAt: "2026-08-13T00:00:01.000Z",
+      prompt: {
+        promptId: "prompt-1",
+        kind: "manual_code" as const,
+        message: "Paste the code",
+      },
+      links: [{ linkId: "link-1", hostname: "auth.example.com", label: "Open browser" }],
+      progress: "Waiting for authorization.",
+    };
+    expect(isJsonSafeValue(snapshot)).toBe(true);
+    expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+    expect(JSON.stringify(snapshot)).not.toContain("https://");
+
+    const state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.providerAuthFlow,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:01.000Z",
+    });
+    expect(state.authFlow).toEqual(snapshot);
+    expect(state.lastSequence).toBe(1);
+  });
+});

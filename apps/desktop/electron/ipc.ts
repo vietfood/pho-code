@@ -22,6 +22,12 @@ export const IPC_CHANNELS = {
   trustProjectPermissionRules: "pho-code:v1:trustProjectPermissionRules",
   listCredentialProviders: "pho-code:v1:listCredentialProviders",
   importProviderApiKey: "pho-code:v1:importProviderApiKey",
+  listProviderAccounts: "pho-code:v1:listProviderAccounts",
+  startProviderLogin: "pho-code:v1:startProviderLogin",
+  respondProviderAuthPrompt: "pho-code:v1:respondProviderAuthPrompt",
+  openProviderAuthLink: "pho-code:v1:openProviderAuthLink",
+  cancelProviderLogin: "pho-code:v1:cancelProviderLogin",
+  logoutProvider: "pho-code:v1:logoutProvider",
   searchWorkspaceReferences: "pho-code:v1:searchWorkspaceReferences",
   event: "pho-code:v1:event",
 } as const;

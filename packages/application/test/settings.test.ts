@@ -122,6 +122,43 @@ describe("application settings", () => {
     });
   });
 
+  test("rejects empty provider-auth identifiers before calling the runtime", async () => {
+    const { application } = createTestApplication();
+    await expect(application.startProviderLogin({ providerId: "  ", method: "oauth" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    await expect(
+      application.respondProviderAuthPrompt({ flowId: "  ", promptId: "prompt", value: "x" }),
+    ).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
+
+  test("refuses a prompt snapshot that echoes the submitted secret", async () => {
+    const secret = "super-secret-login-code";
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      respondProviderAuthPrompt() {
+        return Promise.resolve({
+          flowId: "flow-1",
+          providerId: "pho-test-oauth",
+          method: "oauth",
+          phase: "awaiting_external",
+          revision: 2,
+          startedAt: "2026-08-13T00:00:00.000Z",
+          updatedAt: "2026-08-13T00:00:01.000Z",
+          progress: secret,
+        });
+      },
+    };
+    const { application } = createTestApplication(runtime);
+    await expect(
+      application.respondProviderAuthPrompt({ flowId: "flow-1", promptId: "prompt-1", value: secret }),
+    ).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidSnapshot,
+    });
+  });
+
   test("rejects an unknown palette", async () => {
     const { application } = createTestApplication();
     await expect(application.updateAppearanceSettings({ palette: "sepia" as "default" })).rejects.toMatchObject({

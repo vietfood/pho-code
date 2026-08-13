@@ -45,4 +45,15 @@ export {
   readPermissionSettings,
 } from "./permission-settings";
 export { TEST_MODEL_ID, TEST_PROMPT, TEST_PROVIDER_ID, TEST_TOOL_NAME } from "./test-model";
+export {
+  TEST_OAUTH_ACCESS_CANARY,
+  TEST_OAUTH_AUTH_URL,
+  TEST_OAUTH_DEVICE_URL,
+  TEST_OAUTH_FAIL_CODE,
+  TEST_OAUTH_MODEL_ID,
+  TEST_OAUTH_PROVIDER_ID,
+  TEST_OAUTH_REFRESH_CANARY,
+  TEST_OAUTH_SUCCESS_CODE,
+  TEST_OAUTH_USER_CODE,
+} from "./test-oauth";
 export { createUnsupportedHostUiExtension } from "./test-host-ui";

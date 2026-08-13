@@ -89,7 +89,7 @@ Add provider-owned OAuth login, logout, status, cancellation, and model-list syn
 
 OAuth URLs and access/refresh tokens remain in the privileged process. The renderer receives provider metadata, redacted progress, device codes, bounded prompt definitions, and opaque link handles. Opening an authorization or verification page uses the existing validated system-browser path; Pho Code does not embed a login webview, reuse browser cookies, or present every OAuth method as equivalent subscription allowance.
 
-The detailed contract is drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after owner calibration of that contract and proceeds as one OpenAI Codex vertical slice before additional providers.
+The detailed contract lives in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Milestone 2 is accepted: the generic adapter, Settings Provider accounts surface, and owner-verified live `openai-codex` login are in place. Additional Pi OAuth providers enter only after recording their actual pinned prompt/events and disclosure.
 
 ## Deferred beyond Milestone 2
 

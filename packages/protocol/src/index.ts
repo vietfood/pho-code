@@ -30,10 +30,42 @@ export type {
 export type { BootstrapCapabilities, BootstrapMilestone, BootstrapState, BootstrapVersions } from "./bootstrap";
 
 export type {
+  CancelProviderLoginInput,
   CredentialProviderSummary,
   ImportProviderApiKeyInput,
   ImportProviderApiKeyResult,
+  LogoutProviderInput,
+  OpenProviderAuthLinkInput,
+  ProviderAccountSummary,
+  ProviderAccountsResult,
+  ProviderAuthDeviceCode,
+  ProviderAuthFlowPhase,
+  ProviderAuthFlowSnapshot,
+  ProviderAuthLink,
+  ProviderAuthMethod,
+  ProviderAuthPrompt,
+  ProviderAuthPromptKind,
+  ProviderAuthSelectOption,
+  ProviderDisclosureKey,
+  RespondProviderAuthPromptInput,
+  StartProviderLoginInput,
 } from "./credentials";
+export {
+  idleProviderAccountsResult,
+  isProviderAuthFlowPhase,
+  isProviderAuthMethod,
+  MAX_PROVIDER_AUTH_MESSAGE,
+  MAX_PROVIDER_AUTH_OPTIONS,
+  MAX_PROVIDER_AUTH_PROGRESS,
+  MAX_PROVIDER_AUTH_VALUE,
+  PROVIDER_AUTH_FLOW_PHASES,
+  PROVIDER_AUTH_METHODS,
+  PROVIDER_AUTH_PROMPT_KINDS,
+  PROVIDER_DISCLOSURE_KEYS,
+  providerDisclosureCopy,
+} from "./credentials";
+
+export { hostnameFromHttpUrl, isSafeHttpUrl } from "./http-url";
 
 export type { DesktopBridge } from "./bridge";
 

@@ -23,6 +23,7 @@ export const HARNESS_ERROR_CODES = {
   resourceReloadFailed: "resource_reload_failed",
   invalidPermissionConfig: "invalid_permission_config",
   credentialImportFailed: "credential_import_failed",
+  providerAuthFailed: "provider_auth_failed",
   unsupportedHostUi: "unsupported_host_ui",
   extensionCommandNotFound: "extension_command_not_found",
   invalidWorkspaceReference: "invalid_workspace_reference",

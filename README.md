@@ -23,7 +23,7 @@ No plan, no paywall, no "open core." The source is the product.
 - Fetch public web pages and search the open web through bounded, application-owned tools
 - Choose how much autonomy to grant: **baby**, **okay**, **you got it**, or **with great power comes great responsibility**
 - Move files to the operating-system Trash instead of deleting them forever
-- Import a provider API key in Settings; stored secrets never reach the renderer
+- Sign in to a provider account in Settings, or import an API key; stored secrets never reach the renderer
 - Run as a self-contained unsigned macOS app, with Pi and every baked feature inside the bundle
 
 macOS is the verified desktop. Linux-compatible path and process behavior is required in the code. Windows is out of scope.
@@ -49,7 +49,7 @@ bun run dev
 Then:
 
 1. Choose a local workspace.
-2. Import a provider API key in Settings if you have not already.
+2. Sign in through a provider account in Settings if you have not already.
 3. Start a session and send a prompt.
 
 A normal run keeps Pi-compatible auth, models, sessions, and permission state under the app's own data directory. `PHO_CODE_AGENT_DIR` is an explicit override for sharing that directory with another Pi process; Settings labels it as shared.

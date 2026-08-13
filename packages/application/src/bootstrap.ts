@@ -11,16 +11,19 @@ import {
   isChatFontSize,
   isGlassStrength,
   isManagedPermissionProfileId,
+  isProviderAuthMethod,
   isThinkingLevel,
   isUiFontSize,
   isWorkspaceReferenceToken,
   MAX_PREPARED_IMAGES,
+  MAX_PROVIDER_AUTH_VALUE,
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCE_RESULTS,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   nodeVersionMeetsMinimum,
   type AbortRunInput,
   type BootstrapState,
+  type CancelProviderLoginInput,
   type CredentialProviderSummary,
   type CreateSessionInput,
   type FeatureSnapshot,
@@ -28,17 +31,22 @@ import {
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
   type ListWorkspaceSessionsInput,
+  type LogoutProviderInput,
+  type OpenProviderAuthLinkInput,
   type OpenRecentWorkspaceInput,
   type OpenSessionInput,
   type PrepareImageInput,
   type PreparedImageSummary,
   type PromptAdmission,
+  type ProviderAccountsResult,
+  type ProviderAuthFlowSnapshot,
   type QueueAdmission,
   type QueueFollowUpInput,
   type RecentWorkspaceRecord,
   type RemovePreparedImageInput,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
+  type RespondProviderAuthPromptInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -50,6 +58,7 @@ import {
   type AppearanceSettings,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type StartProviderLoginInput,
   type SteerRunInput,
   type Unsubscribe,
   type UpdateAppearanceSettingsInput,
@@ -101,6 +110,12 @@ export interface ApplicationService {
   trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  listProviderAccounts(): Promise<ProviderAccountsResult>;
+  startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot>;
+  openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void>;
+  cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   shutdown(): Promise<void>;
@@ -685,6 +700,82 @@ export function createApplicationService(input: {
           operation: "importProviderApiKey",
         });
       }
+      return result;
+    },
+    async listProviderAccounts() {
+      assertActive();
+      const result = await input.runtime.listProviderAccounts();
+      assertJsonSafe(result, "listProviderAccounts");
+      return result;
+    },
+    async startProviderLogin(command: StartProviderLoginInput) {
+      assertActive();
+      const providerId = requireNonEmptyString(command.providerId, "providerId", "startProviderLogin");
+      if (!isProviderAuthMethod(command.method)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "method must be api_key or oauth.",
+          operation: "startProviderLogin",
+          recoverable: true,
+        });
+      }
+      const snapshot = await input.runtime.startProviderLogin({ providerId, method: command.method });
+      assertJsonSafe(snapshot, "startProviderLogin");
+      return snapshot;
+    },
+    async respondProviderAuthPrompt(command: RespondProviderAuthPromptInput) {
+      assertActive();
+      const flowId = requireNonEmptyString(command.flowId, "flowId", "respondProviderAuthPrompt");
+      const promptId = requireNonEmptyString(command.promptId, "promptId", "respondProviderAuthPrompt");
+      if (typeof command.value !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "value is required.",
+          operation: "respondProviderAuthPrompt",
+          recoverable: true,
+        });
+      }
+      if (command.value.length > MAX_PROVIDER_AUTH_VALUE) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That response is too long.",
+          operation: "respondProviderAuthPrompt",
+          recoverable: true,
+        });
+      }
+      const snapshot = await input.runtime.respondProviderAuthPrompt({
+        flowId,
+        promptId,
+        value: command.value,
+      });
+      assertJsonSafe(snapshot, "respondProviderAuthPrompt");
+      if (command.value.length >= 8 && JSON.stringify(snapshot).includes(command.value)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidSnapshot,
+          message: "Login prompt refused to return a secret.",
+          operation: "respondProviderAuthPrompt",
+        });
+      }
+      return snapshot;
+    },
+    async openProviderAuthLink(command: OpenProviderAuthLinkInput) {
+      assertActive();
+      const flowId = requireNonEmptyString(command.flowId, "flowId", "openProviderAuthLink");
+      const linkId = requireNonEmptyString(command.linkId, "linkId", "openProviderAuthLink");
+      await input.runtime.openProviderAuthLink({ flowId, linkId });
+    },
+    async cancelProviderLogin(command: CancelProviderLoginInput) {
+      assertActive();
+      const flowId = requireNonEmptyString(command.flowId, "flowId", "cancelProviderLogin");
+      const snapshot = await input.runtime.cancelProviderLogin({ flowId });
+      assertJsonSafe(snapshot, "cancelProviderLogin");
+      return snapshot;
+    },
+    async logoutProvider(command: LogoutProviderInput) {
+      assertActive();
+      const providerId = requireNonEmptyString(command.providerId, "providerId", "logoutProvider");
+      const result = await input.runtime.logoutProvider({ providerId });
+      assertJsonSafe(result, "logoutProvider");
       return result;
     },
     async searchWorkspaceReferences(command: SearchWorkspaceReferencesInput) {

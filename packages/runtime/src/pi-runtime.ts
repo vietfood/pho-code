@@ -28,6 +28,7 @@ import {
   createHarnessError,
   HARNESS_ERROR_CODES,
   idleRunState,
+  isProviderAuthMethod,
   isThinkingLevel,
   isWorkspaceReferenceToken,
   MAX_QUEUE_MESSAGE_PREVIEW,
@@ -35,18 +36,24 @@ import {
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   emptyQueueState,
   type AbortRunInput,
+  type CancelProviderLoginInput,
   type CredentialProviderSummary,
   type HarnessError,
+  type ImportProviderApiKeyInput,
+  type ImportProviderApiKeyResult,
+  type LogoutProviderInput,
   type ModelSummary,
+  type OpenProviderAuthLinkInput,
   type PrepareImageInput,
   type PromptAdmission,
   type FeatureSnapshot,
-  type ImportProviderApiKeyInput,
-  type ImportProviderApiKeyResult,
+  type ProviderAccountsResult,
+  type ProviderAuthFlowSnapshot,
   type QueueAdmission,
   type QueueFollowUpInput,
   type RemovePreparedImageInput,
   type ResolveHostDialogInput,
+  type RespondProviderAuthPromptInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -56,6 +63,7 @@ import {
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type StartProviderLoginInput,
   type SteerRunInput,
   type ThinkingLevel,
   type Unsubscribe,
@@ -73,9 +81,11 @@ import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
 import { applyPermissionSettingsPatch, readPermissionSettings } from "./permission-settings";
-import { importProviderApiKey as persistProviderApiKey, listStoredApiKeyProviders } from "./credentials";
+import { importProviderApiKey as persistProviderApiKey, listProviderAccounts, listStoredApiKeyProviders, logoutProviderAccount } from "./credentials";
+import { assertNoCanaries, createProviderAuthFlow } from "./provider-auth-flow";
 import { createOsTrashRemovalService, type RecoverableRemovalService } from "./recoverable-removal";
 import { createTestHostUiExtension } from "./test-host-ui";
+import { createTestOAuthProvider } from "./test-oauth";
 import { trashFacilityDiagnostics, TRASH_FEATURE_ID } from "./trash-feature";
 import { TRASH_TOOL_NAME } from "./trash-target";
 import { createLocalRetrievalRuntime } from "./local-retrieval";
@@ -97,6 +107,8 @@ export interface PhoCodeRuntimeOptions {
   appliesToSharedPiAgentDir?: boolean;
   deterministicTestModel?: boolean;
   testHostUi?: boolean;
+  testOAuthFlow?: boolean;
+  openValidatedAuthUrl?: (url: string) => void;
   featureManifest?: HarnessFeatureManifest;
   resourceLocator?: ResourceLocator;
   applicationDataDir?: string;
@@ -162,6 +174,9 @@ export async function createPhoCodeRuntime(
     testProvider = createDeterministicTestProvider();
     modelRuntime.registerNativeProvider(testProvider.provider);
   }
+  if (options.testOAuthFlow) {
+    modelRuntime.registerNativeProvider(createTestOAuthProvider());
+  }
 
   const testTool = options.deterministicTestModel ? createHarnessMarkTool() : undefined;
 
@@ -200,6 +215,82 @@ export async function createPhoCodeRuntime(
     }
   }
 
+  const authFlow = createProviderAuthFlow({
+    host: {
+      openValidatedUrl(url) {
+        options.openValidatedAuthUrl?.(url);
+      },
+      now: () => new Date(),
+      randomId: () => randomUUID(),
+    },
+    login: async (providerId, method, interaction) => {
+      const provider = modelRuntime.getProvider(providerId);
+      if (!provider) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Unknown provider.",
+          operation: "startProviderLogin",
+          recoverable: true,
+        });
+      }
+      if (method === "oauth" && !provider.auth.oauth) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That provider does not support OAuth login in this application.",
+          operation: "startProviderLogin",
+          recoverable: true,
+        });
+      }
+      if (method === "api_key" && typeof provider.auth.apiKey?.login !== "function") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That provider does not accept an API key in this application.",
+          operation: "startProviderLogin",
+          recoverable: true,
+        });
+      }
+      await modelRuntime.login(providerId, method, {
+        ...(interaction.signal ? { signal: interaction.signal } : {}),
+        prompt: (prompt) => interaction.prompt(prompt),
+        notify: (event) => interaction.notify(event),
+      });
+    },
+    emit: (snapshot) => {
+      emit({
+        type: RUNTIME_EVENT_TYPES.providerAuthFlow,
+        payload: snapshot,
+      });
+    },
+    onSettled: async (snapshot) => {
+      if (snapshot.phase === "completed") {
+        await refreshModelsAfterAuth();
+      }
+    },
+  });
+
+  async function refreshModelsAfterAuth(): Promise<void> {
+    clearCatalogCache();
+    if (piRuntime?.session) {
+      const snapshot = await buildSnapshot();
+      emit({
+        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+        sessionId: snapshot.session.id,
+        payload: snapshot,
+      });
+    }
+  }
+
+  async function accountsResult(): Promise<ProviderAccountsResult> {
+    const providers = await listProviderAccounts(modelRuntime);
+    const result: ProviderAccountsResult = {
+      providers,
+      flow: authFlow.snapshot(),
+    };
+    assertJsonSafe(result, "listProviderAccounts");
+    assertNoCanaries(result, authFlow.canaries(), "listProviderAccounts");
+    return result;
+  }
+
   function isProjectApproved(cwd: string): boolean {
     if (approvedProjectPaths.has(cwd)) {
       return true;
@@ -225,7 +316,7 @@ export async function createPhoCodeRuntime(
         return {
           models,
           modelError:
-            "No authenticated model is available. Import a provider API key in Settings.",
+            "No authenticated model is available. Sign in to a provider account in Settings.",
         };
       }
       return { models };
@@ -1173,15 +1264,64 @@ export async function createPhoCodeRuntime(
         });
       }
       const providers = await persistProviderApiKey(modelRuntime, input);
-      if (piRuntime?.session) {
-        const snapshot = await buildSnapshot();
-        emit({
-          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-          sessionId: snapshot.session.id,
-          payload: snapshot,
+      await refreshModelsAfterAuth();
+      return { providers };
+    },
+    async listProviderAccounts(): Promise<ProviderAccountsResult> {
+      assertNotDisposed();
+      return accountsResult();
+    },
+    async startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot> {
+      assertNotDisposed();
+      const providerId = input.providerId.trim();
+      if (providerId.length === 0 || !isProviderAuthMethod(input.method)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "providerId and a supported login method are required.",
+          operation: "startProviderLogin",
+          recoverable: true,
         });
       }
-      return { providers };
+      const snapshot = await authFlow.start({
+        providerId,
+        method: input.method,
+        runActive: Boolean(activeRun && !activeRun.settled),
+      });
+      assertJsonSafe(snapshot, "startProviderLogin");
+      assertNoCanaries(snapshot, authFlow.canaries(), "startProviderLogin");
+      return snapshot;
+    },
+    async respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot> {
+      assertNotDisposed();
+      const snapshot = await authFlow.respond(input);
+      assertJsonSafe(snapshot, "respondProviderAuthPrompt");
+      assertNoCanaries(snapshot, [...authFlow.canaries(), input.value], "respondProviderAuthPrompt");
+      return snapshot;
+    },
+    async openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void> {
+      assertNotDisposed();
+      await authFlow.openLink(input);
+    },
+    async cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot> {
+      assertNotDisposed();
+      const snapshot = await authFlow.cancel(input);
+      assertJsonSafe(snapshot, "cancelProviderLogin");
+      assertNoCanaries(snapshot, authFlow.canaries(), "cancelProviderLogin");
+      return snapshot;
+    },
+    async logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult> {
+      assertNotDisposed();
+      if (activeRun && !activeRun.settled) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before changing provider accounts.",
+          operation: "logoutProvider",
+          recoverable: true,
+        });
+      }
+      await logoutProviderAccount(modelRuntime, input.providerId);
+      await refreshModelsAfterAuth();
+      return accountsResult();
     },
     async searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult> {
       assertNotDisposed();
@@ -1215,6 +1355,7 @@ export async function createPhoCodeRuntime(
       disposed = true;
       disposeCount += 1;
       clearCatalogCache();
+      await authFlow.dispose();
       extensionHost?.cancelPending();
       if (activeRun) {
         activeRun.abortRequested = true;

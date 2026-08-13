@@ -1,3 +1,4 @@
+import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type { PromptAdmission, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
 import type { ExtensionNotification, FeatureSnapshot, HostDialogRequest } from "./resources";
@@ -18,6 +19,7 @@ export const RUNTIME_EVENT_TYPES = {
   extensionNotification: "extensionNotification",
   settingsSnapshot: "settingsSnapshot",
   permissionStatus: "permissionStatus",
+  providerAuthFlow: "providerAuthFlow",
 } as const;
 
 export type RuntimeEventType = (typeof RUNTIME_EVENT_TYPES)[keyof typeof RUNTIME_EVENT_TYPES];
@@ -68,7 +70,8 @@ export type RuntimeEvent =
   | (RuntimeEventEnvelope<ExtensionDialogSettledPayload> & { type: typeof RUNTIME_EVENT_TYPES.extensionDialogSettled })
   | (RuntimeEventEnvelope<ExtensionNotification> & { type: typeof RUNTIME_EVENT_TYPES.extensionNotification })
   | (RuntimeEventEnvelope<HarnessSettingsSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.settingsSnapshot })
-  | (RuntimeEventEnvelope<PermissionStatusPayload> & { type: typeof RUNTIME_EVENT_TYPES.permissionStatus });
+  | (RuntimeEventEnvelope<PermissionStatusPayload> & { type: typeof RUNTIME_EVENT_TYPES.permissionStatus })
+  | (RuntimeEventEnvelope<ProviderAuthFlowSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.providerAuthFlow });
 
 export type Unsubscribe = () => void;
 
@@ -78,6 +81,7 @@ export interface ConversationViewState {
   dialog: HostDialogRequest | null;
   notification: ExtensionNotification | null;
   settings: HarnessSettingsSnapshot | null;
+  authFlow: ProviderAuthFlowSnapshot | null;
 }
 
 export function emptyConversationState(): ConversationViewState {
@@ -87,6 +91,7 @@ export function emptyConversationState(): ConversationViewState {
     dialog: null,
     notification: null,
     settings: null,
+    authFlow: null,
   };
 }
 
@@ -201,6 +206,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     case RUNTIME_EVENT_TYPES.runSettled:
       return {
@@ -209,6 +215,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     case RUNTIME_EVENT_TYPES.runAdmitted: {
       const snapshot = state.snapshot;
@@ -231,6 +238,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.textDelta: {
@@ -252,6 +260,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.thinkingDelta: {
@@ -273,6 +282,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.toolEvent: {
@@ -300,6 +310,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.runFailed: {
@@ -321,6 +332,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.featureSnapshot: {
@@ -337,6 +349,7 @@ export function applyRuntimeEvent(
         dialog: state.dialog,
         notification: state.notification,
         settings: state.settings,
+        authFlow: state.authFlow,
       };
     }
     case RUNTIME_EVENT_TYPES.extensionDialogRequest:
@@ -385,6 +398,12 @@ export function applyRuntimeEvent(
         },
       };
     }
+    case RUNTIME_EVENT_TYPES.providerAuthFlow:
+      return {
+        ...state,
+        lastSequence: event.sequence,
+        authFlow: event.payload as ProviderAuthFlowSnapshot,
+      };
     default:
       return { ...state, lastSequence: event.sequence };
   }

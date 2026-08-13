@@ -8,6 +8,7 @@ import {
   makeWorkspaceDir,
   pathWithoutPi,
   expandSettledWorkLog,
+  openSettingsSection,
   removeTestDirectory,
   resolvePackagedAppPath,
   writeResourceFixture,
@@ -38,7 +39,7 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
     });
     try {
       const page = await harness.firstWindow();
-      await page.getByTestId("open-settings").click();
+      await openSettingsSection(page, "permissions");
       await expect(page.getByTestId("settings-view")).toBeVisible();
       await page.getByTestId("permission-profile-developer").click();
       await page.getByTestId("permission-yolo-confirm").click();
@@ -78,6 +79,63 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
       const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");
       expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
       expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.1");
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", async () => {
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const testProviderId = "pho-test-oauth";
+  const authUrl = "https://example.com/pho-code-oauth-test";
+  const accessCanary = "canary-access-token-pho-test";
+
+  try {
+    const harness = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_AUTH: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await harness.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await openSettingsSection(page, "accounts");
+      await expect(page.getByTestId("credential-settings")).toBeVisible();
+      await page.getByTestId("provider-account-filter").fill("Test OAuth");
+      await page.getByTestId(`provider-oauth-start-${testProviderId}`).click();
+      await expect(page.getByTestId("provider-auth-flow")).toBeVisible();
+      await page.getByTestId("provider-auth-select-browser").check();
+      await page.getByTestId("provider-auth-submit").click();
+      await expect(page.getByTestId("provider-auth-input")).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId("provider-auth-input").fill("test-ok");
+      await page.getByTestId("provider-auth-submit").click();
+      await expect(page.getByTestId("configured-providers")).toContainText("Connected");
+      expect(await page.content()).not.toContain(authUrl);
+      expect(await page.content()).not.toContain(accessCanary);
+
+      await page.getByTestId("settings-close").click();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("model-selector").click();
+      await expect(page.getByTestId("model-picker-option")).toContainText("Test OAuth model");
+
+      const opened = await harness.electronApp.evaluate(() => {
+        return (globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls ?? [];
+      });
+      expect(opened.length).toBeGreaterThan(0);
+      expect(opened.every((url) => url === authUrl)).toBe(true);
+
+      await openSettingsSection(page, "accounts");
+      await page.getByTestId(`provider-logout-${testProviderId}`).click();
+      await page.getByTestId(`provider-logout-confirm-${testProviderId}`).click();
+      await expect(page.getByTestId("no-configured-providers")).toBeVisible();
     } finally {
       await harness.close();
     }

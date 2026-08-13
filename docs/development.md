@@ -37,7 +37,7 @@ Do not run install/build commands inside a reference submodule as if that built 
 | `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, and prepared image summaries |
 | `packages/runtime` | Pi session/loader ownership, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, deterministic test model |
 | `packages/application` | Workspace/session/prompt/settings/credential use cases, recent-workspace and appearance metadata, validation, shutdown |
-| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, compact Settings including API-key import, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
+| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, Permissions) with deferred API-key import and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, agent-dir override, test seams |
 | `apps/desktop/src` | Shell state and conversation React composition |
 | `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/host-ui/permission/settings/credentials specs, packaged artifact lane, unit tests, fail-closed trash helper |
@@ -103,6 +103,7 @@ Expected development behavior:
 | `PHO_CODE_TEST_MODE=background` | Headless Electron test launch |
 | `PHO_CODE_TEST_WORKSPACE` | Inject a directory as if it was chosen with the native picker (test-only) |
 | `PHO_CODE_TEST_MODEL=1` | Register the deterministic faux model and `harness_mark` tool |
+| `PHO_CODE_TEST_AUTH=1` | Register the deterministic `pho-test-oauth` provider used by the Milestone 2 OAuth journey; do not combine with `PHO_CODE_TEST_MODEL=1` when checking the model picker |
 | `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package, recoverable Trash, and pho-web; FFF tools only if the caller passes a retrieval runtime); otherwise tests use an empty manifest |
 | `PHO_CODE_RESOURCES_DIR` | Override the staged resource root in source development/tests; packaged production ignores it and uses Electron `process.resourcesPath` |
 | `PHO_CODE_SHUTDOWN_PROBE` | Write a JSON dispose probe on quit |
@@ -278,7 +279,7 @@ Verify:
 - model/provider errors are reported through a redacted diagnostic;
 - session-restored models fall back visibly when no longer available.
 
-Settings includes a compact Provider API keys import that calls Pi `ModelRuntime.login` with a one-shot secret prompt. The renderer never receives stored credential values; list results include provider names only. Do not read and expose raw `auth.json` contents to the renderer. The explicit `PHO_CODE_AGENT_DIR` override remains available for development interoperability.
+Settings opens as a floating dialog over the conversation, with compact **Appearance**, **Accounts**, and **Permissions** sections so later panels can be added without a full-page overlay. The **Accounts** tab lists Pi providers as compact status rows, imports API keys only after an explicit Add key action, and runs one OAuth flow at a time through Pi `ModelRuntime`. The renderer receives redacted status, device codes, and opaque link handles; it never receives stored secrets or authorization URLs, and unconfigured providers do not render empty key fields. Reopening Settings during an active login opens the Accounts tab. Escape or the backdrop dismisses the dialog without cancelling an in-flight login. `PHO_CODE_TEST_AUTH=1` registers a fake OAuth provider for desktop and packaged checks. Do not read and expose raw `auth.json` contents to the renderer. The explicit `PHO_CODE_AGENT_DIR` override remains available for development interoperability.
 
 ## Debugging sessions and streaming
 
@@ -390,22 +391,55 @@ Covered by `packages/runtime/test/{permission-engine,permission-settings,develop
 5. one Electron journey selects Developer, allows `USE_SAFE_SHELL`, denies `USE_DANGEROUS_SHELL`, and moves an owned fixture with `USE_TRASH`;
 6. packaged macOS loads `permission-system` and `recoverable-trash` without a Pi CLI and completes the Trash journey under the third owner-facing mode.
 
+### Milestone 2 (v2) accounts lane
+
+Covered by `packages/runtime/test/{provider-auth-flow,provider-oauth,credentials}.test.ts`, `packages/protocol/test/protocol.test.ts`, `packages/application/test/settings.test.ts`, `apps/desktop/tests/{oauth,credentials,smoke}.spec.ts`, and `apps/desktop/tests/packaged.spec.ts`:
+
+1. Pi provider discovery includes OAuth-only providers such as `openai-codex` and the subscription classification disclosure;
+2. the one-flow coordinator rejects stale ids, concurrent starts, invalid select values, and active-run mutation;
+3. canary tokens and authorization URLs never appear in protocol snapshots, events, or renderer HTML;
+4. a deterministic `pho-test-oauth` provider completes browser login, opens only the retained test URL, updates the model picker, and logs out into isolated `auth.json`;
+5. the packaged app exposes the same Provider accounts surface without a Pi CLI.
+
+Live `openai-codex` login remains outside ordinary CI. The owner verified it on 2026-08-13; the fake-provider journey covers logout and model-list sync in the Electron and packaged lanes.
+
+v2 Milestone 2 acceptance evidence, recorded 2026-08-13:
+
+```text
+bun run typecheck     PASS
+bun run lint          PASS
+bun test              PASS — 252 tests
+bun run test:desktop  PASS — 10 Electron tests (including oauth)
+bun run build         PASS
+bun run package:mac   PASS — unsigned Apple Silicon app
+bun run test:packaged PASS — 2 packaged smokes (permission/Trash and fake OAuth)
+```
+
+Milestone 2 verification classes:
+
+- **unit verified:** protocol JSON-safe flow snapshots, `providerAuthFlow` reducer, HTTP(S) URL parser, one-flow coordinator (stale ids, concurrent starts, select validation, canaries, URL expiry, prompt abort), application secret-echo rejection
+- **integration verified:** real Pi `0.84.1` lists `openai-codex`; fake `pho-test-oauth` login/logout writes isolated `auth.json` and never echoes canary tokens or authorization URLs
+- **desktop verified:** Settings completes the fake OAuth journey, opens only the retained test URL, updates the model picker, and logs out
+- **packaged verified:** unsigned local `.app` exposes the same Provider accounts surface without a Pi CLI
+- **owner verified:** live `openai-codex` login in the system browser, with the resulting Codex account working in Pho Code
+- **not verified:** other Pi OAuth providers; Linux browser integration; separately reported live refresh-on-use or live Codex logout; Keychain-backed storage; MCP OAuth
+
 ### Optional real-provider recipe
 
-Not a CI requirement. Personal runs can import a provider API key in Settings. A development run may still explicitly reuse the owner's Pi operational data:
+Not a CI requirement. Personal runs can sign in through a provider account or import a provider API key in Settings. A development run may still explicitly reuse the owner's Pi operational data:
 
 ```bash
 PHO_CODE_AGENT_DIR="$HOME/.pi/agent" bun run dev
 ```
 
-This opt-in affects auth, models, sessions, permission config, and logs. It does not load the owner's Pi extensions, skills, prompts, packages, or MCP configuration, and Settings labels the directory as shared. A normal `bun run dev` uses Pho Code's private data root; import a provider API key in Settings if no models are authenticated.
+This opt-in affects auth, models, sessions, permission config, and logs. It does not load the owner's Pi extensions, skills, prompts, packages, or MCP configuration, and Settings labels the directory as shared. A normal `bun run dev` uses Pho Code's private data root; sign in to a provider account in Settings if no models are authenticated.
 
 1. Choose a local workspace with the native directory picker.
-2. Import a provider API key in Settings if needed, then create a session.
+2. Sign in through a provider account in Settings if needed, then create a session.
 3. Send a short prompt.
 4. Confirm streaming text, any tool activity, Stop, and quit/reopen.
 
-If no authenticated model is available, the UI should say so and point at Settings import. Never point an automated test at the user's real Pi directory.
+If no authenticated model is available, the UI should say so and point at Settings provider accounts. Never point an automated test at the user's real Pi directory.
 
 Use a deterministic provider or injected runtime in the core lane. Real-provider tests belong in a separate opt-in lane and must not be required for ordinary CI.
 

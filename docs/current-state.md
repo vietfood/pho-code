@@ -20,8 +20,8 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - image attachments (PNG/JPEG/GIF/WebP) picked or pasted, prepared without absolute paths, and admitted only when the selected model accepts images;
 - an application-owned `move_to_trash` tool that uses the operating-system Trash facility and never falls back to permanent deletion;
 - desktop confirm/select/input permission dialogs, approval-for-session, denial reasons, notifications, cancellation, and session rebind;
-- typed Settings for palette + light/dark/system mode (Default, Gruvbox, Catppuccin, Flexoki, GitHub, One Dark), optional frosted-glass blur with strength control, independent UI and chat font sizes, and the owner-facing baby (strict), okay, you got it, and with great power comes great responsibility permission modes, with Custom preservation and honest private/shared data-scope disclosure;
-- in-app provider API-key import that never returns stored secrets to the renderer;
+- typed Settings in a floating Appearance / Accounts / Permissions dialog for palette + light/dark/system mode (Default, Gruvbox, Catppuccin, Flexoki, GitHub, One Dark), optional frosted-glass blur with strength control, independent UI and chat font sizes, and the owner-facing baby (strict), okay, you got it, and with great power comes great responsibility permission modes, with Custom preservation and honest private/shared data-scope disclosure;
+- in-app provider account login (API key and OAuth) that never returns stored secrets or authorization URLs to the renderer, with compact Settings rows that keep API-key fields collapsed until explicitly opened;
 - an unsigned local macOS bundle that stages Pi and the permission feature under app-owned resources;
 - internal feature/version diagnostics without install, enable, disable, or marketplace controls;
 - bounded shutdown, CSP/navigation/permission guards, context isolation, renderer sandboxing, and disabled Node integration.
@@ -64,9 +64,9 @@ The owner approved this initial milestone split:
 
 - **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
 - **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
-- **Milestone 2 — accounts and subscription login:** design checkpoint drafted around Pi-owned OAuth, an OpenAI Codex first vertical slice, privileged URL handling, redacted renderer state, cancellation, logout, and model-list synchronization. Implementation awaits owner calibration.
+- **Milestone 2 — accounts and subscription login:** accepted as provider-owned OAuth through Pi `ModelRuntime`, with a Provider accounts Settings surface, opaque system-browser handles, cancellation, logout, and model-list synchronization. The deterministic fake-provider journey is in the Electron and packaged lanes. The owner completed a live `openai-codex` login and confirmed it works.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 contract, all four accepted Milestone 1 slices, and the draft Milestone 2 contract.
+[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 2 contracts. Later capabilities remain candidates until explicitly promoted.
 
 Skills, MCP-backed account integrations, browser automation, diff/checkpoint workflows, session lifecycle, terminal, multi-agent worktrees, public distribution, and isolation remain later candidates in the [roadmap](./roadmap-vnext.md). They are not unfinished v1 work and must be promoted explicitly before implementation.
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
 import {
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
@@ -9,16 +10,24 @@ import {
   paletteSupportsMode,
   type AppearanceMode,
   type AppearancePalette,
-  type CredentialProviderSummary,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
   type ManagedPermissionProfileId,
+  type ProviderAccountsResult,
+  type ProviderAuthFlowSnapshot,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
-import { isMacDesktop } from "./lib/platform";
-import { SidebarToggleButton } from "./sidebar-toggle-button";
+import { handleDialogTab } from "./lib/dialog-focus";
+import {
+  adjacentSettingsSection,
+  initialSettingsSection,
+  SETTINGS_SECTIONS,
+  writeSettingsSection,
+  type SettingsSectionId,
+} from "./lib/settings-section";
+import { ProviderAccountsSection } from "./provider-accounts";
 import { Button } from "./ui/button";
 
 const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
@@ -66,40 +75,63 @@ function displayedPermissionProfile(settings: HarnessSettingsSnapshot): ManagedP
   return settings.permission.profile;
 }
 
+function isActiveAuthFlow(flow: ProviderAuthFlowSnapshot | null): boolean {
+  return (
+    flow !== null &&
+    flow.phase !== "idle" &&
+    flow.phase !== "completed" &&
+    flow.phase !== "failed" &&
+    flow.phase !== "cancelled"
+  );
+}
+
 export function SettingsView({
   settings,
   running,
   busy,
-  credentialProviders,
+  providerAccounts,
+  authFlow,
   onClose,
   onAppearanceChange,
   onPermissionApply,
   onTrustProjectPermissionRules,
   onImportApiKey,
-  sidebarCollapsed,
-  onToggleSidebar,
+  onStartOAuth,
+  onRespondAuthPrompt,
+  onOpenAuthLink,
+  onCancelAuth,
+  onLogoutProvider,
 }: {
   settings: HarnessSettingsSnapshot;
   running: boolean;
   busy: boolean;
-  credentialProviders: readonly CredentialProviderSummary[];
+  providerAccounts: ProviderAccountsResult;
+  authFlow: ProviderAuthFlowSnapshot | null;
   onClose: () => void;
-  sidebarCollapsed?: boolean;
-  onToggleSidebar?: () => void;
   onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
   onPermissionApply: (input: UpdatePermissionSettingsInput) => Promise<void>;
   onTrustProjectPermissionRules: () => Promise<void>;
   onImportApiKey: (input: ImportProviderApiKeyInput) => Promise<void>;
+  onStartOAuth: (providerId: string) => Promise<void>;
+  onRespondAuthPrompt: (flowId: string, promptId: string, value: string) => Promise<void>;
+  onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
+  onCancelAuth: (flowId: string) => Promise<void>;
+  onLogoutProvider: (providerId: string) => Promise<void>;
 }) {
+  const flowActive = isActiveAuthFlow(authFlow);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const [section, setSection] = useState<SettingsSectionId>(() => initialSettingsSection({ flowActive }));
   const [profile, setProfile] = useState<ManagedPermissionProfileId | "custom">(
     displayedPermissionProfile(settings),
   );
   const [reviewLog, setReviewLog] = useState(settings.permission.permissionReviewLog);
   const [yoloConfirm, setYoloConfirm] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [providerId, setProviderId] = useState(credentialProviders[0]?.id ?? "");
-  const [apiKey, setApiKey] = useState("");
-  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     setProfile(displayedPermissionProfile(settings));
@@ -107,10 +139,27 @@ export function SettingsView({
   }, [settings]);
 
   useEffect(() => {
-    if (!providerId && credentialProviders[0]) {
-      setProviderId(credentialProviders[0].id);
-    }
-  }, [credentialProviders, providerId]);
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.getElementById(`settings-tab-${section}`)?.focus();
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      const root = dialogRef.current;
+      if (root) {
+        handleDialogTab(event, root);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+    // Bind once per open. Parent re-renders must not steal focus from fields.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const custom = profile === "custom";
   const permissionDirty = useMemo(() => {
@@ -155,331 +204,529 @@ export function SettingsView({
     setYoloConfirm(false);
   }
 
-  const disabled = busy || applying || running || importing;
-  const configured = credentialProviders.filter((provider) => provider.configured);
-
-  async function importKey(): Promise<void> {
-    if (running || !providerId || apiKey.trim() === "") {
-      return;
-    }
-    setImporting(true);
-    try {
-      await onImportApiKey({ providerId, apiKey });
-      setApiKey("");
-    } finally {
-      setImporting(false);
+  function selectSection(next: SettingsSectionId, focus = false): void {
+    setSection(next);
+    writeSettingsSection(next);
+    if (focus) {
+      requestAnimationFrame(() => {
+        document.getElementById(`settings-tab-${next}`)?.focus();
+      });
     }
   }
 
-  const mac = isMacDesktop();
-  const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
+  function onTabListKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        event.preventDefault();
+        selectSection(adjacentSettingsSection(section, 1), true);
+        return;
+      case "ArrowUp":
+      case "ArrowLeft":
+        event.preventDefault();
+        selectSection(adjacentSettingsSection(section, -1), true);
+        return;
+      case "Home":
+        event.preventDefault();
+        selectSection(SETTINGS_SECTIONS[0].id, true);
+        return;
+      case "End": {
+        event.preventDefault();
+        const last = SETTINGS_SECTIONS[SETTINGS_SECTIONS.length - 1];
+        if (last) {
+          selectSection(last.id, true);
+        }
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  const disabled = busy || applying || running;
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-labelledby="settings-heading" data-testid="settings-view">
-      <header
-        className={cn(
-          "workspace-topbar drag-region gap-3 px-3 sm:px-5",
-          showToggle && mac ? "pl-[var(--workspace-titlebar-inset)]" : undefined,
-        )}
+    <div
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
+      data-testid="settings-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-heading"
+        data-testid="settings-view"
+        className="flex h-[min(42rem,calc(100dvh-2rem))] w-[min(52rem,calc(100dvw-2rem))] overflow-hidden rounded-xl border border-border bg-background shadow-lg"
       >
-        {showToggle && onToggleSidebar ? (
-          <SidebarToggleButton
-            collapsed
-            onToggle={onToggleSidebar}
-            className="text-muted-foreground hover:text-foreground"
-          />
-        ) : null}
-        <h1 id="settings-heading" className="text-sm font-medium">
-          Settings
-        </h1>
-        <div className="min-w-0 flex-1" />
-        <Button size="sm" variant="ghost" onClick={onClose} data-testid="settings-close">
-          Close
-        </Button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <div className="mx-auto grid w-full max-w-xl gap-6">
-          <section className="grid gap-3" aria-labelledby="appearance-heading">
-            <h2 id="appearance-heading" className="text-sm font-medium">
-              Appearance
-            </h2>
-            <p className="text-xs text-muted-foreground">Applies to this application only.</p>
-            <div className="grid gap-1.5">
-              <p className="text-xs font-medium text-foreground">Palette</p>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Palette">
-                {PALETTES.map((palette) => (
-                  <Button
-                    key={palette.id}
-                    size="sm"
-                    variant={settings.appearance.palette === palette.id ? "default" : "outline"}
-                    aria-pressed={settings.appearance.palette === palette.id}
-                    data-testid={`appearance-palette-${palette.id}`}
-                    disabled={busy}
-                    onClick={() => onAppearanceChange({ palette: palette.id })}
-                  >
-                    {palette.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <p className="text-xs font-medium text-foreground">Mode</p>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mode">
-                {MODES.map((mode) => {
-                  const supported = paletteSupportsMode(settings.appearance.palette, mode.id);
-                  return (
-                    <Button
-                      key={mode.id}
-                      size="sm"
-                      variant={settings.appearance.mode === mode.id ? "default" : "outline"}
-                      aria-pressed={settings.appearance.mode === mode.id}
-                      data-testid={`appearance-mode-${mode.id}`}
-                      disabled={busy || !supported}
-                      className={cn(!supported && "opacity-40")}
-                      onClick={() => onAppearanceChange({ mode: mode.id })}
-                    >
-                      {mode.label}
-                    </Button>
-                  );
-                })}
-              </div>
-              {!paletteSupportsMode(settings.appearance.palette, "light") ? (
-                <p className="text-xs text-muted-foreground">This palette is dark-only.</p>
-              ) : null}
-            </div>
-            <div className="glass-panel grid gap-2 rounded-lg border border-border/70 px-3 py-2.5">
-              <label className="flex items-center justify-between gap-3 text-sm" htmlFor="appearance-glass-enabled">
-                <span>
-                  <span className="font-medium">Frosted glass</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Soft blur over the desktop. Stronger on the sidebar, including the composer and settings fields.
-                  </span>
-                </span>
-                <input
-                  id="appearance-glass-enabled"
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  data-testid="appearance-glass-enabled"
-                  checked={settings.appearance.glassEnabled}
-                  disabled={busy}
-                  onChange={(event) => onAppearanceChange({ glassEnabled: event.target.checked })}
-                />
-              </label>
-              <label className="grid gap-1 text-xs" htmlFor="appearance-glass-strength">
-                <span className="flex items-center justify-between gap-2 font-medium text-foreground">
-                  Glass strength
-                  <span data-testid="appearance-glass-strength-value">{settings.appearance.glassStrength}%</span>
-                </span>
-                <input
-                  id="appearance-glass-strength"
-                  type="range"
-                  min={MIN_GLASS_STRENGTH}
-                  max={MAX_GLASS_STRENGTH}
-                  step={1}
-                  data-testid="appearance-glass-strength"
-                  disabled={busy || !settings.appearance.glassEnabled}
-                  value={settings.appearance.glassStrength}
-                  onChange={(event) => onAppearanceChange({ glassStrength: Number(event.currentTarget.value) })}
-                />
-              </label>
-            </div>
-            <div className="grid gap-3 pt-1">
-              <FontSizeStepper
-                id="ui-font-size"
-                label="UI font size"
-                description="Sidebar, settings, and chrome."
-                value={settings.appearance.uiFontSize}
-                min={MIN_UI_FONT_SIZE}
-                max={MAX_UI_FONT_SIZE}
-                disabled={busy}
-                testId="appearance-ui-font-size"
-                onChange={(uiFontSize) => onAppearanceChange({ uiFontSize })}
-              />
-              <FontSizeStepper
-                id="chat-font-size"
-                label="Chat font size"
-                description="Transcript messages and composer."
-                value={settings.appearance.chatFontSize}
-                min={MIN_CHAT_FONT_SIZE}
-                max={MAX_CHAT_FONT_SIZE}
-                disabled={busy}
-                testId="appearance-chat-font-size"
-                onChange={(chatFontSize) => onAppearanceChange({ chatFontSize })}
-              />
-            </div>
-          </section>
-
-          <section className="grid gap-3" aria-labelledby="credentials-heading" data-testid="credential-settings">
-            <h2 id="credentials-heading" className="text-sm font-medium">
-              Provider API keys
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Stored in Pho Code&apos;s private Pi data directory. The key is never shown again after import, and Pi CLI
-              is not required.
-            </p>
-            {configured.length > 0 ? (
-              <ul className="m-0 grid list-none gap-1 p-0 text-xs text-muted-foreground" data-testid="configured-providers">
-                {configured.map((provider) => (
-                  <li key={provider.id}>{provider.name} configured</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-muted-foreground" data-testid="no-configured-providers">
-                No API key is stored in this profile.
-              </p>
-            )}
-            <label className="grid gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">Provider</span>
-              <select
-                className="glass-field h-8 rounded-[var(--control-radius)] border border-border bg-background px-2 text-sm"
-                value={providerId}
-                disabled={disabled || credentialProviders.length === 0}
-                data-testid="credential-provider"
-                onChange={(event) => setProviderId(event.target.value)}
-              >
-                {credentialProviders.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">API key</span>
-              <input
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                className="glass-field h-8 rounded-[var(--control-radius)] border border-border bg-background px-2 text-sm"
-                value={apiKey}
-                disabled={disabled}
-                data-testid="credential-api-key"
-                onChange={(event) => setApiKey(event.target.value)}
-              />
-            </label>
-            <Button
-              data-testid="credential-import"
-              disabled={disabled || apiKey.trim() === "" || providerId === ""}
-              onClick={() => {
-                void importKey();
-              }}
-            >
-              {running ? "Unavailable during a run" : "Import key"}
-            </Button>
-          </section>
-
-          <section className="grid gap-3" aria-labelledby="permission-heading">
-            <h2 id="permission-heading" className="text-sm font-medium">
-              Permission policy
-            </h2>
-            {settings.permission.appliesToSharedPiAgentDir ? (
-              <p className="text-xs text-muted-foreground" data-testid="shared-agent-dir-notice">
-                Pho Code is using an explicitly shared Pi data directory. Other Pi processes that use the same directory
-                will also see this permission config.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground" data-testid="app-agent-dir-notice">
-                Stored in Pho Code&apos;s private data directory. Other Pi installations do not use this permission config.
-              </p>
-            )}
-            {settings.permission.projectOverridePresent ? (
-              <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
-                <p className="text-xs text-warning" role="status">
-                  This workspace has its own permission config. It applies only after you explicitly trust this
-                  project&apos;s permission rules.
-                </p>
-                {settings.permission.projectPermissionRulesRemembered ? (
-                  <p className="text-xs text-muted-foreground" data-testid="project-permission-trusted">
-                    Trusted by Pho Code for future sessions. This does not enable project extensions or change another
-                    Pi installation&apos;s trust store.
-                  </p>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={disabled}
-                    data-testid="trust-project-permission-rules"
-                    onClick={() => void onTrustProjectPermissionRules()}
-                  >
-                    Trust this project&apos;s permission rules
-                  </Button>
-                )}
-              </div>
-            ) : null}
-            {custom ? (
-              <p className="text-xs text-muted-foreground" data-testid="permission-custom-notice">
-                Current policy is Custom or a preserved pre-v3 Developer policy. Unrelated changes keep it until you
-                explicitly choose baby (strict), okay, you got it, or with great power comes great responsibility.
-              </p>
-            ) : null}
-            <div className="grid gap-2">
-              {PROFILES.map((entry) => (
-                <label
+        <nav className="flex w-40 shrink-0 flex-col border-border border-r px-1.5 py-2">
+          <h1 id="settings-heading" className="px-2 py-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Settings
+          </h1>
+          <div
+            role="tablist"
+            aria-label="Settings sections"
+            aria-orientation="vertical"
+            className="flex flex-col gap-0.5"
+            data-testid="settings-nav"
+            onKeyDown={onTabListKeyDown}
+          >
+            {SETTINGS_SECTIONS.map((entry) => {
+              const selected = section === entry.id;
+              return (
+                <button
                   key={entry.id}
-                  className="glass-panel flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${entry.id}`}
+                  aria-selected={selected}
+                  aria-controls={`settings-panel-${entry.id}`}
+                  title={entry.description}
+                  tabIndex={selected ? 0 : -1}
+                  data-testid={`settings-tab-${entry.id}`}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] leading-snug outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                    selected
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                  )}
+                  onClick={() => selectSection(entry.id)}
                 >
-                  <input
-                    type="radio"
-                    name="permission-profile"
-                    className="mt-1"
-                    value={entry.id}
-                    checked={profile === entry.id}
-                    disabled={disabled}
-                    data-testid={`permission-profile-${entry.id}`}
-                    onChange={() => selectProfile(entry.id)}
-                  />
-                  <span>
-                    <strong className="font-medium">{entry.label}</strong>
-                    {entry.recommended ? <span className="text-muted-foreground"> (recommended)</span> : null}
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{entry.description}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            {yoloConfirm ? (
-              <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2 text-xs text-destructive-foreground" role="alert" data-testid="permission-yolo-warning">
-                <p>
-                  With great power comes great responsibility auto-approves decisions that would otherwise ask. Explicit
-                  denies still apply, permanent removal remains unavailable, and removal uses recoverable OS Trash. This
-                  is not a sandbox.
-                </p>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  data-testid="permission-yolo-confirm"
-                  disabled={disabled}
-                  onClick={() => {
-                    setProfile("developer");
-                    setYoloConfirm(false);
-                  }}
-                >
-                  Choose this mode
-                </Button>
-              </div>
-            ) : null}
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={reviewLog}
-                disabled={disabled}
-                data-testid="permission-review-log"
-                onChange={(event) => setReviewLog(event.target.checked)}
-              />
-              <span>Keep a permission review log</span>
-            </label>
+                  <SectionIcon id={entry.id} className="size-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                  {entry.id === "accounts" && flowActive ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-primary" title="Sign-in in progress" />
+                  ) : null}
+                  {entry.id === "permissions" && permissionDirty ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-warning" title="Unsaved changes" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="flex h-10 shrink-0 items-center justify-end gap-2 border-border border-b px-2">
             <Button
-              data-testid="settings-save"
-              disabled={disabled || !permissionDirty}
-              onClick={() => {
-                void saveAndApply();
-              }}
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Close settings"
+              data-testid="settings-close"
+              onClick={onClose}
             >
-              {running ? "Unavailable during a run" : "Save and apply"}
+              <XIcon className="size-3.5" />
             </Button>
-          </section>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div
+              role="tabpanel"
+              id={`settings-panel-${section}`}
+              aria-labelledby={`settings-tab-${section}`}
+              data-testid={`settings-panel-${section}`}
+              className="grid w-full max-w-xl gap-6"
+            >
+              <SettingsPanel
+                section={section}
+                settings={settings}
+                busy={busy}
+                disabled={disabled}
+                running={running}
+                custom={custom}
+                profile={profile}
+                reviewLog={reviewLog}
+                yoloConfirm={yoloConfirm}
+                permissionDirty={permissionDirty}
+                providerAccounts={providerAccounts}
+                authFlow={authFlow}
+                onAppearanceChange={onAppearanceChange}
+                onSelectProfile={selectProfile}
+                onReviewLogChange={setReviewLog}
+                onYoloConfirm={() => {
+                  setProfile("developer");
+                  setYoloConfirm(false);
+                }}
+                onTrustProjectPermissionRules={onTrustProjectPermissionRules}
+                onSavePermissions={() => {
+                  void saveAndApply();
+                }}
+                onImportApiKey={onImportApiKey}
+                onStartOAuth={onStartOAuth}
+                onRespondAuthPrompt={onRespondAuthPrompt}
+                onOpenAuthLink={onOpenAuthLink}
+                onCancelAuth={onCancelAuth}
+                onLogoutProvider={onLogoutProvider}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SettingsPanel({
+  section,
+  settings,
+  busy,
+  disabled,
+  running,
+  custom,
+  profile,
+  reviewLog,
+  yoloConfirm,
+  permissionDirty,
+  providerAccounts,
+  authFlow,
+  onAppearanceChange,
+  onSelectProfile,
+  onReviewLogChange,
+  onYoloConfirm,
+  onTrustProjectPermissionRules,
+  onSavePermissions,
+  onImportApiKey,
+  onStartOAuth,
+  onRespondAuthPrompt,
+  onOpenAuthLink,
+  onCancelAuth,
+  onLogoutProvider,
+}: {
+  section: SettingsSectionId;
+  settings: HarnessSettingsSnapshot;
+  busy: boolean;
+  disabled: boolean;
+  running: boolean;
+  custom: boolean;
+  profile: ManagedPermissionProfileId | "custom";
+  reviewLog: boolean;
+  yoloConfirm: boolean;
+  permissionDirty: boolean;
+  providerAccounts: ProviderAccountsResult;
+  authFlow: ProviderAuthFlowSnapshot | null;
+  onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
+  onSelectProfile: (profile: ManagedPermissionProfileId) => void;
+  onReviewLogChange: (value: boolean) => void;
+  onYoloConfirm: () => void;
+  onTrustProjectPermissionRules: () => Promise<void>;
+  onSavePermissions: () => void;
+  onImportApiKey: (input: ImportProviderApiKeyInput) => Promise<void>;
+  onStartOAuth: (providerId: string) => Promise<void>;
+  onRespondAuthPrompt: (flowId: string, promptId: string, value: string) => Promise<void>;
+  onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
+  onCancelAuth: (flowId: string) => Promise<void>;
+  onLogoutProvider: (providerId: string) => Promise<void>;
+}): ReactNode {
+  switch (section) {
+    case "appearance":
+      return <AppearanceSection settings={settings} busy={busy} onAppearanceChange={onAppearanceChange} />;
+    case "accounts":
+      return (
+        <ProviderAccountsSection
+          accounts={providerAccounts}
+          flow={authFlow}
+          running={running}
+          disabled={disabled}
+          onImportApiKey={onImportApiKey}
+          onStartOAuth={onStartOAuth}
+          onRespondPrompt={onRespondAuthPrompt}
+          onOpenLink={onOpenAuthLink}
+          onCancelLogin={onCancelAuth}
+          onLogout={onLogoutProvider}
+        />
+      );
+    case "permissions":
+      return (
+        <PermissionSection
+          settings={settings}
+          custom={custom}
+          profile={profile}
+          reviewLog={reviewLog}
+          yoloConfirm={yoloConfirm}
+          permissionDirty={permissionDirty}
+          disabled={disabled}
+          running={running}
+          onSelectProfile={onSelectProfile}
+          onReviewLogChange={onReviewLogChange}
+          onYoloConfirm={onYoloConfirm}
+          onTrustProjectPermissionRules={onTrustProjectPermissionRules}
+          onSave={onSavePermissions}
+        />
+      );
+    default: {
+      const exhaustive: never = section;
+      return exhaustive;
+    }
+  }
+}
+
+function SectionIcon({ id, className }: { id: SettingsSectionId; className?: string }): ReactNode {
+  switch (id) {
+    case "appearance":
+      return <PaletteIcon className={className} aria-hidden="true" />;
+    case "accounts":
+      return <KeyRoundIcon className={className} aria-hidden="true" />;
+    case "permissions":
+      return <ShieldIcon className={className} aria-hidden="true" />;
+    default: {
+      const exhaustive: never = id;
+      return exhaustive;
+    }
+  }
+}
+
+function AppearanceSection({
+  settings,
+  busy,
+  onAppearanceChange,
+}: {
+  settings: HarnessSettingsSnapshot;
+  busy: boolean;
+  onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
+}) {
+  return (
+    <section className="grid gap-3" aria-labelledby="appearance-heading">
+      <h2 id="appearance-heading" className="text-sm font-medium">
+        Appearance
+      </h2>
+      <p className="text-xs text-muted-foreground">Applies to this application only.</p>
+      <div className="grid gap-1.5">
+        <p className="text-xs font-medium text-foreground">Palette</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Palette">
+          {PALETTES.map((palette) => (
+            <Button
+              key={palette.id}
+              size="sm"
+              variant={settings.appearance.palette === palette.id ? "default" : "outline"}
+              aria-pressed={settings.appearance.palette === palette.id}
+              data-testid={`appearance-palette-${palette.id}`}
+              disabled={busy}
+              onClick={() => onAppearanceChange({ palette: palette.id })}
+            >
+              {palette.label}
+            </Button>
+          ))}
         </div>
       </div>
+      <div className="grid gap-1.5">
+        <p className="text-xs font-medium text-foreground">Mode</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Mode">
+          {MODES.map((mode) => {
+            const supported = paletteSupportsMode(settings.appearance.palette, mode.id);
+            return (
+              <Button
+                key={mode.id}
+                size="sm"
+                variant={settings.appearance.mode === mode.id ? "default" : "outline"}
+                aria-pressed={settings.appearance.mode === mode.id}
+                data-testid={`appearance-mode-${mode.id}`}
+                disabled={busy || !supported}
+                className={cn(!supported && "opacity-40")}
+                onClick={() => onAppearanceChange({ mode: mode.id })}
+              >
+                {mode.label}
+              </Button>
+            );
+          })}
+        </div>
+        {!paletteSupportsMode(settings.appearance.palette, "light") ? (
+          <p className="text-xs text-muted-foreground">This palette is dark-only.</p>
+        ) : null}
+      </div>
+      <div className="glass-panel grid gap-2 rounded-lg border border-border/70 px-3 py-2.5">
+        <label className="flex items-center justify-between gap-3 text-sm" htmlFor="appearance-glass-enabled">
+          <span>
+            <span className="font-medium">Frosted glass</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Soft blur over the desktop. Stronger on the sidebar, including the composer and settings fields.
+            </span>
+          </span>
+          <input
+            id="appearance-glass-enabled"
+            type="checkbox"
+            className="size-4 accent-primary"
+            data-testid="appearance-glass-enabled"
+            checked={settings.appearance.glassEnabled}
+            disabled={busy}
+            onChange={(event) => onAppearanceChange({ glassEnabled: event.target.checked })}
+          />
+        </label>
+        <label className="grid gap-1 text-xs" htmlFor="appearance-glass-strength">
+          <span className="flex items-center justify-between gap-2 font-medium text-foreground">
+            Glass strength
+            <span data-testid="appearance-glass-strength-value">{settings.appearance.glassStrength}%</span>
+          </span>
+          <input
+            id="appearance-glass-strength"
+            type="range"
+            min={MIN_GLASS_STRENGTH}
+            max={MAX_GLASS_STRENGTH}
+            step={1}
+            data-testid="appearance-glass-strength"
+            disabled={busy || !settings.appearance.glassEnabled}
+            value={settings.appearance.glassStrength}
+            onChange={(event) => onAppearanceChange({ glassStrength: Number(event.currentTarget.value) })}
+          />
+        </label>
+      </div>
+      <div className="grid gap-3 pt-1">
+        <FontSizeStepper
+          id="ui-font-size"
+          label="UI font size"
+          description="Sidebar, settings, and chrome."
+          value={settings.appearance.uiFontSize}
+          min={MIN_UI_FONT_SIZE}
+          max={MAX_UI_FONT_SIZE}
+          disabled={busy}
+          testId="appearance-ui-font-size"
+          onChange={(uiFontSize) => onAppearanceChange({ uiFontSize })}
+        />
+        <FontSizeStepper
+          id="chat-font-size"
+          label="Chat font size"
+          description="Transcript messages and composer."
+          value={settings.appearance.chatFontSize}
+          min={MIN_CHAT_FONT_SIZE}
+          max={MAX_CHAT_FONT_SIZE}
+          disabled={busy}
+          testId="appearance-chat-font-size"
+          onChange={(chatFontSize) => onAppearanceChange({ chatFontSize })}
+        />
+      </div>
+    </section>
+  );
+}
+
+function PermissionSection({
+  settings,
+  custom,
+  profile,
+  reviewLog,
+  yoloConfirm,
+  permissionDirty,
+  disabled,
+  running,
+  onSelectProfile,
+  onReviewLogChange,
+  onYoloConfirm,
+  onTrustProjectPermissionRules,
+  onSave,
+}: {
+  settings: HarnessSettingsSnapshot;
+  custom: boolean;
+  profile: ManagedPermissionProfileId | "custom";
+  reviewLog: boolean;
+  yoloConfirm: boolean;
+  permissionDirty: boolean;
+  disabled: boolean;
+  running: boolean;
+  onSelectProfile: (profile: ManagedPermissionProfileId) => void;
+  onReviewLogChange: (value: boolean) => void;
+  onYoloConfirm: () => void;
+  onTrustProjectPermissionRules: () => Promise<void>;
+  onSave: () => void;
+}) {
+  return (
+    <section className="grid gap-3" aria-labelledby="permission-heading">
+      <h2 id="permission-heading" className="text-sm font-medium">
+        Permission policy
+      </h2>
+      {settings.permission.appliesToSharedPiAgentDir ? (
+        <p className="text-xs text-muted-foreground" data-testid="shared-agent-dir-notice">
+          Pho Code is using an explicitly shared Pi data directory. Other Pi processes that use the same directory will
+          also see this permission config.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground" data-testid="app-agent-dir-notice">
+          Stored in Pho Code&apos;s private data directory. Other Pi installations do not use this permission config.
+        </p>
+      )}
+      {settings.permission.projectOverridePresent ? (
+        <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
+          <p className="text-xs text-warning" role="status">
+            This workspace has its own permission config. It applies only after you explicitly trust this project&apos;s
+            permission rules.
+          </p>
+          {settings.permission.projectPermissionRulesRemembered ? (
+            <p className="text-xs text-muted-foreground" data-testid="project-permission-trusted">
+              Trusted by Pho Code for future sessions. This does not enable project extensions or change another Pi
+              installation&apos;s trust store.
+            </p>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              data-testid="trust-project-permission-rules"
+              onClick={() => void onTrustProjectPermissionRules()}
+            >
+              Trust this project&apos;s permission rules
+            </Button>
+          )}
+        </div>
+      ) : null}
+      {custom ? (
+        <p className="text-xs text-muted-foreground" data-testid="permission-custom-notice">
+          Current policy is Custom or a preserved pre-v3 Developer policy. Unrelated changes keep it until you
+          explicitly choose baby (strict), okay, you got it, or with great power comes great responsibility.
+        </p>
+      ) : null}
+      <div className="grid gap-2">
+        {PROFILES.map((entry) => (
+          <label
+            key={entry.id}
+            className="glass-panel flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+          >
+            <input
+              type="radio"
+              name="permission-profile"
+              className="mt-1"
+              value={entry.id}
+              checked={profile === entry.id}
+              disabled={disabled}
+              data-testid={`permission-profile-${entry.id}`}
+              onChange={() => onSelectProfile(entry.id)}
+            />
+            <span>
+              <strong className="font-medium">{entry.label}</strong>
+              {entry.recommended ? <span className="text-muted-foreground"> (recommended)</span> : null}
+              <span className="mt-0.5 block text-xs text-muted-foreground">{entry.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {yoloConfirm ? (
+        <div
+          className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2 text-xs text-destructive-foreground"
+          role="alert"
+          data-testid="permission-yolo-warning"
+        >
+          <p>
+            With great power comes great responsibility auto-approves decisions that would otherwise ask. Explicit
+            denies still apply, permanent removal remains unavailable, and removal uses recoverable OS Trash. This is
+            not a sandbox.
+          </p>
+          <Button size="sm" variant="destructive" data-testid="permission-yolo-confirm" disabled={disabled} onClick={onYoloConfirm}>
+            Choose this mode
+          </Button>
+        </div>
+      ) : null}
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={reviewLog}
+          disabled={disabled}
+          data-testid="permission-review-log"
+          onChange={(event) => onReviewLogChange(event.target.checked)}
+        />
+        <span>Keep a permission review log</span>
+      </label>
+      <Button data-testid="settings-save" disabled={disabled || !permissionDirty} onClick={onSave}>
+        {running ? "Unavailable during a run" : "Save and apply"}
+      </Button>
     </section>
   );
 }

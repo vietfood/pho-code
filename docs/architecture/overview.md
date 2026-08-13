@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for the completed personal v1 and v2 Milestones 0–1. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input.
+Accepted architecture for the completed personal v1 and v2 Milestones 0–2. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login.
 
 ## Context
 
@@ -36,19 +36,19 @@ flowchart LR
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
-The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings`, and `listCredentialProviders` / `importProviderApiKey`. `subscribe` publishes JSON-safe runtime/host-UI events. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator.
+The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator.
 
 Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, settings snapshots, credential-import commands, queue state, prepared image summaries, JSON safety |
+| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, settings snapshots, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
 | Runtime | `packages/runtime/src` | `AgentSessionRuntime` host, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, transcript projection |
 | Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases and metadata |
-| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, compact Settings including API-key import, sanitized markdown (KaTeX, Shiki, Mermaid) |
+| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, Permissions) with deferred API-key fields and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid) |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
 | Renderer | `apps/desktop/src` | Viewport-owning React shell |
-| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, host-UI, permission, settings, credentials, developer, and packaged Electron specs |
+| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, host-UI, permission, settings, credentials, OAuth, developer, and packaged Electron specs |
 
 ## Target v1 system view
 
@@ -166,12 +166,18 @@ interface DesktopBridge {
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
+  listProviderAccounts(): Promise<ProviderAccountsResult>;
+  startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot>;
+  openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void>;
+  cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
+  logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): () => void;
 }
 ```
 
-This facade is implemented. Do not collapse the three explicit settings methods into a generic channel or key/value mutation API. Do not return stored credential values from list or import results.
+This facade is implemented. Do not collapse the three explicit settings methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, or OAuth tokens from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles.
 
 Do not expose `invoke(channel, payload)` to the renderer. Each method must have a fixed privileged operation and validate untrusted arguments again in main/application code.
 
@@ -188,6 +194,7 @@ The application layer owns use-case coordination:
 - mapping runtime failures into stable protocol errors;
 - joining Pi session data with application metadata;
 - coordinating typed appearance/permission settings and idle-only apply behavior;
+- validating provider-account commands and refusing snapshots that echo submitted secrets;
 - shutdown ordering;
 - capability reporting.
 
@@ -198,6 +205,7 @@ It depends on interfaces, not Electron APIs. A test can instantiate it with in-m
 The runtime is the only product layer that imports the Pi SDK. It owns:
 
 - one shared `ModelRuntime` and compatible credential/settings services where appropriate;
+- the one-flow provider OAuth coordinator, opaque URL registry, and Pi `AuthInteraction` adapter;
 - feature-manifest composition into Pi loader options per effective workspace;
 - `AgentSessionRuntime` lifecycle;
 - session-to-event subscriptions;

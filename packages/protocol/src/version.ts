@@ -26,6 +26,12 @@ export const PROTOCOL_COMMANDS = {
   trustProjectPermissionRules: "trustProjectPermissionRules",
   listCredentialProviders: "listCredentialProviders",
   importProviderApiKey: "importProviderApiKey",
+  listProviderAccounts: "listProviderAccounts",
+  startProviderLogin: "startProviderLogin",
+  respondProviderAuthPrompt: "respondProviderAuthPrompt",
+  openProviderAuthLink: "openProviderAuthLink",
+  cancelProviderLogin: "cancelProviderLogin",
+  logoutProvider: "logoutProvider",
   searchWorkspaceReferences: "searchWorkspaceReferences",
 } as const;
 
