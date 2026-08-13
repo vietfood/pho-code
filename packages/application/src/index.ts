@@ -4,6 +4,9 @@ export {
   createMemoryMetadataStore,
   emptyMetadata,
   parseMetadata,
+  rememberWorkspace,
+  reorderRecentWorkspaces,
+  setAppearance,
   setAppearanceTheme,
 } from "./metadata";
 export type { AppMetadata, AppMetadataStore } from "./metadata";

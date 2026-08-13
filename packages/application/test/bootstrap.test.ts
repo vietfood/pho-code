@@ -68,7 +68,7 @@ describe("application bootstrap", () => {
 });
 
 describe("application workspaces", () => {
-  test("native picker approval is not reused when opening a remembered workspace", async () => {
+  test("native picker approval is not reused until project permission trust is remembered", async () => {
     const approvals: boolean[] = [];
     const runtime: HarnessRuntime = {
       ...createDisposableStubHarnessRuntime(),
@@ -86,6 +86,13 @@ describe("application workspaces", () => {
           },
         ]);
       },
+      trustProjectPermissionRules() {
+        return Promise.resolve({
+          ...createDisposableStubHarnessRuntime().getPermissionSettings(),
+          projectOverridePresent: true,
+          projectPermissionRulesTrusted: true,
+        });
+      },
     };
     const application = createTestApplication(runtime);
 
@@ -96,6 +103,11 @@ describe("application workspaces", () => {
     const remembered = await application.openRecentWorkspace({ workspaceId: "/tmp/ws" });
     expect(remembered.workspace.projectResourcesApproved).toBe(false);
     expect(approvals).toEqual([true, false]);
+    const trusted = await application.trustProjectPermissionRules();
+    expect(trusted.permission.projectPermissionRulesRemembered).toBe(true);
+    const reopened = await application.openRecentWorkspace({ workspaceId: "/tmp/ws" });
+    expect(reopened.workspace.projectResourcesApproved).toBe(true);
+    expect(approvals).toEqual([true, false, true]);
     const sessions = await application.listWorkspaceSessions({ workspaceId: "/tmp/ws" });
     expect(sessions).toEqual([
       {
