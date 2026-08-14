@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -24,6 +24,15 @@ import { cn } from "./lib/cn";
 import { isMacDesktop } from "./lib/platform";
 import { formatRelativeTime } from "./lib/relative-time";
 import { sessionRowTooltip } from "./lib/session-row-tooltip";
+import {
+  clampSidebarWidth,
+  DEFAULT_SIDEBAR_WIDTH_PX,
+  MAX_SIDEBAR_WIDTH_PX,
+  MIN_SIDEBAR_WIDTH_PX,
+  readSidebarWidth,
+  SIDEBAR_RESIZE_STEP_PX,
+  writeSidebarWidth,
+} from "./lib/sidebar-width";
 import { ProjectContextMenu } from "./project-context-menu";
 import { SessionContextMenu } from "./session-context-menu";
 import { SessionLeadingMark } from "./session-leading-mark";
@@ -71,6 +80,9 @@ export function AppSidebar({
   busy: boolean;
 }) {
   const mac = isMacDesktop();
+  const [width, setWidth] = useState(readSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<
     | { kind: "session"; workspaceId: string; sessionId: string; x: number; y: number }
@@ -112,16 +124,81 @@ export function AppSidebar({
     onReorderProjects(arrayMove(projectIds, oldIndex, newIndex));
   }
 
+  function commitWidth(next: number): void {
+    const clamped = clampSidebarWidth(next);
+    setWidth(clamped);
+    writeSidebarWidth(clamped);
+  }
+
+  function onResizePointerDown(event: PointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
+    setResizing(true);
+  }
+
+  function onResizePointerMove(event: PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    setWidth(clampSidebarWidth(drag.startWidth + (event.clientX - drag.startX)));
+  }
+
+  function onResizePointerUp(event: PointerEvent<HTMLDivElement>): void {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    dragRef.current = null;
+    setResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    commitWidth(drag.startWidth + (event.clientX - drag.startX));
+  }
+
+  function onResizeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    switch (event.key) {
+      case "ArrowLeft":
+        event.preventDefault();
+        commitWidth(width - SIDEBAR_RESIZE_STEP_PX);
+        return;
+      case "ArrowRight":
+        event.preventDefault();
+        commitWidth(width + SIDEBAR_RESIZE_STEP_PX);
+        return;
+      case "Home":
+        event.preventDefault();
+        commitWidth(MIN_SIDEBAR_WIDTH_PX);
+        return;
+      case "End":
+        event.preventDefault();
+        commitWidth(MAX_SIDEBAR_WIDTH_PX);
+        return;
+      default:
+        return;
+    }
+  }
+
   return (
     <aside
-      className="app-sidebar-panel flex h-full w-[var(--sidebar-width)] min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground"
+      className={cn(
+        "app-sidebar-panel relative flex h-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground",
+        resizing && "select-none",
+      )}
+      style={{ width: `${width}px` }}
       aria-label="Projects"
       data-testid="app-sidebar"
     >
       <header
         className={cn(
-          "workspace-topbar drag-region min-w-0 items-center justify-between gap-2 overflow-hidden px-2",
-          mac ? "pl-[var(--workspace-titlebar-inset)]" : undefined,
+          "workspace-topbar drag-region min-w-0 items-center gap-2 overflow-hidden",
+          mac ? "workspace-topbar-mac justify-end pr-2 pl-[var(--workspace-titlebar-inset)]" : "justify-start px-2",
         )}
       >
         <SidebarToggleButton collapsed={false} onToggle={onToggleCollapsed} />
@@ -214,6 +291,24 @@ export function AppSidebar({
           <span className="min-w-0 truncate">About · {bootstrap.appVersion}</span>
         </button>
       </div>
+      <div
+        className="sidebar-resize-handle no-drag"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuemin={MIN_SIDEBAR_WIDTH_PX}
+        aria-valuemax={MAX_SIDEBAR_WIDTH_PX}
+        aria-valuenow={width}
+        tabIndex={0}
+        data-testid="sidebar-resize"
+        title="Drag to resize · double-click to reset"
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={onResizePointerUp}
+        onDoubleClick={() => commitWidth(DEFAULT_SIDEBAR_WIDTH_PX)}
+        onKeyDown={onResizeKeyDown}
+      />
       {aboutOpen ? <AboutDialog state={bootstrap} onClose={() => setAboutOpen(false)} /> : null}
       {menu?.kind === "session" ? (
         <SessionContextMenu
@@ -334,7 +429,9 @@ function SortableProjectRow({
             {project.displayName}
           </span>
         </button>
-        <span className="px-1 text-[11px] tabular-nums text-sidebar-muted-foreground">{ordinary.length}</span>
+        <span className="px-1 text-[11px] tabular-nums text-sidebar-muted-foreground">
+          {ordinary.length}
+        </span>
       </div>
       {open ? (
         <div className="project-sessions-enter mt-px min-w-0 overflow-hidden pl-[1.125rem]">

@@ -11,8 +11,10 @@
   --control-radius: 0.625rem;
   --composer-radius: 1.25rem;
   --sidebar-width: 18.25rem;
+  --sidebar-min-width: 16.5rem;
+  --sidebar-max-width: 26.25rem;
   --workspace-topbar-height: 2.75rem;
-  --workspace-titlebar-inset: 4.5rem;
+  --workspace-titlebar-inset: 5.75rem;
   --glass-blur: 0px;
   --sidebar-glass-blur: 0px;
   --glass-opacity: 100%;
@@ -790,6 +792,12 @@ html[data-appearance="dark"] .approval-card {
   align-items: center;
 }
 
+/* hiddenInset traffic lights are placed at y=18; a centered 44px bar sits the
+   toggle a few pixels too high. Pad the bar so control and lights share a midline. */
+.workspace-topbar-mac {
+  padding-top: 6px;
+}
+
 .drag-region {
   -webkit-app-region: drag;
 }
@@ -801,6 +809,21 @@ html[data-appearance="dark"] .approval-card {
 .drag-region a,
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle:focus-visible {
+  outline: none;
 }
 
 .chat-composer-horizontal-inset {

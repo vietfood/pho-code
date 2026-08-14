@@ -1,5 +1,4 @@
-import { isMacDesktop } from "./lib/platform";
-import { cn } from "./lib/cn";
+import { workspaceTopbarClass } from "./lib/workspace-topbar";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { Button } from "./ui/button";
 
@@ -16,16 +15,10 @@ export function ChatHeader({
   onToggleSidebar?: () => void;
   onTrustProject?: () => void;
 }) {
-  const mac = isMacDesktop();
   const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
 
   return (
-    <header
-      className={cn(
-        "workspace-topbar drag-region gap-3 px-3 sm:px-5",
-        showToggle && mac ? "pl-[var(--workspace-titlebar-inset)]" : undefined,
-      )}
-    >
+    <header className={workspaceTopbarClass({ leadingInset: showToggle, className: "gap-3" })}>
       {showToggle && onToggleSidebar ? (
         <SidebarToggleButton
           collapsed

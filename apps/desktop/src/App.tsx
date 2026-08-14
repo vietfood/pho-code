@@ -111,6 +111,23 @@ export function App() {
     });
   }, []);
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent): void {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
+        return;
+      }
+      if (event.key.toLowerCase() !== "b") {
+        return;
+      }
+      event.preventDefault();
+      toggleSidebar();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [toggleSidebar]);
+
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
   }, []);
@@ -256,6 +273,15 @@ export function App() {
       void refreshCatalog(project.id).catch(() => undefined);
     }
   }, [bootstrap, refreshCatalog, settingsOpen]);
+
+  useEffect(() => {
+    if (!bootstrap || conversation.snapshot) {
+      return;
+    }
+    for (const project of bootstrap.recentWorkspaces) {
+      void refreshCatalog(project.id).catch(() => undefined);
+    }
+  }, [bootstrap, conversation.snapshot, refreshCatalog]);
 
   const appearance = conversation.settings?.appearance;
   useEffect(() => {
@@ -894,6 +920,9 @@ export function App() {
         ) : (
           <WorkspacePicker
             recents={bootstrap.recentWorkspaces}
+            sessionsByWorkspace={sessionsByWorkspace}
+            appName={bootstrap.appName}
+            appVersion={bootstrap.appVersion}
             busy={busy}
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={toggleSidebar}
@@ -922,6 +951,14 @@ export function App() {
                 void refreshCatalog(opened.workspace.id).catch(() => undefined);
                 await refreshBootstrap();
               });
+            }}
+            onNewSession={(workspaceId) => {
+              void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
+            }}
+            onOpenSession={(workspaceId, sessionId) => {
+              void switchSession(workspaceId, sessionId, () =>
+                getDesktopBridge().openSession({ workspaceId, sessionId }),
+              );
             }}
           />
         )}
