@@ -233,7 +233,7 @@ describe("application settings", () => {
         return Promise.resolve(github);
       },
       importGitHubPat() {
-        github = { ...github, account: { signedIn: true, authMethod: "pat" } };
+        github = { ...github, account: { patConfigured: true, authMethod: "pat" } };
         return Promise.resolve(github);
       },
     };
@@ -244,7 +244,7 @@ describe("application settings", () => {
     const enabled = await application.updateGitHubMcpSettings({ enabled: true, acknowledgedDisclosure: true });
     expect(enabled.githubMcp.enabled).toBe(true);
     const imported = await application.importGitHubPat({ token: canary });
-    expect(imported.githubMcp.account.signedIn).toBe(true);
+    expect(imported.githubMcp.account.patConfigured).toBe(true);
     expect(JSON.stringify(imported)).not.toContain(canary);
     expect(JSON.stringify(enabled)).not.toContain(canary);
   });

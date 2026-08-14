@@ -99,6 +99,6 @@ export interface DesktopBridge {
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
-  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
+  removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
 }

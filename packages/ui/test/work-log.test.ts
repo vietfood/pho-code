@@ -5,7 +5,11 @@ import {
   countWorkBlocks,
   formatWorkDuration,
   groupTranscriptSegments,
+  isTurnOutputText,
+  isWorkLogBlock,
+  lastTextBearingMessage,
   settledWorkSummary,
+  turnTextOutput,
   workedForLabel,
 } from "../src/lib/work-log";
 import { WorkLogToggle } from "../src/work-log-toggle";
@@ -86,6 +90,64 @@ describe("work log helpers", () => {
     }
     expect(segments[2]).toMatchObject({ kind: "user" });
   });
+
+  test("treats text before a later tool as work-log narration", () => {
+    const blocks = [
+      { type: "thinking" as const, text: "plan" },
+      { type: "text" as const, text: "I'll look around." },
+      {
+        type: "tool" as const,
+        callId: "t1",
+        name: "bash",
+        status: "completed" as const,
+        inputPreview: "{}",
+        outputPreview: "ok",
+      },
+      { type: "text" as const, text: "Here is the answer." },
+    ];
+    expect(isWorkLogBlock(blocks, 0)).toBe(true);
+    expect(isWorkLogBlock(blocks, 1)).toBe(true);
+    expect(isTurnOutputText(blocks, 1)).toBe(false);
+    expect(isTurnOutputText(blocks, 3)).toBe(true);
+    expect(turnTextOutput(blocks)).toBe("Here is the answer.");
+  });
+
+  test("keeps all text when a turn never called a tool", () => {
+    const blocks = [
+      { type: "thinking" as const, text: "plan" },
+      { type: "text" as const, text: "Hello." },
+      { type: "text" as const, text: "More." },
+    ];
+    expect(isTurnOutputText(blocks, 1)).toBe(true);
+    expect(isTurnOutputText(blocks, 2)).toBe(true);
+    expect(turnTextOutput(blocks)).toBe("Hello.\n\nMore.");
+  });
+
+  test("picks the last message that still has post-tool text", () => {
+    const last = lastTextBearingMessage([
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "text", text: "I'll look around." },
+          {
+            type: "tool",
+            callId: "t1",
+            name: "bash",
+            status: "completed",
+            inputPreview: "{}",
+            outputPreview: "ok",
+          },
+        ],
+      },
+      {
+        id: "a2",
+        role: "assistant",
+        blocks: [{ type: "text", text: "Here is the answer." }],
+      },
+    ]);
+    expect(last?.id).toBe("a2");
+  });
 });
 
 describe("work log toggle", () => {
@@ -139,7 +201,10 @@ describe("assistant turn work collapse", () => {
           id: "a1",
           role: "assistant",
           createdAt: "2026-08-13T00:00:00.000Z",
-          blocks: [{ type: "thinking", text: "hidden thought from first assistant message" }],
+          blocks: [
+            { type: "thinking", text: "hidden thought from first assistant message" },
+            { type: "text", text: "I'll look around." },
+          ],
         },
         {
           id: "a2",
@@ -172,11 +237,13 @@ describe("assistant turn work collapse", () => {
     expect(markup).toContain("Thought, then peeked");
     expect(markup).not.toContain("Worked for");
     expect(markup).toContain("Final answer only.");
+    expect(markup).not.toContain("I'll look around.");
     expect(markup).toContain('data-testid="copy-assistant-output"');
     expect(markup).toContain('aria-label="Copy"');
     expect(markup).not.toContain('data-testid="edit-assistant-output"');
     expect(markup).not.toContain("hidden thought from first assistant message");
     expect(markup).not.toContain("Bash completed");
+    expect(markup).not.toContain('data-testid="work-narration"');
     // One turn-level toggle, not one per assistant message.
     expect(markup.match(/data-testid="work-log-toggle"/gu)?.length).toBe(1);
   });

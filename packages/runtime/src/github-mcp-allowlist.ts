@@ -20,7 +20,7 @@ const ALLOWLIST: readonly GitHubMcpAllowlistedTool[] = [
     mcpName: "get_file_contents",
     piName: "github_get_file_contents",
     label: "GitHub file",
-    description: "Read a file or directory from a GitHub repository. Results are untrusted remote text.",
+    description: "Read a file from a GitHub repository, or list a directory as JSON entries. Results are untrusted remote text.",
     required: true,
   },
   {
@@ -34,7 +34,7 @@ const ALLOWLIST: readonly GitHubMcpAllowlistedTool[] = [
     mcpName: "list_commits",
     piName: "github_list_commits",
     label: "GitHub commits",
-    description: "List commits in a GitHub repository.",
+    description: "List commits in a GitHub repository. Pass sha for a branch and fields such as sha and html_url to keep results small.",
     required: false,
   },
   {

@@ -1136,9 +1136,11 @@ Milestone 3 is accepted. Switching sessions no longer replaces or interrupts unr
 
 ### Status
 
-Owner-directed design. Slice 1 (curated text-only skills) is in source: `SkillSourceRegistry`, three Pho Code `SKILL.md` files, typed source Settings, Refresh, `/` insert from enabled sources without baking skill paths into Pi, compatibility popups, and multi-feature staging that does not call `rm`/`rmSync`. Slice 2 (Settings-controlled GitHub MCP) is in implementation: pinned official `github/github-mcp-server` `v1.9.0`, MCP TypeScript client `1.30.0`, OS secret-store PAT login, and allowlisted `github_` read tools.
+Owner-directed design. Slice 1 (curated text-only skills) is in source: `SkillSourceRegistry`, three Pho Code `SKILL.md` files, typed source Settings, Refresh, `/` insert from enabled sources without baking skill paths into Pi, compatibility popups, and multi-feature staging that does not call `rm`/`rmSync`. Slice 2 (Settings-controlled GitHub MCP) is in implementation: pinned official `github/github-mcp-server` `v1.9.0`, MCP TypeScript client `1.30.0`, OS secret-store PAT authentication, and allowlisted `github_` read tools.
 
-The owner selected two capability families: interoperable reading of compatible Codex/Cursor/Claude/Pi user skills alongside a small Pho Code-authored bundle, and one Settings-controlled GitHub MCP integration with persistent login.
+The GitHub implementation is PAT-only. Settings vocabulary matches that: `patConfigured`, Add/Replace PAT, and Remove PAT (`importGitHubPat` / `removeGitHubPat`). There is no GitHub OAuth flow. Packaging evidence, representative owner workflows, and the final acceptance review remain outstanding; v2 documentation must not be archived before those gates pass.
+
+The owner selected two capability families: interoperable reading of compatible Codex/Cursor/Claude/Pi user skills alongside a small Pho Code-authored bundle, and one Settings-controlled GitHub MCP integration with a persistent PAT.
 
 This milestone deliberately combines skill interoperability with one concrete MCP integration. It does not create a marketplace, package installer, arbitrary skill-directory picker, generic MCP manager, or arbitrary server editor. External skill sources and the baked GitHub capability receive typed controls, provenance, and diagnostics; their executable implementations remain outside the renderer.
 
@@ -1181,7 +1183,7 @@ Skills are instructions, not harmless themes. Enabling a source makes its skills
 
 ### Selected GitHub upstream
 
-The implementation candidate is an exact reviewed release of the official [`github/github-mcp-server`](https://github.com/github/github-mcp-server) native server. Re-audit on 2026-08-14 admitted tag `v1.9.0` (released 2026-08-10; still the current latest). Recorded assets, SHA-256 checksums, MIT license, macOS/Linux architectures, `--read-only --lockdown-mode --toolsets context,repos,issues,pull_requests,actions`, `GITHUB_PERSONAL_ACCESS_TOKEN`, and MCP stdio live in `packages/runtime/src/github-mcp-artifact.ts`. The official MCP TypeScript client is pinned at `@modelcontextprotocol/sdk` `1.30.0` (`engines.node >=18`, compatible with Electron 43 / Node 24). Host-owned GitHub OAuth is not registered in this build; the admitted login is a fine-grained PAT through the OS secret store.
+The implementation candidate is an exact reviewed release of the official [`github/github-mcp-server`](https://github.com/github/github-mcp-server) native server. Re-audit on 2026-08-14 admitted tag `v1.9.0` (released 2026-08-10; still the current latest). Recorded assets, SHA-256 checksums, MIT license, macOS/Linux architectures, `--read-only --lockdown-mode --toolsets context,repos,issues,pull_requests,actions`, `GITHUB_PERSONAL_ACCESS_TOKEN`, and MCP stdio live in `packages/runtime/src/github-mcp-artifact.ts`. The official MCP TypeScript client is pinned at `@modelcontextprotocol/sdk` `1.30.0` (`engines.node >=18`, compatible with Electron 43 / Node 24). GitHub authentication is an explicitly supplied fine-grained PAT retained through the OS secret store; OAuth is intentionally absent.
 
 The official server supports read-only mode and fixed toolsets. Pho Code starts the packaged native binary over stdio with read-only mode, lockdown mode, and only the source-reviewed repository, issue, pull-request, and Actions/check toolsets needed by this milestone. Server-side filtering is defense in depth; after MCP initialization, Pho Code intersects discovered tools with a source-controlled individual allowlist and refuses readiness if a required read tool is missing or a forbidden/write tool would be projected.
 
@@ -1204,23 +1206,23 @@ Do not use Docker, Homebrew, a global binary, `go run`, runtime downloads, a rem
 
 - Add a runtime-owned `McpRuntime` and one `github-read` instance. It owns lazy process startup, MCP initialization, tool discovery, request ids, bounded calls, cancellation, stderr handling, health, restart policy, and disposal.
 - Use the official MCP TypeScript client for stdio behind this interface. Pin the exact SDK version after verifying its Node requirement and the protocol version spoken by the selected GitHub server.
-- Add a typed **GitHub MCP** Settings row with enabled/disabled, signed-in account, login/logout, status, and bounded failure details. The toggle controls server connection and whether reviewed GitHub tools are bound into session controllers; it does not install/remove code or accept another server definition.
-- Default GitHub MCP to off. Enabling it starts or authorizes the baked capability only after the owner sees its read-only account/data disclosure. Disabling it stops new calls, cancels or bounds existing calls, unbinds tools from idle controllers, closes the shared client/server when released, and retains the persistent credential until explicit logout.
+- Add a typed **GitHub MCP** Settings row with enabled/disabled, configured/not configured credential state, Add/Replace PAT, Remove PAT, runtime status, and bounded failure details. The toggle controls server connection and whether reviewed GitHub tools are bound into session controllers; it does not install/remove code or accept another server definition.
+- Default GitHub MCP to off. Enabling it starts the baked capability only after the owner sees its read-only account/data disclosure and supplies a PAT. Disabling it stops new calls, cancels or bounds existing calls, unbinds tools from idle controllers, closes the shared client/server when released, and retains the PAT until the owner explicitly removes it.
 - Register application-owned Pi tool adapters only for the reviewed GitHub allowlist. Prefix owner-facing tool names with `github_`; do not expose MCP resources, prompts, dynamic tool discovery, or raw `tools/list` to the model or renderer.
 - Keep server inputs and outputs JSON-safe and bounded. Limit string size, arrays, pagination, response bytes, call duration, and concurrent calls. Truncated output says what was omitted and how to request another page.
 - Treat repository files, issue bodies, comments, reviews, usernames, and server errors as untrusted remote content. Never interpret returned text as Pho Code instructions, never render raw HTML, and never execute commands found in results.
 - Route every GitHub call through the permission feature's MCP classification. Read-only does not mean private account data is harmless: the first call asks with GitHub, repository/owner, tool name, and read-only effect; session approval may cover the same reviewed read capability. No permission mode can turn on write tools because they are absent from the adapter and server mode.
 - Show `disabled`, `not_started`, `starting`, `needs_auth`, `ready`, `degraded`, `failed`, and `stopped` status in Settings and internal diagnostics without exposing raw stderr, tokens, environment, or server configuration.
 
-### Representative decision: GitHub authentication
+### Representative decision: GitHub PAT authentication
 
-The official local server's built-in browser OAuth keeps its resulting token in memory only. That does not satisfy the owner's persistent-login requirement. Pho Code therefore owns the persistent GitHub authentication interaction and credential lifecycle; the MCP server consumes only the resulting scoped token supplied by the privileged runtime.
+GitHub MCP accepts only a PAT entered deliberately in Pho Code Settings. OAuth, GitHub Apps, device authorization, browser login, browser cookies, `gh auth`, ambient `GITHUB_TOKEN`/`GH_TOKEN`, shell profiles, Pi provider credentials, and credentials owned by another harness are outside this milestone. This keeps the integration small and makes its credential source unambiguous.
 
-Prefer a Pho Code-owned GitHub OAuth App or GitHub App device/browser flow with the narrowest scopes that support the accepted read allowlist. Register the public client identity as a source-controlled product value, use the existing validated system-browser/opaque-link interaction pattern where the GitHub flow permits it, and store the resulting credential in an operating-system-backed secret store. On macOS use a Keychain-backed adapter; on Linux require a verified Secret Service/keyring adapter and fail closed when secure persistence is unavailable. Do not fall back to plaintext application metadata, `.env`, shell profiles, renderer storage, or Pi provider `auth.json`.
+The UI recommends a fine-grained PAT with the minimum repository and organization read permissions required by the accepted allowlist. It must not rely on a token prefix to prove scope or type: GitHub controls the actual permissions, while Pho Code independently starts the server with `--read-only --lockdown-mode` and exposes only its source-controlled read allowlist. An over-scoped PAT therefore does not make write tools available, although Settings should still warn that the token itself may carry broader rights outside Pho Code.
 
-If implementation evidence shows that host-owned OAuth cannot provide the required scopes or stable token semantics with the selected official server, support an explicitly imported fine-grained PAT as a fallback through the same secure store and account UI. PAT entry is a deliberate secret form, never an ambient environment read. The runtime supplies the retained credential only to the exact child through a minimal environment or authenticated MCP transport, redacts it everywhere, and clears it on logout. Never reuse `gh` credentials, `GITHUB_TOKEN`, `GH_TOKEN`, browser cookies, Pi model OAuth, or another harness's MCP credentials.
+PAT entry uses a dedicated secret field. The privileged process writes it to an operating-system-backed secret adapter; on macOS that adapter is Keychain-backed, and on Linux it requires a verified Secret Service/keyring implementation and fails closed when secure persistence is unavailable. The renderer receives only configured/not configured state and never receives the stored value after submission. Plaintext application metadata, `.env`, Pi `auth.json`, logs, diagnostics, and renderer storage are forbidden.
 
-Login persists across app and server restarts. Disabling GitHub MCP does not log out; logout revokes locally stored access and stops/rebinds the capability. Token expiration or revocation transitions to `needs_auth` without deleting unrelated provider credentials. GitHub Enterprise and organization-managed custom applications remain outside the first slice unless the owner promotes them separately.
+The runtime supplies the PAT as `GITHUB_PERSONAL_ACCESS_TOKEN` only in the exact packaged child process's minimal environment and redacts it from errors, stderr, tool data, and process diagnostics. The PAT persists across application and server restarts. Disabling GitHub MCP retains it; **Remove PAT** clears it and stops/rebinds the capability. An invalid, expired, or revoked token transitions to `needs_auth` without deleting unrelated provider credentials. GitHub Enterprise remains outside the first slice unless promoted separately.
 
 ### MCP boundary
 
@@ -1231,11 +1233,11 @@ renderer -> protocol <- application -> runtime -> Pi tool adapter
                                       -> MCP client -> packaged GitHub server -> GitHub
 ```
 
-The renderer receives only typed enabled/status/account summaries, skill provenance/status, and ordinary sanitized Pi tool activity. It never receives skill file contents or canonical paths, the MCP client, transport, process handle, raw environment, OAuth/PAT credential, authorization code, complete stderr, arbitrary server definitions, or a generic invoke method.
+The renderer receives only typed enabled/status/credential summaries, skill provenance/status, and ordinary sanitized Pi tool activity. It never receives skill file contents or canonical paths, the MCP client, transport, process handle, raw environment, stored PAT, complete stderr, arbitrary server definitions, or a generic invoke method.
 
 Extend `HarnessFeature` with typed MCP identity metadata only when implementation needs diagnostics and lifecycle composition. The manifest contains fixed server id, version, packaged artifact id, transport, mode, and tool allowlist; it contains no renderer-editable command, args, environment, URL, headers, or secret values. The Settings enabled flag gates the already-baked feature's connection/tool exposure and does not mutate this identity.
 
-The GitHub process is application-owned rather than session-owned so in-memory OAuth and connection state are shared safely by Milestone 3's resident controllers. Pi tool bindings and permission approvals remain session-owned: every controller binds its own reviewed tool adapters while calling the shared service, and a call retains the originating composite session key for cancellation and activity routing. Evicting or removing one controller releases only its bindings and calls; it does not restart the shared server while another controller uses it. The runtime permits only one startup attempt at a time, bounds tool concurrency, and closes the MCP client after all session controllers release it and before terminating the child. If graceful shutdown misses its deadline, terminate the exact owned child process; never use broad `pkill` patterns.
+The GitHub process is application-owned rather than session-owned so authenticated connection state is shared safely by Milestone 3's resident controllers. Pi tool bindings and permission approvals remain session-owned: every controller binds its own reviewed tool adapters while calling the shared service, and a call retains the originating composite session key for cancellation and activity routing. Evicting or removing one controller releases only its bindings and calls; it does not restart the shared server while another controller uses it. The runtime permits only one startup attempt at a time, bounds tool concurrency, and closes the MCP client after all session controllers release it and before terminating the child. If graceful shutdown misses its deadline, terminate the exact owned child process; never use broad `pkill` patterns.
 
 ### Resource and deletion policy
 
@@ -1249,7 +1251,7 @@ Resources/features/github/github-mcp-server/<version>/<platform-arch>/github-mcp
 Resources/THIRD_PARTY_NOTICES.txt
 ```
 
-The artifact manifest records upstream URL, release tag/commit, platform/architecture, byte size, SHA-256, license, and expected executable name. Packaging fails closed on a missing/mismatched artifact. Development must be able to use the same staged artifact contract; a global GitHub server is never a fallback.
+The artifact manifest records upstream URL, release tag/commit, platform/architecture, byte size, SHA-256, license, and expected executable name. Packaging fails closed on a missing/mismatched artifact. Development uses the same staged artifact under gitignored `apps/desktop/resources` via `bun run stage:github-mcp`; a global GitHub server is never a fallback. The installed app never downloads the binary at runtime.
 
 ### Permission classification
 
@@ -1259,9 +1261,9 @@ The artifact manifest records upstream URL, release tag/commit, platform/archite
 | Enable an external skill source | catalog availability | explicit owner action in Settings; persists by source; does not inject context |
 | Insert a skill with `/` or load it by name | local context composition from mutable user data | allow after source trust; always provenance-labeled; popup if limited/incompatible |
 | Skill-directed local tools | classification of the called tool | unchanged from existing permission policy |
-| Enable/disable packaged GitHub MCP | typed baked-capability behavior | explicit Settings action; disabling does not log out |
+| Enable/disable packaged GitHub MCP | typed baked-capability behavior | explicit Settings action; disabling does not remove the PAT |
 | Start packaged GitHub server | local application lifecycle | allow only while GitHub MCP is enabled |
-| Persist or remove GitHub credential | account mutation | explicit login/logout; secret never enters renderer state |
+| Persist, replace, or remove GitHub PAT | credential mutation | explicit Settings action; stored secret never returns to renderer state |
 | GitHub repository/issue/PR/check/workflow read | authenticated remote observation / MCP | ask; session approval allowed for the reviewed read capability |
 | GitHub write, reaction, comment, review, merge, branch, workflow, release, or upload | remote mutation/publication | unavailable; tool absent and server read-only |
 | Arbitrary MCP server/tool | executable capability expansion | unavailable |
@@ -1271,7 +1273,7 @@ The artifact manifest records upstream URL, release tag/commit, platform/archite
 - arbitrary skill-directory entry, recursive home/workspace discovery, copying/importing external skills, editing external skills, marketplace UI, arbitrary prompts, or executable skill scripts/assets;
 - a generic MCP manager, `.mcp.json`, remote server entry, arbitrary stdio command, environment editor, dynamic tools, resources, prompts, sampling, or MCP Apps;
 - GitHub mutations of any kind, unbounded artifact downloads, Projects, Discussions, Notifications, Gists, Copilot agent delegation, GitHub Enterprise, or organization administration;
-- reusing Pi model OAuth, Chrome sessions, `gh` credentials, ambient tokens, another harness's MCP credentials, shell startup files, or user-global server installs;
+- GitHub OAuth, GitHub App or device flows, Chrome sessions, `gh` credentials, ambient tokens, Pi model OAuth, another harness's MCP credentials, shell startup files, or user-global server installs;
 - claiming permission dialogs sandbox the GitHub binary or prevent prompt injection in remote content;
 - additional MCP servers, external source adapters, or Pho Code skills merely because the generic seam exists;
 - per-skill toggles, skill editing, skill synchronization, executable skill assets, and subagent-specific skills in the first slice.
@@ -1279,13 +1281,13 @@ The artifact manifest records upstream URL, release tag/commit, platform/archite
 ### Implementation sequence
 
 1. Characterize the actual Codex, Cursor, Claude, and Pi user-skill layouts/formats on owned fixtures; finalize exact source adapters, compatibility rules, collision order, and bounded diagnostics. **Done:** common `<root>/<skill>/SKILL.md`, Codex extra `<root>/.system/<skill>/SKILL.md`, YAML `name`+`description`, collision `pho-code > codex > cursor > claude > pi`.
-2. Add the three source-owned Pho Code skills, `SkillSourceRegistry`, typed source settings, provenance inventory, explicit Refresh, and session idle-rebind behavior while keeping all unrelated ambient discovery disabled. **In source:** Settings Skills section, source toggles, inventory, Refresh; idle unprotected controllers are evicted/reopened so new loader options apply. Running sessions keep their current instructions until they settle.
+2. Add the three source-owned Pho Code skills, `SkillSourceRegistry`, typed source settings, provenance inventory, and explicit Refresh while keeping all unrelated ambient discovery disabled. **In source:** Settings Skills section, source toggles, inventory, and Refresh update the on-demand `/` catalog without evicting, reopening, or rebinding session controllers. A selected skill's Markdown enters context only when expanded on send.
 3. Correct feature-resource staging so it never permanently deletes and can compose multiple package trees. **In source:** staging builds a scratch `features` tree (permission package + Pho Code skills), trashes the previous generated destination, and renames the prepared tree into place.
 4. Audit and admit exact GitHub server and MCP client artifacts, record hashes/licenses/attribution, and prove the selected native binary runs on the development architecture. **In source:** `v1.9.0` pin, SHA-256 manifest, `@modelcontextprotocol/sdk` `1.30.0`. Packaging fails closed on hash mismatch; `package:mac` fetches the pinned archive into a gitignored cache when missing.
-5. Design and validate the app-owned GitHub OAuth/GitHub App flow plus macOS Keychain-backed credential adapter; admit a fine-grained PAT fallback only if required by upstream behavior. **In source:** no registered OAuth App client; PAT through macOS Keychain / Linux Secret Service (fail closed). Disabling MCP retains the token until logout.
+5. Validate explicit PAT entry plus the macOS Keychain-backed and Linux Secret Service credential adapters. **In source:** PAT-only authentication; secure persistence fails closed when unavailable. Disabling MCP retains the token until Remove PAT.
 6. Implement `McpRuntime` with typed enable/disable, deterministic fake stdio coverage, strict initialization/tool filtering, bounded calls, abort, stderr/credential redaction, and exact-child cleanup. **In source:** `createGitHubMcpRuntime` uses the official stdio client; fake stdio tests cover allowlist refusal, secret canaries, truncation, disable-without-logout.
-7. Register the reviewed GitHub read tools through an inline Pi extension factory and permission classifications; bind them independently in every enabled resident Milestone 3 session controller. **In source:** `github_` Pi tools from the allowlist; idle controllers rebind on enable/disable/login/logout. Permission MCP remains `ask`.
-8. Add the GitHub MCP Settings row with persistent login/logout, status, and honest secure-storage/platform disclosure. Do not add server management controls. **In source:** Settings GitHub section, default off, disclosure before enable, collapsed PAT field.
+7. Register the reviewed GitHub read tools through an inline Pi extension factory and permission classifications; bind them independently in every enabled resident Milestone 3 session controller. **In source:** `github_` Pi tools from the allowlist; idle controllers rebind on enable/disable/PAT add, replace, or removal. Permission MCP remains `ask`.
+8. Add the GitHub MCP Settings row with Add/Replace PAT, Remove PAT, status, and honest secure-storage/platform disclosure. Do not add server management controls. **In source:** Settings GitHub section, default off, disclosure before enable, collapsed PAT field.
 9. Package the native binary and built-in skills, then run owner-monitored external-skill provenance and real GitHub repository/issue/PR/check investigations.
 
 ### Required verification
@@ -1296,19 +1298,19 @@ Keep verification proportional: skill loading, allowlist enforcement, process ow
 
 - exactly three expected Pho Code skills resolve, load on demand, and carry no scripts/executable assets;
 - each fixed external source remains disabled until trusted, resolves only direct compatible `SKILL.md` children, rejects escapes/oversize/invalid/auxiliary-executable requirements, and never mutates source files;
-- provenance identity, deterministic collision/shadowing, source enable/disable, Refresh, and idle-session rebind behavior are stable and JSON-safe;
+- provenance identity, deterministic collision/shadowing, source enable/disable, Refresh, and `/` expansion behavior are stable and JSON-safe;
 - project skill and MCP settings cannot add resources, and no arbitrary source path can enter through protocol or metadata;
 - artifact identity/hash/platform checks and multi-feature staging fail closed without permanent deletion;
-- GitHub enabled/disabled transitions, persistent credential storage/logout, secret canaries, expiration/revocation, and secure-storage-unavailable behavior fail closed;
+- GitHub enabled/disabled transitions, persistent PAT add/replace/removal, secret canaries, expiration/revocation, and secure-storage-unavailable behavior fail closed;
 - MCP state transitions, one-start behavior, request timeout/abort, bounded output, stderr redaction, tool allowlist/schema mismatch, and graceful/forced exact-child shutdown;
 - every exposed GitHub tool is read-only and every known mutation tool is absent regardless of permission mode.
 
 #### Integration verified
 
-- real Pi `0.84.1` discovers the three packaged skill paths plus only validated skills from enabled fixed sources; disabled/shadowed/incompatible skills are absent from effective context;
+- the application registry discovers the three packaged Pho Code skills plus only validated skills from enabled fixed sources; `/` or named reading expands the selected Markdown on demand, while disabled, shadowed, and incompatible skills cannot enter the sent context;
 - a deterministic fake stdio server proves initialize/list/call/cancel/disconnect without network or credentials;
 - the pinned GitHub binary starts in read-only/lockdown/fixed-toolset mode, and its discovered tools intersect the accepted allowlist exactly;
-- a fake persistent GitHub credential survives runtime restart without crossing the renderer; logout removes it and disabling MCP retains it without starting the server;
+- a fake persistent GitHub PAT survives runtime restart without crossing the renderer; Remove PAT clears it and disabling MCP retains it without starting the server;
 - concurrent resident session controllers bind scoped Pi tools without duplicating or restarting the shared authenticated server process, and controller eviction releases only that controller's calls/bindings;
 
 #### Desktop and packaged verified
@@ -1321,7 +1323,7 @@ Keep verification proportional: skill loading, allowlist enforcement, process ow
 
 - Codex, Cursor, Claude, and Pi skill provenance and source-level trust controls are understandable, and at least one compatible external skill works without being copied;
 - each Pho Code skill improves one representative real repository task without fighting the owner's normal workflow;
-- GitHub login persists across app restarts, disabling/re-enabling MCP preserves login, and logout removes it;
+- the GitHub PAT persists across app restarts, disabling/re-enabling MCP preserves it, and Remove PAT clears it;
 - one real read-only workflow retrieves useful repository, issue, pull-request, check, workflow, or bounded Actions-log context;
 - attempts or prompts to comment, create, edit, merge, push, publish, or trigger workflows have no available GitHub tool.
 
@@ -1333,4 +1335,16 @@ Keep verification proportional: skill loading, allowlist enforcement, process ow
 
 ### Acceptance gate
 
-Milestone 4 is accepted only when the three immutable Pho Code skills and compatible skills from explicitly enabled Codex/Cursor/Claude/Pi user roots load with truthful provenance and no arbitrary/project discovery; invalid, shadowed, or executable-dependent skills fail visibly; the Settings-controlled GitHub capability uses a pinned packaged server and exposes no mutation tool; login persists securely across app restarts and survives MCP disable/enable until logout; cancellation and shutdown release the exact child process; remote content, skill metadata, credentials, and errors remain bounded/redacted; and the owner accepts representative external-skill, built-in-skill, and GitHub workflows.
+Milestone 4 is accepted only when the three immutable Pho Code skills and compatible skills from explicitly enabled Codex/Cursor/Claude/Pi user roots load with truthful provenance and no arbitrary/project discovery; invalid, shadowed, or executable-dependent skills fail visibly; the Settings-controlled GitHub capability uses a pinned packaged server and exposes no mutation tool; a securely stored PAT persists across app restarts and survives MCP disable/enable until explicitly removed; cancellation and shutdown release the exact child process; remote content, skill metadata, credentials, and errors remain bounded/redacted; and the owner accepts representative external-skill, built-in-skill, and GitHub workflows.
+
+## V2 closure and archival procedure
+
+Milestones 0 through 4 are the complete v2 plan. No Milestone 5 is required for v2 acceptance. After Milestone 4 passes the gate above and its acceptance review records the actual evidence, archive the v2 planning record under `docs/archive/v2` in one documentation change:
+
+1. Move the accepted v2 product contract, implementation plan, milestone reviews, and durable verification evidence into `docs/archive/v2`, preserving links among them.
+2. Add an archive index that records the accepted Pi, Electron, FFF, GitHub MCP, permission, and packaged-feature versions plus the verified macOS/Linux scope.
+3. Update `current-state.md`, `development.md`, the root instruction record, and repository navigation to point at the archived v2 boundary and identify the next active plan.
+4. Leave `current-state.md` and `development.md` live; do not archive operational commands or the current architecture entry points.
+5. Promote no deferred advanced feature during archival. Future work starts from [`roadmap-vnext.md`](./roadmap-vnext.md) as an independently reviewed phase.
+
+V2.x maintenance may include UI polish, accessibility and performance improvements, defect fixes, and owner-reviewed additions or refinements to the Pho Code skill bundle that preserve this accepted architecture. New MCP servers, browser automation, terminal execution, multi-agent orchestration, or isolation changes require a future-release phase because they change capability, trust, or lifecycle boundaries.

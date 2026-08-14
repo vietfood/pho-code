@@ -119,7 +119,7 @@ export function SettingsView({
   onRefreshSkills,
   onGitHubMcpChange,
   onImportGitHubPat,
-  onLogoutGitHubMcp,
+  onRemoveGitHubPat,
 }: {
   settings: HarnessSettingsSnapshot;
   running: boolean;
@@ -145,7 +145,7 @@ export function SettingsView({
   onRefreshSkills: () => void;
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
   onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
-  onLogoutGitHubMcp: () => void;
+  onRemoveGitHubPat: () => void;
 }) {
   const flowActive = isActiveAuthFlow(authFlow);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -397,7 +397,7 @@ export function SettingsView({
                 onRefreshSkills={onRefreshSkills}
                 onGitHubMcpChange={onGitHubMcpChange}
                 onImportGitHubPat={onImportGitHubPat}
-                onLogoutGitHubMcp={onLogoutGitHubMcp}
+                onRemoveGitHubPat={onRemoveGitHubPat}
               />
             </div>
           </div>
@@ -441,7 +441,7 @@ function SettingsPanel({
   onRefreshSkills,
   onGitHubMcpChange,
   onImportGitHubPat,
-  onLogoutGitHubMcp,
+  onRemoveGitHubPat,
 }: {
   section: SettingsSectionId;
   settings: HarnessSettingsSnapshot;
@@ -476,7 +476,7 @@ function SettingsPanel({
   onRefreshSkills: () => void;
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
   onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
-  onLogoutGitHubMcp: () => void;
+  onRemoveGitHubPat: () => void;
 }): ReactNode {
   switch (section) {
     case "appearance":
@@ -503,7 +503,7 @@ function SettingsPanel({
           busy={busy}
           onEnabledChange={onGitHubMcpChange}
           onImportPat={onImportGitHubPat}
-          onLogout={onLogoutGitHubMcp}
+          onRemovePat={onRemoveGitHubPat}
         />
       );
     case "skills":

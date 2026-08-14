@@ -44,7 +44,7 @@ export const PROTOCOL_COMMANDS = {
   refreshSkills: "refreshSkills",
   updateGitHubMcpSettings: "updateGitHubMcpSettings",
   importGitHubPat: "importGitHubPat",
-  logoutGitHubMcp: "logoutGitHubMcp",
+  removeGitHubPat: "removeGitHubPat",
 } as const;
 
 export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOCOL_COMMANDS];

@@ -14,17 +14,18 @@ export function GitHubMcpSettingsSection({
   busy,
   onEnabledChange,
   onImportPat,
-  onLogout,
+  onRemovePat,
 }: {
   githubMcp: GitHubMcpSettingsSnapshot;
   busy: boolean;
   onEnabledChange: (input: UpdateGitHubMcpSettingsInput) => void;
   onImportPat: (input: ImportGitHubPatInput) => Promise<void>;
-  onLogout: () => void;
+  onRemovePat: () => void;
 }) {
   const [pendingEnable, setPendingEnable] = useState(false);
-  const [addingToken, setAddingToken] = useState(false);
+  const [editingToken, setEditingToken] = useState(false);
   const [token, setToken] = useState("");
+  const patConfigured = githubMcp.account.patConfigured;
 
   async function submitToken(): Promise<void> {
     const value = token.trim();
@@ -32,7 +33,7 @@ export function GitHubMcpSettingsSection({
       return;
     }
     setToken("");
-    setAddingToken(false);
+    setEditingToken(false);
     await onImportPat({ token: value });
   }
 
@@ -65,7 +66,7 @@ export function GitHubMcpSettingsSection({
           <strong className="font-medium">Enable read-only GitHub tools</strong>
           <span className="mt-1 block text-xs text-muted-foreground">
             Status: {githubMcpStatusLabel(githubMcp.status)}
-            {githubMcp.account.login ? ` · @${githubMcp.account.login}` : githubMcp.account.signedIn ? " · signed in" : ""}
+            {githubMcp.account.login ? ` · @${githubMcp.account.login}` : patConfigured ? " · PAT stored" : ""}
             {githubMcp.boundToolCount > 0 ? ` · ${githubMcp.boundToolCount} tools` : ""}
           </span>
           {githubMcp.error ? (
@@ -77,23 +78,22 @@ export function GitHubMcpSettingsSection({
       </label>
       <p className="text-xs text-muted-foreground">{githubMcp.secretStoreNotice}</p>
       <div className="flex flex-wrap gap-2">
-        {githubMcp.account.signedIn ? (
-          <Button size="sm" variant="outline" disabled={busy} data-testid="github-mcp-logout" onClick={onLogout}>
-            Log out of GitHub
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          data-testid="github-mcp-add-token"
+          onClick={() => setEditingToken((current) => !current)}
+        >
+          {editingToken ? "Cancel" : patConfigured ? "Replace PAT" : "Add PAT"}
+        </Button>
+        {patConfigured ? (
+          <Button size="sm" variant="outline" disabled={busy} data-testid="github-mcp-remove-pat" onClick={onRemovePat}>
+            Remove PAT
           </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            data-testid="github-mcp-add-token"
-            onClick={() => setAddingToken((current) => !current)}
-          >
-            {addingToken ? "Cancel token" : "Add personal access token"}
-          </Button>
-        )}
+        ) : null}
       </div>
-      {addingToken && !githubMcp.account.signedIn ? (
+      {editingToken ? (
         <form
           className="grid gap-2"
           data-testid="github-mcp-token-form"

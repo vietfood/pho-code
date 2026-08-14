@@ -10,8 +10,10 @@ import {
   collectTurnBlocks,
   countWorkBlocks,
   groupTranscriptSegments,
+  isTurnOutputText,
   lastTextBearingMessage,
   rewrittenOriginalText,
+  turnOutputTextBlocks,
   turnTextOutput,
   workedForLabel,
 } from "./lib/work-log";
@@ -19,6 +21,7 @@ import { isNearBottom } from "./lib/stick-to-bottom";
 import { ConservativeMarkdown } from "./markdown";
 import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
+import { GithubChip } from "./github-chip";
 import { SkillChip } from "./skill-chip";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
@@ -27,6 +30,7 @@ import { Button } from "./ui/button";
 
 // Transcript layout adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
 // Turn-level work collapse is Codex-inspired (visual reference only); settled copy is activity-based.
+// Pre-tool assistant text stays in the work log; only text after the last tool is the turn answer.
 // User avatar chip and @ mention chips are harness-owned Cursor-inspired chrome.
 // Assistant-output copy control informed by refs/pi-web MessageView (MIT).
 // Live assistant text uses ConservativeMarkdown with a GFM-only pipeline; KaTeX/Shiki/Mermaid wait until settle.
@@ -182,6 +186,17 @@ function WorkEntryView({
   }
 }
 
+function WorkNarration({ text }: { text: string }) {
+  return (
+    <div className="ms-7 border-s border-border/45 ps-3 pt-0.5" data-testid="work-narration">
+      <ConservativeMarkdown
+        text={text}
+        className="chat-markdown-dense text-[12px] leading-relaxed text-secondary-label"
+      />
+    </div>
+  );
+}
+
 const UserMessageRow = memo(function UserMessageRow({ message }: { message: TranscriptMessage }) {
   return (
     <article className="mx-auto flex w-full min-w-0 max-w-3xl flex-col items-end gap-1 overflow-x-clip pb-4">
@@ -257,6 +272,15 @@ function UserTextWithMentions({ text }: { text: string }) {
                 skillName={segment.skillName}
               />
             );
+          case "github":
+            return (
+              <GithubChip
+                key={`github:${segment.url}:${index}`}
+                url={segment.url}
+                owner={segment.owner}
+                repo={segment.repo}
+              />
+            );
           default: {
             const exhaustive: never = segment;
             return exhaustive;
@@ -286,15 +310,10 @@ const AssistantTurn = memo(function AssistantTurn({
     tools: workCounts.tools,
   });
   const outputText = turnTextOutput(blocks);
-  const textBlocks = blocks.filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text");
+  const textBlocks = turnOutputTextBlocks(blocks);
   const target = lastTextBearingMessage(messages);
   const originalText = target ? rewrittenOriginalText(target.blocks) : undefined;
-  const targetText = target
-    ? target.blocks
-        .filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text")
-        .map((block) => block.text)
-        .join("\n\n")
-    : "";
+  const targetText = target ? turnTextOutput(target.blocks) : "";
 
   function startEditing() {
     if (!target) {
@@ -337,15 +356,29 @@ const AssistantTurn = memo(function AssistantTurn({
           />
           {workExpanded
             ? blocks.map((block, index) => {
-                if (block.type !== "thinking" && block.type !== "tool") {
-                  return null;
+                switch (block.type) {
+                  case "thinking":
+                  case "tool":
+                    return (
+                      <WorkEntryView
+                        key={`${messages[0]?.id ?? "turn"}:work:${index}`}
+                        entry={block}
+                      />
+                    );
+                  case "text":
+                    return isTurnOutputText(blocks, index) ? null : (
+                      <WorkNarration
+                        key={`${messages[0]?.id ?? "turn"}:work-text:${index}`}
+                        text={block.text}
+                      />
+                    );
+                  case "image":
+                    return null;
+                  default: {
+                    const exhaustive: never = block;
+                    return exhaustive;
+                  }
                 }
-                return (
-                  <WorkEntryView
-                    key={`${messages[0]?.id ?? "turn"}:work:${index}`}
-                    entry={block}
-                  />
-                );
               })
             : null}
         </div>

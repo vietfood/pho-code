@@ -48,10 +48,55 @@ export function collectTurnBlocks(messages: readonly TranscriptMessage[]): Trans
   return blocks;
 }
 
-/** Plain-text agent output for a turn (text blocks only; thinking/tools omitted). */
+function hasLaterTool(blocks: readonly TranscriptBlock[], index: number): boolean {
+  for (let cursor = index + 1; cursor < blocks.length; cursor += 1) {
+    if (blocks[cursor]?.type === "tool") {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Text after the last tool is the turn answer. Text that still has a later tool
+ * is step narration and belongs in the work log with thinking/tools.
+ */
+export function isTurnOutputText(blocks: readonly TranscriptBlock[], index: number): boolean {
+  const block = blocks[index];
+  return block?.type === "text" && !hasLaterTool(blocks, index);
+}
+
+export function isWorkLogBlock(blocks: readonly TranscriptBlock[], index: number): boolean {
+  const block = blocks[index];
+  if (!block) {
+    return false;
+  }
+  switch (block.type) {
+    case "thinking":
+    case "tool":
+      return true;
+    case "text":
+      return hasLaterTool(blocks, index);
+    case "image":
+      return false;
+    default: {
+      const exhaustive: never = block;
+      return exhaustive;
+    }
+  }
+}
+
+export function turnOutputTextBlocks(
+  blocks: readonly TranscriptBlock[],
+): Extract<TranscriptBlock, { type: "text" }>[] {
+  return blocks.filter((block, index): block is Extract<TranscriptBlock, { type: "text" }> => {
+    return block.type === "text" && isTurnOutputText(blocks, index);
+  });
+}
+
+/** Plain-text agent output for a turn (post-tool text only; thinking/tools/narration omitted). */
 export function turnTextOutput(blocks: readonly TranscriptBlock[]): string {
-  return blocks
-    .filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text")
+  return turnOutputTextBlocks(blocks)
     .map((block) => block.text)
     .join("\n\n")
     .trim();
@@ -60,21 +105,25 @@ export function turnTextOutput(blocks: readonly TranscriptBlock[]): string {
 export function lastTextBearingMessage(
   messages: readonly TranscriptMessage[],
 ): TranscriptMessage | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!message || message.role !== "assistant") {
-      continue;
+  const blocks = collectTurnBlocks(messages);
+  let offset = 0;
+  let last: TranscriptMessage | undefined;
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (let index = 0; index < message.blocks.length; index += 1) {
+        if (isTurnOutputText(blocks, offset + index)) {
+          last = message;
+          break;
+        }
+      }
     }
-    if (message.blocks.some((block) => block.type === "text")) {
-      return message;
-    }
+    offset += message.blocks.length;
   }
-  return undefined;
+  return last;
 }
 
 export function rewrittenOriginalText(blocks: readonly TranscriptBlock[]): string | undefined {
-  const textBlocks = blocks.filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text");
-  return textBlocks.find((block) => block.originalText !== undefined)?.originalText;
+  return turnOutputTextBlocks(blocks).find((block) => block.originalText !== undefined)?.originalText;
 }
 
 export function countWorkBlocks(blocks: readonly TranscriptBlock[] | readonly RunWorkEntry[]): WorkLogCounts {

@@ -105,7 +105,7 @@ export interface HarnessRuntime {
   getGitHubMcpSettings(): GitHubMcpSettingsSnapshot;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<GitHubMcpSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<GitHubMcpSettingsSnapshot>;
-  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
+  removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   dispose(): Promise<void>;
 }
@@ -246,7 +246,7 @@ export function createDisposableStubHarnessRuntime(options?: {
     importGitHubPat() {
       return Promise.resolve(emptySettingsSnapshot().githubMcp);
     },
-    logoutGitHubMcp() {
+    removeGitHubPat() {
       return Promise.resolve(emptySettingsSnapshot().githubMcp);
     },
     subscribe() {

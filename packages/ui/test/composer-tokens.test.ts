@@ -19,4 +19,20 @@ describe("composer skill tokens", () => {
       { type: "text", text: " please." },
     ]);
   });
+
+  test("parses github repo urls as chips", () => {
+    const segments = parseComposerSegments(
+      "learn my repo https://github.com/vietfood/comtam tonight",
+    );
+    expect(segments).toEqual([
+      { type: "text", text: "learn my repo " },
+      {
+        type: "github",
+        url: "https://github.com/vietfood/comtam",
+        owner: "vietfood",
+        repo: "comtam",
+      },
+      { type: "text", text: " tonight" },
+    ]);
+  });
 });

@@ -1,8 +1,10 @@
-# Pho Code next-version roadmap
+# Pho Code future-release roadmap
 
-This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
+This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs.
 
-The owner has accepted the autonomy foundation, retrieval, provider-account, and session-continuity milestones. Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with persistent login are draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
+V2 consists only of Milestones 0 through 4. The owner has accepted Milestones 0 through 3; interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT are in-progress Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). When Milestone 4 is accepted, the v2 record is archived and this file becomes the promotion queue for later releases.
+
+UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan.
 
 ## Rules carried forward
 
@@ -13,7 +15,88 @@ The owner has accepted the autonomy foundation, retrieval, provider-account, and
 - Packaged builds resolve immutable features only from application resources and fail closed when a feature is missing or mismatched.
 - Mutable credentials, sessions, permission state, and application metadata remain outside the application bundle.
 
-## Candidate milestone: additional baked MCP capabilities
+## Promotion rules
+
+Each phase below is optional and independently promotable. Promotion must name the owner outcome, accepted platforms, trust model, permission categories, persisted state, recovery behavior, packaged dependencies, and verification gate. Completion of one phase does not imply approval of the next.
+
+Do not group phases merely to label a major release complete. Prefer the smallest vertical slice that is useful in normal work and can fail or be disabled without destabilizing conversation, sessions, credentials, or accepted baked features.
+
+## Phase A: change review and recovery
+
+Build the owner-facing control layer before adding more autonomous execution surfaces:
+
+- a file-change summary grouped by workspace and active chat;
+- a bounded diff/file workbench that reads only exact tracked changes and never becomes a second editor architecture by accident;
+- explicit checkpoints with clear ownership, retention, and size limits;
+- safe undo/revert operations that preview the exact effect and never rely on broad force reset or permanent deletion;
+- recovery after interrupted runs, renderer reload, or application restart;
+- truthful handling of user edits that overlap agent changes.
+
+This phase should build on Milestone 3's composite session ownership. It must distinguish a Pi transcript from filesystem recovery state and must not claim that Git history alone can recover untracked or externally modified files.
+
+## Phase B: session intelligence and richer input
+
+Extend the accepted session lifecycle without introducing multi-agent execution:
+
+- fork and tree navigation while leaving Pi JSONL authoritative;
+- visible automatic compaction events, manual compact, and an explanation of context composition and token impact;
+- richer selected-file, text, image, and bounded document attachments with explicit type/size controls;
+- per-run/provider usage and optional soft budget warnings;
+- integrated diagnostics and redacted log export for auth, baked features, indexes, MCP state, and interrupted runs.
+
+This phase must define what is copied, shared, or referenced when a chat forks and how archive, Trash, restore, compaction, and crash restoration interact.
+
+## Phase C: isolated browser automation
+
+Add browser control only through an app-owned Pho Code profile first. Separate operations by remote effect:
+
+- navigation, public search, and page reading;
+- authenticated reading from the isolated profile;
+- downloads with bounded destination and content handling;
+- clicks that mutate remote state;
+- uploads, form submission, messages, purchases, and other externally visible actions.
+
+Read operations may support scoped approval; mutation, upload, and submission require explicit contextual approval. The first slice must not attach to the owner's everyday Chrome profile, reuse unrelated browser cookies, or expose a generic renderer-to-browser command channel. Downloads and profile cleanup use recoverable lifecycle rules and never fall back to permanent deletion.
+
+## Phase D: integrated terminal
+
+Introduce a PTY only after defining process and session ownership:
+
+- one bounded terminal lifecycle per selected workspace or chat, with an explicit choice recorded in the promoted plan;
+- shell command permission policy consistent with agent tool execution;
+- clear working directory, environment, exit, reconnect, and shutdown state;
+- output backpressure, size limits, terminal escape handling, and secret redaction boundaries;
+- no raw PTY, process handle, arbitrary IPC channel, or Node primitive in the renderer.
+
+Closing a panel must not silently terminate a running process. Application quit must bound graceful shutdown and report what could not be preserved.
+
+## Phase E: multi-agent and worktree workflows
+
+Add orchestration only after single-agent review and recovery are dependable:
+
+- explicit subtask ownership, bounded agent concurrency, cancellation, and status;
+- separate session and permission state for every agent;
+- worktree creation, branch naming, path ownership, conflict detection, integration preview, and recoverable cleanup;
+- no concurrent writes to the same owned files without an explicit reconciliation path;
+- a clear distinction between agent delegation, independent chats, and Pi session forks;
+- owner review before remote mutation, push, publication, or deployment.
+
+This phase must specify failure handling for partial worktree creation, child-process crashes, permission dialogs on background agents, application restart, and conflicting user edits. Worktree removal may use only a verified recoverable strategy; if Git itself requires irreversible cleanup, the operation must stop and explain the manual prerequisite rather than using `rm`.
+
+## Phase F: runtime isolation and public distribution
+
+Start this phase only if measured risk or distribution goals justify it:
+
+- move the Pi runtime and executable feature hosts into an Electron utility or child process with a narrow typed broker;
+- evaluate OS/container/VM execution isolation separately from renderer sandboxing;
+- signed and notarized macOS artifacts, update channels, rollback, and release provenance;
+- verified Linux artifacts, desktop integration, Secret Service behavior, and native dependency coverage;
+- migrations, telemetry policy, public threat model, security-response process, and managed feature-update policy;
+- a Tauri proof of concept only if measured Electron costs justify the additional Node-sidecar boundary.
+
+Process separation is not called a sandbox unless its filesystem, network, credential, and child-process authority is actually constrained and tested.
+
+## Additional baked MCP capabilities
 
 Milestone 4 owns the first read-only GitHub capability. Begin another MCP capability only after the owner specifies the exact recurring task it solves. This remains source/build configuration, not an end-user server manager.
 
@@ -27,7 +110,7 @@ Milestone 4 owns the first read-only GitHub capability. Begin another MCP capabi
 
 Pho Code will not discover arbitrary `.mcp.json` files, expose server add/edit/remove controls, or use runtime unpinned `npx` for built-in features.
 
-## Candidate milestone: additional baked features
+## Additional baked features
 
 Milestone 4 owns the first three Pho Code-authored text-only skills and the fixed Codex/Cursor/Claude/Pi source adapters. Begin another extension-, skill-source, prompt-, or service-backed feature only after the owner names its behavior.
 
@@ -38,26 +121,6 @@ Milestone 4 owns the first three Pho Code-authored text-only skills and the fixe
 - Preserve auth/model/session/context interoperability while continuing to ignore user/project executable feature overlays.
 - Update attribution and third-party notices with the feature.
 
-## Candidate production/distribution track
-
-Start this track only if Pho Code becomes more than a personal local application:
-
-- signed/notarized macOS distribution and an update channel;
-- verified Linux artifacts and desktop integration;
-- richer project-trust UX and managed persistent decisions;
-- Pi runtime isolation in an Electron utility/child process;
-- OS/container/VM execution sandbox and a policy broker;
-- package provenance, review, signing, allowlisting, and update policy;
-- encrypted credential storage and MCP OAuth UX;
-- crash recovery, migrations, rollback, telemetry policy, public threat model, and security-response process;
-- a Tauri proof of concept only if measured Electron costs justify the additional Node-sidecar boundary.
-
-## Optional product expansions
-
-- multi-agent orchestration and worktree automation;
-- integrated terminal and diff/file workbench;
-- session fork/tree/compaction UI;
-- arbitrary document/binary attachments and richer previews beyond v2 Milestone 1 images;
-- remote access or server mode.
+OAuth is not deferred work for the accepted GitHub MCP. A future MCP may use OAuth only if that specific service requires it and its promoted plan owns the complete flow. Remote access or server mode also requires a separate future phase because it changes the local-owner trust model.
 
 Windows, mobile UI, a plugin marketplace, arbitrary renderer extensions, and user-managed MCP servers remain out of scope unless the product philosophy is deliberately changed.

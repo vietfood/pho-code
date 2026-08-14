@@ -1014,9 +1014,9 @@ export function App() {
               );
             });
           }}
-          onLogoutGitHubMcp={() => {
+          onRemoveGitHubPat={() => {
             void runCommand(async () => {
-              const githubMcp = await getDesktopBridge().logoutGitHubMcp();
+              const githubMcp = await getDesktopBridge().removeGitHubPat();
               setCache((current) =>
                 current.settings ? { ...current, settings: { ...current.settings, githubMcp } } : current,
               );

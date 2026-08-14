@@ -1837,11 +1837,11 @@ export async function createPhoCodeRuntime(
       assertNoCanaries(snapshot, [input.token], "importGitHubPat");
       return snapshot;
     },
-    async logoutGitHubMcp() {
+    async removeGitHubPat() {
       assertNotDisposed();
-      const snapshot = await githubMcp.logout();
+      const snapshot = await githubMcp.removePat();
       await rebindIdleGitHubSessions();
-      assertJsonSafe(snapshot, "logoutGitHubMcp");
+      assertJsonSafe(snapshot, "removeGitHubPat");
       return snapshot;
     },
     subscribe(listener) {

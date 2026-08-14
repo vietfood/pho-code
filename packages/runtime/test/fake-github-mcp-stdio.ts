@@ -53,6 +53,23 @@ export async function runFakeGitHubMcpStdio(options: {
         content: [{ type: "text" as const, text: JSON.stringify({ login: "octocat" }) }],
       };
     }
+    if (request.params.arguments && (request.params.arguments as { fail?: unknown }).fail === true) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: "GitHub API failed: Not Found" }],
+      };
+    }
+    if (request.params.arguments && (request.params.arguments as { path?: unknown }).path === "README.md") {
+      return {
+        content: [
+          { type: "text" as const, text: "successfully downloaded text file (SHA: abc)" },
+          {
+            type: "resource" as const,
+            resource: { uri: "github://file/README.md", mimeType: "text/plain", text: "# Title\nbody" },
+          },
+        ],
+      };
+    }
     if (options.hugeChars && options.hugeChars > 0) {
       return {
         content: [{ type: "text" as const, text: "x".repeat(options.hugeChars) }],

@@ -158,6 +158,32 @@ describe("empty session hero", () => {
     expect(markup).toContain("KL divergence.md");
   });
 
+  test("renders github repo urls in user messages as chips", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [
+                {
+                  type: "text",
+                  text: "learn my repo https://github.com/vietfood/comtam",
+                },
+              ],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-github-url="https://github.com/vietfood/comtam"');
+    expect(markup).toContain("github-chip");
+    expect(markup).toContain("vietfood/comtam");
+    expect(markup).toContain("learn my repo ");
+  });
+
   test("renders admitted transcript images with a lightbox preview", () => {
     const preview =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

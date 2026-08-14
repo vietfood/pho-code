@@ -36,7 +36,7 @@ describe("copyText", () => {
 });
 
 describe("turnTextOutput", () => {
-  test("joins assistant text blocks and skips thinking/tools", () => {
+  test("keeps only text after the last tool", () => {
     const text = turnTextOutput([
       { type: "thinking", text: "scratch" },
       { type: "text", text: "First." },
@@ -48,6 +48,23 @@ describe("turnTextOutput", () => {
         inputPreview: "{}",
         outputPreview: "ok",
       },
+      { type: "text", text: "Second." },
+    ]);
+    expect(text).toBe("Second.");
+  });
+
+  test("joins post-tool text blocks and skips thinking/tools", () => {
+    const text = turnTextOutput([
+      { type: "thinking", text: "scratch" },
+      {
+        type: "tool",
+        callId: "t1",
+        name: "bash",
+        status: "completed",
+        inputPreview: "{}",
+        outputPreview: "ok",
+      },
+      { type: "text", text: "First." },
       { type: "text", text: "Second." },
     ]);
     expect(text).toBe("First.\n\nSecond.");

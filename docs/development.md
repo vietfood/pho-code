@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. v2 Milestone 4 slice 1 covers provenance-labeled skills from fixed, owner-enabled Codex/Cursor/Claude/Pi user roots, `/` insert without baking skills into Pi context, and three Pho Code-authored skills. Slice 2 covers one Settings-controlled read-only GitHub MCP with a pinned `v1.9.0` server and persistent PAT login in the OS secret store. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. v2 Milestone 4 slice 1 covers provenance-labeled skills from fixed, owner-enabled Codex/Cursor/Claude/Pi user roots, `/` insert without baking skills into Pi context, and three Pho Code-authored skills. Slice 2 covers one Settings-controlled read-only GitHub MCP with a pinned `v1.9.0` server and an explicitly supplied PAT retained in the OS secret store; GitHub OAuth is not part of this integration. V2 ends at Milestone 4 and is archived after that milestone's acceptance review. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while independently promotable future-release phases remain in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
 
 After a fresh clone, materialize the references with:
 
@@ -70,6 +70,7 @@ Run commands from the repository root:
 | `bun test` | Run non-GUI unit and integration tests. |
 | `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, and credentials specs. |
 | `bun run package:mac` | Stage baked features and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
+| `bun run stage:github-mcp` | Fetch the pinned GitHub MCP binary into gitignored `apps/desktop/resources` for `bun run dev`. `package:mac` stages the same artifact. The running app never downloads it. |
 | `bun run test:packaged` | Smoke the packaged `.app` with isolated user data, baked-feature loading, and a PATH that does not contain `pi`. |
 
 Package-local scripts exist for focused work, but documentation and CI should call the root commands for milestone acceptance.
@@ -80,6 +81,7 @@ Package-local scripts exist for focused work, but documentation and CI should ca
 
 ```bash
 bun install --frozen-lockfile
+bun run stage:github-mcp
 bun run dev
 ```
 
@@ -92,7 +94,8 @@ Expected development behavior:
 - application metadata goes to `userData/app-metadata.json` unless `PHO_CODE_USER_DATA_DIR` changes the entire application-data root;
 - personal runs use the app-owned `userData/pi-agent` directory for Pi-compatible auth, models, sessions, permission config, and logs;
 - `PHO_CODE_AGENT_DIR` explicitly replaces only the Pi data root and is treated as external/shared;
-- desktop tests isolate `userData`, so a separate agent-directory override is needed only when a test intentionally exercises shared-scope disclosure.
+- desktop tests isolate `userData`, so a separate agent-directory override is needed only when a test intentionally exercises shared-scope disclosure;
+- GitHub MCP in Settings needs the pinned binary under gitignored `apps/desktop/resources`; run `bun run stage:github-mcp` once (or `bun run package:mac`). The running app never downloads it. After staging, restart development or turn the GitHub row off and on.
 
 ### Isolation and test environment variables
 
@@ -422,7 +425,7 @@ Milestone 2 verification classes:
 - **desktop verified:** Settings completes the fake OAuth journey, opens only the retained test URL, updates the model picker, and logs out
 - **packaged verified:** unsigned local `.app` exposes the same Provider accounts surface without a Pi CLI
 - **owner verified:** live `openai-codex` login in the system browser, with the resulting Codex account working in Pho Code
-- **not verified:** other Pi OAuth providers; Linux browser integration; separately reported live refresh-on-use or live Codex logout; Keychain-backed storage; MCP OAuth
+- **not verified:** other Pi OAuth providers; Linux browser integration; separately reported live refresh-on-use or live Codex logout; Keychain-backed storage. GitHub MCP OAuth is intentionally unavailable because that integration is PAT-only.
 
 v2 Milestone 3 acceptance, recorded 2026-08-14:
 

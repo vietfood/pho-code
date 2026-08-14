@@ -9,6 +9,7 @@ export const GITHUB_MCP_CLIENT_SDK_VERSION = "1.30.0";
 
 export const GITHUB_MCP_TOOLSETS = "context,repos,issues,pull_requests,actions";
 export const GITHUB_MCP_SERVER_ARGS = [
+  "stdio",
   "--read-only",
   "--lockdown-mode",
   "--toolsets",

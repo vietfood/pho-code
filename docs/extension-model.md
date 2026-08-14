@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 and v2 Milestones 0 through 3 are accepted. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. Milestone 4 slice 1 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, and ships three Pho Code-authored skills. Enabling a source makes that source's skills available in `/`; it does not bake them into Pi session context. Slice 2 is in implementation: one Settings-controlled adapter for a pinned read-only GitHub MCP server (`github/github-mcp-server` `v1.9.0`) with persistent app-owned PAT login. Typed settings do not admit arbitrary paths, packages, or server definitions. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
+Personal v1 and v2 Milestones 0 through 3 are accepted. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. Milestone 4 slice 1 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, and ships three Pho Code-authored skills. Enabling a source makes that source's skills available in `/`; it does not bake them into Pi session context. Slice 2 is in implementation: one Settings-controlled adapter for a pinned read-only GitHub MCP server (`github/github-mcp-server` `v1.9.0`) with an explicitly supplied PAT retained in the OS secret store; GitHub OAuth is intentionally absent. Typed settings do not admit arbitrary paths, packages, or server definitions. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -195,7 +195,7 @@ interface GitHubMcpRuntime {
 }
 ```
 
-The Pi-facing implementation is an inline factory (`github-read`) that registers allowlisted `github_` tools only while the shared server is ready. The official `@modelcontextprotocol/sdk` `1.30.0` stdio client talks to a pinned `github/github-mcp-server` `v1.9.0` binary with `--read-only --lockdown-mode`. `.mcp.json` discovery and arbitrary server configuration remain disabled. A PAT lives in the OS secret store; the renderer never receives it.
+The Pi-facing implementation is an inline factory (`github-read`) that registers allowlisted `github_` tools only while the shared server is ready. The official `@modelcontextprotocol/sdk` `1.30.0` stdio client talks to a pinned `github/github-mcp-server` `v1.9.0` binary as `stdio --read-only --lockdown-mode --toolsets context,repos,issues,pull_requests,actions`. `.mcp.json` discovery and arbitrary server configuration remain disabled. A PAT lives in the OS secret store; the renderer never receives it. Development stages that binary with `bun run stage:github-mcp`; packaging stages the same pin. The running app never downloads it.
 
 When a specific MCP feature is implemented:
 

@@ -48,7 +48,7 @@ const bridge: DesktopBridge = {
   refreshSkills: () => invoke(IPC_CHANNELS.refreshSkills),
   updateGitHubMcpSettings: (input) => invoke(IPC_CHANNELS.updateGitHubMcpSettings, input),
   importGitHubPat: (input) => invoke(IPC_CHANNELS.importGitHubPat, input),
-  logoutGitHubMcp: () => invoke(IPC_CHANNELS.logoutGitHubMcp),
+  removeGitHubPat: () => invoke(IPC_CHANNELS.removeGitHubPat),
   subscribe(listener) {
     const handler = (_event: Electron.IpcRendererEvent, envelope: RuntimeEventEnvelope) => {
       listener(envelope);

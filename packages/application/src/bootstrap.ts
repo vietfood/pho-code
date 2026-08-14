@@ -171,7 +171,7 @@ export interface ApplicationService {
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
-  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
+  removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   shutdown(): Promise<void>;
 }
@@ -1013,18 +1013,18 @@ export function createApplicationService(input: {
       if (JSON.stringify(githubMcp).includes(token)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidSnapshot,
-          message: "GitHub login refused to return a secret.",
+          message: "GitHub PAT import refused to return a secret.",
           operation: "importGitHubPat",
         });
       }
       await persistGitHubMetadata(githubMcp);
       return { githubMcp };
     },
-    async logoutGitHubMcp() {
+    async removeGitHubPat() {
       assertActive();
-      const githubMcp = await input.runtime.logoutGitHubMcp();
+      const githubMcp = await input.runtime.removeGitHubPat();
       await persistGitHubMetadata(githubMcp);
-      assertJsonSafe(githubMcp, "logoutGitHubMcp");
+      assertJsonSafe(githubMcp, "removeGitHubPat");
       return githubMcp;
     },
     subscribe(listener) {

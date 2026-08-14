@@ -17,6 +17,7 @@
     "test": "bun test",
     "test:desktop": "bun run --filter @pho-code/desktop test:desktop",
     "package:mac": "bun run --filter @pho-code/desktop package:mac",
+    "stage:github-mcp": "bun scripts/stage-github-mcp.ts",
     "test:packaged": "bun run --filter @pho-code/desktop test:packaged"
   },
   "devDependencies": {

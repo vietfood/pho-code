@@ -40,6 +40,6 @@ export const IPC_CHANNELS = {
   refreshSkills: "pho-code:v1:refreshSkills",
   updateGitHubMcpSettings: "pho-code:v1:updateGitHubMcpSettings",
   importGitHubPat: "pho-code:v1:importGitHubPat",
-  logoutGitHubMcp: "pho-code:v1:logoutGitHubMcp",
+  removeGitHubPat: "pho-code:v1:removeGitHubPat",
   event: "pho-code:v1:event",
 } as const;

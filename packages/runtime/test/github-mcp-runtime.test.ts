@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   GITHUB_MCP_DISCLOSURE,
-  HARNESS_ERROR_CODES,
   isJsonSafeValue,
 } from "@pho-code/protocol";
 import { FORBIDDEN_GITHUB_MCP_TOOLS, intersectGitHubMcpTools } from "../src/github-mcp-allowlist";
-import { createGitHubMcpRuntime, MAX_GITHUB_MCP_RESULT_CHARS } from "../src/github-mcp-runtime";
+import { GITHUB_MCP_SERVER_ARGS } from "../src/github-mcp-artifact";
+import { createGitHubMcpRuntime, formatGitHubMcpToolResult, MAX_GITHUB_MCP_RESULT_CHARS } from "../src/github-mcp-runtime";
 import { createMemorySecretStore, GITHUB_MCP_SECRET_ACCOUNT, GITHUB_MCP_SECRET_SERVICE } from "../src/secret-store";
 
 const FAKE_SERVER = fileURLToPath(new URL("./fake-github-mcp-stdio.ts", import.meta.url));
@@ -32,6 +34,27 @@ describe("GitHub MCP allowlist", () => {
 });
 
 describe("GitHub MCP runtime", () => {
+  test("launches the official binary through the stdio subcommand", () => {
+    expect(GITHUB_MCP_SERVER_ARGS[0]).toBe("stdio");
+    expect(GITHUB_MCP_SERVER_ARGS).toContain("--read-only");
+    expect(GITHUB_MCP_SERVER_ARGS).toContain("--lockdown-mode");
+  });
+
+  test("fails closed when the packaged binary is missing", async () => {
+    const github = createGitHubMcpRuntime({
+      secretStore: createMemorySecretStore({
+        [`${GITHUB_MCP_SECRET_SERVICE}\0${GITHUB_MCP_SECRET_ACCOUNT}`]: CANARY,
+      }),
+      enabled: true,
+      serverPath: path.join(tmpdir(), "pho-code-missing-github-mcp-server"),
+    });
+    const snapshot = await github.startIfEnabled();
+    expect(snapshot.status).toBe("failed");
+    expect(snapshot.error).toContain("missing for this architecture");
+    expect(github.pid()).toBeUndefined();
+    await github.dispose();
+  });
+
   test("stays disabled by default and does not spawn a process", async () => {
     const github = createGitHubMcpRuntime({
       secretStore: createMemorySecretStore(),
@@ -46,7 +69,7 @@ describe("GitHub MCP runtime", () => {
     await github.dispose();
   });
 
-  test("reports signed in while disabled when a token is already stored", async () => {
+  test("reports PAT stored while disabled when a token is already stored", async () => {
     const github = createGitHubMcpRuntime({
       secretStore: createMemorySecretStore({
         [`${GITHUB_MCP_SECRET_SERVICE}\0${GITHUB_MCP_SECRET_ACCOUNT}`]: CANARY,
@@ -56,7 +79,7 @@ describe("GitHub MCP runtime", () => {
     const snapshot = await github.startIfEnabled();
     expect(snapshot.enabled).toBe(false);
     expect(snapshot.status).toBe("disabled");
-    expect(snapshot.account.signedIn).toBe(true);
+    expect(snapshot.account.patConfigured).toBe(true);
     expect(github.pid()).toBeUndefined();
     expect(JSON.stringify(snapshot)).not.toContain(CANARY);
     await github.dispose();
@@ -71,7 +94,7 @@ describe("GitHub MCP runtime", () => {
     const snapshot = await github.startIfEnabled();
     expect(snapshot.enabled).toBe(true);
     expect(snapshot.status).toBe("needs_auth");
-    expect(snapshot.account.signedIn).toBe(false);
+    expect(snapshot.account.patConfigured).toBe(false);
     expect(github.shouldBindTools()).toBe(false);
     await github.dispose();
   });
@@ -93,6 +116,21 @@ describe("GitHub MCP runtime", () => {
     expect(github.boundTools().some((tool) => tool.piName === "github_issue_write")).toBe(false);
     expect(github.pid()).toBeGreaterThan(0);
 
+    const file = await github.callTool({
+      piName: "github_get_file_contents",
+      args: { owner: "octo", repo: "hello", path: "README.md" },
+    });
+    expect(file.text).toContain("# Title");
+    expect(file.isError).toBeUndefined();
+
+    const failed = await github.callTool({
+      piName: "github_get_file_contents",
+      args: { owner: "octo", repo: "hello", fail: true },
+    });
+    expect(failed.isError).toBe(true);
+    expect(failed.text).toContain("Not Found");
+    expect(github.snapshot().status).toBe("ready");
+
     const result = await github.callTool({
       piName: "github_get_file_contents",
       args: { owner: "octo", repo: "hello" },
@@ -104,7 +142,7 @@ describe("GitHub MCP runtime", () => {
 
     const disabled = await github.setEnabled(false);
     expect(disabled.status).toBe("disabled");
-    expect(disabled.account.signedIn).toBe(true);
+    expect(disabled.account.patConfigured).toBe(true);
     expect(await store.get(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT)).toBe(CANARY);
     expect(github.pid()).toBeUndefined();
     await github.dispose();
@@ -126,14 +164,14 @@ describe("GitHub MCP runtime", () => {
     await github.dispose();
   });
 
-  test("logout removes the credential and disabling does not", async () => {
+  test("removePat removes the credential and disabling does not", async () => {
     const store = createMemorySecretStore();
     const github = createGitHubMcpRuntime({
       secretStore: store,
       launch: () => launchFake(),
     });
     const imported = await github.importPat(CANARY);
-    expect(imported.account.signedIn).toBe(true);
+    expect(imported.account.patConfigured).toBe(true);
     expect(await store.get(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT)).toBe(CANARY);
 
     await github.setEnabled(true);
@@ -141,10 +179,10 @@ describe("GitHub MCP runtime", () => {
     await github.setEnabled(false);
     expect(await store.get(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT)).toBe(CANARY);
 
-    const loggedOut = await github.logout();
-    expect(loggedOut.account.signedIn).toBe(false);
+    const removed = await github.removePat();
+    expect(removed.account.patConfigured).toBe(false);
     expect(await store.get(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT)).toBeUndefined();
-    expect(JSON.stringify(loggedOut)).not.toContain(CANARY);
+    expect(JSON.stringify(removed)).not.toContain(CANARY);
     await github.dispose();
   });
 
@@ -169,9 +207,33 @@ describe("GitHub MCP runtime", () => {
     });
     await github.importPat(CANARY);
     expect(JSON.stringify(github.snapshot())).not.toContain(CANARY);
-    await expect(github.callTool({ piName: "github_get_me", args: {} })).rejects.toMatchObject({
-      code: HARNESS_ERROR_CODES.githubMcpFailed,
-    });
+    await expect(github.callTool({ piName: "github_get_me", args: {} })).rejects.toThrow("GitHub MCP is off.");
     await github.dispose();
+  });
+});
+
+describe("GitHub MCP result text", () => {
+  test("includes resource file bodies and never stringifies objects as [object Object]", () => {
+    const formatted = formatGitHubMcpToolResult({
+      content: [
+        { type: "text", text: "successfully downloaded text file (SHA: abc)" },
+        {
+          type: "resource",
+          resource: { uri: "github://file/README.md", mimeType: "text/plain", text: "# Title\nbody" },
+        },
+      ],
+    });
+    expect(formatted.isError).toBe(false);
+    expect(formatted.text).toContain("successfully downloaded text file");
+    expect(formatted.text).toContain("# Title");
+    expect(formatted.text).not.toContain("[object Object]");
+
+    const objectText = formatGitHubMcpToolResult({
+      isError: true,
+      content: [{ type: "text", text: { message: "Not Found" } }],
+    });
+    expect(objectText.isError).toBe(true);
+    expect(objectText.text).toContain("Not Found");
+    expect(objectText.text).not.toContain("[object Object]");
   });
 });

@@ -16,6 +16,7 @@ export {
   shouldIgnoreDuplicatePaste,
 } from "./lib/clipboard-images";
 export { MentionChip } from "./mention-chip";
+export { GithubChip } from "./github-chip";
 export { SkillChip } from "./skill-chip";
 export { SkillSourceIcon } from "./skill-source-icon";
 export { SkillCompatibilityDialog } from "./skill-compatibility-dialog";

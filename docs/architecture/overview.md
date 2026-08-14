@@ -36,7 +36,7 @@ flowchart LR
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
-The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `rewriteAssistantOutput` for owner-edited assistant markdown (display overlay persisted as Pi custom session entries; JSONL messages stay unchanged), `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings` / `updateSkillSourceSettings` / `refreshSkills` / `updateGitHubMcpSettings` / `importGitHubPat` / `logoutGitHubMcp`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator. GitHub MCP tokens stay in the OS secret store and never appear in settings snapshots.
+The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `rewriteAssistantOutput` for owner-edited assistant markdown (display overlay persisted as Pi custom session entries; JSONL messages stay unchanged), `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings` / `updateSkillSourceSettings` / `refreshSkills` / `updateGitHubMcpSettings` / `importGitHubPat` / `removeGitHubPat`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator. GitHub MCP tokens stay in the OS secret store and never appear in settings snapshots.
 
 Current source ownership:
 
@@ -170,7 +170,7 @@ interface DesktopBridge {
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
-  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
+  removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
   listProviderAccounts(): Promise<ProviderAccountsResult>;

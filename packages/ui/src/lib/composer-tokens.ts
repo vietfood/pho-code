@@ -5,12 +5,14 @@ import {
   type SkillSourceId,
 } from "@pho-code/protocol";
 import type { MentionSkipRange } from "./at-mention";
+import { findCompletedGitHubLinks } from "./github-link";
 import type { SlashQuery } from "./slash-query";
 
 export type ComposerSegment =
   | { type: "text"; text: string }
   | { type: "mention"; path: string }
-  | { type: "skill"; sourceId: SkillSourceId; skillName: string };
+  | { type: "skill"; sourceId: SkillSourceId; skillName: string }
+  | { type: "github"; url: string; owner: string; repo: string };
 
 export function insertSkillToken(
   text: string,
@@ -49,6 +51,16 @@ export function parseComposerSegments(text: string, skip?: MentionSkipRange): Co
       start: match.start,
       end: match.end,
       segment: { type: "skill", sourceId: match.sourceId, skillName: match.skillName },
+    });
+  }
+  for (const match of findCompletedGitHubLinks(text)) {
+    if (skip && rangesOverlap(match.start, match.end, skip.start, skip.end)) {
+      continue;
+    }
+    tokens.push({
+      start: match.start,
+      end: match.end,
+      segment: { type: "github", url: match.url, owner: match.owner, repo: match.repo },
     });
   }
   tokens.sort((left, right) => left.start - right.start);

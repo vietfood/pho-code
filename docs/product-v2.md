@@ -105,9 +105,15 @@ Read compatible user-level skills directly from fixed Codex, Cursor, Claude, and
 
 Add one Settings-controlled MCP-backed capability: read-only GitHub investigation for repositories, issues, pull requests, reviews, checks, workflows, and bounded Actions logs. A reviewed, pinned official `github/github-mcp-server` binary runs locally over stdio in read-only/lockdown mode behind an application allowlist. The owner can enable or disable its connection/tool exposure without installing or removing code. GitHub write operations, dynamic tool discovery, arbitrary servers, and project `.mcp.json` remain unavailable.
 
-GitHub login must persist across app restarts through a Pho Code-owned OAuth/GitHub App interaction and operating-system-backed secret storage, with an explicitly imported fine-grained PAT only as a reviewed fallback. This slice admits PAT login because no GitHub OAuth App client is registered. Disabling MCP does not log out; logout removes the retained credential. The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
+GitHub MCP authentication uses only an explicitly supplied personal access token (PAT) retained in operating-system-backed secret storage. Pho Code does not implement GitHub OAuth, a GitHub App flow, device authorization, browser-cookie reuse, or ambient `gh`/environment credential discovery. Settings lets the owner add, replace, or remove the PAT. Disabling MCP retains the PAT; removing the credential disconnects the capability. A fine-grained, minimum-permission PAT is recommended, while the packaged server's read-only mode and Pho Code's tool allowlist remain mandatory regardless of token scope. The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
 
-## Deferred beyond Milestone 4
+## V2 closure and post-v2 work
+
+Milestones 0 through 4 are the complete v2 product plan. There is no v2 Milestone 5. V2 becomes complete only after Milestone 4 passes its acceptance gate; at that point the v2 product, implementation, evidence, and review records are archived under `docs/archive/v2`, while `current-state.md` and `development.md` remain the live entry points.
+
+V2.x releases may polish the UI, improve accessibility and performance, fix defects, and add or refine owner-selected Pho Code skills within the accepted extension boundary. A new MCP, browser control, terminal, multi-agent execution, process isolation, or another capability that changes trust or lifecycle boundaries requires a separately promoted future-release phase rather than silently reopening v2.
+
+## Deferred to future releases
 
 - browser automation using an isolated browser profile;
 - diff/file workbench and checkpoints;
@@ -119,7 +125,7 @@ GitHub login must persist across app restarts through a Pho Code-owned OAuth/Git
 - signing, notarization, update channels, public distribution, and production threat response;
 - arbitrary user-managed extensions, skills, packages, or MCP servers.
 
-Deferral means these capabilities do not shape Milestones 0 through 4 prematurely. It does not reject them from the broader v2 roadmap.
+Deferral means these capabilities do not shape or block v2 completion. [`roadmap-vnext.md`](./roadmap-vnext.md) separates the former advanced-feature milestone into independently promotable future-release phases.
 
 ## Success criteria for the first v2 slice
 

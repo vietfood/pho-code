@@ -616,10 +616,10 @@ function registerIpc(): void {
     }),
   );
 
-  ipcMain.handle(IPC_CHANNELS.logoutGitHubMcp, async (event) =>
-    handleCommand("logoutGitHubMcp", async () => {
+  ipcMain.handle(IPC_CHANNELS.removeGitHubPat, async (event) =>
+    handleCommand("removeGitHubPat", async () => {
       assertTrustedSender(event, trustedRenderer);
-      return requireApplication().logoutGitHubMcp();
+      return requireApplication().removeGitHubPat();
     }),
   );
 }
@@ -759,9 +759,10 @@ app.whenReady().then(async () => {
   const locator = resolveDesktopResourceLocator();
   const metadataStore = createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json"));
   const metadata = metadataStore.load();
-  const githubMcpServerPath = resolveGitHubMcpServerPath(
-    app.isPackaged ? process.resourcesPath : path.join(__dirname, "..", "..", "resources"),
-  );
+  const githubMcpResourcesRoot = app.isPackaged
+    ? process.resourcesPath
+    : path.resolve(process.env.PHO_CODE_RESOURCES_DIR?.trim() || path.join(__dirname, "..", "..", "resources"));
+  const githubMcpServerPath = resolveGitHubMcpServerPath(githubMcpResourcesRoot);
   runtime = await createPhoCodeRuntime({
     agentDir,
     appliesToSharedPiAgentDir: Boolean(agentDirOverride),

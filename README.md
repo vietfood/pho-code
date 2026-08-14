@@ -43,6 +43,7 @@ Pho Code is built from this repository. There is no public installer yet.
 ```bash
 git submodule update --init --recursive
 bun install --frozen-lockfile
+bun run stage:github-mcp
 bun run dev
 ```
 

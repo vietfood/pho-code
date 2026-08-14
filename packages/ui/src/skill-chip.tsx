@@ -20,7 +20,7 @@ export function SkillChip({
       title={`${SKILL_SOURCE_LABELS[sourceId]} · ${skillName}`}
       aria-label={token}
     >
-      <SkillSourceIcon sourceId={sourceId} className="mention-chip-icon size-3" />
+      <SkillSourceIcon sourceId={sourceId} className="mention-chip-icon" />
       <span className="mention-chip-label">{skillName}</span>
     </span>
   );

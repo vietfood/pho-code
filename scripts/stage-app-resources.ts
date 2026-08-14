@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -315,6 +315,7 @@ export function stageGitHubMcpServer(
   const destination = path.join(featuresRoot, relative);
   mkdirSync(path.dirname(destination), { recursive: true });
   cpSync(binary, destination);
+  chmodSync(destination, 0o755);
   writeFileSync(
     path.join(path.dirname(destination), "PIN.json"),
     `${JSON.stringify(

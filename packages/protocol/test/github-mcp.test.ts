@@ -14,7 +14,7 @@ describe("GitHub MCP protocol", () => {
     const snapshot = emptyGitHubMcpSettingsSnapshot();
     expect(snapshot.enabled).toBe(false);
     expect(snapshot.status).toBe("disabled");
-    expect(snapshot.account.signedIn).toBe(false);
+    expect(snapshot.account.patConfigured).toBe(false);
     expect(snapshot.disclosure).toBe(GITHUB_MCP_DISCLOSURE);
     expect(snapshot.boundToolCount).toBe(0);
     expect(isJsonSafeValue(snapshot)).toBe(true);
@@ -33,6 +33,6 @@ describe("GitHub MCP protocol", () => {
     expect(isGitHubMcpStatus("ready")).toBe(true);
     expect(isGitHubMcpStatus("needs_auth")).toBe(true);
     expect(isGitHubMcpStatus("connected")).toBe(false);
-    expect(githubMcpStatusLabel("needs_auth")).toBe("Sign in required");
+    expect(githubMcpStatusLabel("needs_auth")).toBe("PAT required");
   });
 });
