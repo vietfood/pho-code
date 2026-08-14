@@ -38,6 +38,7 @@ function sampleBootstrapState(): BootstrapState {
   return {
     protocolVersion: PROTOCOL_VERSION,
     appName: "Pho Code",
+    appVersion: "0.0.0",
     milestone: "vertical-slice",
     capabilities: {
       piRuntime: true,

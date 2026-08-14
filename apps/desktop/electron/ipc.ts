@@ -12,6 +12,8 @@ export const IPC_CHANNELS = {
   restoreSession: "pho-code:v1:restoreSession",
   prepareRemoveSession: "pho-code:v1:prepareRemoveSession",
   removeSession: "pho-code:v1:removeSession",
+  prepareRemoveProject: "pho-code:v1:prepareRemoveProject",
+  removeProject: "pho-code:v1:removeProject",
   sendPrompt: "pho-code:v1:sendPrompt",
   steerRun: "pho-code:v1:steerRun",
   queueFollowUp: "pho-code:v1:queueFollowUp",

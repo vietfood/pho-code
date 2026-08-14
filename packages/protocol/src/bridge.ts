@@ -50,8 +50,12 @@ import type {
   ListSessionCatalogInput,
   PrepareRemoveSessionInput,
   PrepareRemoveSessionResult,
+  PrepareRemoveProjectInput,
+  PrepareRemoveProjectResult,
   RemoveSessionInput,
   RemoveSessionResult,
+  RemoveProjectInput,
+  RemoveProjectResult,
   RestoreSessionInput,
   SessionCatalogEntry,
 } from "./session-lifecycle";
@@ -71,6 +75,8 @@ export interface DesktopBridge {
   restoreSession(input: RestoreSessionInput): Promise<SessionCatalogEntry>;
   prepareRemoveSession(input: PrepareRemoveSessionInput): Promise<PrepareRemoveSessionResult>;
   removeSession(input: RemoveSessionInput): Promise<RemoveSessionResult>;
+  prepareRemoveProject(input: PrepareRemoveProjectInput): Promise<PrepareRemoveProjectResult>;
+  removeProject(input: RemoveProjectInput): Promise<RemoveProjectResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;

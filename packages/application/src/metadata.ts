@@ -404,6 +404,25 @@ export function forgetSessionLifecycle(metadata: AppMetadata, key: SessionKey): 
   return next;
 }
 
+/** Drop a recent project and its session-lifecycle annotations. The folder on disk is unchanged. */
+export function forgetWorkspace(metadata: AppMetadata, workspaceId: string): AppMetadata {
+  const recentWorkspaces = metadata.recentWorkspaces.filter((entry) => entry.id !== workspaceId);
+  if (recentWorkspaces.length === metadata.recentWorkspaces.length) {
+    return metadata;
+  }
+  const next: AppMetadata = {
+    ...metadata,
+    recentWorkspaces,
+    sessionLifecycle: metadata.sessionLifecycle.filter((entry) => entry.workspaceId !== workspaceId),
+    trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds.filter((id) => id !== workspaceId),
+  };
+  if (next.selectedWorkspaceId === workspaceId) {
+    delete next.selectedWorkspaceId;
+    delete next.selectedSessionId;
+  }
+  return next;
+}
+
 function upsertSessionLifecycle(
   metadata: AppMetadata,
   key: SessionKey,

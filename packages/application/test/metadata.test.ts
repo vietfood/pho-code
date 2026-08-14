@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createMemoryMetadataStore,
   emptyMetadata,
+  forgetWorkspace,
   rememberWorkspace,
   reorderRecentWorkspaces,
 } from "../src/metadata";
@@ -58,5 +59,30 @@ describe("reorderRecentWorkspaces", () => {
     expect(reorderRecentWorkspaces(initial, ["a"])).toBe(initial);
     expect(reorderRecentWorkspaces(initial, ["a", "missing"])).toBe(initial);
     expect(reorderRecentWorkspaces(initial, ["a", "a"])).toBe(initial);
+  });
+});
+
+describe("forgetWorkspace", () => {
+  test("drops the folder, its session annotations, and selection", () => {
+    const initial = rememberWorkspace(
+      rememberWorkspace(emptyMetadata(), workspace("a")),
+      workspace("b"),
+    );
+    const selected = {
+      ...initial,
+      selectedWorkspaceId: "a",
+      selectedSessionId: "s-a",
+      sessionLifecycle: [
+        { workspaceId: "a", sessionId: "s-a", archivedAt: "2026-08-14T00:00:00.000Z" },
+        { workspaceId: "b", sessionId: "s-b" },
+      ],
+      trustedPermissionWorkspaceIds: ["a", "b"],
+    };
+    const forgotten = forgetWorkspace(selected, "a");
+    expect(forgotten.recentWorkspaces.map((entry) => entry.id)).toEqual(["b"]);
+    expect(forgotten.sessionLifecycle.map((entry) => entry.sessionId)).toEqual(["s-b"]);
+    expect(forgotten.trustedPermissionWorkspaceIds).toEqual(["b"]);
+    expect(forgotten.selectedWorkspaceId).toBeUndefined();
+    expect(forgotten.selectedSessionId).toBeUndefined();
   });
 });

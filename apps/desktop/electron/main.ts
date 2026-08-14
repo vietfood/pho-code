@@ -34,9 +34,11 @@ import {
   type PasteImagesInput,
   type PickImagesInput,
   type PickImagesResult,
+  type PrepareRemoveProjectInput,
   type PrepareRemoveSessionInput,
   type QueueFollowUpInput,
   type RemovePreparedImageInput,
+  type RemoveProjectInput,
   type RemoveSessionInput,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
@@ -393,6 +395,20 @@ function registerIpc(): void {
     handleCommand("removeSession", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().removeSession(asRecord(payload) as unknown as RemoveSessionInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.prepareRemoveProject, async (event, payload: unknown) =>
+    handleCommand("prepareRemoveProject", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().prepareRemoveProject(asRecord(payload) as unknown as PrepareRemoveProjectInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.removeProject, async (event, payload: unknown) =>
+    handleCommand("removeProject", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().removeProject(asRecord(payload) as unknown as RemoveProjectInput);
     }),
   );
 
@@ -789,6 +805,7 @@ app.whenReady().then(async () => {
   application = createApplicationService({
     runtime,
     versions: {
+      appVersion: app.getVersion(),
       electron: process.versions.electron ?? PINNED_ELECTRON.version,
       embeddedNode: process.versions.node,
     },

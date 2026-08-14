@@ -13,6 +13,7 @@ export {
   rememberWorkspace,
   reorderRecentWorkspaces,
   restoreSessionMetadata,
+  forgetWorkspace,
   setAppearance,
   setAppearanceTheme,
   setEnabledSkillSources,

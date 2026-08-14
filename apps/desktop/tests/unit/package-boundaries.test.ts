@@ -31,16 +31,18 @@ describe("workspace package dependency graph", () => {
     ]);
   });
 
-  test("runtime depends on protocol and the pinned Pi packages", async () => {
+  test("runtime depends only on protocol and reviewed pinned feature packages", async () => {
     const manifest = await readPackage("packages/runtime");
     expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
       "@earendil-works/pi-ai",
       "@earendil-works/pi-coding-agent",
       "@ff-labs/fff-node",
       "@gotgenes/pi-permission-system",
+      "@modelcontextprotocol/sdk",
       "@mozilla/readability",
       "@pho-code/protocol",
       "linkedom",
+      "pi-cursor-sdk",
       "turndown",
     ]);
   });

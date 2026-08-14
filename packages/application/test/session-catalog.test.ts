@@ -97,7 +97,7 @@ describe("application session catalog", () => {
     const store = createMemoryMetadataStore(emptyMetadata());
     const application = createApplicationService({
       runtime,
-      versions: { electron: "43.4.0", embeddedNode: "24.18.1" },
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
       metadataStore: store,
     });
     await application.openPickedWorkspace(workspaceA);
@@ -123,7 +123,7 @@ describe("application session catalog", () => {
     const { runtime } = createCatalogRuntime({ onPrompt: (sessionId) => prompted.push(sessionId) });
     const application = createApplicationService({
       runtime,
-      versions: { electron: "43.4.0", embeddedNode: "24.18.1" },
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
       metadataStore: createMemoryMetadataStore(),
     });
     await application.openPickedWorkspace(workspaceA);
@@ -142,7 +142,7 @@ describe("application session catalog", () => {
     const { runtime, emit } = createCatalogRuntime();
     const application = createApplicationService({
       runtime,
-      versions: { electron: "43.4.0", embeddedNode: "24.18.1" },
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
       metadataStore: createMemoryMetadataStore(),
     });
     await application.openPickedWorkspace(workspaceA);
@@ -164,7 +164,7 @@ describe("application session catalog", () => {
     const { runtime } = createCatalogRuntime();
     const application = createApplicationService({
       runtime,
-      versions: { electron: "43.4.0", embeddedNode: "24.18.1" },
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
       metadataStore: createMemoryMetadataStore(),
     });
     await application.openPickedWorkspace(workspaceA);
@@ -192,7 +192,7 @@ describe("application session catalog", () => {
     const store = createMemoryMetadataStore(emptyMetadata());
     const application = createApplicationService({
       runtime,
-      versions: { electron: "43.4.0", embeddedNode: "24.18.1" },
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
       metadataStore: store,
     });
     await application.openPickedWorkspace(workspaceA);
@@ -204,5 +204,37 @@ describe("application session catalog", () => {
     expect(await application.listSessionCatalog({ workspaceId: workspaceA, scope: "archived" })).toEqual(
       expect.arrayContaining([expect.objectContaining({ sessionId: "s-a", archived: true })]),
     );
+  });
+
+  test("removes a project, trashes its chats, and forgets the folder", async () => {
+    const { runtime } = createCatalogRuntime();
+    const trashed: string[] = [];
+    runtime.removeValidatedSession = (input) => {
+      trashed.push(input.sessionId);
+      return Promise.resolve({ title: input.sessionId, method: "macos-trash" });
+    };
+    const application = createApplicationService({
+      runtime,
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
+      metadataStore: createMemoryMetadataStore(),
+    });
+    await application.openPickedWorkspace(workspaceA);
+    const prepared = await application.prepareRemoveProject({ workspaceId: workspaceA });
+    expect(prepared.sessionCount).toBe(2);
+    expect(prepared.displayName.length).toBeGreaterThan(0);
+    expect(JSON.stringify(prepared)).not.toContain(".jsonl");
+    const removed = await application.removeProject({
+      workspaceId: workspaceA,
+      confirmationToken: prepared.confirmationToken,
+    });
+    expect(removed.recoverable).toBe(true);
+    expect(removed.removedSessionCount).toBe(2);
+    expect([...trashed].sort()).toEqual(["s-a", "s-b"]);
+    expect(removed.recentWorkspaces).toEqual([]);
+    expect(application.getBootstrapState().recentWorkspaces).toEqual([]);
+    expect(application.getBootstrapState().selectedWorkspace).toBeUndefined();
+    await expect(
+      application.removeProject({ workspaceId: workspaceA, confirmationToken: prepared.confirmationToken }),
+    ).rejects.toMatchObject({ code: "invalid_command" });
   });
 });

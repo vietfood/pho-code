@@ -19,7 +19,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
 
   try {
     const page = await harness.firstWindow();
-    await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+    await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
     await expect(page.getByTestId("add-project")).toBeVisible();
     await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
     await page.getByTestId("toggle-sidebar").click();
@@ -110,11 +110,13 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "pasteImages",
       "pickImages",
       "pickWorkspace",
+      "prepareRemoveProject",
       "prepareRemoveSession",
       "queueFollowUp",
       "refreshSkills",
       "removeGitHubPat",
       "removePreparedImage",
+      "removeProject",
       "removeSession",
       "reorderRecentWorkspaces",
       "resolveHostDialog",

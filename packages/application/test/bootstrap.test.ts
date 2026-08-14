@@ -17,6 +17,7 @@ import { createApplicationService, createMemoryMetadataStore } from "../src/inde
 function createTestApplication(
   runtime: HarnessRuntime = createDisposableStubHarnessRuntime(),
   versions = {
+    appVersion: "0.0.0",
     electron: PINNED_ELECTRON.version,
     embeddedNode: "24.18.1",
   },
@@ -59,6 +60,7 @@ describe("application bootstrap", () => {
 
   test("marks an old embedded Node as incompatible", () => {
     const application = createTestApplication(createDisposableStubHarnessRuntime(), {
+      appVersion: "0.0.0",
       electron: "37.0.0",
       embeddedNode: "22.16.0",
     });

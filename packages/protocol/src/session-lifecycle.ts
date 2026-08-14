@@ -1,4 +1,5 @@
 import { createHarnessError, HARNESS_ERROR_CODES } from "./errors";
+import type { RecentWorkspaceRecord } from "./workspace";
 
 export const SESSION_ACTIVITY_PHASES = ["idle", "working", "attention", "completed", "failed"] as const;
 
@@ -64,6 +65,33 @@ export interface RemoveSessionResult extends SessionKey {
   title: string;
   method: string;
   recoverable: true;
+}
+
+export interface PrepareRemoveProjectInput {
+  workspaceId: string;
+}
+
+export interface PrepareRemoveProjectResult {
+  workspaceId: string;
+  displayName: string;
+  path: string;
+  sessionCount: number;
+  confirmationToken: string;
+  sharedAgentDir: boolean;
+  expiresAt: string;
+}
+
+export interface RemoveProjectInput {
+  workspaceId: string;
+  confirmationToken: string;
+}
+
+export interface RemoveProjectResult {
+  workspaceId: string;
+  removedSessionCount: number;
+  method: string;
+  recoverable: true;
+  recentWorkspaces: RecentWorkspaceRecord[];
 }
 
 const ACTIVITY_RANK: Record<SessionActivityPhase, number> = {

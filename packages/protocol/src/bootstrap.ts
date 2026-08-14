@@ -17,6 +17,7 @@ export type BootstrapMilestone = "bootstrap" | "vertical-slice";
 export interface BootstrapState {
   protocolVersion: ProtocolVersion;
   appName: string;
+  appVersion: string;
   milestone: BootstrapMilestone;
   capabilities: BootstrapCapabilities;
   versions: BootstrapVersions;

@@ -17,6 +17,7 @@ function createTestApplication(runtime: HarnessRuntime = createDisposableStubHar
   const application = createApplicationService({
     runtime,
     versions: {
+      appVersion: "0.0.0",
       electron: PINNED_ELECTRON.version,
       embeddedNode: "24.18.1",
     },
