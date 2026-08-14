@@ -130,3 +130,54 @@ test("archives, restores, refuses running Trash, and moves a settled chat to Tra
     await removeTestDirectory(workspaceDir);
   }
 });
+
+test("deletes all archived chats in a project group through the preload bridge", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const env = {
+    PHO_CODE_AGENT_DIR: agentDir,
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+  };
+
+  try {
+    const harness = await launchDesktop(userDataDir, { env });
+    try {
+      const page = await harness.firstWindow();
+      expect(
+        await page.evaluate(() => typeof window.phoCode?.prepareRemoveArchivedSessions),
+      ).toBe("function");
+
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("composer").fill("hello from A");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("transcript")).toContainText("Hello from the test model.", { timeout: 20_000 });
+
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(2);
+
+      await openSessionActions(unselectedSessionItem(page));
+      await page.getByTestId("archive-session").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(1);
+
+      await openSettingsSection(page, "archived");
+      await expect(page.getByTestId("archived-chat-item")).toContainText("hello from A");
+      await page.getByTestId("remove-all-archived-sessions").click();
+      await expect(page.getByTestId("remove-archived-sessions-dialog")).toBeVisible();
+      await expect(page.getByTestId("remove-archived-sessions-dialog")).toContainText("operating-system Trash");
+      await page.getByTestId("remove-archived-sessions-confirm").click();
+      await expect(page.getByTestId("remove-archived-sessions-dialog")).toHaveCount(0);
+      await expect(page.getByTestId("archived-chats")).toContainText("No archived chats.");
+      await page.getByTestId("settings-close").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(1);
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
