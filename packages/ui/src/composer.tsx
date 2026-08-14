@@ -29,6 +29,7 @@ import { composerHighlight } from "./lib/composer-highlight";
 import { insertSkillToken } from "./lib/composer-tokens";
 import {
   clampComposerMenuIndex,
+  isDismissedComposerToken,
   nextComposerMenuIndex,
   shouldSkipComposerTokenSyncOnKeyUp,
 } from "./lib/composer-menu-keys";
@@ -131,6 +132,8 @@ export function Composer({
   const showThinking = supportsThinking || availableThinkingLevels.length > 1;
   const hero = variant === "hero";
   const mentionSessionRef = useRef<{ start: number } | null>(null);
+  const dismissedMentionStartRef = useRef<number | null>(null);
+  const dismissedSlashStartRef = useRef<number | null>(null);
   const previousSlashQueryRef = useRef<string | null>(null);
   const mentionOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const skillOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -267,9 +270,19 @@ export function Composer({
     setSearchStatus(null);
   }
 
+  function dismissMention(): void {
+    dismissedMentionStartRef.current = mentionSessionRef.current?.start ?? mentionStart;
+    closeMention();
+  }
+
   function closeSlash(): void {
     setSlashQuery(null);
     setSkillChoices([]);
+  }
+
+  function dismissSlash(): void {
+    dismissedSlashStartRef.current = slashQuery !== null ? slashStart : null;
+    closeSlash();
   }
 
   function closeComposerMenus(): void {
@@ -286,6 +299,11 @@ export function Composer({
     const cursor = getComposerCaretOffset(editor);
     const mention = findAtQuery(next, cursor, mentionSessionRef.current?.start ?? null);
     if (mention) {
+      if (isDismissedComposerToken(mention.start, dismissedMentionStartRef.current)) {
+        closeSlash();
+        return;
+      }
+      dismissedMentionStartRef.current = null;
       closeSlash();
       mentionSessionRef.current = { start: mention.start };
       setMentionStart(mention.start);
@@ -296,6 +314,10 @@ export function Composer({
     closeMention();
     const slash = findSlashQuery(next, cursor);
     if (slash) {
+      if (isDismissedComposerToken(slash.start, dismissedSlashStartRef.current)) {
+        return;
+      }
+      dismissedSlashStartRef.current = null;
       setSlashStart(slash.start);
       setSlashQuery(slash.query);
       return;
@@ -308,6 +330,8 @@ export function Composer({
     if (!editor) {
       return;
     }
+    dismissedMentionStartRef.current = null;
+    dismissedSlashStartRef.current = null;
     const next = serializeComposerEditable(editor);
     onChange(next);
     syncComposerTokensFromEditor();
@@ -325,7 +349,7 @@ export function Composer({
     kindsRef.current.set(suggestion.path, suggestion.kind);
     pendingCaretRef.current = next.cursor;
     onChange(next.text);
-    closeMention();
+    dismissMention();
     requestAnimationFrame(() => {
       const field = editorRef.current;
       if (!field) {
@@ -341,7 +365,7 @@ export function Composer({
     const next = insertSkillToken(value, slash, cursor, entry.sourceId, entry.skillName);
     pendingCaretRef.current = next.cursor;
     onChange(next.text);
-    closeSlash();
+    dismissSlash();
     requestAnimationFrame(() => {
       const field = editorRef.current;
       if (!field) {
@@ -575,12 +599,17 @@ export function Composer({
                     return;
                   }
                   if (event.key === "Enter" || event.key === "Tab") {
-                    event.preventDefault();
                     const selected = skillChoices[activeIndex];
                     if (selected) {
+                      event.preventDefault();
                       selectSkill(selected);
+                      return;
                     }
-                    return;
+                    dismissSlash();
+                    if (event.key === "Tab") {
+                      event.preventDefault();
+                      return;
+                    }
                   }
                 }
                 if (menuOpen) {
@@ -594,17 +623,27 @@ export function Composer({
                     return;
                   }
                   if (event.key === "Enter" || event.key === "Tab") {
-                    event.preventDefault();
                     const selected = suggestions[activeIndex];
                     if (selected) {
+                      event.preventDefault();
                       selectSuggestion(selected);
+                      return;
                     }
-                    return;
+                    dismissMention();
+                    if (event.key === "Tab") {
+                      event.preventDefault();
+                      return;
+                    }
                   }
                 }
                 if (event.key === "Escape" && (menuOpen || slashOpen)) {
                   event.preventDefault();
-                  closeComposerMenus();
+                  if (menuOpen) {
+                    dismissMention();
+                  }
+                  if (slashOpen) {
+                    dismissSlash();
+                  }
                   return;
                 }
                 if (event.key === "Enter" && !event.shiftKey) {

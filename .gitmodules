@@ -7,3 +7,6 @@
 [submodule "refs/t3code"]
 	path = refs/t3code
 	url = https://github.com/pingdotgg/t3code
+[submodule "refs/oh-my-pi"]
+	path = refs/oh-my-pi
+	url = https://github.com/can1357/oh-my-pi.git

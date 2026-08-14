@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
 import { compactPath } from "./lib/compact-path";
 import { copyText } from "./lib/clipboard";
+import { FloatingMenu } from "./floating-menu";
 
 export function ProjectContextMenu({
   x,
@@ -19,36 +19,8 @@ export function ProjectContextMenu({
   onRemove: () => void;
   onClose: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
-
   return (
-    <div
-      ref={menuRef}
-      role="menu"
-      data-testid="project-context-menu"
-      className="session-context-menu"
-      style={{ left: x, top: y }}
-    >
+    <FloatingMenu x={x} y={y} testId="project-context-menu" onClose={onClose}>
       <button
         type="button"
         role="menuitem"
@@ -94,6 +66,6 @@ export function ProjectContextMenu({
       >
         Remove project
       </button>
-    </div>
+    </FloatingMenu>
   );
 }

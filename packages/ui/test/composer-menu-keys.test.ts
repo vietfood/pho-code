@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   clampComposerMenuIndex,
+  isDismissedComposerToken,
   nextComposerMenuIndex,
   shouldSkipComposerTokenSyncOnKeyUp,
 } from "../src/lib/composer-menu-keys";
@@ -12,9 +13,24 @@ describe("shouldSkipComposerTokenSyncOnKeyUp", () => {
     expect(shouldSkipComposerTokenSyncOnKeyUp("Enter", true, true)).toBe(true);
   });
 
+  test("skips Enter, Tab, and Escape after the picker has closed", () => {
+    expect(shouldSkipComposerTokenSyncOnKeyUp("Enter", false, false)).toBe(true);
+    expect(shouldSkipComposerTokenSyncOnKeyUp("Tab", false, false)).toBe(true);
+    expect(shouldSkipComposerTokenSyncOnKeyUp("Escape", false, false)).toBe(true);
+  });
+
   test("does not skip unrelated keys", () => {
     expect(shouldSkipComposerTokenSyncOnKeyUp("a", false, true)).toBe(false);
     expect(shouldSkipComposerTokenSyncOnKeyUp("ArrowDown", false, false)).toBe(false);
+  });
+});
+
+describe("isDismissedComposerToken", () => {
+  test("keeps the same token closed after Escape or accept", () => {
+    expect(isDismissedComposerToken(0, 0)).toBe(true);
+    expect(isDismissedComposerToken(4, 4)).toBe(true);
+    expect(isDismissedComposerToken(0, 4)).toBe(false);
+    expect(isDismissedComposerToken(0, null)).toBe(false);
   });
 });
 

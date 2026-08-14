@@ -39,7 +39,7 @@ This phase should build on Milestone 3's composite session ownership. It must di
 Extend the accepted session lifecycle without introducing multi-agent execution:
 
 - fork and tree navigation while leaving Pi JSONL authoritative;
-- visible automatic compaction events, manual compact, and an explanation of context composition and token impact;
+- visible automatic compaction events, manual compact, and an explanation of context composition and token impact, developed from the proposed [compaction feature design](./features/compaction.md);
 - richer selected-file, text, image, and bounded document attachments with explicit type/size controls;
 - per-run/provider usage and optional soft budget warnings;
 - integrated diagnostics and redacted log export for auth, baked features, indexes, MCP state, and interrupted runs.

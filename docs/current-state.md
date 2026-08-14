@@ -81,4 +81,4 @@ bun run stage:github-mcp
 bun run dev
 ```
 
-Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, and [`roadmap-vnext.md`](./roadmap-vnext.md) for future work not yet promoted. Update this brief when the accepted product boundary changes.
+Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, [`features`](./features/README.md) for vertical feature designs, and [`roadmap-vnext.md`](./roadmap-vnext.md) for future work not yet promoted. Update this brief when the accepted product boundary changes.

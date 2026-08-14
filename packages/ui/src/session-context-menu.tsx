@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { FloatingMenu } from "./floating-menu";
 
 // Right-click session actions adapted from refs/pi-gui ThreadSessionRow
 // onContextMenu / use-thread-menu (MIT). Rename, pin, mark-read, and copy
@@ -21,36 +21,8 @@ export function SessionContextMenu({
   onRemove: () => void;
   onClose: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
-
   return (
-    <div
-      ref={menuRef}
-      role="menu"
-      data-testid="session-context-menu"
-      className="session-context-menu"
-      style={{ left: x, top: y }}
-    >
+    <FloatingMenu x={x} y={y} testId="session-context-menu" onClose={onClose}>
       {archived ? (
         <button
           type="button"
@@ -96,6 +68,6 @@ export function SessionContextMenu({
       >
         Move chat to Trash
       </button>
-    </div>
+    </FloatingMenu>
   );
 }

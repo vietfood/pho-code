@@ -108,7 +108,7 @@ test("opens an empty-session context prompt for edit, then inspects it after sen
   }
 });
 
-test("keeps composer @ mentions open across spaces until Escape", async () => {
+test("closes composer @ mentions on Escape and Enter without reopening space-less queries", async () => {
   const userDataDir = await makeUserDataDir();
   const agentDir = await makeAgentDir();
   const workspaceDir = await makeWorkspaceDir();
@@ -127,10 +127,28 @@ test("keeps composer @ mentions open across spaces until Escape", async () => {
       const composer = page.getByTestId("composer");
       await expect(composer).toBeVisible();
       await composer.click();
+      const mentions = page.getByTestId("composer-mentions");
+
       await composer.pressSequentially("@KL divergence.md");
-      await expect(page.getByTestId("composer-mentions")).toBeVisible();
+      await expect(mentions).toBeVisible();
       await composer.press("Escape");
-      await expect(page.getByTestId("composer-mentions")).toBeHidden();
+      await expect(mentions).toBeHidden();
+
+      await composer.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+      await composer.press("Backspace");
+      await composer.pressSequentially("@features.ts");
+      await expect(mentions).toBeVisible();
+      await composer.press("Escape");
+      await expect(mentions).toBeHidden();
+      await composer.press("ArrowLeft");
+      await expect(mentions).toBeHidden();
+
+      await composer.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+      await composer.press("Backspace");
+      await composer.pressSequentially("@features.ts");
+      await expect(mentions).toBeVisible();
+      await composer.press("Enter");
+      await expect(mentions).toBeHidden();
     } finally {
       await app.close();
     }

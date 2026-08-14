@@ -1776,6 +1776,7 @@ html[data-glass="on"] .glass-field {
   z-index: 40;
   min-width: 11.5rem;
   overflow: hidden;
+  -webkit-app-region: no-drag;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: var(--popover);
