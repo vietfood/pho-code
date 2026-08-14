@@ -14,6 +14,14 @@ const FILE_ICON_SVG =
 const FOLDER_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>';
 
+function wrapMentionChipShell(chip: HTMLSpanElement, documentRef: Document): HTMLSpanElement {
+  const shell = documentRef.createElement("span");
+  shell.className = "mention-chip-shell";
+  shell.contentEditable = "false";
+  shell.appendChild(chip);
+  return shell;
+}
+
 export function createMentionChipElement(
   path: string,
   kind: WorkspaceReferenceKind,
@@ -31,7 +39,7 @@ export function createMentionChipElement(
   if (label) {
     label.textContent = mentionLabel(path);
   }
-  return chip;
+  return wrapMentionChipShell(chip, documentRef);
 }
 
 const SKILL_ICON_SVG =
@@ -54,7 +62,7 @@ export function createSkillChipElement(
   if (label) {
     label.textContent = skillName;
   }
-  return chip;
+  return wrapMentionChipShell(chip, documentRef);
 }
 
 // Lucide Github icon paths (MIT).
@@ -80,7 +88,7 @@ export function createGithubChipElement(
   if (label) {
     label.textContent = githubLinkLabel(owner, repo);
   }
-  return chip;
+  return wrapMentionChipShell(chip, documentRef);
 }
 
 export function serializeComposerEditable(root: HTMLElement): string {

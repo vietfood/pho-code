@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { PencilIcon, RotateCcwIcon, UserIcon } from "lucide-react";
+import { PencilIcon, RotateCcwIcon } from "lucide-react";
 import type { RunWorkEntry, SessionSnapshot, TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
 import { stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
@@ -31,7 +31,7 @@ import { Button } from "./ui/button";
 // Transcript layout adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
 // Turn-level work collapse is Codex-inspired (visual reference only); settled copy is activity-based.
 // Pre-tool assistant text stays in the work log; only text after the last tool is the turn answer.
-// User avatar chip and @ mention chips are harness-owned Cursor-inspired chrome.
+// @ mention chips in user messages are harness-owned Cursor-inspired chrome.
 // Assistant-output copy control informed by refs/pi-web MessageView (MIT).
 // Live assistant text uses ConservativeMarkdown with a GFM-only pipeline; KaTeX/Shiki/Mermaid wait until settle.
 
@@ -200,18 +200,10 @@ function WorkNarration({ text }: { text: string }) {
 const UserMessageRow = memo(function UserMessageRow({ message }: { message: TranscriptMessage }) {
   return (
     <article className="mx-auto flex w-full min-w-0 max-w-3xl flex-col items-end gap-1 overflow-x-clip pb-4">
-      <div className="chat-text relative flex max-h-[300px] max-w-[80%] items-start gap-2.5 overflow-y-auto break-words rounded-2xl bg-message px-3 py-2.5 text-message-foreground">
-        <span
-          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md bg-foreground/10 text-message-foreground"
-          aria-hidden="true"
-        >
-          <UserIcon className="size-3 opacity-80" />
-        </span>
-        <div className="min-w-0 flex-1">
-          {message.blocks.map((block, index) => (
-            <UserTranscriptBlockView key={`${message.id}:${index}`} block={block} />
-          ))}
-        </div>
+      <div className="chat-text relative max-h-[300px] max-w-[80%] overflow-y-auto break-words rounded-2xl bg-message px-3 py-2.5 text-message-foreground">
+        {message.blocks.map((block, index) => (
+          <UserTranscriptBlockView key={`${message.id}:${index}`} block={block} />
+        ))}
       </div>
     </article>
   );
@@ -251,7 +243,7 @@ function UserTextWithMentions({ text }: { text: string }) {
   }
   // Keep text+chips inline; block markdown wrappers would break chip flow.
   return (
-    <div className="user-mention-text whitespace-pre-wrap break-words">
+    <span className="user-mention-text whitespace-pre-wrap break-words">
       {segments.map((segment, index) => {
         switch (segment.type) {
           case "text":
@@ -287,7 +279,7 @@ function UserTextWithMentions({ text }: { text: string }) {
           }
         }
       })}
-    </div>
+    </span>
   );
 }
 

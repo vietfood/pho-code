@@ -27,6 +27,11 @@ import { cn } from "./lib/cn";
 import { findAtQuery, insertAtMention, mentionDirectory, mentionLabel } from "./lib/at-mention";
 import { composerHighlight } from "./lib/composer-highlight";
 import { insertSkillToken } from "./lib/composer-tokens";
+import {
+  clampComposerMenuIndex,
+  nextComposerMenuIndex,
+  shouldSkipComposerTokenSyncOnKeyUp,
+} from "./lib/composer-menu-keys";
 import { findSlashQuery } from "./lib/slash-query";
 import {
   clipboardLooksLikeImage,
@@ -126,6 +131,9 @@ export function Composer({
   const showThinking = supportsThinking || availableThinkingLevels.length > 1;
   const hero = variant === "hero";
   const mentionSessionRef = useRef<{ start: number } | null>(null);
+  const previousSlashQueryRef = useRef<string | null>(null);
+  const mentionOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const skillOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState(0);
   const [mentionRaw, setMentionRaw] = useState("");
@@ -212,12 +220,44 @@ export function Composer({
   useEffect(() => {
     if (slashQuery === null) {
       setSkillChoices([]);
+      previousSlashQueryRef.current = null;
       return;
     }
     const next = skills ? availableSlashSkills(skills, slashQuery) : [];
     setSkillChoices(next);
-    setActiveIndex(0);
+    if (previousSlashQueryRef.current !== slashQuery) {
+      setActiveIndex(0);
+      previousSlashQueryRef.current = slashQuery;
+    }
   }, [slashQuery, skills]);
+
+  useEffect(() => {
+    mentionOptionRefs.current.length = suggestions.length;
+  }, [suggestions.length]);
+
+  useEffect(() => {
+    skillOptionRefs.current.length = skillChoices.length;
+  }, [skillChoices.length]);
+
+  useEffect(() => {
+    if (menuOpen && suggestions.length > 0) {
+      setActiveIndex((index) => clampComposerMenuIndex(index, suggestions.length));
+      return;
+    }
+    if (slashOpen && skillChoices.length > 0) {
+      setActiveIndex((index) => clampComposerMenuIndex(index, skillChoices.length));
+    }
+  }, [menuOpen, slashOpen, skillChoices.length, suggestions.length]);
+
+  useLayoutEffect(() => {
+    if (menuOpen) {
+      mentionOptionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return;
+    }
+    if (slashOpen) {
+      skillOptionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [activeIndex, menuOpen, slashOpen, skillChoices.length, suggestions.length]);
 
   function closeMention(): void {
     mentionSessionRef.current = null;
@@ -480,7 +520,12 @@ export function Composer({
                 hero ? "max-h-[min(52em,70vh)] min-h-[4.5em]" : "max-h-[min(48em,58vh)] min-h-[1.5em]",
               )}
               onInput={handleEditorInput}
-              onKeyUp={syncComposerTokensFromEditor}
+              onKeyUp={(event) => {
+                if (shouldSkipComposerTokenSyncOnKeyUp(event.key, menuOpen, slashOpen)) {
+                  return;
+                }
+                syncComposerTokensFromEditor();
+              }}
               onClick={syncComposerTokensFromEditor}
               onPaste={(event) => {
                 event.preventDefault();
@@ -519,42 +564,13 @@ export function Composer({
                 onChange(next.text);
               }}
               onKeyDown={(event) => {
-                if (menuOpen) {
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    if (suggestions.length > 0) {
-                      setActiveIndex((index) => (index + 1) % suggestions.length);
-                    }
-                    return;
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    if (suggestions.length > 0) {
-                      setActiveIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
-                    }
-                    return;
-                  }
-                  if (event.key === "Enter" || event.key === "Tab") {
-                    event.preventDefault();
-                    const selected = suggestions[activeIndex];
-                    if (selected) {
-                      selectSuggestion(selected);
-                    }
-                    return;
-                  }
-                }
                 if (slashOpen) {
-                  if (event.key === "ArrowDown") {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
                     if (skillChoices.length > 0) {
-                      setActiveIndex((index) => (index + 1) % skillChoices.length);
-                    }
-                    return;
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    if (skillChoices.length > 0) {
-                      setActiveIndex((index) => (index - 1 + skillChoices.length) % skillChoices.length);
+                      setActiveIndex((index) =>
+                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, skillChoices.length),
+                      );
                     }
                     return;
                   }
@@ -563,6 +579,25 @@ export function Composer({
                     const selected = skillChoices[activeIndex];
                     if (selected) {
                       selectSkill(selected);
+                    }
+                    return;
+                  }
+                }
+                if (menuOpen) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    if (suggestions.length > 0) {
+                      setActiveIndex((index) =>
+                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, suggestions.length),
+                      );
+                    }
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    const selected = suggestions[activeIndex];
+                    if (selected) {
+                      selectSuggestion(selected);
                     }
                     return;
                   }
@@ -591,6 +626,9 @@ export function Composer({
                     return (
                       <button
                         key={`${suggestion.kind}:${suggestion.path}`}
+                        ref={(node) => {
+                          mentionOptionRefs.current[index] = node;
+                        }}
                         type="button"
                         role="option"
                         aria-selected={index === activeIndex}
@@ -633,6 +671,9 @@ export function Composer({
                   skillChoices.map((entry, index) => (
                     <button
                       key={`${entry.sourceId}:${entry.skillName}`}
+                      ref={(node) => {
+                        skillOptionRefs.current[index] = node;
+                      }}
                       type="button"
                       role="option"
                       aria-selected={index === activeIndex}
@@ -640,6 +681,7 @@ export function Composer({
                       title={entry.description ?? entry.displayName}
                       onMouseDown={(event) => {
                         event.preventDefault();
+                        setActiveIndex(index);
                         selectSkill(entry);
                       }}
                     >
