@@ -32,6 +32,13 @@ export interface PrepareImageInput {
   width: number;
   height: number;
   previewDataUrl: string;
+  sessionId?: string;
+  workspaceId?: string;
+}
+
+export interface PickImagesInput {
+  sessionId?: string;
+  workspaceId?: string;
 }
 
 export interface RemovePreparedImageInput {
@@ -54,4 +61,6 @@ export interface PastedImageBytes {
 export interface PasteImagesInput {
   /** When omitted or empty, the shell reads the native clipboard image. */
   images?: PastedImageBytes[];
+  sessionId?: string;
+  workspaceId?: string;
 }

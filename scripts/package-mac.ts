@@ -147,7 +147,13 @@ function writeStagedBuilderConfig(): string {
       output: path.join(DESKTOP_DIR, "release"),
       buildResources: path.join(DESKTOP_DIR, "resources"),
     },
-    files: ["**/*", "!**/node_modules/@gotgenes/**", "!**/node_modules/@pho-code/**"],
+    files: [
+      "**/*",
+      "!**/node_modules/@gotgenes/**",
+      "!**/node_modules/@pho-code/**",
+      "!**/node_modules/pi-cursor-sdk/**",
+      "!**/node_modules/@cursor/**",
+    ],
     asar: true,
     asarUnpack: [
       "**/*.node",
@@ -157,6 +163,7 @@ function writeStagedBuilderConfig(): string {
       "**/node_modules/@silvia-odwyer/photon-node/**/*",
       "**/node_modules/@ff-labs/**/*",
       "**/node_modules/ffi-rs/**/*",
+      "**/node_modules/@cursor/**/*",
     ],
     extraResources: [
       { from: path.join(DESKTOP_RESOURCES_DIR, "features"), to: "features" },
@@ -179,7 +186,7 @@ function writeStagedBuilderConfig(): string {
 }
 
 export function prepareMacPackageStage(): void {
-  stageBakedFeatureResources(DESKTOP_RESOURCES_DIR);
+  stageBakedFeatureResources(DESKTOP_RESOURCES_DIR, { requireGitHubMcp: true });
   writeThirdPartyNotices(DESKTOP_RESOURCES_DIR);
   run("bun", ["run", "build"], DESKTOP_DIR);
 

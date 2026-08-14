@@ -8,10 +8,15 @@ import { createRetrievalFeature } from "./retrieval-feature";
 import type { LocalRetrievalRuntime } from "./local-retrieval";
 import { createWebFeature } from "./web-feature";
 import type { WebResearchRuntime } from "./web-client";
+import { createCuratedSkillsFeature, resolveCuratedSkillsRoot } from "./skills-feature";
 
 export const PERMISSION_FEATURE_ID = "permission-system";
 export const PERMISSION_FEATURE_VERSION = "24.0.0";
 export const PERMISSION_PACKAGE_NAME = "@gotgenes/pi-permission-system";
+
+export const CURSOR_SDK_FEATURE_ID = "cursor-sdk";
+export const CURSOR_SDK_FEATURE_VERSION = "0.2.0";
+export const CURSOR_SDK_PACKAGE_NAME = "pi-cursor-sdk";
 
 export interface HarnessFeature {
   id: string;
@@ -38,25 +43,30 @@ export interface FlattenedFeatureLoaderOptions {
   extensionFactories: InlineExtension[];
 }
 
-export function resolvePermissionFeature(locator: ResourceLocator): {
+function resolvePinnedPackageFeature(input: {
+  locator: ResourceLocator;
+  featureId: string;
+  featureVersion: string;
+  packageName: string;
+}): {
   feature: HarnessFeature;
   diagnostics: ResourceDiagnostic[];
 } {
   try {
-    const packageRoot = locator.resolvePackageRoot(PERMISSION_PACKAGE_NAME);
+    const packageRoot = input.locator.resolvePackageRoot(input.packageName);
     const manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as {
       version?: string;
     };
-    if (manifest.version !== PERMISSION_FEATURE_VERSION) {
+    if (manifest.version !== input.featureVersion) {
       throw new Error(
-        `Packaged feature ${PERMISSION_PACKAGE_NAME} is version ${manifest.version ?? "unknown"}; expected ${PERMISSION_FEATURE_VERSION}.`,
+        `Packaged feature ${input.packageName} is version ${manifest.version ?? "unknown"}; expected ${input.featureVersion}.`,
       );
     }
     const extensionPaths = readPiExtensionPaths(packageRoot);
     return {
       feature: {
-        id: PERMISSION_FEATURE_ID,
-        version: PERMISSION_FEATURE_VERSION,
+        id: input.featureId,
+        version: input.featureVersion,
         extensionPaths,
         expected: { extensions: extensionPaths.length },
       },
@@ -66,11 +76,11 @@ export function resolvePermissionFeature(locator: ResourceLocator): {
     const message =
       error instanceof Error
         ? error.message
-        : `Packaged feature ${PERMISSION_PACKAGE_NAME} is missing. The application will not load it from global Pi packages.`;
+        : `Packaged feature ${input.packageName} is missing. The application will not load it from global Pi packages.`;
     return {
       feature: {
-        id: PERMISSION_FEATURE_ID,
-        version: PERMISSION_FEATURE_VERSION,
+        id: input.featureId,
+        version: input.featureVersion,
         extensionPaths: [],
         expected: { extensions: 1 },
       },
@@ -78,11 +88,35 @@ export function resolvePermissionFeature(locator: ResourceLocator): {
         {
           type: "error",
           message,
-          path: PERMISSION_PACKAGE_NAME,
+          path: input.packageName,
         },
       ],
     };
   }
+}
+
+export function resolvePermissionFeature(locator: ResourceLocator): {
+  feature: HarnessFeature;
+  diagnostics: ResourceDiagnostic[];
+} {
+  return resolvePinnedPackageFeature({
+    locator,
+    featureId: PERMISSION_FEATURE_ID,
+    featureVersion: PERMISSION_FEATURE_VERSION,
+    packageName: PERMISSION_PACKAGE_NAME,
+  });
+}
+
+export function resolveCursorSdkFeature(locator: ResourceLocator): {
+  feature: HarnessFeature;
+  diagnostics: ResourceDiagnostic[];
+} {
+  return resolvePinnedPackageFeature({
+    locator,
+    featureId: CURSOR_SDK_FEATURE_ID,
+    featureVersion: CURSOR_SDK_FEATURE_VERSION,
+    packageName: CURSOR_SDK_PACKAGE_NAME,
+  });
 }
 
 export function createDefaultFeatureManifest(
@@ -91,8 +125,10 @@ export function createDefaultFeatureManifest(
 ): HarnessFeatureManifest {
   const features: HarnessFeature[] = [
     resolvePermissionFeature(locator).feature,
+    resolveCursorSdkFeature(locator).feature,
     createTrashFeature(options),
     createWebFeature(options.web),
+    createCuratedSkillsFeature(resolveCuratedSkillsRoot(options.resourcesRoot)),
   ];
   if (options.retrieval) {
     features.push(createRetrievalFeature(options.retrieval));

@@ -136,7 +136,7 @@ Settled assistant markdown can be edited in place from the turn action row (Edit
 - Model and thinking selectors change the live Pi session.
 - Composer usage strip shows context bar, ↑↓ tokens, cache, and session cost from Pi-projected snapshot fields.
 - Model picker shows provider icons and catalog $/M rates, groups by provider, and filters by name/id/provider.
-- Thinking level uses the composer select over Pi available levels, with a purple accent and prompt-bar ring when the top level is selected. `@` mention and `/` skill-stub tokens use teal and amber rings respectively; `/` does not insert a skill yet. Mention autocomplete stays open across spaces until Enter/Tab or Escape.
+- Thinking level uses the composer select over Pi available levels, with a purple accent and prompt-bar ring when the top level is selected. `@` mention and `/` skill tokens use teal and amber rings respectively. `/` lists skills from enabled sources and inserts a source-qualified token; the runtime expands it on send. Limited or incompatible skills show a small confirmation popup. Mention autocomplete stays open across spaces until Enter/Tab or Escape.
 - Live tokens render as sanitized GFM markdown; KaTeX, Shiki, and Mermaid wait until settle. Settled KaTeX runs only when the text looks like math.
 - Static “Working” / “Working for …” text while a run is live; no pixel-grid loader. Streaming caret and session/thinking enter motion stay compositor-only.
 - Permission docks use a compact Beautiful UI approval card (radio rows, dismiss, footer send) without becoming a full-screen modal.

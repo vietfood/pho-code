@@ -1,15 +1,21 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
-import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { PERMISSION_PACKAGE_NAME } from "../packages/runtime/src/features.ts";
+import { PERMISSION_PACKAGE_NAME, CURSOR_SDK_PACKAGE_NAME } from "../packages/runtime/src/features.ts";
 import { createPackagedResourceLocator, readPiExtensionPaths } from "../packages/runtime/src/resource-locator.ts";
-import { generateThirdPartyNotices, stageBakedFeatureResources } from "./stage-app-resources.ts";
+import { CURATED_SKILL_NAMES } from "../packages/runtime/src/skills-feature.ts";
+import {
+  generateThirdPartyNotices,
+  stageBakedFeatureResources,
+  stageGitHubMcpServer,
+  stagedCuratedSkillsRoot,
+  stagedCursorSdkPackageRoot,
+} from "./stage-app-resources.ts";
 
 describe("baked feature staging", () => {
-  test("stages the permission package for the packaged locator", () => {
+  test("stages the permission package, Cursor SDK provider, and Pho Code skills without clearing by rm", () => {
     const resourcesRoot = mkdtempSync(path.join(tmpdir(), "pho-code-stage-"));
     const packageRoot = stageBakedFeatureResources(resourcesRoot);
     expect(existsSync(path.join(packageRoot, "LICENSE"))).toBe(true);
@@ -24,12 +30,39 @@ describe("baked feature staging", () => {
 
     const manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as { version: string };
     expect(manifest.version).toBe("24.0.0");
+
+    const cursorRoot = stagedCursorSdkPackageRoot(resourcesRoot);
+    expect(locator.resolvePackageRoot(CURSOR_SDK_PACKAGE_NAME)).toBe(cursorRoot);
+    expect(readPiExtensionPaths(cursorRoot).some((entry) => entry.endsWith("src/index.ts"))).toBe(true);
+    expect(existsSync(path.join(cursorRoot, "node_modules", "@cursor", "sdk", "package.json"))).toBe(true);
+
+    const skillsRoot = stagedCuratedSkillsRoot(resourcesRoot);
+    for (const name of CURATED_SKILL_NAMES) {
+      expect(existsSync(path.join(skillsRoot, name, "SKILL.md"))).toBe(true);
+    }
   });
 
-  test("notices name the pinned Pi and permission packages", () => {
+  test("notices name the pinned Pi, permission, and Cursor SDK packages", () => {
     const notices = generateThirdPartyNotices();
     expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.1");
     expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
+    expect(notices).toContain("pi-cursor-sdk 0.2.0");
+    expect(notices).toContain("@cursor/sdk 1.0.23");
+    expect(notices).toContain("@modelcontextprotocol/sdk");
     expect(notices).toContain("MIT");
+  });
+
+  test("fails closed when a GitHub MCP archive hash does not match the pin", () => {
+    const featuresRoot = mkdtempSync(path.join(tmpdir(), "pho-code-github-stage-"));
+    const cacheDir = mkdtempSync(path.join(tmpdir(), "pho-code-github-cache-"));
+    const asset = "mismatch.tar.gz";
+    const archivePath = path.join(cacheDir, asset);
+    writeFileSync(archivePath, "not-the-pinned-binary");
+    expect(() =>
+      stageGitHubMcpServer(featuresRoot, {
+        required: true,
+        archivePath,
+      }),
+    ).toThrow(/SHA-256 mismatch/);
   });
 });

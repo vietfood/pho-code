@@ -10,6 +10,16 @@ export const SETTINGS_SECTIONS = [
     description: "Provider API keys and sign-in.",
   },
   {
+    id: "github",
+    label: "GitHub",
+    description: "Read-only GitHub MCP connection and login.",
+  },
+  {
+    id: "skills",
+    label: "Skills",
+    description: "Built-in and trusted instruction sources.",
+  },
+  {
     id: "archived",
     label: "Archived",
     description: "Restore or move archived chats to Trash.",

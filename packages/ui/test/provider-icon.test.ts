@@ -18,4 +18,11 @@ describe("ProviderIcon", () => {
     expect(markup).toContain("<path");
     expect(markup).not.toContain("openai-codex-");
   });
+
+  test("uses the Simple Icons cursor mark for the cursor provider", () => {
+    const markup = renderToStaticMarkup(createElement(ProviderIcon, { provider: "cursor" }));
+    expect(markup).toContain('data-provider="cursor"');
+    expect(markup).toContain("<path");
+    expect(markup).not.toContain("<text");
+  });
 });

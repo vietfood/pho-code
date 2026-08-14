@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArchiveIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, BookOpenIcon, GithubIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
 import {
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
@@ -19,8 +19,13 @@ import {
   type SessionCatalogEntry,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type UpdateSkillSourceSettingsInput,
+  type UpdateGitHubMcpSettingsInput,
+  type ImportGitHubPatInput,
 } from "@pho-code/protocol";
 import { ArchivedChatsSection } from "./archived-chats";
+import { GitHubMcpSettingsSection } from "./github-mcp-settings";
+import { SkillsSettingsSection } from "./skills-settings";
 import { cn } from "./lib/cn";
 import { handleDialogTab } from "./lib/dialog-focus";
 import { projectPermissionTrustPending } from "./lib/project-permission-trust";
@@ -110,6 +115,11 @@ export function SettingsView({
   onRestoreArchived,
   onOpenArchived,
   onRemoveSession,
+  onSkillSourceChange,
+  onRefreshSkills,
+  onGitHubMcpChange,
+  onImportGitHubPat,
+  onLogoutGitHubMcp,
 }: {
   settings: HarnessSettingsSnapshot;
   running: boolean;
@@ -131,6 +141,11 @@ export function SettingsView({
   onRestoreArchived: (workspaceId: string, sessionId: string) => void;
   onOpenArchived: (workspaceId: string, sessionId: string) => void;
   onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
+  onRefreshSkills: () => void;
+  onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
+  onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
+  onLogoutGitHubMcp: () => void;
 }) {
   const flowActive = isActiveAuthFlow(authFlow);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -378,6 +393,11 @@ export function SettingsView({
                 onRestoreArchived={onRestoreArchived}
                 onOpenArchived={onOpenArchived}
                 onRemoveSession={onRemoveSession}
+                onSkillSourceChange={onSkillSourceChange}
+                onRefreshSkills={onRefreshSkills}
+                onGitHubMcpChange={onGitHubMcpChange}
+                onImportGitHubPat={onImportGitHubPat}
+                onLogoutGitHubMcp={onLogoutGitHubMcp}
               />
             </div>
           </div>
@@ -417,6 +437,11 @@ function SettingsPanel({
   onRestoreArchived,
   onOpenArchived,
   onRemoveSession,
+  onSkillSourceChange,
+  onRefreshSkills,
+  onGitHubMcpChange,
+  onImportGitHubPat,
+  onLogoutGitHubMcp,
 }: {
   section: SettingsSectionId;
   settings: HarnessSettingsSnapshot;
@@ -447,6 +472,11 @@ function SettingsPanel({
   onRestoreArchived: (workspaceId: string, sessionId: string) => void;
   onOpenArchived: (workspaceId: string, sessionId: string) => void;
   onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
+  onRefreshSkills: () => void;
+  onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
+  onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
+  onLogoutGitHubMcp: () => void;
 }): ReactNode {
   switch (section) {
     case "appearance":
@@ -464,6 +494,25 @@ function SettingsPanel({
           onOpenLink={onOpenAuthLink}
           onCancelLogin={onCancelAuth}
           onLogout={onLogoutProvider}
+        />
+      );
+    case "github":
+      return (
+        <GitHubMcpSettingsSection
+          githubMcp={settings.githubMcp}
+          busy={busy}
+          onEnabledChange={onGitHubMcpChange}
+          onImportPat={onImportGitHubPat}
+          onLogout={onLogoutGitHubMcp}
+        />
+      );
+    case "skills":
+      return (
+        <SkillsSettingsSection
+          skills={settings.skills}
+          busy={busy}
+          onSourceChange={onSkillSourceChange}
+          onRefresh={onRefreshSkills}
         />
       );
     case "archived":
@@ -508,6 +557,10 @@ function SectionIcon({ id, className }: { id: SettingsSectionId; className?: str
       return <PaletteIcon className={className} aria-hidden="true" />;
     case "accounts":
       return <KeyRoundIcon className={className} aria-hidden="true" />;
+    case "github":
+      return <GithubIcon className={className} aria-hidden="true" />;
+    case "skills":
+      return <BookOpenIcon className={className} aria-hidden="true" />;
     case "archived":
       return <ArchiveIcon className={className} aria-hidden="true" />;
     case "permissions":

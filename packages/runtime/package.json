@@ -17,8 +17,10 @@
     "@ff-labs/fff-node": "0.10.1",
     "@gotgenes/pi-permission-system": "24.0.0",
     "@mozilla/readability": "0.6.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@pho-code/protocol": "workspace:*",
     "linkedom": "0.16.11",
+    "pi-cursor-sdk": "0.2.0",
     "turndown": "7.2.1"
   },
   "devDependencies": {

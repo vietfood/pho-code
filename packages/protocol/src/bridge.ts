@@ -1,5 +1,5 @@
 import type { BootstrapState } from "./bootstrap";
-import type { PasteImagesInput, PickImagesResult, RemovePreparedImageInput } from "./attachments";
+import type { PasteImagesInput, PickImagesInput, PickImagesResult, RemovePreparedImageInput } from "./attachments";
 import type {
   AbortRunInput,
   CreateSessionInput,
@@ -32,6 +32,13 @@ import type {
 import type { RuntimeEventEnvelope, Unsubscribe } from "./events";
 import type { ResolveHostDialogInput } from "./resources";
 import type { SearchWorkspaceReferencesInput, SearchWorkspaceReferencesResult } from "./retrieval";
+import type {
+  GitHubMcpSettingsSnapshot,
+  ImportGitHubPatInput,
+  ImportGitHubPatResult,
+  UpdateGitHubMcpSettingsInput,
+} from "./github-mcp";
+import type { SkillSettingsSnapshot, UpdateSkillSourceSettingsInput } from "./skills";
 import type {
   HarnessSettingsSnapshot,
   UpdateAppearanceSettingsInput,
@@ -67,7 +74,7 @@ export interface DesktopBridge {
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
-  pickImages(): Promise<PickImagesResult>;
+  pickImages(input?: PickImagesInput): Promise<PickImagesResult>;
   pasteImages(input?: PasteImagesInput): Promise<PickImagesResult>;
   removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
@@ -88,5 +95,10 @@ export interface DesktopBridge {
   cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
   logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
+  updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
+  refreshSkills(): Promise<SkillSettingsSnapshot>;
+  updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
+  importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
+  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
 }

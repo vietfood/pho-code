@@ -26,6 +26,7 @@ import {
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
+  type SkillSettingsSnapshot,
   type SendPromptInput,
   type SessionActivitySummary,
   type SessionKey,
@@ -37,6 +38,10 @@ import {
   type SteerRunInput,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
+  type UpdateSkillSourceSettingsInput,
+  type GitHubMcpSettingsSnapshot,
+  type ImportGitHubPatInput,
+  type UpdateGitHubMcpSettingsInput,
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
 
@@ -93,6 +98,14 @@ export interface HarnessRuntime {
   cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
   logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
+  getSkillSettings(): SkillSettingsSnapshot;
+  setEnabledSkillSources(sourceIds: readonly string[]): SkillSettingsSnapshot;
+  updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<SkillSettingsSnapshot>;
+  refreshSkills(): Promise<SkillSettingsSnapshot>;
+  getGitHubMcpSettings(): GitHubMcpSettingsSnapshot;
+  updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<GitHubMcpSettingsSnapshot>;
+  importGitHubPat(input: ImportGitHubPatInput): Promise<GitHubMcpSettingsSnapshot>;
+  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   dispose(): Promise<void>;
 }
@@ -211,6 +224,30 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     searchWorkspaceReferences() {
       return Promise.reject(unavailable("searchWorkspaceReferences"));
+    },
+    getSkillSettings() {
+      return emptySettingsSnapshot().skills;
+    },
+    setEnabledSkillSources() {
+      return emptySettingsSnapshot().skills;
+    },
+    updateSkillSourceSettings() {
+      return Promise.resolve(emptySettingsSnapshot().skills);
+    },
+    refreshSkills() {
+      return Promise.resolve(emptySettingsSnapshot().skills);
+    },
+    getGitHubMcpSettings() {
+      return emptySettingsSnapshot().githubMcp;
+    },
+    updateGitHubMcpSettings() {
+      return Promise.resolve(emptySettingsSnapshot().githubMcp);
+    },
+    importGitHubPat() {
+      return Promise.resolve(emptySettingsSnapshot().githubMcp);
+    },
+    logoutGitHubMcp() {
+      return Promise.resolve(emptySettingsSnapshot().githubMcp);
     },
     subscribe() {
       return () => undefined;

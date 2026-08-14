@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for the completed personal v1 and v2 Milestones 0–3. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. v2 Milestone 3 adds a bounded multi-session registry, archive/restore metadata, recoverable OS-Trash chat removal, a keyed conversation cache, a per-chat live-run store, session actions, and a Settings archived list, with owner-verified real-provider background switching.
+Accepted architecture for the completed personal v1 and v2 Milestones 0–3. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. v2 Milestone 3 adds a bounded multi-session registry, archive/restore metadata, recoverable OS-Trash chat removal, a keyed conversation cache, a per-chat live-run store, session actions, and a Settings archived list, with owner-verified real-provider background switching. v2 Milestone 4 slice 1 adds typed skill-source Settings, `/` insert from enabled sources, and three Pho Code-authored skills. Slice 2 adds one Settings-controlled read-only GitHub MCP adapter (`github/github-mcp-server` `v1.9.0`) with PAT login in the OS secret store.
 
 ## Context
 
@@ -36,16 +36,16 @@ flowchart LR
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
-The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `rewriteAssistantOutput` for owner-edited assistant markdown (display overlay persisted as Pi custom session entries; JSONL messages stay unchanged), `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator.
+The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `rewriteAssistantOutput` for owner-edited assistant markdown (display overlay persisted as Pi custom session entries; JSONL messages stay unchanged), `resolveHostDialog` for confirm/select/input settlement, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings` / `updateSkillSourceSettings` / `refreshSkills` / `updateGitHubMcpSettings` / `importGitHubPat` / `logoutGitHubMcp`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator. GitHub MCP tokens stay in the OS secret store and never appear in settings snapshots.
 
 Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, composite session keys, catalog/activity/archive commands, settings snapshots, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
-| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host with a bounded session-controller registry, per-controller activity, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool and chat removal, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, transcript projection |
-| Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace and appearance metadata |
-| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, Archived, Permissions) with deferred API-key fields and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid) |
+| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, composite session keys, catalog/activity/archive commands, settings snapshots including skill provenance and GitHub MCP status, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
+| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host with a bounded session-controller registry, per-controller activity, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool and chat removal, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, `SkillSourceRegistry`, application-owned GitHub MCP runtime with allowlisted `github_` tools, transcript projection |
+| Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, and GitHub MCP enabled metadata |
+| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions) with deferred API-key fields, GitHub PAT, and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid) |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
 | Renderer | `apps/desktop/src` | Viewport-owning React shell |
 | Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, credentials, OAuth, developer, and packaged Electron specs |
@@ -67,7 +67,7 @@ flowchart TB
     Runtime --> PermissionConfig["Permission behavior config"]
     PermissionConfig --> Pi
     Pi --> Models["Providers and model APIs"]
-    Runtime -. "future adapter" .-> MCP["MCP runtime"]
+    Runtime --> MCP["GitHub MCP runtime"]
 ```
 
 ## Layer ownership
@@ -91,7 +91,7 @@ Forbidden renderer dependencies:
 - `electron` and raw IPC;
 - `node:*` modules;
 - Pi SDK packages;
-- MCP clients;
+- MCP clients or GitHub tokens;
 - filesystem paths derived from renderer-controlled concatenation;
 - child processes, terminals, and credentials.
 
@@ -165,6 +165,12 @@ interface DesktopBridge {
   getSettings(): Promise<HarnessSettingsSnapshot>;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
+  trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
+  updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
+  refreshSkills(): Promise<SkillSettingsSnapshot>;
+  updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
+  importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
+  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
   listProviderAccounts(): Promise<ProviderAccountsResult>;
@@ -178,7 +184,7 @@ interface DesktopBridge {
 }
 ```
 
-This facade is implemented. Do not collapse the three explicit settings methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, or OAuth tokens from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles.
+This facade is implemented. Do not collapse the explicit settings methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, OAuth tokens, or GitHub PATs from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles.
 
 Do not expose `invoke(channel, payload)` to the renderer. Each method must have a fixed privileged operation and validate untrusted arguments again in main/application code.
 
@@ -216,7 +222,7 @@ The runtime is the only product layer that imports the Pi SDK. It owns:
 - extension binding and host UI adapter;
 - baked feature diagnostics;
 - feature-specific settings adapters and permission-config reload/rebind;
-- future MCP adapter lifecycle.
+- application-owned GitHub MCP lifecycle (one packaged stdio server, PAT in the OS secret store, allowlisted `github_` Pi tools).
 
 The v1 may instantiate the runtime inside Electron main. It must still be coded behind a `HarnessRuntime` interface and must never import Electron. Extraction into `utilityProcess`, a normal Node child, or Tauri sidecar should be an adapter change rather than a rewrite.
 

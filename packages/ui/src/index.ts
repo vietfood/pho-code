@@ -16,12 +16,16 @@ export {
   shouldIgnoreDuplicatePaste,
 } from "./lib/clipboard-images";
 export { MentionChip } from "./mention-chip";
+export { SkillChip } from "./skill-chip";
+export { SkillSourceIcon } from "./skill-source-icon";
+export { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 export { DiagnosticsPanel } from "./diagnostics-panel";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ToolRow } from "./tool-row";
 export { composerHighlight } from "./lib/composer-highlight";
 export { findSlashQuery } from "./lib/slash-query";
+export { insertSkillToken, parseComposerSegments } from "./lib/composer-tokens";
 export { WorkLogToggle } from "./work-log-toggle";
 export {
   countWorkBlocks,
@@ -44,7 +48,10 @@ export {
 export { Transcript } from "./transcript";
 export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
+export { SkillsSettingsSection } from "./skills-settings";
+export { GitHubMcpSettingsSection } from "./github-mcp-settings";
 export { ChangeModelDialog } from "./change-model-dialog";
+export { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 export { RemoveSessionDialog } from "./remove-session-dialog";
 export { sameModel } from "./lib/model-identity";
 export { ProjectTrustBanner } from "./project-trust-banner";

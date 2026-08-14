@@ -4,7 +4,7 @@ export interface SlashQuery {
 }
 
 /**
- * Last `/token` being typed at the caret, for a future skill menu.
+ * Last `/token` being typed at the caret, for the skill insert menu.
  * Same boundary as `@` mentions so emails and URLs mid-word are ignored.
  */
 export function findSlashQuery(text: string, cursor: number): SlashQuery | null {

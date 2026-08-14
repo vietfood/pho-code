@@ -199,7 +199,11 @@ function accountDisplayName(
     return oauthName || providerName;
   }
   if (methods.length === 1 && methods[0] === "api_key") {
-    return apiKeyName || providerName;
+    // Extension providers get a generic Pi "API key" method name; prefer the provider label.
+    if (apiKeyName && apiKeyName !== "API key") {
+      return apiKeyName;
+    }
+    return /api key$/i.test(providerName) ? providerName : `${providerName} API key`;
   }
   return providerName;
 }

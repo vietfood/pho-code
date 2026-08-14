@@ -8,6 +8,7 @@ const EXPECTED = new Map([
   ["web_search", "web search"],
   ["fetch_content", "fetch"],
   ["move_to_trash", "move to trash"],
+  ["read_skill", "read skill"],
 ]);
 
 describe("app-owned tool display names", () => {
@@ -16,6 +17,7 @@ describe("app-owned tool display names", () => {
     for (const [internalName, displayName] of EXPECTED) {
       expect(displayToolName(internalName)).toBe(displayName);
     }
+    expect(displayToolName("github_get_file_contents")).toBe("github get file contents");
     expect(displayToolName("bash")).toBe("bash");
   });
 

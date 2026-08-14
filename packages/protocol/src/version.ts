@@ -40,6 +40,11 @@ export const PROTOCOL_COMMANDS = {
   cancelProviderLogin: "cancelProviderLogin",
   logoutProvider: "logoutProvider",
   searchWorkspaceReferences: "searchWorkspaceReferences",
+  updateSkillSourceSettings: "updateSkillSourceSettings",
+  refreshSkills: "refreshSkills",
+  updateGitHubMcpSettings: "updateGitHubMcpSettings",
+  importGitHubPat: "importGitHubPat",
+  logoutGitHubMcp: "logoutGitHubMcp",
 } as const;
 
 export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOCOL_COMMANDS];

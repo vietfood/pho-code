@@ -36,5 +36,10 @@ export const IPC_CHANNELS = {
   cancelProviderLogin: "pho-code:v1:cancelProviderLogin",
   logoutProvider: "pho-code:v1:logoutProvider",
   searchWorkspaceReferences: "pho-code:v1:searchWorkspaceReferences",
+  updateSkillSourceSettings: "pho-code:v1:updateSkillSourceSettings",
+  refreshSkills: "pho-code:v1:refreshSkills",
+  updateGitHubMcpSettings: "pho-code:v1:updateGitHubMcpSettings",
+  importGitHubPat: "pho-code:v1:importGitHubPat",
+  logoutGitHubMcp: "pho-code:v1:logoutGitHubMcp",
   event: "pho-code:v1:event",
 } as const;

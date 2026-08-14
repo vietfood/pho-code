@@ -88,7 +88,7 @@ export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Pr
 
 export async function openSettingsSection(
   page: Page,
-  section: "appearance" | "accounts" | "archived" | "permissions",
+  section: "appearance" | "accounts" | "skills" | "archived" | "permissions",
 ): Promise<void> {
   const view = page.getByTestId("settings-view");
   if ((await view.count()) === 0 || !(await view.isVisible())) {

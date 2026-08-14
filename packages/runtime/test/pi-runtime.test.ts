@@ -907,6 +907,85 @@ describe("Pi harness runtime", () => {
       await runtime.dispose();
     }
   }, 60_000);
+
+  test("prepareImage stays on the named controller after another chat is selected", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const first = await runtime.createSession(workspace.workspace.id);
+      const second = await runtime.createSession(workspace.workspace.id);
+      const prepared = await runtime.prepareImage({
+        name: "dot.png",
+        mimeType: "image/png",
+        data: png.toString("base64"),
+        width: 1,
+        height: 1,
+        previewDataUrl: `data:image/png;base64,${png.toString("base64")}`,
+        sessionId: first.session.id,
+        workspaceId: first.workspace.id,
+      });
+      await expect(
+        runtime.sendPrompt({
+          sessionId: second.session.id,
+          text: "describe this",
+          imageIds: [prepared.id],
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.invalidImage });
+      await expect(
+        runtime.sendPrompt({
+          sessionId: first.session.id,
+          text: "describe this",
+          imageIds: [prepared.id],
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.imagesUnsupported });
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("rewriteAssistantOutput refuses a running chat", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const admission = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.abortMe,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runAdmitted);
+      await expect(
+        runtime.rewriteAssistantOutput({
+          sessionId: created.session.id,
+          workspaceId: created.workspace.id,
+          messageId: "missing",
+          text: "nope",
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.sessionBusy });
+      await runtime.abortRun({ sessionId: created.session.id, runId: admission.runId });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
 });
 
 async function waitForEvent(

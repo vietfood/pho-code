@@ -122,6 +122,31 @@ export {
 export type { WebSearchProvider, WebSourceProvider, WebSourceRecord } from "./web";
 
 export {
+  emptyGitHubMcpSettingsSnapshot,
+  GITHUB_MCP_AUTH_METHODS,
+  GITHUB_MCP_DISCLOSURE,
+  GITHUB_MCP_FEATURE_ID,
+  GITHUB_MCP_SECRET_STORE_NOTICE,
+  GITHUB_MCP_STATUSES,
+  GITHUB_MCP_TOOL_PREFIX,
+  githubMcpSecretStoreNotice,
+  githubMcpStatusLabel,
+  isGitHubMcpStatus,
+  MAX_GITHUB_MCP_ERROR_CHARS,
+  MAX_GITHUB_MCP_LOGIN_CHARS,
+  MAX_GITHUB_PAT_CHARS,
+} from "./github-mcp";
+export type {
+  GitHubMcpAccountSummary,
+  GitHubMcpAuthMethod,
+  GitHubMcpSettingsSnapshot,
+  GitHubMcpStatus,
+  ImportGitHubPatInput,
+  ImportGitHubPatResult,
+  UpdateGitHubMcpSettingsInput,
+} from "./github-mcp";
+
+export {
   APPEARANCE_MODES,
   APPEARANCE_PALETTES,
   clampChatFontSize,
@@ -169,6 +194,41 @@ export type {
 } from "./settings";
 
 export {
+  availableSlashSkills,
+  emptySkillSettingsSnapshot,
+  extractSkillTokens,
+  EXTERNAL_SKILL_SOURCE_IDS,
+  findCompletedSkillTokens,
+  formatSkillToken,
+  isExternalSkillSourceId,
+  isSkillCompatibility,
+  isSkillSourceId,
+  MAX_SKILL_DESCRIPTION_CHARS,
+  SKILL_BODY_CLOSE,
+  SKILL_BODY_OPEN,
+  SKILL_COMPATIBILITY_STATES,
+  SKILL_SOURCE_IDS,
+  SKILL_SOURCE_LABELS,
+  SKILL_SOURCE_ROOT_LABELS,
+  SKILL_TRUST_NOTICE,
+  skillNeedsCompatibilityNotice,
+  sourceCompatibilityWarnings,
+  stripExpandedSkillBodies,
+  wrapSkillBody,
+} from "./skills";
+export type {
+  CompletedSkillToken,
+  ExternalSkillSourceId,
+  SkillCompatibility,
+  SkillInventoryEntry,
+  SkillSettingsSnapshot,
+  SkillShadowRef,
+  SkillSourceId,
+  SkillSourceSummary,
+  UpdateSkillSourceSettingsInput,
+} from "./skills";
+
+export {
   IMAGE_MIME_TYPES,
   MAX_IMAGE_PREVIEW_DIMENSION,
   MAX_PREPARED_IMAGE_DIMENSION,
@@ -181,6 +241,7 @@ export type {
   ImageMimeType,
   PasteImagesInput,
   PastedImageBytes,
+  PickImagesInput,
   PickImagesResult,
   PrepareImageInput,
   PreparedImageSummary,

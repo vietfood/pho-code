@@ -23,6 +23,7 @@ import {
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCE_RESULTS,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
+  MAX_GITHUB_PAT_CHARS,
   nodeVersionMeetsMinimum,
   type AbortRunInput,
   type ArchiveSessionInput,
@@ -78,6 +79,12 @@ import {
   type Unsubscribe,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type UpdateSkillSourceSettingsInput,
+  type SkillSettingsSnapshot,
+  type UpdateGitHubMcpSettingsInput,
+  type ImportGitHubPatInput,
+  type ImportGitHubPatResult,
+  type GitHubMcpSettingsSnapshot,
   type WorkspaceReferenceToken,
   type WorkspaceSnapshot,
   RUNTIME_EVENT_TYPES,
@@ -98,6 +105,9 @@ import {
   restoreSessionMetadata,
   selectSession,
   setAppearance,
+  setEnabledSkillSources,
+  setGitHubMcpAccountLogin,
+  setGitHubMcpEnabled,
   trustPermissionWorkspace,
   type AppMetadata,
   type AppMetadataStore,
@@ -157,6 +167,11 @@ export interface ApplicationService {
   cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
   logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
+  updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
+  refreshSkills(): Promise<SkillSettingsSnapshot>;
+  updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
+  importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
+  logoutGitHubMcp(): Promise<GitHubMcpSettingsSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   shutdown(): Promise<void>;
 }
@@ -178,6 +193,7 @@ export function createApplicationService(input: {
     glassEnabled: metadata.glassEnabled,
     glassStrength: metadata.glassStrength,
   });
+  input.runtime.setEnabledSkillSources(metadata.enabledSkillSources);
   let workspace: WorkspaceSnapshot | undefined;
   let session: SessionSnapshot | undefined;
   const pendingRemovals = new Map<string, { key: SessionKey; fingerprint: string; expiresAt: number }>();
@@ -534,7 +550,12 @@ export function createApplicationService(input: {
     async prepareImage(command: PrepareImageInput) {
       assertActive();
       try {
-        const summary = await input.runtime.prepareImage(command);
+        const summary = await input.runtime.prepareImage({
+          ...command,
+          ...(command.sessionId
+            ? sessionCommandScope(command as { sessionId: string; workspaceId?: string }, "prepareImage")
+            : {}),
+        });
         assertJsonSafe(summary, "prepareImage");
         return summary;
       } catch (error) {
@@ -789,6 +810,8 @@ export function createApplicationService(input: {
       const snapshot: HarnessSettingsSnapshot = {
         appearance: appearanceFromMetadata(metadata),
         permission,
+        skills: input.runtime.getSkillSettings(),
+        githubMcp: input.runtime.getGitHubMcpSettings(),
       };
       assertJsonSafe(snapshot, "updatePermissionSettings");
       return snapshot;
@@ -818,6 +841,8 @@ export function createApplicationService(input: {
       const snapshot: HarnessSettingsSnapshot = {
         appearance: appearanceFromMetadata(metadata),
         permission: { ...permission, projectPermissionRulesRemembered: true },
+        skills: input.runtime.getSkillSettings(),
+        githubMcp: input.runtime.getGitHubMcpSettings(),
       };
       assertJsonSafe(snapshot, "trustProjectPermissionRules");
       return snapshot;
@@ -942,13 +967,72 @@ export function createApplicationService(input: {
       assertJsonSafe(result, "searchWorkspaceReferences");
       return result;
     },
+    async updateSkillSourceSettings(command: UpdateSkillSourceSettingsInput) {
+      assertActive();
+      const skills = await input.runtime.updateSkillSourceSettings(command);
+      await persist(setEnabledSkillSources(metadata, skills.sources.filter((source) => source.enabled && source.sourceId !== "pho-code").map((source) => source.sourceId)));
+      const snapshot = settingsSnapshot();
+      assertJsonSafe(snapshot, "updateSkillSourceSettings");
+      return snapshot;
+    },
+    async refreshSkills() {
+      assertActive();
+      const skills = await input.runtime.refreshSkills();
+      assertJsonSafe(skills, "refreshSkills");
+      return skills;
+    },
+    async updateGitHubMcpSettings(command: UpdateGitHubMcpSettingsInput) {
+      assertActive();
+      if (command.enabled === true && command.acknowledgedDisclosure !== true) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Confirm the GitHub read-only disclosure before enabling GitHub MCP.",
+          operation: "updateGitHubMcpSettings",
+          recoverable: true,
+        });
+      }
+      const githubMcp = await input.runtime.updateGitHubMcpSettings({ enabled: command.enabled === true });
+      await persistGitHubMetadata(githubMcp);
+      const snapshot = settingsSnapshot();
+      assertJsonSafe(snapshot, "updateGitHubMcpSettings");
+      return snapshot;
+    },
+    async importGitHubPat(command: ImportGitHubPatInput) {
+      assertActive();
+      const token = requireNonEmptyString(command.token, "token", "importGitHubPat");
+      if (token.length > MAX_GITHUB_PAT_CHARS) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That GitHub token is too long.",
+          operation: "importGitHubPat",
+          recoverable: true,
+        });
+      }
+      const githubMcp = await input.runtime.importGitHubPat({ token });
+      assertJsonSafe(githubMcp, "importGitHubPat");
+      if (JSON.stringify(githubMcp).includes(token)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidSnapshot,
+          message: "GitHub login refused to return a secret.",
+          operation: "importGitHubPat",
+        });
+      }
+      await persistGitHubMetadata(githubMcp);
+      return { githubMcp };
+    },
+    async logoutGitHubMcp() {
+      assertActive();
+      const githubMcp = await input.runtime.logoutGitHubMcp();
+      await persistGitHubMetadata(githubMcp);
+      assertJsonSafe(githubMcp, "logoutGitHubMcp");
+      return githubMcp;
+    },
     subscribe(listener) {
       return input.runtime.subscribe((event) => {
         const selectedKey = selectedSessionKey(session);
         const eventKey = eventSessionKey(event);
         const matchesSelected =
-          selectedKey !== undefined &&
-          (eventKey ? sessionKeyEquals(selectedKey, eventKey) : event.sessionId === selectedKey.sessionId);
+          selectedKey !== undefined && eventKey !== undefined && sessionKeyEquals(selectedKey, eventKey);
 
         if (
           (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
@@ -1014,6 +1098,8 @@ export function createApplicationService(input: {
     return {
       appearance: appearanceFromMetadata(metadata),
       permission: decoratePermissionSettings(input.runtime.getPermissionSettings()),
+      skills: input.runtime.getSkillSettings(),
+      githubMcp: input.runtime.getGitHubMcpSettings(),
     };
   }
 
@@ -1025,6 +1111,12 @@ export function createApplicationService(input: {
         ? isPermissionWorkspaceTrusted(metadata, workspaceId)
         : false,
     };
+  }
+
+  async function persistGitHubMetadata(githubMcp: GitHubMcpSettingsSnapshot): Promise<void> {
+    await persist(
+      setGitHubMcpAccountLogin(setGitHubMcpEnabled(metadata, githubMcp.enabled), githubMcp.account.login),
+    );
   }
 
   function appearanceFromMetadata(current: AppMetadata) {

@@ -2,7 +2,7 @@
 
 This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
 
-The owner has accepted the autonomy foundation, retrieval, provider-account, and session-continuity milestones; and moved curated skills plus read-only GitHub MCP to draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
+The owner has accepted the autonomy foundation, retrieval, provider-account, and session-continuity milestones. Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with persistent login are draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
 
 ## Rules carried forward
 
@@ -29,7 +29,7 @@ Pho Code will not discover arbitrary `.mcp.json` files, expose server add/edit/r
 
 ## Candidate milestone: additional baked features
 
-Milestone 4 owns the first five text-only skills. Begin another extension-, skill-, prompt-, or service-backed feature only after the owner names its behavior.
+Milestone 4 owns the first three Pho Code-authored text-only skills and the fixed Codex/Cursor/Claude/Pi source adapters. Begin another extension-, skill-source, prompt-, or service-backed feature only after the owner names its behavior.
 
 - Inventory license, dependency, Pi-version, host-UI, and packaging requirements.
 - Use a pinned Pi package/path for portable features and named inline factories/services for desktop-dependent behavior.

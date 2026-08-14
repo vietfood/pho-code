@@ -19,15 +19,27 @@ export {
 export type { SessionRegistry, SessionRegistryHost } from "./session-registry";
 export { sniffImageMime } from "./image-bytes";
 export {
+  CURSOR_SDK_FEATURE_ID,
+  CURSOR_SDK_FEATURE_VERSION,
+  CURSOR_SDK_PACKAGE_NAME,
   PERMISSION_FEATURE_ID,
   PERMISSION_FEATURE_VERSION,
   PERMISSION_PACKAGE_NAME,
   createDefaultFeatureManifest,
   emptyFeatureManifest,
   expectedFeatureResourceCounts,
+  resolveCursorSdkFeature,
   resolvePermissionFeature,
 } from "./features";
 export type { HarnessFeature, HarnessFeatureManifest } from "./features";
+export {
+  CURSOR_SDK_HARNESS_ENV,
+  CURSOR_SDK_PROVIDER_ID,
+  CURSOR_API_KEY_CONFIG_VALUE,
+  applyCursorSdkHarnessPolicy,
+  isCursorProviderId,
+  registerCursorProviderAccount,
+} from "./cursor-sdk-policy";
 export { ASSISTANT_REWRITE_CUSTOM_TYPE } from "./assistant-rewrite";
 export { TRASH_FEATURE_ID, TRASH_FEATURE_VERSION, createTrashFeature } from "./trash-feature";
 export { TRASH_TOOL_NAME } from "./trash-target";
@@ -35,6 +47,22 @@ export { RETRIEVAL_FEATURE_ID, RETRIEVAL_FEATURE_VERSION, createRetrievalFeature
 export { createLocalRetrievalRuntime } from "./local-retrieval";
 export type { LocalRetrievalRuntime } from "./local-retrieval";
 export { WEB_FEATURE_ID, WEB_FEATURE_VERSION, createWebFeature } from "./web-feature";
+export { CURATED_SKILL_NAMES, CURATED_SKILLS_FEATURE_ID, createCuratedSkillsFeature, curatedSkillsRoot, resolveCuratedSkillsRoot } from "./skills-feature";
+export { createSkillInvokeFeature, READ_SKILL_TOOL_NAME, SKILL_INVOKE_FEATURE_ID } from "./skill-invoke";
+export { createSkillSourceRegistry } from "./skill-source";
+export type { SkillSourceRegistry } from "./skill-source";
+export { createGitHubMcpFeature, GITHUB_MCP_FEATURE_VERSION } from "./github-mcp-feature";
+export { createGitHubMcpRuntime, resolveGitHubMcpServerPath } from "./github-mcp-runtime";
+export type { GitHubMcpRuntime } from "./github-mcp-runtime";
+export {
+  GITHUB_MCP_SERVER_TAG,
+  GITHUB_MCP_SERVER_VERSION,
+  githubMcpPackagedRelativePath,
+  githubMcpPlatformId,
+  githubMcpReleaseAsset,
+} from "./github-mcp-artifact";
+export { createMemorySecretStore, createOsSecretStore } from "./secret-store";
+export type { SecretStore } from "./secret-store";
 export { createWebResearchRuntime } from "./web-client";
 export type { WebResearchRuntime, WebResearchRuntimeOptions } from "./web-client";
 export { APP_OWNED_TOOL_NAMES, displayToolName, displayToolNamesInText } from "./tool-display";

@@ -1,5 +1,5 @@
 import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
-import { sessionKeyId } from "./session-lifecycle";
+import { sessionKeyEquals, sessionKeyId } from "./session-lifecycle";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type { PromptAdmission, RunState, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
@@ -557,8 +557,18 @@ function eventTargetsOtherSession(state: ConversationViewState, event: RuntimeEv
   if (isProcessScopedEventType(event.type)) {
     return false;
   }
+  if (!state.snapshot) {
+    return false;
+  }
+  const eventKey = eventSessionKey(event);
+  if (eventKey) {
+    return !sessionKeyEquals(eventKey, {
+      workspaceId: state.snapshot.workspace.id,
+      sessionId: state.snapshot.session.id,
+    });
+  }
   const eventSessionId = event.sessionId ?? eventSessionIdFromPayload(event);
-  if (!eventSessionId || !state.snapshot) {
+  if (!eventSessionId) {
     return false;
   }
   return eventSessionId !== state.snapshot.session.id;

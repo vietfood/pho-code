@@ -1,8 +1,10 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PencilIcon, RotateCcwIcon, UserIcon } from "lucide-react";
 import type { RunWorkEntry, SessionSnapshot, TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
+import { stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
-import { inferMentionKind, parseMentionSegments } from "./lib/at-mention";
+import { inferMentionKind } from "./lib/at-mention";
+import { parseComposerSegments } from "./lib/composer-tokens";
 import { useLiveRun } from "./lib/live-run-store";
 import {
   collectTurnBlocks,
@@ -17,6 +19,7 @@ import { isNearBottom } from "./lib/stick-to-bottom";
 import { ConservativeMarkdown } from "./markdown";
 import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
+import { SkillChip } from "./skill-chip";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
@@ -86,7 +89,7 @@ export function Transcript({
       data-testid="transcript"
       aria-live="polite"
     >
-      {segments.map((segment, index) => {
+      {segments.map((segment) => {
         switch (segment.kind) {
           case "user":
             return <UserMessageRow key={segment.message.id} message={segment.message} />;
@@ -225,25 +228,40 @@ function UserTranscriptBlockView({ block }: { block: TranscriptBlock }) {
 }
 
 function UserTextWithMentions({ text }: { text: string }) {
-  const segments = parseMentionSegments(text);
-  const hasMentions = segments.some((segment) => segment.type === "mention");
-  if (!hasMentions) {
-    return <ConservativeMarkdown text={text} />;
+  const visible = stripExpandedSkillBodies(text);
+  const segments = parseComposerSegments(visible);
+  const hasChips = segments.some((segment) => segment.type !== "text");
+  if (!hasChips) {
+    return <ConservativeMarkdown text={visible} />;
   }
   // Keep text+chips inline; block markdown wrappers would break chip flow.
   return (
     <div className="user-mention-text whitespace-pre-wrap break-words">
       {segments.map((segment, index) => {
-        if (segment.type === "text") {
-          return segment.text === "" ? null : <span key={`text:${index}`}>{segment.text}</span>;
+        switch (segment.type) {
+          case "text":
+            return segment.text === "" ? null : <span key={`text:${index}`}>{segment.text}</span>;
+          case "mention":
+            return (
+              <MentionChip
+                key={`mention:${segment.path}:${index}`}
+                path={segment.path}
+                kind={inferMentionKind(segment.path)}
+              />
+            );
+          case "skill":
+            return (
+              <SkillChip
+                key={`skill:${segment.sourceId}:${segment.skillName}:${index}`}
+                sourceId={segment.sourceId}
+                skillName={segment.skillName}
+              />
+            );
+          default: {
+            const exhaustive: never = segment;
+            return exhaustive;
+          }
         }
-        return (
-          <MentionChip
-            key={`mention:${segment.path}:${index}`}
-            path={segment.path}
-            kind={inferMentionKind(segment.path)}
-          />
-        );
       })}
     </div>
   );

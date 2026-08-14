@@ -17,12 +17,16 @@ import type {
   SearchWorkspaceReferencesResult,
   SessionQueueState,
   SessionUsageSummary,
+  SkillInventoryEntry,
+  SkillSettingsSnapshot,
   ThinkingLevel,
   WorkspaceReferenceKind,
 } from "@pho-code/protocol";
+import { availableSlashSkills, SKILL_SOURCE_LABELS, skillNeedsCompatibilityNotice } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import { findAtQuery, insertAtMention, mentionDirectory, mentionLabel } from "./lib/at-mention";
 import { composerHighlight } from "./lib/composer-highlight";
+import { insertSkillToken } from "./lib/composer-tokens";
 import { findSlashQuery } from "./lib/slash-query";
 import {
   clipboardLooksLikeImage,
@@ -45,11 +49,13 @@ import { ComposerUsage } from "./composer-usage";
 import { isMaxThinkingLevel, thinkingLevelLabel } from "./lib/thinking-labels";
 import { MarkdownImage } from "./markdown-image";
 import { ModelPicker } from "./model-picker";
+import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
+import { SkillSourceIcon } from "./skill-source-icon";
 
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
 // controls and empty-session hero layout are harness-owned Cursor-inspired chrome.
-// Highlight ring and / token stub adapted from Beautiful UI PromptBar.tsx
+// Highlight ring and / skill picker adapted from Beautiful UI PromptBar.tsx
 // (MIT, Shane Levine, retrieved 2026-08-13): omitted dictation, glimm sweep,
 // autoplay, and fake source/command catalogs. Image attach is Milestone 1 Slice 4.
 // Usage strip inspired by Pi TUI footer / AI Elements Context (bar, not ring).
@@ -82,6 +88,7 @@ export function Composer({
   onPickImages,
   onPasteImages,
   onRemoveImage,
+  skills,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -109,6 +116,7 @@ export function Composer({
   onPickImages?: () => void;
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
+  skills?: SkillSettingsSnapshot;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const kindsRef = useRef(new Map<string, WorkspaceReferenceKind>());
@@ -122,6 +130,14 @@ export function Composer({
   const [mentionStart, setMentionStart] = useState(0);
   const [mentionRaw, setMentionRaw] = useState("");
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashStart, setSlashStart] = useState(0);
+  const [skillChoices, setSkillChoices] = useState<SkillInventoryEntry[]>([]);
+  const [pendingSkill, setPendingSkill] = useState<{
+    entry: SkillInventoryEntry;
+    slashStart: number;
+    slashQuery: string;
+    cursor: number;
+  } | null>(null);
   const [suggestions, setSuggestions] = useState<PathSuggestion[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchStatus, setSearchStatus] = useState<string | null>(null);
@@ -148,7 +164,9 @@ export function Composer({
     const skip =
       mentionQuery !== null
         ? { start: mentionStart, end: mentionStart + 1 + mentionRaw.length }
-        : undefined;
+        : slashQuery !== null
+          ? { start: slashStart, end: slashStart + 1 + slashQuery.length }
+          : undefined;
     const serialized = serializeComposerEditable(editor);
     if (serialized !== value || composerNeedsChipRender(editor, value, skip)) {
       const hadFocus = editor === editor.ownerDocument.activeElement;
@@ -160,7 +178,7 @@ export function Composer({
       }
       scrollComposerCaretIntoView(editor);
     }
-  }, [value, mentionQuery, mentionStart, mentionRaw]);
+  }, [value, mentionQuery, mentionStart, mentionRaw, slashQuery, slashStart]);
 
   useEffect(() => {
     if (!onSearchReferences || mentionQuery === null) {
@@ -191,6 +209,16 @@ export function Composer({
     return () => window.clearTimeout(handle);
   }, [mentionQuery, onSearchReferences]);
 
+  useEffect(() => {
+    if (slashQuery === null) {
+      setSkillChoices([]);
+      return;
+    }
+    const next = skills ? availableSlashSkills(skills, slashQuery) : [];
+    setSkillChoices(next);
+    setActiveIndex(0);
+  }, [slashQuery, skills]);
+
   function closeMention(): void {
     mentionSessionRef.current = null;
     setMentionQuery(null);
@@ -201,6 +229,7 @@ export function Composer({
 
   function closeSlash(): void {
     setSlashQuery(null);
+    setSkillChoices([]);
   }
 
   function closeComposerMenus(): void {
@@ -227,6 +256,7 @@ export function Composer({
     closeMention();
     const slash = findSlashQuery(next, cursor);
     if (slash) {
+      setSlashStart(slash.start);
       setSlashQuery(slash.query);
       return;
     }
@@ -265,6 +295,33 @@ export function Composer({
       setComposerCaretOffset(field, next.cursor);
       syncComposerTokensFromEditor();
     });
+  }
+
+  function insertSelectedSkill(entry: SkillInventoryEntry, slash: { start: number; query: string }, cursor: number): void {
+    const next = insertSkillToken(value, slash, cursor, entry.sourceId, entry.skillName);
+    pendingCaretRef.current = next.cursor;
+    onChange(next.text);
+    closeSlash();
+    requestAnimationFrame(() => {
+      const field = editorRef.current;
+      if (!field) {
+        return;
+      }
+      field.focus();
+      setComposerCaretOffset(field, next.cursor);
+      syncComposerTokensFromEditor();
+    });
+  }
+
+  function selectSkill(entry: SkillInventoryEntry): void {
+    const editor = editorRef.current;
+    const cursor = editor ? getComposerCaretOffset(editor) : value.length;
+    const slash = { start: slashStart, query: slashQuery ?? "" };
+    if (skillNeedsCompatibilityNotice(entry.compatibility)) {
+      setPendingSkill({ entry, slashStart: slash.start, slashQuery: slash.query, cursor });
+      return;
+    }
+    insertSelectedSkill(entry, slash, cursor);
   }
 
   const selectors = (
@@ -486,6 +543,30 @@ export function Composer({
                     return;
                   }
                 }
+                if (slashOpen) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    if (skillChoices.length > 0) {
+                      setActiveIndex((index) => (index + 1) % skillChoices.length);
+                    }
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    if (skillChoices.length > 0) {
+                      setActiveIndex((index) => (index - 1 + skillChoices.length) % skillChoices.length);
+                    }
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    const selected = skillChoices[activeIndex];
+                    if (selected) {
+                      selectSkill(selected);
+                    }
+                    return;
+                  }
+                }
                 if (event.key === "Escape" && (menuOpen || slashOpen)) {
                   event.preventDefault();
                   closeComposerMenus();
@@ -538,14 +619,41 @@ export function Composer({
             {slashOpen ? (
               <div
                 className="composer-mention-menu"
-                role="status"
+                role="listbox"
                 aria-label="Skills"
                 data-testid="composer-skills"
               >
-                <div className="composer-mention-empty">
-                  Skills aren't available yet.
-                  {slashQuery ? ` "/${slashQuery}" will match baked skills later.` : ""}
-                </div>
+                {skillChoices.length === 0 ? (
+                  <div className="composer-mention-empty">
+                    {skills
+                      ? "No matching skills. Enable a source in Settings to make its skills available here."
+                      : "Skills are not loaded yet."}
+                  </div>
+                ) : (
+                  skillChoices.map((entry, index) => (
+                    <button
+                      key={`${entry.sourceId}:${entry.skillName}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      className={cn("composer-mention-option", index === activeIndex && "is-active")}
+                      title={entry.description ?? entry.displayName}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectSkill(entry);
+                      }}
+                    >
+                      <SkillSourceIcon sourceId={entry.sourceId} className="size-3.5" />
+                      <span className="composer-mention-option-text">
+                        <span className="composer-mention-option-name">{entry.displayName}</span>
+                        <span className="composer-mention-option-dir">
+                          {SKILL_SOURCE_LABELS[entry.sourceId]}
+                          {entry.compatibility === "compatible" ? "" : ` · ${entry.compatibility}`}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                )}
               </div>
             ) : null}
             {images.length > 0 ? (
@@ -618,6 +726,31 @@ export function Composer({
           ) : null}
           {usageStrip ? <div className="ml-auto min-w-0 shrink-0">{usageStrip}</div> : null}
         </div>
+      ) : null}
+      {pendingSkill ? (
+        <SkillCompatibilityDialog
+          title={
+            pendingSkill.entry.compatibility === "incompatible"
+              ? "This skill isn't compatible"
+              : "This skill isn't fully compatible"
+          }
+          message={
+            pendingSkill.entry.compatibility === "incompatible"
+              ? `${pendingSkill.entry.displayName} ${pendingSkill.entry.reason ?? "cannot be loaded as Markdown."} You can still insert a reference; Pho Code may not load its instructions.`
+              : `${pendingSkill.entry.displayName} includes scripts or other assets. Pho Code can insert the Markdown instructions only. Scripts and executables will not run.`
+          }
+          confirmLabel="Insert anyway"
+          onCancel={() => setPendingSkill(null)}
+          onConfirm={() => {
+            const pending = pendingSkill;
+            setPendingSkill(null);
+            insertSelectedSkill(
+              pending.entry,
+              { start: pending.slashStart, query: pending.slashQuery },
+              pending.cursor,
+            );
+          }}
+        />
       ) : null}
     </form>
   );

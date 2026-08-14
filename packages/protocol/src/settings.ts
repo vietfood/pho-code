@@ -1,3 +1,6 @@
+import { emptyGitHubMcpSettingsSnapshot, type GitHubMcpSettingsSnapshot } from "./github-mcp";
+import { emptySkillSettingsSnapshot, type SkillSettingsSnapshot } from "./skills";
+
 export const APPEARANCE_PALETTES = [
   "default",
   "gruvbox",
@@ -56,6 +59,8 @@ export interface PermissionSettings {
 export interface HarnessSettingsSnapshot {
   appearance: AppearanceSettings;
   permission: PermissionSettings;
+  skills: SkillSettingsSnapshot;
+  githubMcp: GitHubMcpSettingsSnapshot;
 }
 
 export interface UpdateAppearanceSettingsInput {
@@ -237,6 +242,8 @@ export function emptySettingsSnapshot(): HarnessSettingsSnapshot {
       projectPermissionRulesRemembered: false,
       appliesToSharedPiAgentDir: false,
     },
+    skills: emptySkillSettingsSnapshot(),
+    githubMcp: emptyGitHubMcpSettingsSnapshot(),
   };
 }
 

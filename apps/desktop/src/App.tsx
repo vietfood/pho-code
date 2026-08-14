@@ -33,6 +33,7 @@ import {
   type ThinkingLevel,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type UpdateSkillSourceSettingsInput,
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
 import {
@@ -719,7 +720,10 @@ export function App() {
                 images={preparedImages}
                 onPickImages={() => {
                   void runCommand(async () => {
-                    const result = await getDesktopBridge().pickImages();
+                    const result = await getDesktopBridge().pickImages({
+                      sessionId: snapshot.session.id,
+                      workspaceId: snapshot.workspace.id,
+                    });
                     setPreparedImages((current) => [...current, ...result.images].slice(0, MAX_PREPARED_IMAGES));
                   });
                 }}
@@ -735,6 +739,8 @@ export function App() {
                     const result =
                       files.length > 0
                         ? await getDesktopBridge().pasteImages({
+                            sessionId: snapshot.session.id,
+                            workspaceId: snapshot.workspace.id,
                             images: await Promise.all(
                               files.slice(0, remaining).map(async (file, index) => {
                                 if (file.size > MAX_SOURCE_IMAGE_BYTES) {
@@ -747,7 +753,10 @@ export function App() {
                               }),
                             ),
                           })
-                        : await getDesktopBridge().pasteImages();
+                        : await getDesktopBridge().pasteImages({
+                            sessionId: snapshot.session.id,
+                            workspaceId: snapshot.workspace.id,
+                          });
                     if (result.images.length === 0) {
                       throw new Error("That paste did not contain a supported image.");
                     }
@@ -764,6 +773,7 @@ export function App() {
                     setPreparedImages((current) => current.filter((image) => image.id !== imageId));
                   });
                 }}
+                {...(conversation.settings?.skills ? { skills: conversation.settings.skills } : {})}
                 onRewrite={async ({ messageId, text }) => {
                   try {
                     setError(null);
@@ -974,6 +984,44 @@ export function App() {
             });
           }}
           onRemoveSession={requestRemoveSession}
+          onSkillSourceChange={(input: UpdateSkillSourceSettingsInput) => {
+            void runCommand(async () => {
+              const next = await getDesktopBridge().updateSkillSourceSettings(input);
+              applySettings(next);
+            });
+          }}
+          onRefreshSkills={() => {
+            void runCommand(async () => {
+              const skills = await getDesktopBridge().refreshSkills();
+              setCache((current) =>
+                current.settings ? { ...current, settings: { ...current.settings, skills } } : current,
+              );
+            });
+          }}
+          onGitHubMcpChange={(input) => {
+            void runCommand(async () => {
+              const next = await getDesktopBridge().updateGitHubMcpSettings(input);
+              applySettings(next);
+            });
+          }}
+          onImportGitHubPat={async (input) => {
+            await runCommand(async () => {
+              const result = await getDesktopBridge().importGitHubPat(input);
+              setCache((current) =>
+                current.settings
+                  ? { ...current, settings: { ...current.settings, githubMcp: result.githubMcp } }
+                  : current,
+              );
+            });
+          }}
+          onLogoutGitHubMcp={() => {
+            void runCommand(async () => {
+              const githubMcp = await getDesktopBridge().logoutGitHubMcp();
+              setCache((current) =>
+                current.settings ? { ...current, settings: { ...current.settings, githubMcp } } : current,
+              );
+            });
+          }}
         />
       ) : null}
       {trustDialogOpen && trustWorkspace ? (

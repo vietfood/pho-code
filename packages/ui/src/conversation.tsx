@@ -6,9 +6,11 @@ import type {
   ResolveHostDialogInput,
   SearchWorkspaceReferencesResult,
   SessionSnapshot,
+  SkillSettingsSnapshot,
   ThinkingLevel,
 } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
+import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
@@ -17,6 +19,12 @@ import { cn } from "./lib/cn";
 import { isEmptyConversation } from "./lib/empty-conversation";
 import { sameModel } from "./lib/model-identity";
 import { Transcript } from "./transcript";
+
+const CURSOR_PROVIDER_ID = "cursor";
+
+function isCursorModel(model: ModelSummary): boolean {
+  return model.provider.trim().toLowerCase() === CURSOR_PROVIDER_ID;
+}
 
 export function Conversation({
   snapshot,
@@ -42,6 +50,7 @@ export function Conversation({
   onRewrite,
   notice,
   onTrustProject,
+  skills,
 }: {
   snapshot: SessionSnapshot;
   draft: string;
@@ -66,6 +75,7 @@ export function Conversation({
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
   notice?: ReactNode;
   onTrustProject?: () => void;
+  skills?: SkillSettingsSnapshot;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
@@ -86,8 +96,9 @@ export function Conversation({
     if (sameModel(model, snapshot.model)) {
       return;
     }
-    // Warn when the chat already has transcript history. Mid-turn stays blocked via selectorsDisabled.
-    if (!empty) {
+    // Cursor models always warn: nested Cursor agent loop + permission boundary.
+    // Non-cursor mid-chat still warns about cache/context.
+    if (isCursorModel(model) || !empty) {
       setPendingModel(model);
       return;
     }
@@ -122,23 +133,39 @@ export function Conversation({
       {...(onPickImages ? { onPickImages } : {})}
       {...(onPasteImages ? { onPasteImages } : {})}
       {...(onRemoveImage ? { onRemoveImage } : {})}
+      {...(skills ? { skills } : {})}
     />
   );
   const hostDialog =
     !switching && dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
   const changeModelDialog =
     !switching && pendingModel ? (
-      <ChangeModelDialog
-        model={pendingModel}
-        {...(snapshot.model ? { currentModel: snapshot.model } : {})}
-        {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
-        onCancel={() => setPendingModel(null)}
-        onConfirm={() => {
-          const model = pendingModel;
-          setPendingModel(null);
-          onModelChange(model);
-        }}
-      />
+      isCursorModel(pendingModel) ? (
+        <CursorModelWarningDialog
+          model={pendingModel}
+          midChat={!empty}
+          {...(snapshot.model ? { currentModel: snapshot.model } : {})}
+          {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
+          onCancel={() => setPendingModel(null)}
+          onConfirm={() => {
+            const model = pendingModel;
+            setPendingModel(null);
+            onModelChange(model);
+          }}
+        />
+      ) : (
+        <ChangeModelDialog
+          model={pendingModel}
+          {...(snapshot.model ? { currentModel: snapshot.model } : {})}
+          {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
+          onCancel={() => setPendingModel(null)}
+          onConfirm={() => {
+            const model = pendingModel;
+            setPendingModel(null);
+            onModelChange(model);
+          }}
+        />
+      )
     ) : null;
 
   return (

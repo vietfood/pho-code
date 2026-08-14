@@ -32,6 +32,9 @@ export const HARNESS_ERROR_CODES = {
   invalidWorkspaceReference: "invalid_workspace_reference",
   invalidImage: "invalid_image",
   imagesUnsupported: "images_unsupported",
+  githubMcpFailed: "github_mcp_failed",
+  githubMcpAuthRequired: "github_mcp_auth_required",
+  secretStoreUnavailable: "secret_store_unavailable",
 } as const;
 
 export function isHarnessError(value: unknown): value is HarnessError {

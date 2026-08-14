@@ -151,6 +151,22 @@ describe("session registry", () => {
     expect(order).toEqual(["left-start", "right", "left-end", "left-second"]);
   });
 
+  test("evicts idle controllers while leaving protected ones resident", async () => {
+    const { registry } = createFakeRegistry();
+    const idle = await registry.open(key("/tmp/a", "idle"));
+    const running = await registry.open(key("/tmp/a", "run"));
+    const keep = await registry.open(key("/tmp/b", "keep"));
+    running.running = true;
+    await registry.evictUnprotected(keep.key);
+    expect(idle.disposed).toBe(true);
+    expect(idle.reason).toBe("evicted");
+    expect(running.disposed).toBe(false);
+    expect(keep.disposed).toBe(false);
+    expect(registry.get(idle.key)).toBeUndefined();
+    expect(registry.get(running.key)).toBe(running);
+    expect(registry.get(keep.key)).toBe(keep);
+  });
+
   test("disposeAll shuts down every controller concurrently without leaving residents", async () => {
     const { registry } = createFakeRegistry();
     await registry.open(key("/tmp/a", "s1"));

@@ -6,6 +6,8 @@ import type {
   Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
+  createHarnessError,
+  HARNESS_ERROR_CODES,
   RUNTIME_EVENT_TYPES,
   type HostDialogKind,
   type HostDialogRequest,
@@ -126,6 +128,14 @@ export function createExtensionHost(input: {
     resolveDialog(resolution) {
       const dialog = pending.get(resolution.requestId);
       if (!dialog) {
+        if (resolution.sessionId) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "That permission request is not pending for this chat.",
+            operation: "resolveHostDialog",
+            recoverable: true,
+          });
+        }
         return;
       }
       const result = dialogResult(dialog, resolution);

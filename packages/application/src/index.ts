@@ -15,5 +15,8 @@ export {
   restoreSessionMetadata,
   setAppearance,
   setAppearanceTheme,
+  setEnabledSkillSources,
+  setGitHubMcpAccountLogin,
+  setGitHubMcpEnabled,
 } from "./metadata";
 export type { AppMetadata, AppMetadataStore, SessionLifecycleRecord } from "./metadata";

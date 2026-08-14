@@ -31,6 +31,7 @@
     "@pho-code/runtime": "workspace:*",
     "@pho-code/ui": "workspace:*",
     "linkedom": "0.16.11",
+    "pi-cursor-sdk": "0.2.0",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "turndown": "7.2.1"

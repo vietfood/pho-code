@@ -9,6 +9,8 @@ import {
   emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
+  emptyGitHubMcpSettingsSnapshot,
+  emptySkillSettingsSnapshot,
   HARNESS_ERROR_CODES,
   idleRunState,
   isJsonSafeValue,
@@ -153,6 +155,30 @@ describe("keyed conversation routing", () => {
     expect(state.lastSequence).toBe(2);
   });
 
+  test("ignores a same session id from another workspace", () => {
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshotFor("/tmp/a", "s1"),
+      occurredAt: "2026-08-14T00:00:00.000Z",
+      sessionId: "s1",
+      workspaceId: "/tmp/a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-b", delta: "from-other-workspace" },
+      occurredAt: "2026-08-14T00:00:01.000Z",
+      sessionId: "s1",
+      workspaceId: "/tmp/b",
+      runId: "run-b",
+    });
+    expect(state.snapshot?.workspace.id).toBe("/tmp/a");
+    expect(state.snapshot?.run.streamingText).toBe("");
+  });
+
   test("routes background events only to their owner in the keyed cache", () => {
     let cache = emptyConversationCache();
     cache = applyRuntimeEventToCache(cache, {
@@ -227,6 +253,8 @@ describe("keyed conversation routing", () => {
         projectPermissionRulesRemembered: false,
         appliesToSharedPiAgentDir: false,
       },
+      skills: emptySkillSettingsSnapshot(),
+      githubMcp: emptyGitHubMcpSettingsSnapshot(),
     };
     const cache = applyRuntimeEventToCache(
       { ...emptyConversationCache(), settings },

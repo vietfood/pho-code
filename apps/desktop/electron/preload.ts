@@ -23,7 +23,7 @@ const bridge: DesktopBridge = {
   sendPrompt: (input) => invoke(IPC_CHANNELS.sendPrompt, input),
   steerRun: (input) => invoke(IPC_CHANNELS.steerRun, input),
   queueFollowUp: (input) => invoke(IPC_CHANNELS.queueFollowUp, input),
-  pickImages: () => invoke(IPC_CHANNELS.pickImages),
+  pickImages: (input) => invoke(IPC_CHANNELS.pickImages, input),
   pasteImages: (input) => invoke(IPC_CHANNELS.pasteImages, input),
   removePreparedImage: (input) => invoke(IPC_CHANNELS.removePreparedImage, input),
   abortRun: (input) => invoke(IPC_CHANNELS.abortRun, input),
@@ -44,6 +44,11 @@ const bridge: DesktopBridge = {
   cancelProviderLogin: (input) => invoke(IPC_CHANNELS.cancelProviderLogin, input),
   logoutProvider: (input) => invoke(IPC_CHANNELS.logoutProvider, input),
   searchWorkspaceReferences: (input) => invoke(IPC_CHANNELS.searchWorkspaceReferences, input),
+  updateSkillSourceSettings: (input) => invoke(IPC_CHANNELS.updateSkillSourceSettings, input),
+  refreshSkills: () => invoke(IPC_CHANNELS.refreshSkills),
+  updateGitHubMcpSettings: (input) => invoke(IPC_CHANNELS.updateGitHubMcpSettings, input),
+  importGitHubPat: (input) => invoke(IPC_CHANNELS.importGitHubPat, input),
+  logoutGitHubMcp: () => invoke(IPC_CHANNELS.logoutGitHubMcp),
   subscribe(listener) {
     const handler = (_event: Electron.IpcRendererEvent, envelope: RuntimeEventEnvelope) => {
       listener(envelope);

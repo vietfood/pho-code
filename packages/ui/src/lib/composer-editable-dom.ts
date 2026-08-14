@@ -1,11 +1,11 @@
-import type { WorkspaceReferenceKind } from "@pho-code/protocol";
+import { formatSkillToken, type SkillSourceId, type WorkspaceReferenceKind } from "@pho-code/protocol";
 import {
   formatAtMentionToken,
   inferMentionKind,
   mentionLabel,
-  parseMentionSegments,
   type MentionSkipRange,
 } from "./at-mention";
+import { parseComposerSegments } from "./composer-tokens";
 
 const FILE_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>';
@@ -33,6 +33,29 @@ export function createMentionChipElement(
   return chip;
 }
 
+const SKILL_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="m15 4-8 16"/><path d="M7.5 4h9"/><path d="M7.5 20h9"/></svg>';
+
+export function createSkillChipElement(
+  sourceId: SkillSourceId,
+  skillName: string,
+  documentRef: Document = document,
+): HTMLSpanElement {
+  const chip = documentRef.createElement("span");
+  chip.className = "mention-chip skill-chip";
+  chip.contentEditable = "false";
+  chip.dataset.skillSource = sourceId;
+  chip.dataset.skillName = skillName;
+  chip.title = skillName;
+  chip.setAttribute("aria-label", formatSkillToken(sourceId, skillName));
+  chip.innerHTML = `${SKILL_ICON_SVG}<span class="mention-chip-label"></span>`;
+  const label = chip.querySelector(".mention-chip-label");
+  if (label) {
+    label.textContent = skillName;
+  }
+  return chip;
+}
+
 export function serializeComposerEditable(root: HTMLElement): string {
   let out = "";
 
@@ -48,6 +71,12 @@ export function serializeComposerEditable(root: HTMLElement): string {
     const mentionPath = el.dataset.mentionPath;
     if (mentionPath !== undefined && mentionPath !== "") {
       out += formatAtMentionToken(mentionPath);
+      return;
+    }
+    const skillSource = el.dataset.skillSource;
+    const skillName = el.dataset.skillName;
+    if (skillSource && skillName) {
+      out += formatSkillToken(skillSource as SkillSourceId, skillName);
       return;
     }
     if (el.tagName === "BR") {
@@ -83,14 +112,25 @@ export function renderComposerValue(
   }
 
   const fragment = documentRef.createDocumentFragment();
-  const segments = parseMentionSegments(value, skip);
+  const segments = parseComposerSegments(value, skip);
   for (const segment of segments) {
-    if (segment.type === "text") {
-      appendTextWithBreaks(fragment, segment.text, documentRef);
-      continue;
+    switch (segment.type) {
+      case "text":
+        appendTextWithBreaks(fragment, segment.text, documentRef);
+        break;
+      case "skill":
+        fragment.appendChild(createSkillChipElement(segment.sourceId, segment.skillName, documentRef));
+        break;
+      case "mention": {
+        const kind = kinds.get(segment.path) ?? inferMentionKind(segment.path);
+        fragment.appendChild(createMentionChipElement(segment.path, kind, documentRef));
+        break;
+      }
+      default: {
+        const exhaustive: never = segment;
+        return exhaustive;
+      }
     }
-    const kind = kinds.get(segment.path) ?? inferMentionKind(segment.path);
-    fragment.appendChild(createMentionChipElement(segment.path, kind, documentRef));
   }
   root.replaceChildren(fragment);
 }
@@ -244,6 +284,24 @@ function locateOffset(
       remaining -= token.length;
       return null;
     }
+    const skillSource = el.dataset.skillSource;
+    const skillName = el.dataset.skillName;
+    if (skillSource && skillName) {
+      const token = formatSkillToken(skillSource as SkillSourceId, skillName);
+      if (remaining <= token.length) {
+        const parent = el.parentNode;
+        if (!parent) {
+          return { node: root, offset: 0 };
+        }
+        const index = Array.from(parent.childNodes).indexOf(el);
+        if (remaining === 0) {
+          return { node: parent, offset: index };
+        }
+        return { node: parent, offset: index + 1 };
+      }
+      remaining -= token.length;
+      return null;
+    }
     if (el.tagName === "BR") {
       if (remaining <= 1) {
         const parent = el.parentNode;
@@ -282,11 +340,13 @@ export function composerNeedsChipRender(
   value: string,
   skip?: MentionSkipRange,
 ): boolean {
-  const segments = parseMentionSegments(value, skip);
+  const segments = parseComposerSegments(value, skip);
   const mentionCount = segments.filter((segment) => segment.type === "mention").length;
-  if (mentionCount === 0) {
+  const skillCount = segments.filter((segment) => segment.type === "skill").length;
+  if (mentionCount === 0 && skillCount === 0) {
     return false;
   }
-  const chipCount = root.querySelectorAll("[data-mention-path]").length;
-  return chipCount !== mentionCount;
+  const mentionChips = root.querySelectorAll("[data-mention-path]").length;
+  const skillChips = root.querySelectorAll("[data-skill-source]").length;
+  return mentionChips !== mentionCount || skillChips !== skillCount;
 }

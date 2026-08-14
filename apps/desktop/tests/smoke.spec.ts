@@ -97,11 +97,13 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "getBootstrapState",
       "getSessionSnapshot",
       "getSettings",
+      "importGitHubPat",
       "importProviderApiKey",
       "listCredentialProviders",
       "listProviderAccounts",
       "listSessionCatalog",
       "listWorkspaceSessions",
+      "logoutGitHubMcp",
       "logoutProvider",
       "openProviderAuthLink",
       "openRecentWorkspace",
@@ -111,6 +113,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "pickWorkspace",
       "prepareRemoveSession",
       "queueFollowUp",
+      "refreshSkills",
       "removePreparedImage",
       "removeSession",
       "reorderRecentWorkspaces",
@@ -127,7 +130,9 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "subscribe",
       "trustProjectPermissionRules",
       "updateAppearanceSettings",
+      "updateGitHubMcpSettings",
       "updatePermissionSettings",
+      "updateSkillSourceSettings",
     ]);
   } finally {
     await harness.close();

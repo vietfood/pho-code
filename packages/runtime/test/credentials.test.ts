@@ -73,4 +73,36 @@ describe("credential import", () => {
       code: HARNESS_ERROR_CODES.credentialImportFailed,
     });
   });
+
+  test("lists Cursor for API-key import when the baked cursor-sdk feature is present", async () => {
+    const { agentDir } = await makeIsolatedDirs();
+    const runtime = await createPhoCodeRuntime({ agentDir });
+
+    try {
+      const accounts = await runtime.listProviderAccounts();
+      const cursor = accounts.providers.find((provider) => provider.id === "cursor");
+      expect(cursor).toMatchObject({
+        id: "cursor",
+        name: "Cursor API key",
+        methods: ["api_key"],
+        configured: false,
+      });
+
+      const secret = "key_pho_code_cursor_test_import";
+      const imported = await runtime.importProviderApiKey({
+        providerId: "cursor",
+        apiKey: secret,
+      });
+      expect(imported.providers.find((provider) => provider.id === "cursor")?.configured).toBe(true);
+      expect(JSON.stringify(imported)).not.toContain(secret);
+
+      const auth = JSON.parse(await readFile(path.join(agentDir, "auth.json"), "utf8")) as {
+        cursor?: { type?: string; key?: string };
+      };
+      expect(auth.cursor?.type).toBe("api_key");
+      expect(auth.cursor?.key).toBe(secret);
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });

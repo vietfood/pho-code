@@ -16,7 +16,7 @@ The harness must support:
 - baked TypeScript Pi extension features;
 - baked Pi skills and package resources;
 - model/provider libraries with Node dependencies;
-- future MCP stdio and HTTP clients;
+- GitHub MCP stdio through the official MCP TypeScript client;
 - future PTY integration;
 - a React renderer;
 - macOS-first development and Linux compatibility.
@@ -33,7 +33,7 @@ Consequences for this project:
 
 - direct Pi SDK imports work in the privileged JavaScript layer;
 - baked Pi extensions run in their expected Node environment;
-- future MCP stdio processes use normal Node process APIs;
+- GitHub MCP stdio uses the official MCP client over a packaged native binary;
 - React and existing web component patterns fit directly;
 - one TypeScript toolchain covers most v1 code;
 - Electron and Chromium increase application size and memory use;

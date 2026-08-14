@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { PERMISSION_PACKAGE_NAME, createDefaultFeatureManifest, resolvePermissionFeature } from "../src/features";
+import { PERMISSION_PACKAGE_NAME, createDefaultFeatureManifest, resolveCursorSdkFeature, resolvePermissionFeature } from "../src/features";
 import {
   createNodeModuleResourceLocator,
   createPackagedResourceLocator,
@@ -16,6 +16,14 @@ describe("resource locator", () => {
     const locator = createNodeModuleResourceLocator();
     const root = locator.resolvePackageRoot(PERMISSION_PACKAGE_NAME);
     expect(readPiExtensionPaths(root).some((entry) => entry.endsWith("src/index.ts"))).toBe(true);
+  });
+
+  test("resolves the pinned Cursor SDK provider package from the dependency graph", () => {
+    const locator = createNodeModuleResourceLocator();
+    const resolved = resolveCursorSdkFeature(locator);
+    expect(resolved.diagnostics).toEqual([]);
+    expect(resolved.feature.version).toBe("0.2.0");
+    expect(resolved.feature.extensionPaths?.some((entry) => entry.endsWith("src/index.ts"))).toBe(true);
   });
 
   test("resolves a staged packaged feature and refuses a missing package", () => {
@@ -60,5 +68,19 @@ describe("resource locator", () => {
     expect(resolved.diagnostics[0]?.type).toBe("error");
     expect(resolved.diagnostics[0]?.message).toContain("will not load it from global Pi packages");
     expect(createDefaultFeatureManifest(locator).features[0]?.expected?.extensions).toBe(1);
+    expect(
+      createDefaultFeatureManifest(locator).features.some(
+        (feature) => feature.id === "curated-coding-skills" && feature.expected?.skills === 0,
+      ),
+    ).toBe(true);
+  });
+
+  test("packaged skill paths do not fall back to the source tree", () => {
+    const resourcesRoot = mkdtempSync(path.join(tmpdir(), "pho-code-resources-"));
+    const locator = createPackagedResourceLocator(resourcesRoot);
+    const manifest = createDefaultFeatureManifest(locator, { resourcesRoot });
+    const skills = manifest.features.find((feature) => feature.id === "curated-coding-skills");
+    expect(skills?.skillPaths).toBeUndefined();
+    expect(skills?.expected?.skills).toBe(0);
   });
 });

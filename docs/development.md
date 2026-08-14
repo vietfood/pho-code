@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. Draft v2 Milestone 4 remains curated capabilities (text-only skills plus read-only GitHub MCP). Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. v2 Milestone 4 slice 1 covers provenance-labeled skills from fixed, owner-enabled Codex/Cursor/Claude/Pi user roots, `/` insert without baking skills into Pi context, and three Pho Code-authored skills. Slice 2 covers one Settings-controlled read-only GitHub MCP with a pinned `v1.9.0` server and persistent PAT login in the OS secret store. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
 
 After a fresh clone, materialize the references with:
 
@@ -34,10 +34,10 @@ Do not run install/build commands inside a reference submodule as if that built 
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, and `rewriteAssistantOutput` |
-| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, deterministic test model |
-| `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace and appearance metadata, validation, shutdown |
-| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, Archived, Permissions) with deferred API-key import and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
+| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input host-UI records, typed appearance/permission/skill-source/GitHub MCP settings, `/` skill tokens, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, and `rewriteAssistantOutput` |
+| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, `SkillSourceRegistry` with `/` expansion and named `read_skill`, GitHub MCP runtime with allowlisted `github_` tools, deterministic test model |
+| `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, and GitHub MCP enabled metadata, validation, shutdown |
+| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions) with deferred API-key import, GitHub PAT, and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, agent-dir override, test seams |
 | `apps/desktop/src` | Shell state and conversation React composition |
 | `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/session-lifecycle/host-ui/permission/settings/credentials specs, packaged artifact lane, unit tests, fail-closed trash helper |
@@ -104,7 +104,7 @@ Expected development behavior:
 | `PHO_CODE_TEST_WORKSPACE` | Inject a directory as if it was chosen with the native picker (test-only) |
 | `PHO_CODE_TEST_MODEL=1` | Register the deterministic faux model and `harness_mark` tool |
 | `PHO_CODE_TEST_AUTH=1` | Register the deterministic `pho-test-oauth` provider used by the Milestone 2 OAuth journey; do not combine with `PHO_CODE_TEST_MODEL=1` when checking the model picker |
-| `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package, recoverable Trash, and pho-web; FFF tools only if the caller passes a retrieval runtime); otherwise tests use an empty manifest |
+| `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package, Cursor SDK provider, recoverable Trash, and pho-web; FFF tools only if the caller passes a retrieval runtime); otherwise tests use an empty manifest |
 | `PHO_CODE_RESOURCES_DIR` | Override the staged resource root in source development/tests; packaged production ignores it and uses Electron `process.resourcesPath` |
 | `PHO_CODE_SHUTDOWN_PROBE` | Write a JSON dispose probe on quit |
 
@@ -351,7 +351,7 @@ Covered by `packages/runtime/test/pi-runtime.test.ts` and `apps/desktop/tests/{c
 6. Electron `USE_TOOL` with `PHO_CODE_TEST_HOST_UI=1` completes a select dialog;
 7. conservative Markdown/code rendering covers assistant and streaming text.
 
-Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature, the application-owned Trash tool, and pho-web. Personal `bun run dev` uses the production fallback manifest (permission, Trash, FFF local retrieval, and pho-web).
+Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature, the baked Cursor SDK provider (`pi-cursor-sdk` local-only), the application-owned Trash tool, pho-web, and the curated-skills feature identity (skills themselves are inserted with `/`, not Pi `additionalSkillPaths`). Personal `bun run dev` uses the production fallback manifest (permission, Cursor SDK, Trash, FFF local retrieval, pho-web, curated skills, and named skill load).
 
 Keep these checks focused. Do not add a visual-regression framework or reproduce the complete third-party permission extension suite.
 
@@ -375,7 +375,7 @@ Covered by `packages/runtime/test/{resource-locator,credentials}.test.ts`, `scri
 2. missing permission package fails closed with a named diagnostic instead of loading ambient packages;
 3. API-key import persists through Pi `ModelRuntime.login` into isolated `auth.json` and never returns the secret;
 4. Electron Settings imports a dummy key without exposing it on the bridge;
-5. `bun run package:mac` stages the pinned permission feature, nested runtime dependencies, and `THIRD_PARTY_NOTICES.txt`;
+5. `bun run package:mac` stages the pinned permission feature, nested runtime dependencies, the three Pho Code skills, the pinned GitHub MCP native binary (SHA-256 verified; fetched into a gitignored cache when missing), and `THIRD_PARTY_NOTICES.txt`;
 6. `bun run test:packaged` launches the unsigned `.app` with isolated user data, `PHO_CODE_TEST_FEATURES=1`, and a PATH that does not contain `pi`.
 
 Default Playwright config ignores `packaged.spec.ts`; the packaged lane uses `playwright.packaged.config.ts`.

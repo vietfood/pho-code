@@ -34,7 +34,7 @@ These assumptions do not create a sandbox. Pi tools, extensions, skills, and MCP
 ## Product principles carried forward
 
 - **Standalone capability bundle.** The app embeds its exact Pi runtime and every selected feature, dependency, asset, and notice.
-- **Curated executable composition.** Global or project extension, skill, prompt, package, and MCP discovery remains disabled. Capabilities enter through the source-controlled feature manifest.
+- **Curated executable composition.** Global or project extension, prompt, package, and MCP discovery remains disabled. Executable capabilities enter through the source-controlled feature manifest. Milestone 4 may read text-only skills from fixed, explicitly trusted user-level harness roots after the owner enables each source; those skills become available for `/` insert rather than auto-loaded into every prompt. It does not execute their scripts/assets or scan project-local roots.
 - **Typed settings.** Settings change named, documented behavior. They do not become a package manager, arbitrary JSON editor, executable-path form, or generic MCP manager.
 - **Renderer as a view.** Remote access, filesystem operations, process execution, credentials, and future MCP clients stay behind the privileged application/runtime boundary.
 - **Pi authority.** Pi continues to own model/provider behavior, agent sessions, JSONL history, context construction, compaction, and its agent loop.
@@ -99,13 +99,13 @@ Add archive and restore as reversible application metadata over Pi-owned transcr
 
 The first slice keeps concurrency local and bounded. It does not introduce multi-agent orchestration, worktrees, fork/tree navigation, remote workers, or unattended execution. The detailed ownership, protocol, restart, shutdown, removal, and verification contract is in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Milestone 3 is accepted: independently owned session controllers, archive/restore, recoverable OS-Trash chat removal, and owner-verified real-provider background switching are in place.
 
-### Milestone 4: curated capabilities
+### Milestone 4: interoperable skills and GitHub MCP
 
-Ship five source-owned, text-only coding skills and one concrete MCP-backed capability: read-only GitHub investigation for repositories, issues, and pull requests. Skills and the GitHub adapter are immutable manifest features, not runtime imports. GitHub write operations, dynamic tool discovery, arbitrary servers, project `.mcp.json`, and skill installation remain unavailable.
+Read compatible user-level skills directly from fixed Codex, Cursor, Claude, and Pi skill roots after the owner enables each source, while shipping three small Pho Code-authored text-only skills. Enabling a source makes **all** of that source's skills available in the `/` picker; it does not enable every source, and it does not inject those skills into session context. The owner inserts a skill later with `/`. Settings and skill presentation show an origin icon, source label, compatibility state, and conflicts so an external skill is never mistaken for a built-in capability. Enabling a source or inserting a skill that includes scripts, executables, or other incompatible assets shows a small notice; Pho Code still does not execute those assets. Pho Code does not copy or edit external skills, scan project-local harness directories, accept arbitrary source paths, or execute skill scripts/assets in this slice.
 
-The GitHub slice targets a reviewed official `github/github-mcp-server` release behind an application-owned MCP client and Pi tool adapter. The server runs locally over stdio in read-only mode with fixed toolsets and a second Pho Code allowlist. It starts lazily, keeps bounded status, output, cancellation, and process cleanup, and fails independently from local chat and the five skills.
+Add one Settings-controlled MCP-backed capability: read-only GitHub investigation for repositories, issues, pull requests, reviews, checks, workflows, and bounded Actions logs. A reviewed, pinned official `github/github-mcp-server` binary runs locally over stdio in read-only/lockdown mode behind an application allowlist. The owner can enable or disable its connection/tool exposure without installing or removing code. GitHub write operations, dynamic tool discovery, arbitrary servers, and project `.mcp.json` remain unavailable.
 
-The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after the owner accepts the first skill bundle and proposed GitHub authentication behavior described there.
+GitHub login must persist across app restarts through a Pho Code-owned OAuth/GitHub App interaction and operating-system-backed secret storage, with an explicitly imported fine-grained PAT only as a reviewed fallback. This slice admits PAT login because no GitHub OAuth App client is registered. Disabling MCP does not log out; logout removes the retained credential. The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
 
 ## Deferred beyond Milestone 4
 

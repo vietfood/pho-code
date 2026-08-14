@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 and v2 Milestones 0 through 3 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 owns session continuity/lifecycle; the five source-owned text-only skills and application-owned adapter for a pinned read-only GitHub MCP server remain draft Milestone 4. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
+Personal v1 and v2 Milestones 0 through 3 are accepted. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. Milestone 4 slice 1 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, and ships three Pho Code-authored skills. Enabling a source makes that source's skills available in `/`; it does not bake them into Pi session context. Slice 2 is in implementation: one Settings-controlled adapter for a pinned read-only GitHub MCP server (`github/github-mcp-server` `v1.9.0`) with persistent app-owned PAT login. Typed settings do not admit arbitrary paths, packages, or server definitions. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -49,7 +49,7 @@ Do not call every one of these a “plugin” in code or UI. The security and li
 
 ## Feature composition
 
-The runtime creates one Pi context per effective workspace, but executable feature composition comes only from a source-controlled manifest. Configure `DefaultResourceLoader` with `noExtensions`, `noSkills`, `noPromptTemplates`, and `noThemes`, then pass the manifest's `additionalExtensionPaths`, `extensionFactories`, `additionalSkillPaths`, and `additionalPromptTemplatePaths`. Keep project context files such as `AGENTS.md` enabled because they describe the workspace rather than extending the harness. Renderer light/dark/system theme is application state, not a Pi theme resource.
+The runtime creates one Pi context per effective workspace, but executable feature composition comes only from a source-controlled manifest. Configure `DefaultResourceLoader` with `noExtensions`, `noSkills`, `noPromptTemplates`, and `noThemes`, then pass the manifest's `additionalExtensionPaths`, `extensionFactories`, and `additionalPromptTemplatePaths`. Built-in skill paths come from the manifest. Milestone 4's `SkillSourceRegistry` may append only validated text-only paths from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots; it is not Pi's ambient discovery and cannot add scripts, extensions, prompts, themes, packages, or MCP servers. Keep project context files such as `AGENTS.md` enabled because they describe the workspace rather than extending the harness. Renderer light/dark/system theme is application state, not a Pi theme resource.
 
 Conceptual manifest:
 
@@ -86,7 +86,7 @@ interface HarnessFeatureSummary {
 }
 ```
 
-This is an About/Diagnostics record, not a composition model. It has no enabled flag, install source, reload action, or executable command list. A separate settings snapshot may expose supported behavior values. Renderer records must not include factories, imported modules, credential values, arbitrary error objects, or Pi class instances.
+This is an About/Diagnostics record, not a composition model. It has no install source, arbitrary reload action, or executable command list. A separate typed settings snapshot may expose Milestone 4's external skill-source trust flags and baked GitHub MCP enabled state; those controls cannot add paths or server definitions. Renderer records must not include factories, imported modules, credential values, canonical external-skill paths, arbitrary error objects, or Pi class instances.
 
 ## Baked feature seam
 
@@ -118,9 +118,17 @@ const webFeature: HarnessFeature = {
   version: "1.2.0",
   inlineFactory: "pho-web",
 };
+
+const cursorSdkFeature: HarnessFeature = {
+  id: "cursor-sdk",
+  version: "0.2.0",
+  extensionPaths: [resolvedBundledCursorSdkPackage],
+};
 ```
 
 `@gotgenes/pi-permission-system` must be an exact application dependency and must be staged with its package manifest, `src`, runtime dependencies, schema/config assets, and license. The Pi loader should load that staged package/path explicitly. Do not rely on `npm:@gotgenes/pi-permission-system` in `~/.pi/agent/settings.json`, global npm lookup, or runtime installation.
+
+`pi-cursor-sdk` `0.2.0` is baked the same way: pin the exact package, stage it under app-owned `Resources/features/pi-cursor-sdk` with nested `@cursor/sdk` (and the current-platform `@cursor/sdk-*` binary package), and load only through the manifest. Harness policy forces `PI_CURSOR_RUNTIME=local` and `PI_CURSOR_SETTING_SOURCES=none` so Cursor Cloud and ambient `~/.cursor` MCP/plugins/rules stay out of product scope. Cursor host tools are not gated by the permission-system feature; bridged Pho Code tools still are. Selecting a `cursor/*` model always shows a warning dialog before the session model binding changes. Settings → Accounts lists Cursor at harness boot (API-key import only); the extension still supplies the live model catalog when a session binds. Cursor Desktop/CLI login is not supported by `@cursor/sdk`—only a Dashboard or service-account API key.
 
 The application-owned Trash feature registers the `move_to_trash` tool through a named inline factory. It uses `/usr/bin/trash` on macOS and `trash-put` then `gio trash` on Linux, never `rm`. Missing or failing Trash on a platform degrades that tool with a diagnostic; the rest of the session continues. The runtime still does not import Electron for filesystem or process launch.
 
@@ -135,14 +143,14 @@ Immutable shipped files belong in application resources and are located through 
 The same rule applies to every resource type:
 
 - extensions ship as pinned package resources or application-owned factories;
-- skills/prompts ship as immutable application resources with explicit manifest paths;
+- Pho Code-authored skills and prompts ship as immutable application resources discovered by `SkillSourceRegistry`; they are available for `/` insert rather than Pi `additionalSkillPaths`. Milestone 4 external text-only skills remain mutable user-owned instructions read through fixed trusted source adapters, not packaged features;
 - MCP adapters and servers ship with the code/assets needed for their selected transports, unless a named operating-system dependency is an explicit product requirement;
 - feature licenses and notices ship with the application (`docs/third-party-notices.md` and `Contents/Resources/THIRD_PARTY_NOTICES.txt` in the macOS artifact);
 - missing user-global Pi packages never change harness capability.
 
 ## Reload behavior
 
-The normal product has no feature Reload action because the manifest is immutable for the running build. Applying a supported feature setting may internally reload/rebind the active session while idle; that lifecycle action is not exposed as a generic feature control. Development may restart Electron to pick up feature source changes. A future signed app update may replace the whole feature bundle; it must not mutate feature code inside a running session.
+The normal product has no generic feature Reload action because the executable manifest is immutable for the running build. Milestone 4's explicit **Refresh skills** action rereads only enabled fixed text-skill roots and recomputes provenance/compatibility for the `/` catalog and named load. It does not rebind session controllers or change a running prompt. Applying another supported feature setting may internally reload/rebind idle sessions; that lifecycle action is not exposed as generic composition control. Development may restart Electron to pick up built-in feature source changes. A future signed app update may replace the whole baked feature bundle; it must not mutate feature code inside a running session.
 
 ## Feature settings boundary
 
@@ -173,28 +181,30 @@ The runtime must call the pinned SDK's public extension-binding API with an `Ext
 
 ## MCP seam
 
-Milestone 4 proposes the first exact integration: read-only GitHub repository, issue, and pull-request investigation. It follows the same baked-feature rule, with an internal boundary:
+Milestone 4 slice 2 implements the first exact MCP integration: read-only GitHub repository, issue, pull-request, review, check, workflow, and bounded Actions-log investigation. It follows the same baked-feature rule. There is no generic MCP manager. The application-owned runtime is `GitHubMcpRuntime`:
 
 ```ts
-interface McpRuntime {
-  start(context: McpContext): Promise<void>;
-  getSnapshot(): McpSnapshot;
-  reload(): Promise<McpSnapshot>;
-  subscribe(listener: (event: McpEvent) => void): () => void;
+interface GitHubMcpRuntime {
+  snapshot(): GitHubMcpSettingsSnapshot;
+  shouldBindTools(): boolean;
+  setEnabled(enabled: boolean): Promise<GitHubMcpSettingsSnapshot>;
+  importPat(token: string): Promise<GitHubMcpSettingsSnapshot>;
+  logout(): Promise<GitHubMcpSettingsSnapshot>;
+  callTool(input: GitHubMcpCallInput): Promise<{ text: string }>;
   dispose(): Promise<void>;
 }
 ```
 
-The Pi-facing implementation is a factory registered by a named feature. A third-party adapter may be wrapped and exactly pinned, but its `.mcp.json` discovery and arbitrary server configuration must be disabled or bypassed. Each feature declares its fixed servers, transports, tools, lifecycle, and any required account/auth flow in source.
+The Pi-facing implementation is an inline factory (`github-read`) that registers allowlisted `github_` tools only while the shared server is ready. The official `@modelcontextprotocol/sdk` `1.30.0` stdio client talks to a pinned `github/github-mcp-server` `v1.9.0` binary with `--read-only --lockdown-mode`. `.mcp.json` discovery and arbitrary server configuration remain disabled. A PAT lives in the OS secret store; the renderer never receives it.
 
 When a specific MCP feature is implemented:
 
 - start servers lazily unless a product requirement needs eager status;
 - never execute unpinned `npx -y` packages for a baked-in server;
-- distinguish cached, connecting, connected, needs-auth, and failed states for the baked server;
-- redact headers, bearer tokens, OAuth codes, environment secrets, and server stderr as appropriate;
+- distinguish disabled, starting, ready, needs-auth, degraded, and failed states for the baked server;
+- redact headers, bearer tokens, environment secrets, and server stderr;
 - bound requests and support cancellation;
-- disconnect/terminate session-owned clients on disposal;
+- keep the GitHub stdio process application-owned; idle session controllers rebind tools, and shutdown closes the exact child;
 - expose only the tools selected for that feature;
 - keep tool approval behavior honest: it gates calls, not extension code execution.
 
@@ -224,7 +234,7 @@ When requested:
 4. Add it to the source-controlled manifest and immutable resource packaging.
 5. Define narrow service dependencies, tool schemas, serializable results, abort, and shutdown behavior.
 6. Add the smallest runtime check for its lifecycle and one desktop check for any new host UI shape.
-7. Expose feature health/version in diagnostics and only deliberately designed behavior settings; never expose enable/install/composition controls.
+7. Expose feature health/version in diagnostics and only deliberately designed behavior settings. A baked service may have a named connection/tool-exposure toggle, and a fixed text-only skill source may have a named trust toggle; never expose install controls, arbitrary composition, executable paths, or server definitions.
 8. Update this document if the feature introduces a new host capability.
 
 ## Primary references

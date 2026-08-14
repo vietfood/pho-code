@@ -12,6 +12,8 @@ import {
   createHarnessError,
   emptyConversationState,
   emptyFeatureSnapshot,
+  emptyGitHubMcpSettingsSnapshot,
+  emptySkillSettingsSnapshot,
   glassCssTokens,
   idleRunState,
   isCommandResult,
@@ -491,6 +493,8 @@ describe("protocol serialization", () => {
         projectPermissionRulesRemembered: false,
         appliesToSharedPiAgentDir: true as const,
       },
+      skills: emptySkillSettingsSnapshot(),
+      githubMcp: emptyGitHubMcpSettingsSnapshot(),
     };
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);

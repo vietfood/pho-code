@@ -387,6 +387,16 @@ html[data-appearance="dark"] .mention-chip {
   color: #5eead4;
 }
 
+.skill-chip {
+  background: color-mix(in oklab, #d97706 16%, transparent);
+  color: #b45309;
+}
+
+html[data-appearance="dark"] .skill-chip {
+  background: color-mix(in oklab, #fbbf24 22%, transparent);
+  color: #fcd34d;
+}
+
 .mention-chip-icon {
   width: 1em;
   height: 1em;

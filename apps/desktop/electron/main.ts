@@ -32,6 +32,7 @@ import {
   type OpenRecentWorkspaceInput,
   type OpenSessionInput,
   type PasteImagesInput,
+  type PickImagesInput,
   type PickImagesResult,
   type PrepareRemoveSessionInput,
   type QueueFollowUpInput,
@@ -50,6 +51,9 @@ import {
   type SteerRunInput,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type UpdateSkillSourceSettingsInput,
+  type UpdateGitHubMcpSettingsInput,
+  type ImportGitHubPatInput,
 } from "@pho-code/protocol";
 import { decodePastedImageBase64 } from "./image-base64";
 import {
@@ -57,6 +61,7 @@ import {
   createNodeModuleResourceLocator,
   createPackagedResourceLocator,
   createPhoCodeRuntime,
+  resolveGitHubMcpServerPath,
   type HarnessRuntime,
   type ResourceLocator,
 } from "@pho-code/runtime";
@@ -412,9 +417,10 @@ function registerIpc(): void {
     }),
   );
 
-  ipcMain.handle(IPC_CHANNELS.pickImages, async (event) =>
+  ipcMain.handle(IPC_CHANNELS.pickImages, async (event, payload: unknown) =>
     handleCommand("pickImages", async () => {
       assertTrustedSender(event, trustedRenderer);
+      const scope = imageSessionScope(asRecord(payload) as PickImagesInput);
       const window = BrowserWindow.fromWebContents(event.sender);
       const result = window
         ? await dialog.showOpenDialog(window, imageOpenDialogOptions())
@@ -427,7 +433,7 @@ function registerIpc(): void {
       for (const filePath of result.filePaths.slice(0, MAX_PREPARED_IMAGES)) {
         try {
           const prepared = await ingestImageFile(filePath);
-          images.push(await requireApplication().prepareImage(prepared));
+          images.push(await requireApplication().prepareImage({ ...prepared, ...scope }));
         } catch (error) {
           firstError ??= error;
         }
@@ -581,6 +587,41 @@ function registerIpc(): void {
       return requireApplication().searchWorkspaceReferences(asRecord(payload) as unknown as SearchWorkspaceReferencesInput);
     }),
   );
+
+  ipcMain.handle(IPC_CHANNELS.updateSkillSourceSettings, async (event, payload: unknown) =>
+    handleCommand("updateSkillSourceSettings", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().updateSkillSourceSettings(asRecord(payload) as unknown as UpdateSkillSourceSettingsInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.refreshSkills, async (event) =>
+    handleCommand("refreshSkills", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().refreshSkills();
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.updateGitHubMcpSettings, async (event, payload: unknown) =>
+    handleCommand("updateGitHubMcpSettings", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().updateGitHubMcpSettings(asRecord(payload) as unknown as UpdateGitHubMcpSettingsInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.importGitHubPat, async (event, payload: unknown) =>
+    handleCommand("importGitHubPat", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().importGitHubPat(asRecord(payload) as unknown as ImportGitHubPatInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.logoutGitHubMcp, async (event) =>
+    handleCommand("logoutGitHubMcp", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().logoutGitHubMcp();
+    }),
+  );
 }
 
 function asRecord(payload: unknown): Record<string, unknown> {
@@ -588,6 +629,19 @@ function asRecord(payload: unknown): Record<string, unknown> {
     return {};
   }
   return payload as Record<string, unknown>;
+}
+
+function imageSessionScope(input: { sessionId?: string; workspaceId?: string }): {
+  sessionId?: string;
+  workspaceId?: string;
+} {
+  const sessionId = typeof input.sessionId === "string" && input.sessionId.trim() !== "" ? input.sessionId.trim() : undefined;
+  const workspaceId =
+    typeof input.workspaceId === "string" && input.workspaceId.trim() !== "" ? input.workspaceId.trim() : undefined;
+  return {
+    ...(sessionId ? { sessionId } : {}),
+    ...(workspaceId ? { workspaceId } : {}),
+  };
 }
 
 async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesResult> {
@@ -623,11 +677,12 @@ async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesRe
     prepared.push(ingestNativeImage(native, "pasted-image.png", "pasteImages"));
   }
 
+  const scope = imageSessionScope(input);
   const images = [];
   let firstError: unknown;
   for (const item of prepared) {
     try {
-      images.push(await requireApplication().prepareImage(item));
+      images.push(await requireApplication().prepareImage({ ...item, ...scope }));
     } catch (error) {
       firstError ??= error;
     }
@@ -702,17 +757,33 @@ app.whenReady().then(async () => {
   const agentDir = path.resolve(agentDirOverride || path.join(app.getPath("userData"), "pi-agent"));
   process.env.PI_CODING_AGENT_DIR = agentDir;
   const locator = resolveDesktopResourceLocator();
+  const metadataStore = createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json"));
+  const metadata = metadataStore.load();
+  const githubMcpServerPath = resolveGitHubMcpServerPath(
+    app.isPackaged ? process.resourcesPath : path.join(__dirname, "..", "..", "resources"),
+  );
   runtime = await createPhoCodeRuntime({
     agentDir,
     appliesToSharedPiAgentDir: Boolean(agentDirOverride),
     resourceLocator: locator,
     applicationDataDir: app.getPath("userData"),
+    githubMcpEnabled: metadata.githubMcpEnabled,
+    ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
+    ...(githubMcpServerPath ? { githubMcpServerPath } : {}),
     ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
     deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
     testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
     testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",
     openValidatedAuthUrl,
-    ...(process.env.PHO_CODE_TEST_FEATURES === "1" ? { featureManifest: createDefaultFeatureManifest(locator, { agentDir, applicationDataDir: app.getPath("userData") }) } : {}),
+    ...(process.env.PHO_CODE_TEST_FEATURES === "1"
+      ? {
+          featureManifest: createDefaultFeatureManifest(locator, {
+            agentDir,
+            applicationDataDir: app.getPath("userData"),
+            ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
+          }),
+        }
+      : {}),
   });
   application = createApplicationService({
     runtime,
@@ -720,7 +791,7 @@ app.whenReady().then(async () => {
       electron: process.versions.electron ?? PINNED_ELECTRON.version,
       embeddedNode: process.versions.node,
     },
-    metadataStore: createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json")),
+    metadataStore,
     appearanceHost: { applyAppearance },
   });
   runtime.subscribe(publishRuntimeEvent);

@@ -6,6 +6,7 @@ import {
   DEFAULT_UI_FONT_SIZE,
   HARNESS_ERROR_CODES,
   PINNED_ELECTRON,
+  emptySettingsSnapshot,
   isJsonSafeValue,
 } from "@pho-code/protocol";
 import { createDisposableStubHarnessRuntime, type HarnessRuntime } from "@pho-code/runtime";
@@ -42,13 +43,14 @@ describe("application settings", () => {
         },
       ],
     });
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(migrated.palette).toBe("default");
     expect(migrated.mode).toBe("system");
     expect(migrated.glassEnabled).toBe(DEFAULT_GLASS_ENABLED);
     expect(migrated.glassStrength).toBe(DEFAULT_GLASS_STRENGTH);
     expect(migrated.uiFontSize).toBe(DEFAULT_UI_FONT_SIZE);
     expect(migrated.chatFontSize).toBe(DEFAULT_CHAT_FONT_SIZE);
+    expect(migrated.githubMcpEnabled).toBe(false);
     expect(migrated.recentWorkspaces).toHaveLength(1);
   });
 
@@ -181,5 +183,69 @@ describe("application settings", () => {
     await expect(application.updateAppearanceSettings({})).rejects.toMatchObject({
       code: HARNESS_ERROR_CODES.invalidCommand,
     });
+  });
+
+  test("persists enabled external skill sources without copying pho-code", async () => {
+    let current = emptySettingsSnapshot().skills;
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      getSkillSettings() {
+        return current;
+      },
+      setEnabledSkillSources(sourceIds) {
+        current = {
+          ...current,
+          sources: current.sources.map((source) => ({
+            ...source,
+            enabled: source.sourceId === "pho-code" || sourceIds.includes(source.sourceId),
+          })),
+        };
+        return current;
+      },
+      updateSkillSourceSettings(input) {
+        current = {
+          ...current,
+          sources: current.sources.map((source) =>
+            source.sourceId === input.sourceId ? { ...source, enabled: input.enabled } : source,
+          ),
+        };
+        return Promise.resolve(current);
+      },
+    };
+    const { application } = createTestApplication(runtime);
+    const updated = await application.updateSkillSourceSettings({ sourceId: "cursor", enabled: true });
+    expect(updated.skills.sources.find((source) => source.sourceId === "cursor")?.enabled).toBe(true);
+    expect(updated.skills.sources.find((source) => source.sourceId === "pho-code")?.enabled).toBe(true);
+    expect(isJsonSafeValue(updated)).toBe(true);
+    expect(JSON.stringify(updated.skills)).not.toContain("/Users/");
+  });
+
+  test("persists GitHub MCP enabled without copying a token", async () => {
+    const canary = "github_pat_application_canary";
+    let github = emptySettingsSnapshot().githubMcp;
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      getGitHubMcpSettings() {
+        return github;
+      },
+      updateGitHubMcpSettings(input) {
+        github = { ...github, enabled: input.enabled, status: input.enabled ? "needs_auth" : "disabled" };
+        return Promise.resolve(github);
+      },
+      importGitHubPat() {
+        github = { ...github, account: { signedIn: true, authMethod: "pat" } };
+        return Promise.resolve(github);
+      },
+    };
+    const { application } = createTestApplication(runtime);
+    await expect(application.updateGitHubMcpSettings({ enabled: true })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    const enabled = await application.updateGitHubMcpSettings({ enabled: true, acknowledgedDisclosure: true });
+    expect(enabled.githubMcp.enabled).toBe(true);
+    const imported = await application.importGitHubPat({ token: canary });
+    expect(imported.githubMcp.account.signedIn).toBe(true);
+    expect(JSON.stringify(imported)).not.toContain(canary);
+    expect(JSON.stringify(enabled)).not.toContain(canary);
   });
 });

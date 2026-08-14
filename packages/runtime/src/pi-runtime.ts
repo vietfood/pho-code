@@ -36,6 +36,9 @@ import {
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   emptyQueueState,
+  GITHUB_MCP_FEATURE_ID,
+  isExternalSkillSourceId,
+  requireMatchingSessionKey,
   sessionActivityPhase,
   type AbortRunInput,
   type CancelProviderLoginInput,
@@ -75,13 +78,25 @@ import {
   type ThinkingLevel,
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
+  type UpdateGitHubMcpSettingsInput,
+  type ImportGitHubPatInput,
   type ContextUsageSummary,
   type SessionUsageSummary,
   type WorkspaceSnapshot,
   type WorkspaceSummary,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
-import { createDefaultFeatureManifest, emptyFeatureManifest, flattenFeatureManifest, resolvePermissionFeature, PERMISSION_FEATURE_ID, type HarnessFeatureManifest } from "./features";
+import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
+import {
+  createDefaultFeatureManifest,
+  emptyFeatureManifest,
+  flattenFeatureManifest,
+  resolveCursorSdkFeature,
+  resolvePermissionFeature,
+  CURSOR_SDK_FEATURE_ID,
+  PERMISSION_FEATURE_ID,
+  type HarnessFeatureManifest,
+} from "./features";
 import type {
   HarnessRuntime,
   InspectWorkspaceInput,
@@ -104,6 +119,12 @@ import { TRASH_TOOL_NAME } from "./trash-target";
 import { createLocalRetrievalRuntime } from "./local-retrieval";
 import { RETRIEVAL_FEATURE_ID } from "./retrieval-feature";
 import { createWebResearchRuntime } from "./web-client";
+import { createSkillSourceRegistry } from "./skill-source";
+import { createSkillInvokeFeature, SKILL_INVOKE_FEATURE_ID } from "./skill-invoke";
+import { resolveCuratedSkillsRoot } from "./skills-feature";
+import { createGitHubMcpFeature } from "./github-mcp-feature";
+import { createGitHubMcpRuntime } from "./github-mcp-runtime";
+import { createOsSecretStore, type SecretStore } from "./secret-store";
 import { projectModelSummary, modelSupportsImages } from "./model-summary";
 import { createPreparedImageStore } from "./image-store";
 import {
@@ -137,6 +158,12 @@ export interface PhoCodeRuntimeOptions {
   applicationDataDir?: string;
   resourcesRoot?: string;
   removalService?: RecoverableRemovalService;
+  enabledSkillSources?: readonly string[];
+  githubMcpEnabled?: boolean;
+  githubMcpAccountLogin?: string;
+  githubMcpServerPath?: string;
+  githubMcpLaunch?: (token: string) => { command: string; args: readonly string[] };
+  secretStore?: SecretStore;
 }
 
 interface ActiveRun {
@@ -184,6 +211,7 @@ function liveSessionProtected(session: LiveSession): boolean {
 export async function createPhoCodeRuntime(
   options: PhoCodeRuntimeOptions = {},
 ): Promise<HarnessRuntime> {
+  applyCursorSdkHarnessPolicy();
   const previousAgentDirEnv = process.env.PI_CODING_AGENT_DIR;
   if (options.agentDir) {
     process.env.PI_CODING_AGENT_DIR = path.resolve(options.agentDir);
@@ -194,11 +222,25 @@ export async function createPhoCodeRuntime(
   const listeners = new Set<(event: RuntimeEvent) => void>();
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
+  const resolvedCursorSdk = resolveCursorSdkFeature(locator);
   const retrievalDataDir = path.join(options.applicationDataDir ?? agentDir, "retrieval");
   const retrieval = createLocalRetrievalRuntime({ dataDir: retrievalDataDir });
   const web = createWebResearchRuntime();
   const removalService = options.removalService ?? createOsTrashRemovalService();
-  const featureManifest = withTestHostUi(
+  const skillSources = createSkillSourceRegistry({
+    phoCodeSkillsRoot: resolveCuratedSkillsRoot(options.resourcesRoot),
+    enabledExternalSources: options.enabledSkillSources,
+  });
+  const githubMcp = createGitHubMcpRuntime({
+    secretStore: options.secretStore ?? createOsSecretStore(),
+    enabled: options.githubMcpEnabled === true,
+    ...(options.githubMcpAccountLogin ? { accountLogin: options.githubMcpAccountLogin } : {}),
+    ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
+    ...(options.githubMcpServerPath ? { serverPath: options.githubMcpServerPath } : {}),
+    ...(options.githubMcpLaunch ? { launch: options.githubMcpLaunch } : {}),
+  });
+  await githubMcp.startIfEnabled();
+  const baseManifest = withTestHostUi(
     options.featureManifest ??
       (options.deterministicTestModel
         ? emptyFeatureManifest()
@@ -212,8 +254,22 @@ export async function createPhoCodeRuntime(
           })),
     options.testHostUi === true,
   );
+  const featureManifest = options.deterministicTestModel
+    ? baseManifest
+    : {
+        features: [
+          ...baseManifest.features.filter(
+            (feature) => feature.id !== SKILL_INVOKE_FEATURE_ID && feature.id !== GITHUB_MCP_FEATURE_ID,
+          ),
+          createSkillInvokeFeature(skillSources),
+          createGitHubMcpFeature(githubMcp),
+        ],
+      };
   const compositionDiagnostics = [
     ...(featureManifest.features.some((feature) => feature.id === PERMISSION_FEATURE_ID) ? resolvedDefault.diagnostics : []),
+    ...(featureManifest.features.some((feature) => feature.id === CURSOR_SDK_FEATURE_ID)
+      ? resolvedCursorSdk.diagnostics
+      : []),
     ...(featureManifest.features.some((feature) => feature.id === TRASH_FEATURE_ID) ? trashFacilityDiagnostics() : []),
     ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
   ];
@@ -232,6 +288,10 @@ export async function createPhoCodeRuntime(
   }
   if (options.testOAuthFlow) {
     modelRuntime.registerNativeProvider(createTestOAuthProvider());
+  }
+
+  if (featureManifest.features.some((feature) => feature.id === CURSOR_SDK_FEATURE_ID && (feature.extensionPaths?.length ?? 0) > 0)) {
+    registerCursorProviderAccount(modelRuntime);
   }
 
   const testTool = options.deterministicTestModel ? createHarnessMarkTool() : undefined;
@@ -779,6 +839,16 @@ export async function createPhoCodeRuntime(
           }
         : {}),
     };
+  }
+
+  async function rebindIdleGitHubSessions(): Promise<void> {
+    const selectedKey = selected?.key;
+    await registry.evictUnprotected();
+    if (!selectedKey) {
+      return;
+    }
+    selected = await registry.open(selectedKey);
+    registry.select(selectedKey);
   }
 
   async function loadWorkspaceFeatures(cwd: string): Promise<FeatureSnapshot> {
@@ -1358,7 +1428,10 @@ export async function createPhoCodeRuntime(
     },
     async prepareImage(input: PrepareImageInput) {
       assertNotDisposed();
-      const live = requireLiveSession();
+      const live =
+        input.sessionId !== undefined
+          ? locateController(input.sessionId, input.workspaceId, "prepareImage")
+          : requireLiveSession();
       const summary = live.preparedImages.add(input, "prepareImage");
       assertJsonSafe(summary, "prepareImage");
       return summary;
@@ -1464,6 +1537,14 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "rewriteAssistantOutput");
       const session = live.runtime.session;
+      if (live.activeRun && !live.activeRun.settled) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before rewriting assistant output.",
+          operation: "rewriteAssistantOutput",
+          recoverable: true,
+        });
+      }
       if (typeof input.text !== "string") {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
@@ -1514,6 +1595,9 @@ export async function createPhoCodeRuntime(
         input.sessionId !== undefined
           ? locateController(input.sessionId, input.workspaceId, "resolveHostDialog")
           : requireLiveSession();
+      if (input.sessionId !== undefined) {
+        requireMatchingSessionKey(live.key, input, "resolveHostDialog");
+      }
       live.extensionHost?.resolveDialog(input);
     },
     getPermissionSettings() {
@@ -1699,6 +1783,67 @@ export async function createPhoCodeRuntime(
       assertJsonSafe(result, "searchWorkspaceReferences");
       return result;
     },
+    getSkillSettings() {
+      assertNotDisposed();
+      const snapshot = skillSources.snapshot();
+      assertJsonSafe(snapshot, "getSkillSettings");
+      return snapshot;
+    },
+    setEnabledSkillSources(sourceIds) {
+      assertNotDisposed();
+      skillSources.setEnabledExternalSources(sourceIds);
+      const snapshot = skillSources.snapshot();
+      assertJsonSafe(snapshot, "setEnabledSkillSources");
+      return snapshot;
+    },
+    async updateSkillSourceSettings(input) {
+      assertNotDisposed();
+      if (!isExternalSkillSourceId(input.sourceId)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Unknown skill source.",
+          operation: "updateSkillSourceSettings",
+          recoverable: true,
+        });
+      }
+      const snapshot = skillSources.setSourceEnabled(input.sourceId, input.enabled === true);
+      assertJsonSafe(snapshot, "updateSkillSourceSettings");
+      return snapshot;
+    },
+    async refreshSkills() {
+      assertNotDisposed();
+      const snapshot = skillSources.refresh();
+      assertJsonSafe(snapshot, "refreshSkills");
+      return snapshot;
+    },
+    getGitHubMcpSettings() {
+      assertNotDisposed();
+      const snapshot = githubMcp.snapshot();
+      assertJsonSafe(snapshot, "getGitHubMcpSettings");
+      return snapshot;
+    },
+    async updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput) {
+      assertNotDisposed();
+      const snapshot = await githubMcp.setEnabled(input.enabled === true);
+      await rebindIdleGitHubSessions();
+      assertJsonSafe(snapshot, "updateGitHubMcpSettings");
+      return snapshot;
+    },
+    async importGitHubPat(input: ImportGitHubPatInput) {
+      assertNotDisposed();
+      const snapshot = await githubMcp.importPat(input.token);
+      await rebindIdleGitHubSessions();
+      assertJsonSafe(snapshot, "importGitHubPat");
+      assertNoCanaries(snapshot, [input.token], "importGitHubPat");
+      return snapshot;
+    },
+    async logoutGitHubMcp() {
+      assertNotDisposed();
+      const snapshot = await githubMcp.logout();
+      await rebindIdleGitHubSessions();
+      assertJsonSafe(snapshot, "logoutGitHubMcp");
+      return snapshot;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -1719,6 +1864,7 @@ export async function createPhoCodeRuntime(
       } finally {
         await retrieval.dispose();
         await web.dispose();
+        await githubMcp.dispose();
         selected = undefined;
         restoreAgentDirEnv(previousAgentDirEnv, options.agentDir);
       }
@@ -1779,15 +1925,16 @@ export async function createPhoCodeRuntime(
         recoverable: true,
       });
     }
-    if (references.length === 0) {
-      return text;
+    let resolved = text;
+    if (references.length > 0) {
+      const workspacePath = live.workspace.path;
+      const validated = [];
+      for (const token of references) {
+        validated.push(await validateWorkspaceReference(token, workspacePath));
+      }
+      resolved = serializeWorkspaceReferences(text, validated);
     }
-    const workspacePath = live.workspace.path;
-    const validated = [];
-    for (const token of references) {
-      validated.push(await validateWorkspaceReference(token, workspacePath));
-    }
-    return serializeWorkspaceReferences(text, validated);
+    return skillSources.expandInsertedSkills(resolved);
   }
 
   function takePreparedImages(

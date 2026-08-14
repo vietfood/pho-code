@@ -14,6 +14,8 @@ import {
   isSessionKey,
   isSessionOutcome,
   isUiFontSize,
+  isExternalSkillSourceId,
+  MAX_GITHUB_MCP_LOGIN_CHARS,
   sessionKeyEquals,
   type AppearanceMode,
   type AppearancePalette,
@@ -22,9 +24,9 @@ import {
   type SessionOutcome,
 } from "@pho-code/protocol";
 
-export const METADATA_VERSION = 5 as const;
+export const METADATA_VERSION = 6 as const;
 export const MAX_RECENT_WORKSPACES = 8;
-const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4]);
+const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4, 5]);
 
 export interface SessionLifecycleRecord extends SessionKey {
   archivedAt?: string;
@@ -44,6 +46,9 @@ export interface AppMetadata {
   chatFontSize: number;
   trustedPermissionWorkspaceIds: string[];
   sessionLifecycle: SessionLifecycleRecord[];
+  enabledSkillSources: string[];
+  githubMcpEnabled: boolean;
+  githubMcpAccountLogin?: string;
   selectedWorkspaceId?: string;
   selectedSessionId?: string;
 }
@@ -65,6 +70,8 @@ export function emptyMetadata(): AppMetadata {
     chatFontSize: DEFAULT_CHAT_FONT_SIZE,
     trustedPermissionWorkspaceIds: [],
     sessionLifecycle: [],
+    enabledSkillSources: [],
+    githubMcpEnabled: false,
   };
 }
 
@@ -98,6 +105,9 @@ export function rememberWorkspace(metadata: AppMetadata, record: RecentWorkspace
       chatFontSize: metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
       sessionLifecycle: metadata.sessionLifecycle,
+      enabledSkillSources: metadata.enabledSkillSources,
+      githubMcpEnabled: metadata.githubMcpEnabled,
+      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
       selectedWorkspaceId: record.id,
     },
     metadata.selectedSessionId,
@@ -141,6 +151,9 @@ export function selectSession(metadata: AppMetadata, sessionId: string | undefin
       chatFontSize: metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
       sessionLifecycle: metadata.sessionLifecycle,
+      enabledSkillSources: metadata.enabledSkillSources,
+      githubMcpEnabled: metadata.githubMcpEnabled,
+      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
       ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
     },
     sessionId,
@@ -178,6 +191,9 @@ export function setAppearance(
       chatFontSize: patch.chatFontSize ?? metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
       sessionLifecycle: metadata.sessionLifecycle,
+      enabledSkillSources: metadata.enabledSkillSources,
+      githubMcpEnabled: metadata.githubMcpEnabled,
+      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
       ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
     },
     metadata.selectedSessionId,
@@ -231,7 +247,13 @@ export function parseMetadata(value: unknown): AppMetadata {
       ? [...new Set(candidate.trustedPermissionWorkspaceIds.filter((entry): entry is string => typeof entry === "string"))]
       : [],
     sessionLifecycle: parseSessionLifecycle(candidate.sessionLifecycle),
+    enabledSkillSources: parseEnabledSkillSources(candidate.enabledSkillSources),
+    githubMcpEnabled: candidate.githubMcpEnabled === true,
   };
+  const accountLogin = parseGitHubAccountLogin(candidate.githubMcpAccountLogin);
+  if (accountLogin) {
+    metadata.githubMcpAccountLogin = accountLogin;
+  }
   if (typeof candidate.selectedWorkspaceId === "string") {
     metadata.selectedWorkspaceId = candidate.selectedWorkspaceId;
   }
@@ -339,13 +361,44 @@ export function pruneOrphanSessionLifecycle(
   return { ...metadata, sessionLifecycle };
 }
 
+export function setEnabledSkillSources(metadata: AppMetadata, sourceIds: readonly string[]): AppMetadata {
+  return {
+    ...metadata,
+    enabledSkillSources: parseEnabledSkillSources(sourceIds),
+  };
+}
+
+export function setGitHubMcpEnabled(metadata: AppMetadata, enabled: boolean): AppMetadata {
+  if (metadata.githubMcpEnabled === enabled) {
+    return metadata;
+  }
+  return { ...metadata, githubMcpEnabled: enabled };
+}
+
+export function setGitHubMcpAccountLogin(metadata: AppMetadata, login: string | undefined): AppMetadata {
+  const parsed = parseGitHubAccountLogin(login);
+  if (parsed === metadata.githubMcpAccountLogin) {
+    return metadata;
+  }
+  const next = { ...metadata };
+  if (parsed) {
+    next.githubMcpAccountLogin = parsed;
+  } else {
+    delete next.githubMcpAccountLogin;
+  }
+  return next;
+}
+
 export function forgetSessionLifecycle(metadata: AppMetadata, key: SessionKey): AppMetadata {
   const sessionLifecycle = metadata.sessionLifecycle.filter((entry) => !sessionKeyEquals(entry, key));
   if (sessionLifecycle.length === metadata.sessionLifecycle.length) {
     return metadata;
   }
   const next = { ...metadata, sessionLifecycle };
-  if (metadata.selectedSessionId === key.sessionId) {
+  if (
+    metadata.selectedSessionId === key.sessionId &&
+    (metadata.selectedWorkspaceId === undefined || metadata.selectedWorkspaceId === key.workspaceId)
+  ) {
     return selectSession(next, undefined);
   }
   return next;
@@ -368,6 +421,33 @@ function upsertSessionLifecycle(
       ? metadata.sessionLifecycle.map((entry, entryIndex) => (entryIndex === index ? next : entry))
       : [...metadata.sessionLifecycle, next];
   return { ...metadata, sessionLifecycle };
+}
+
+function parseEnabledSkillSources(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (isExternalSkillSourceId(entry)) {
+      seen.add(entry);
+    }
+  }
+  return [...seen];
+}
+
+function parseGitHubAccountLogin(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const login = value.trim();
+  if (login.length === 0 || login.length > MAX_GITHUB_MCP_LOGIN_CHARS) {
+    return undefined;
+  }
+  if (/^(github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)/u.test(login) || login.includes(" ")) {
+    return undefined;
+  }
+  return login;
 }
 
 function parseSessionLifecycle(value: unknown): SessionLifecycleRecord[] {

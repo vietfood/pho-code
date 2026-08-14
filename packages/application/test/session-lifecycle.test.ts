@@ -41,7 +41,7 @@ describe("session lifecycle metadata", () => {
       selectedWorkspaceId: "/tmp/a",
       selectedSessionId: "s1",
     });
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(migrated.sessionLifecycle).toEqual([]);
     expect(migrated.palette).toBe("gruvbox");
     expect(migrated.mode).toBe("dark");
@@ -122,5 +122,21 @@ describe("session lifecycle metadata", () => {
     const forgotten = forgetSessionLifecycle(both, sessionA);
     expect(getSessionLifecycle(forgotten, sessionA)).toBeUndefined();
     expect(getSessionLifecycle(forgotten, sessionB)?.archivedAt).toBe("2026-08-14T01:00:00.000Z");
+  });
+
+  test("forgetting a colliding session id in another workspace keeps the selected chat", () => {
+    const selected = {
+      ...archiveSessionMetadata(
+        archiveSessionMetadata(emptyMetadata(), sessionA, "2026-08-14T01:00:00.000Z"),
+        sessionB,
+        "2026-08-14T01:00:00.000Z",
+      ),
+      selectedWorkspaceId: sessionA.workspaceId,
+      selectedSessionId: sessionA.sessionId,
+    };
+    const forgotten = forgetSessionLifecycle(selected, sessionB);
+    expect(forgotten.selectedWorkspaceId).toBe(sessionA.workspaceId);
+    expect(forgotten.selectedSessionId).toBe(sessionA.sessionId);
+    expect(getSessionLifecycle(forgotten, sessionB)).toBeUndefined();
   });
 });

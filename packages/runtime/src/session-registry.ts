@@ -23,6 +23,7 @@ export interface SessionRegistry<C> {
   activeRunCount(): number;
   assertCanAdmitRun(operation: string): void;
   runLocked<T>(key: SessionKey, operation: () => Promise<T>): Promise<T>;
+  evictUnprotected(except?: SessionKey): Promise<void>;
   remove(key: SessionKey): Promise<C | undefined>;
   disposeAll(): Promise<void>;
 }
@@ -161,6 +162,20 @@ export function createSessionRegistry<C>(host: SessionRegistryHost<C>): SessionR
         if (locks.get(id) === current) {
           locks.delete(id);
         }
+      }
+    },
+    async evictUnprotected(except) {
+      const exceptId = except ? requireKey(except, "refreshSkills") : undefined;
+      const victims = [...controllers.values()].filter((controller) => {
+        if (host.isProtected(controller)) {
+          return false;
+        }
+        return exceptId === undefined || sessionKeyId(host.keyOf(controller)) !== exceptId;
+      });
+      for (const victim of victims) {
+        const victimKey = host.keyOf(victim);
+        controllers.delete(sessionKeyId(victimKey));
+        await host.dispose(victim, "evicted");
       }
     },
     async remove(key) {
