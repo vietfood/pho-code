@@ -94,6 +94,45 @@ describe("sanitized markdown", () => {
     expect(html).toMatch(/data-mermaid-theme="(dark|default)"/);
     expect(html).not.toContain("<script");
   });
+
+  test("keeps svg source as a plain code block while streaming", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        streaming: true,
+        text: "```svg\n<svg xmlns=\"http://www.w3.org/2000/svg\"><circle r=\"4\"/></svg>\n```\n",
+      }),
+    );
+    expect(html).toContain("circle");
+    expect(html).toContain("svg");
+    expect(html).not.toContain('data-testid="svg-diagram"');
+    expect(html).not.toContain("data:image/svg+xml");
+  });
+
+  test("mounts svg as a data-url image when settled without injecting markup", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        text: "```svg\n<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"><script>alert(1)</script><circle r=\"4\" fill=\"#fff\"/></svg>\n```\n",
+      }),
+    );
+    expect(html).toContain('data-testid="svg-diagram"');
+    expect(html).toContain('data-testid="markdown-image"');
+    expect(html).toContain("data:image/svg+xml;charset=utf-8,");
+    expect(html).toContain('aria-label="SVG diagram"');
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("onload=");
+    expect(html).not.toContain("javascript:");
+  });
+
+  test("falls back to source when a settled svg fence is not an svg root", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConservativeMarkdown, {
+        text: "```svg\nnot a diagram\n```\n",
+      }),
+    );
+    expect(html).toContain("not a diagram");
+    expect(html).not.toContain('data-testid="svg-diagram"');
+    expect(html).not.toContain("data:image/svg+xml");
+  });
 });
 
 describe("shiki theme helper", () => {

@@ -13,6 +13,7 @@ import { MarkdownCodeBlock } from "./markdown-codeblock";
 import { MarkdownImage } from "./markdown-image";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ShikiCodeBlock } from "./shiki-code";
+import { SvgDiagram } from "./svg-diagram";
 
 // Chat markdown presentation adapted from refs/t3code ChatMarkdown.tsx + index.css
 // (MIT, T3 Tools Inc., 6bc6cb6). rehype-raw and file-link graph omitted; code-block
@@ -21,6 +22,7 @@ import { ShikiCodeBlock } from "./shiki-code";
 // (official safe order). Markdown images: http(s)/data only with lightbox;
 // workspace/file: deferred. Live streaming uses GFM + sanitize only. Settled
 // KaTeX runs only when the text looks like math; KaTeX CSS loads on that path.
+// Settled fenced `svg` renders as a data-URL `<img>` (no innerHTML) with lightbox.
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -88,6 +90,9 @@ function createComponents(rich: boolean): Components {
       }
       if (language === "mermaid") {
         return <MermaidDiagram source={text} />;
+      }
+      if (language.toLowerCase() === "svg") {
+        return <SvgDiagram source={text} />;
       }
       return (
         <MarkdownCodeBlock language={language} text={text}>

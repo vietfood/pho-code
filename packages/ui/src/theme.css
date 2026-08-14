@@ -1119,6 +1119,19 @@ html[data-appearance="dark"] .approval-card {
   height: auto;
 }
 
+.chat-markdown .chat-markdown-svg .chat-markdown-image-trigger {
+  margin: 0;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+}
+
+.chat-markdown .chat-markdown-svg .chat-markdown-image {
+  max-width: 100%;
+  max-height: 36rem;
+  border: none;
+  background: var(--background);
+}
+
 .chat-markdown table {
   width: 100%;
   border-collapse: collapse;

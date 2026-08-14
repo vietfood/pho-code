@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // Lightbox chrome adapted from refs/pi-web/components/ImagePreview.tsx
 // (MIT, agegr, 0877bff). i18n and next/img omitted; harness tokens/CSS.
 
-export function MarkdownImage({ src, alt = "" }: { src: string; alt?: string }) {
+export function MarkdownImage({
+  src,
+  alt = "",
+  fallback,
+}: {
+  src: string;
+  alt?: string;
+  fallback?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -44,9 +52,11 @@ export function MarkdownImage({ src, alt = "" }: { src: string; alt?: string }) 
 
   if (failed) {
     return (
-      <span className="chat-markdown-image-fallback text-muted-foreground" data-testid="markdown-image-fallback">
-        {alt || "Image unavailable"}
-      </span>
+      fallback ?? (
+        <span className="chat-markdown-image-fallback text-muted-foreground" data-testid="markdown-image-fallback">
+          {alt || "Image unavailable"}
+        </span>
+      )
     );
   }
 

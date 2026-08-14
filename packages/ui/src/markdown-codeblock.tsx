@@ -8,11 +8,13 @@ export function MarkdownCodeBlock({
   text,
   children,
   className,
+  "data-testid": testId,
 }: {
   language: string;
   text: string;
   children: ReactNode;
   className?: string;
+  "data-testid"?: string;
 }) {
   return (
     <div
@@ -20,6 +22,7 @@ export function MarkdownCodeBlock({
         "chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32",
         className,
       )}
+      data-testid={testId}
     >
       <div className="chat-markdown-codeblock-header select-none">
         <span className="chat-markdown-codeblock-title">{language || "code"}</span>
