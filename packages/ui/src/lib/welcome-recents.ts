@@ -11,13 +11,27 @@ function timestamp(iso: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+export function timeOfDayGreeting(now: Date = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 12) {
+    return "Good morning";
+  }
+  if (hour < 17) {
+    return "Good afternoon";
+  }
+  return "Good evening";
+}
+
 export function lastOpenedProject(
   projects: readonly RecentWorkspaceRecord[],
 ): RecentWorkspaceRecord | undefined {
-  if (projects.length === 0) {
-    return undefined;
+  let latest: RecentWorkspaceRecord | undefined;
+  for (const project of projects) {
+    if (!latest || timestamp(project.lastOpenedAt) > timestamp(latest.lastOpenedAt)) {
+      latest = project;
+    }
   }
-  return [...projects].sort((left, right) => timestamp(right.lastOpenedAt) - timestamp(left.lastOpenedAt))[0];
+  return latest;
 }
 
 export function collectJumpBackSessions(

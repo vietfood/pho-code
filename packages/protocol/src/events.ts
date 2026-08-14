@@ -156,12 +156,9 @@ export function isLiveRunDeltaType(type: string): boolean {
   }
 }
 
-/** Events that can change the projected session list. */
+/** Events that add or remove sidebar catalog rows. Title and activity patch locally. */
 export function runtimeEventUpdatesSessionList(type: string): boolean {
   switch (type) {
-    case RUNTIME_EVENT_TYPES.sessionSnapshot:
-    case RUNTIME_EVENT_TYPES.runSettled:
-    case RUNTIME_EVENT_TYPES.sessionActivity:
     case RUNTIME_EVENT_TYPES.sessionRemoved:
       return true;
     default:

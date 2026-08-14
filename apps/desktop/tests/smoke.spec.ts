@@ -22,10 +22,10 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
     await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
     await expect(page.getByTestId("add-project")).toBeVisible();
     await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
-    await page.getByTestId("toggle-sidebar").click();
-    await expect(page.getByTestId("app-sidebar")).toHaveCount(0);
-    await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
-    await page.getByTestId("toggle-sidebar").click();
+    await page.getByRole("button", { name: "Hide sidebar" }).click();
+    await expect(page.getByTestId("app-sidebar")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Show sidebar" })).toBeVisible();
+    await page.getByRole("button", { name: "Show sidebar" }).click();
     await expect(page.getByTestId("app-sidebar")).toBeVisible();
     await expect(page.getByTestId("add-project")).toBeVisible();
 

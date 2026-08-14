@@ -236,22 +236,6 @@ describe("empty session hero", () => {
     expect(markup).toContain('aria-label="Remove shot.png"');
   });
 
-  test("keeps conversation chrome mounted while switching sessions", () => {
-    const markup = renderToStaticMarkup(
-      createElement(Conversation, {
-        snapshot: snapshot({
-          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
-        }),
-        switching: true,
-        ...handlers,
-      }),
-    );
-    expect(markup).toContain('data-testid="session-switching"');
-    expect(markup).toContain('aria-busy="true"');
-    expect(markup).toContain('data-testid="transcript"');
-    expect(markup).toContain("hello");
-  });
-
   test("shows steer and follow-up actions while a run is streaming", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {

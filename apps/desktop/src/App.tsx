@@ -1,4 +1,4 @@
-import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyLiveRunDelta,
   applyRuntimeEventToCache,
@@ -15,14 +15,12 @@ import {
   idleRunState,
   isLiveRunDeltaType,
   mergeLiveRun,
-  runtimeEventUpdatesSessionList,
   sessionKeyId,
   type BootstrapState,
   type ConversationCacheState,
   type ConversationViewState,
   type HarnessSettingsSnapshot,
   type ModelSummary,
-  type PreparedImageSummary,
   type PrepareRemoveArchivedSessionsResult,
   type PrepareRemoveProjectResult,
   type PrepareRemoveSessionResult,
@@ -30,8 +28,7 @@ import {
   type ProviderAuthFlowSnapshot,
   type ResolveHostDialogInput,
   type SessionCatalogEntry,
-  type SessionActivitySummary,
-  type SessionSnapshot,
+  type SessionSummary,
   type ThinkingLevel,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
@@ -43,6 +40,7 @@ import {
   AppSidebar,
   applyAppearanceFonts,
   applyAppearanceTheme,
+  ChatPaneLoading,
   Conversation,
   NotificationToast,
   fileToBase64,
@@ -61,31 +59,23 @@ import {
   dropLiveRun,
   getLiveRunForKey,
   replaceLiveRun,
-  resetLiveRunStore,
   selectLiveRunKey,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
-
-type PendingSession = {
-  workspaceId: string;
-  sessionId: string | null;
-};
-
-type ComposerChrome = {
-  draft: string;
-  images: PreparedImageSummary[];
-};
+import {
+  mergeActivityIntoCatalog,
+  removeCatalogSession,
+  upsertCatalogSession,
+} from "./session-catalog-state";
+import { useSessionSwitch } from "./use-session-switch";
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapState | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
   const [cache, setCache] = useState<ConversationCacheState>(emptyConversationCache);
   const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionCatalogEntry[]>>({});
-  const [draft, setDraft] = useState("");
-  const [preparedImages, setPreparedImages] = useState<PreparedImageSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<PrepareRemoveSessionResult | null>(null);
   const [pendingProjectRemoval, setPendingProjectRemoval] = useState<PrepareRemoveProjectResult | null>(null);
@@ -100,7 +90,6 @@ export function App() {
   const composerAfterRun = useRef(false);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
-  const composersRef = useRef<Record<string, ComposerChrome>>({});
   const conversation = selectedConversation(cache);
 
   const toggleSidebar = useCallback(() => {
@@ -111,23 +100,6 @@ export function App() {
     });
   }, []);
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent): void {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) {
-        return;
-      }
-      if (event.key.toLowerCase() !== "b") {
-        return;
-      }
-      event.preventDefault();
-      toggleSidebar();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [toggleSidebar]);
-
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
   }, []);
@@ -137,6 +109,28 @@ export function App() {
     rememberSessions(workspaceId, entries);
     return entries;
   }, [rememberSessions]);
+
+  const upsertCatalog = useCallback((session: SessionSummary) => {
+    setSessionsByWorkspace((current) => upsertCatalogSession(current, session));
+  }, []);
+
+  const {
+    pendingSession,
+    draft,
+    setDraft,
+    preparedImages,
+    setPreparedImages,
+    switchSession,
+    resetConversationChrome,
+  } = useSessionSwitch({
+    cache,
+    setCache,
+    setWorkspace,
+    setError,
+    setSettingsOpen,
+    upsertCatalog,
+    errorMessage,
+  });
 
   const refreshBootstrap = useCallback(async () => {
     const bridge = getDesktopBridge();
@@ -234,9 +228,18 @@ export function App() {
       }
       if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
         setSessionsByWorkspace((current) => mergeActivityIntoCatalog(current, next.activity));
-      }
-      if (runtimeEventUpdatesSessionList(event.type) && eventKey) {
-        void refreshCatalog(eventKey.workspaceId).catch(() => undefined);
+      } else if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved && eventKey) {
+        setSessionsByWorkspace((current) =>
+          removeCatalogSession(current, eventKey.workspaceId, eventKey.sessionId),
+        );
+      } else if (
+        (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
+        eventKey
+      ) {
+        const snap = next.byKey[sessionKeyId(eventKey)]?.snapshot;
+        if (snap) {
+          setSessionsByWorkspace((current) => upsertCatalogSession(current, snap.session));
+        }
       }
       setCache(next);
       if (event.type === RUNTIME_EVENT_TYPES.providerAuthFlow) {
@@ -263,25 +266,17 @@ export function App() {
       cancelled = true;
       stop();
     };
-  }, [refreshBootstrap, refreshCatalog]);
+  }, [refreshBootstrap]);
 
+  const hasSnapshot = Boolean(conversation.snapshot);
   useEffect(() => {
-    if (!settingsOpen) {
-      return;
-    }
-    for (const project of bootstrap?.recentWorkspaces ?? []) {
-      void refreshCatalog(project.id).catch(() => undefined);
-    }
-  }, [bootstrap, refreshCatalog, settingsOpen]);
-
-  useEffect(() => {
-    if (!bootstrap || conversation.snapshot) {
+    if (!bootstrap || (hasSnapshot && !settingsOpen)) {
       return;
     }
     for (const project of bootstrap.recentWorkspaces) {
       void refreshCatalog(project.id).catch(() => undefined);
     }
-  }, [bootstrap, conversation.snapshot, refreshCatalog]);
+  }, [bootstrap, hasSnapshot, refreshCatalog, settingsOpen]);
 
   const appearance = conversation.settings?.appearance;
   useEffect(() => {
@@ -360,49 +355,6 @@ export function App() {
     }
   }
 
-  function applySessionSnapshot(snapshot: SessionSnapshot): void {
-    const key = sessionKeyId({ workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id });
-    const run = mergeLiveRun(getLiveRunForKey(key), snapshot.run);
-    const nextSnapshot = { ...snapshot, run };
-    replaceLiveRun(run, { immediate: true, key });
-    selectLiveRunKey(key);
-    setCache((current) => {
-      const existing = current.byKey[key];
-      return {
-        ...current,
-        selectedKey: key,
-        byKey: {
-          ...current.byKey,
-          [key]: {
-            lastSequence: existing?.lastSequence ?? current.lastSequence,
-            snapshot: nextSnapshot,
-            dialog: existing?.dialog ?? null,
-            notification: existing?.notification ?? null,
-            settings: current.settings,
-            authFlow: current.authFlow,
-          },
-        },
-      };
-    });
-    setWorkspace({
-      workspace: snapshot.workspace,
-      sessions: snapshot.sessions,
-      models: snapshot.models,
-      features: snapshot.features,
-      ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-    });
-    void refreshCatalog(snapshot.workspace.id).catch(() => undefined);
-  }
-
-  function resetConversationChrome(): void {
-    resetLiveRunStore();
-    setCache((current) => ({
-      ...emptyConversationCache(),
-      settings: current.settings,
-      authFlow: current.authFlow,
-    }));
-  }
-
   function applyAuthFlow(snapshot: ProviderAuthFlowSnapshot): void {
     setCache((current) => {
       const currentFlow = current.authFlow;
@@ -421,104 +373,69 @@ export function App() {
     setCache((current) => ({ ...current, settings }));
   }
 
-  function patchSnapshot(
-    patch: (snapshot: NonNullable<ConversationViewState["snapshot"]>) => NonNullable<ConversationViewState["snapshot"]>,
-  ): void {
-    setCache((current) => {
-      if (!current.selectedKey) {
-        return current;
-      }
-      const selected = current.byKey[current.selectedKey];
-      if (!selected?.snapshot) {
-        return current;
-      }
-      return {
-        ...current,
-        byKey: {
-          ...current.byKey,
-          [current.selectedKey]: { ...selected, snapshot: patch(selected.snapshot) },
-        },
-      };
-    });
-  }
-
-  function saveComposer(key: string | null): void {
-    if (!key) {
-      return;
-    }
-    composersRef.current[key] = { draft, images: preparedImages };
-  }
-
-  function restoreComposer(key: string | null): void {
-    if (!key) {
-      setDraft("");
-      setPreparedImages([]);
-      return;
-    }
-    const stored = composersRef.current[key];
-    setDraft(stored?.draft ?? "");
-    setPreparedImages(stored?.images ?? []);
-  }
-
-  async function switchSession(
-    workspaceId: string,
-    sessionId: string | null,
-    action: () => Promise<SessionSnapshot>,
-  ): Promise<void> {
-    const currentKey = cache.selectedKey;
-    if (sessionId) {
-      const nextKey = sessionKeyId({ workspaceId, sessionId });
-      if (nextKey === currentKey) {
-        return;
-      }
-      saveComposer(currentKey);
-      setPendingSession({ workspaceId, sessionId });
-      setError(null);
-      setSettingsOpen(false);
-      const cached = cache.byKey[nextKey];
-      const merged = mergeLiveRun(getLiveRunForKey(nextKey), cached?.snapshot?.run ?? idleRunState());
-      replaceLiveRun(merged, { immediate: true, key: nextKey });
-      selectLiveRunKey(nextKey);
-      if (cached?.snapshot) {
-        const snapshot: SessionSnapshot = { ...cached.snapshot, run: merged };
-        setCache((current) => ({
+  const patchSnapshot = useCallback(
+    (
+      patch: (snapshot: NonNullable<ConversationViewState["snapshot"]>) => NonNullable<ConversationViewState["snapshot"]>,
+    ): void => {
+      setCache((current) => {
+        if (!current.selectedKey) {
+          return current;
+        }
+        const selected = current.byKey[current.selectedKey];
+        if (!selected?.snapshot) {
+          return current;
+        }
+        return {
           ...current,
-          selectedKey: nextKey,
           byKey: {
             ...current.byKey,
-            [nextKey]: {
-              ...cached,
-              snapshot,
-            },
+            [current.selectedKey]: { ...selected, snapshot: patch(selected.snapshot) },
           },
-        }));
-        restoreComposer(nextKey);
-      } else {
-        restoreComposer(nextKey);
-      }
-    } else {
-      saveComposer(currentKey);
-      setPendingSession({ workspaceId, sessionId });
-      setError(null);
-      setDraft("");
-      setPreparedImages([]);
-      setSettingsOpen(false);
-      selectLiveRunKey(undefined);
-      replaceLiveRun(idleRunState(), { immediate: true });
-    }
-    try {
-      const opened = await action();
-      applySessionSnapshot(opened);
-      restoreComposer(sessionKeyId({ workspaceId: opened.workspace.id, sessionId: opened.session.id }));
-      setPendingSession(null);
-      void refreshBootstrap().catch(() => undefined);
-    } catch (cause) {
-      setError(errorMessage(cause));
-      setPendingSession(null);
-    }
-  }
+        };
+      });
+    },
+    [],
+  );
 
-  if (!bootstrap) {
+  const onRewrite = useCallback(
+    async ({ messageId, text }: { messageId: string; text: string }) => {
+      const selectedKey = cacheRef.current.selectedKey;
+      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+      if (!snap) {
+        return;
+      }
+      try {
+        setError(null);
+        const next = await getDesktopBridge().rewriteAssistantOutput({
+          sessionId: snap.session.id,
+          workspaceId: snap.workspace.id,
+          messageId,
+          text,
+        });
+        patchSnapshot((current) => ({ ...current, messages: next.messages }));
+      } catch (cause) {
+        setError(errorMessage(cause));
+        throw cause;
+      }
+    },
+    [patchSnapshot],
+  );
+
+  const sidebarBootstrap = useMemo(() => {
+    if (!bootstrap) {
+      return null;
+    }
+    return {
+      ...bootstrap,
+      ...(conversation.snapshot?.features
+        ? { features: conversation.snapshot.features }
+        : workspace?.features
+          ? { features: workspace.features }
+          : {}),
+    };
+  }, [bootstrap, conversation.snapshot?.features, workspace?.features]);
+
+  if (!bootstrap || !sidebarBootstrap) {
     return (
       <div className="flex h-full items-center justify-center bg-background p-8 text-foreground">
         <div className="flex max-w-sm flex-col items-center gap-3 text-center">
@@ -542,7 +459,12 @@ export function App() {
 
   const snapshot = conversation.snapshot;
   const projects = bootstrap.recentWorkspaces;
-  const switchingSession = pendingSession !== null;
+  const pendingCached = Boolean(
+    pendingSession?.sessionId &&
+      cache.byKey[sessionKeyId({ workspaceId: pendingSession.workspaceId, sessionId: pendingSession.sessionId })]
+        ?.snapshot,
+  );
+  const chatLoading = pendingSession !== null && !pendingCached;
   const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
   const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
   const settingsVisible = settingsOpen && Boolean(conversation.settings);
@@ -663,21 +585,15 @@ export function App() {
 
   return (
     <AppShell
+      onToggleSidebar={toggleSidebar}
       sidebar={
-        sidebarCollapsed ? null : (
-          <AppSidebar
-            projects={projects}
-            sessionsByWorkspace={sessionsByWorkspace}
-            bootstrap={{
-              ...bootstrap,
-              ...(snapshot?.features
-                ? { features: snapshot.features }
-                : workspace?.features
-                  ? { features: workspace.features }
-                  : {}),
-            }}
-            busy={busy || switchingSession}
-            onToggleCollapsed={toggleSidebar}
+        <AppSidebar
+          collapsed={sidebarCollapsed}
+          projects={projects}
+          sessionsByWorkspace={sessionsByWorkspace}
+          bootstrap={sidebarBootstrap}
+          busy={busy}
+          onToggleCollapsed={toggleSidebar}
             onAddProject={() => {
               void runCommand(async () => {
                 const picked = await getDesktopBridge().pickWorkspace();
@@ -742,20 +658,19 @@ export function App() {
             {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
             {...(selectedSessionId ? { selectedSessionId } : {})}
           />
-        )
       }
     >
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {snapshot ? (
-          <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
+        {chatLoading ? (
+          <ChatPaneLoading sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
+        ) : snapshot ? (
               <Conversation
                 snapshot={snapshot}
                 draft={draft}
                 onDraftChange={setDraft}
                 dialog={conversation.dialog}
                 onResolveDialog={resolveHostDialog}
-                switching={switchingSession}
                 sidebarCollapsed={sidebarCollapsed}
                 onToggleSidebar={toggleSidebar}
                 notice={trustNotice}
@@ -827,21 +742,7 @@ export function App() {
                   });
                 }}
                 {...(conversation.settings?.skills ? { skills: conversation.settings.skills } : {})}
-                onRewrite={async ({ messageId, text }) => {
-                  try {
-                    setError(null);
-                    const next = await getDesktopBridge().rewriteAssistantOutput({
-                      sessionId: snapshot.session.id,
-                      workspaceId: snapshot.workspace.id,
-                      messageId,
-                      text,
-                    });
-                    patchSnapshot((current) => ({ ...current, messages: next.messages }));
-                  } catch (cause) {
-                    setError(errorMessage(cause));
-                    throw cause;
-                  }
-                }}
+                onRewrite={onRewrite}
                 onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
                 onStop={() => {
                   const runId = snapshot.run.runId;
@@ -903,20 +804,6 @@ export function App() {
                   );
                 }}
               />
-            </div>
-        ) : switchingSession ? (
-          <div
-            className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
-            data-testid="session-switching"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <div className="session-switch-veil">
-              <span className="session-switch-pulse" aria-hidden="true" />
-              <span className="sr-only">Opening session…</span>
-            </div>
-          </div>
         ) : (
           <WorkspacePicker
             recents={bootstrap.recentWorkspaces}
@@ -1274,27 +1161,4 @@ function selectedConversation(cache: ConversationCacheState): ConversationViewSt
     settings: cache.settings ?? selected?.settings ?? null,
     authFlow: cache.authFlow ?? selected?.authFlow ?? null,
   };
-}
-
-function mergeActivityIntoCatalog(
-  current: Record<string, SessionCatalogEntry[]>,
-  activity: readonly SessionActivitySummary[],
-): Record<string, SessionCatalogEntry[]> {
-  if (activity.length === 0) {
-    return current;
-  }
-  const byId = new Map(activity.map((entry) => [sessionKeyId(entry), entry]));
-  let changed = false;
-  const next: Record<string, SessionCatalogEntry[]> = {};
-  for (const [workspaceId, entries] of Object.entries(current)) {
-    next[workspaceId] = entries.map((entry) => {
-      const updated = byId.get(sessionKeyId(entry));
-      if (!updated) {
-        return entry;
-      }
-      changed = true;
-      return { ...entry, activity: updated };
-    });
-  }
-  return changed ? next : current;
 }

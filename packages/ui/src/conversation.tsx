@@ -15,7 +15,6 @@ import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
 import { HostDialog } from "./host-dialog";
-import { cn } from "./lib/cn";
 import { isEmptyConversation } from "./lib/empty-conversation";
 import { sameModel } from "./lib/model-identity";
 import { Transcript } from "./transcript";
@@ -37,7 +36,6 @@ export function Conversation({
   dialog,
   onResolveDialog,
   yoloMode,
-  switching = false,
   sidebarCollapsed,
   onToggleSidebar,
   onSearchReferences,
@@ -62,7 +60,6 @@ export function Conversation({
   dialog?: HostDialogRequest | null;
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
   yoloMode?: boolean;
-  switching?: boolean;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onSearchReferences?: (query: string) => Promise<SearchWorkspaceReferencesResult>;
@@ -82,11 +79,11 @@ export function Conversation({
   const [pendingModel, setPendingModel] = useState<ModelSummary | null>(null);
 
   useEffect(() => {
-    if (switching || !empty || dialog || pendingModel) {
+    if (!empty || dialog || pendingModel) {
       return;
     }
     document.getElementById("composer-input")?.focus();
-  }, [dialog, empty, pendingModel, switching]);
+  }, [dialog, empty, pendingModel]);
 
   useEffect(() => {
     setPendingModel(null);
@@ -111,13 +108,13 @@ export function Conversation({
       onChange={onDraftChange}
       onSubmit={onSubmit}
       onStop={onStop}
-      disabled={switching || (!snapshot.model && Boolean(snapshot.modelError))}
+      disabled={!snapshot.model && Boolean(snapshot.modelError)}
       running={running}
       models={snapshot.models}
       thinkingLevel={snapshot.thinkingLevel}
       availableThinkingLevels={snapshot.availableThinkingLevels}
       supportsThinking={snapshot.supportsThinking}
-      selectorsDisabled={switching || running}
+      selectorsDisabled={running}
       onModelChange={requestModelChange}
       onThinkingChange={onThinkingChange}
       variant={empty ? "hero" : "docked"}
@@ -137,9 +134,9 @@ export function Conversation({
     />
   );
   const hostDialog =
-    !switching && dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
+    dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
   const changeModelDialog =
-    !switching && pendingModel ? (
+    pendingModel ? (
       isCursorModel(pendingModel) ? (
         <CursorModelWarningDialog
           model={pendingModel}
@@ -170,12 +167,8 @@ export function Conversation({
 
   return (
     <section
-      className={cn(
-        "relative flex min-h-0 flex-1 flex-col overflow-hidden",
-        switching && "session-switching",
-      )}
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       aria-label="Conversation"
-      aria-busy={switching}
     >
       <div className="session-pane-body flex min-h-0 flex-1 flex-col overflow-hidden">
         <ChatHeader
@@ -193,7 +186,11 @@ export function Conversation({
           </EmptySessionStage>
         ) : (
           <>
-            <Transcript snapshot={snapshot} {...(onRewrite ? { onRewrite } : {})} />
+            <Transcript
+              key={`${snapshot.workspace.id}:${snapshot.session.id}`}
+              snapshot={snapshot}
+              {...(onRewrite ? { onRewrite } : {})}
+            />
             <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1.5 pb-4 sm:pt-2 sm:pb-5">
               <div className="pointer-events-auto mx-auto w-full max-w-3xl">
                 {hostDialog}
@@ -204,12 +201,6 @@ export function Conversation({
         )}
       </div>
       {changeModelDialog}
-      {switching ? (
-        <div className="session-switch-veil" data-testid="session-switching" role="status" aria-live="polite">
-          <span className="session-switch-pulse" aria-hidden="true" />
-          <span className="sr-only">Opening session…</span>
-        </div>
-      ) : null}
     </section>
   );
 }

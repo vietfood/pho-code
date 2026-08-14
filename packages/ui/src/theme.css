@@ -11,8 +11,6 @@
   --control-radius: 0.625rem;
   --composer-radius: 1.25rem;
   --sidebar-width: 18.25rem;
-  --sidebar-min-width: 16.5rem;
-  --sidebar-max-width: 26.25rem;
   --workspace-topbar-height: 2.75rem;
   --workspace-titlebar-inset: 5.75rem;
   --glass-blur: 0px;
@@ -1694,55 +1692,6 @@ html[data-glass="on"] .glass-field {
   }
 }
 
-.session-pane-enter {
-  animation: session-pane-enter 180ms ease-out;
-}
-
-@keyframes session-pane-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.session-switching .session-pane-body {
-  opacity: 0.4;
-  transition: opacity 120ms ease;
-  pointer-events: none;
-}
-
-.session-switch-veil {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.session-switch-pulse {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
-  animation: session-switch-pulse 900ms ease-in-out infinite;
-}
-
-@keyframes session-switch-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 .session-activity-dot {
   display: block;
   width: 0.375rem;
@@ -1917,15 +1866,6 @@ html[data-glass="on"] .glass-field {
 
   .empty-session-glow {
     display: none;
-  }
-
-  .session-switching .session-pane-body {
-    transition: none;
-  }
-
-  .session-switch-pulse {
-    animation: none;
-    opacity: 0.7;
   }
 
   .session-activity-dot-working,

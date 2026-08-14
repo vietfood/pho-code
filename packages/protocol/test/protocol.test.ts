@@ -187,8 +187,10 @@ describe("protocol serialization", () => {
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.toolEvent)).toBe(true);
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runAdmitted)).toBe(false);
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runSettled)).toBe(false);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionSnapshot)).toBe(true);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.runSettled)).toBe(true);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionSnapshot)).toBe(false);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.runSettled)).toBe(false);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionActivity)).toBe(false);
+    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionRemoved)).toBe(true);
     expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.textDelta)).toBe(false);
   });
 

@@ -74,6 +74,7 @@ test("archives, restores, refuses running Trash, and moves a settled chat to Tra
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("hello from A");
@@ -82,6 +83,7 @@ test("archives, restores, refuses running Trash, and moves a settled chat to Tra
 
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("session-item")).toHaveCount(2);
+      await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("ABORT_ME");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("session-activity").first()).toBeVisible({ timeout: 20_000 });

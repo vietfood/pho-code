@@ -3,17 +3,10 @@ export { AppSidebar } from "./app-sidebar";
 export { ChatHeader } from "./chat-header";
 export { SidebarToggleButton } from "./sidebar-toggle-button";
 export { readSidebarCollapsed, writeSidebarCollapsed } from "./lib/sidebar-collapsed";
-export {
-  clampSidebarWidth,
-  DEFAULT_SIDEBAR_WIDTH_PX,
-  MAX_SIDEBAR_WIDTH_PX,
-  MIN_SIDEBAR_WIDTH_PX,
-  readSidebarWidth,
-  writeSidebarWidth,
-} from "./lib/sidebar-width";
 export { compactPath } from "./lib/compact-path";
 export { HostDialog } from "./host-dialog";
 export { Conversation } from "./conversation";
+export { ChatPaneLoading } from "./chat-pane-loading";
 export { Composer } from "./composer";
 export {
   clipboardLooksLikeImage,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -21,19 +21,11 @@ import {
 import type { BootstrapState, RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
 import { AboutDialog } from "./about-dialog";
 import { cn } from "./lib/cn";
-import { isMacDesktop } from "./lib/platform";
 import { formatRelativeTime } from "./lib/relative-time";
 import { sessionRowTooltip } from "./lib/session-row-tooltip";
-import {
-  clampSidebarWidth,
-  DEFAULT_SIDEBAR_WIDTH_PX,
-  MAX_SIDEBAR_WIDTH_PX,
-  MIN_SIDEBAR_WIDTH_PX,
-  readSidebarWidth,
-  SIDEBAR_RESIZE_STEP_PX,
-  writeSidebarWidth,
-} from "./lib/sidebar-width";
+import { workspaceTopbarClass } from "./lib/workspace-topbar";
 import { ProjectContextMenu } from "./project-context-menu";
+import { SidebarResizeHandle, useSidebarResize } from "./sidebar-resize-handle";
 import { SessionContextMenu } from "./session-context-menu";
 import { SessionLeadingMark } from "./session-leading-mark";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
@@ -50,6 +42,7 @@ export function AppSidebar({
   selectedSessionId,
   sessionsByWorkspace,
   bootstrap,
+  collapsed = false,
   onAddProject,
   onNewSession,
   onOpenSession,
@@ -67,6 +60,7 @@ export function AppSidebar({
   selectedSessionId?: string;
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   bootstrap: BootstrapState;
+  collapsed?: boolean;
   onAddProject: () => void;
   onNewSession: (workspaceId: string) => void;
   onOpenSession: (workspaceId: string, sessionId: string) => void;
@@ -79,10 +73,7 @@ export function AppSidebar({
   onToggleCollapsed: () => void;
   busy: boolean;
 }) {
-  const mac = isMacDesktop();
-  const [width, setWidth] = useState(readSidebarWidth);
-  const [resizing, setResizing] = useState(false);
-  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const { width, resizing, handle: resizeHandle } = useSidebarResize();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<
     | { kind: "session"; workspaceId: string; sessionId: string; x: number; y: number }
@@ -124,82 +115,26 @@ export function AppSidebar({
     onReorderProjects(arrayMove(projectIds, oldIndex, newIndex));
   }
 
-  function commitWidth(next: number): void {
-    const clamped = clampSidebarWidth(next);
-    setWidth(clamped);
-    writeSidebarWidth(clamped);
-  }
-
-  function onResizePointerDown(event: PointerEvent<HTMLDivElement>): void {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
-    setResizing(true);
-  }
-
-  function onResizePointerMove(event: PointerEvent<HTMLDivElement>): void {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-    setWidth(clampSidebarWidth(drag.startWidth + (event.clientX - drag.startX)));
-  }
-
-  function onResizePointerUp(event: PointerEvent<HTMLDivElement>): void {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) {
-      return;
-    }
-    dragRef.current = null;
-    setResizing(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    commitWidth(drag.startWidth + (event.clientX - drag.startX));
-  }
-
-  function onResizeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    switch (event.key) {
-      case "ArrowLeft":
-        event.preventDefault();
-        commitWidth(width - SIDEBAR_RESIZE_STEP_PX);
-        return;
-      case "ArrowRight":
-        event.preventDefault();
-        commitWidth(width + SIDEBAR_RESIZE_STEP_PX);
-        return;
-      case "Home":
-        event.preventDefault();
-        commitWidth(MIN_SIDEBAR_WIDTH_PX);
-        return;
-      case "End":
-        event.preventDefault();
-        commitWidth(MAX_SIDEBAR_WIDTH_PX);
-        return;
-      default:
-        return;
-    }
-  }
-
   return (
     <aside
       className={cn(
         "app-sidebar-panel relative flex h-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground",
         resizing && "select-none",
+        collapsed && "hidden",
       )}
       style={{ width: `${width}px` }}
+      hidden={collapsed}
+      inert={collapsed}
+      aria-hidden={collapsed}
       aria-label="Projects"
       data-testid="app-sidebar"
     >
       <header
-        className={cn(
-          "workspace-topbar drag-region min-w-0 items-center gap-2 overflow-hidden",
-          mac ? "workspace-topbar-mac justify-end pr-2 pl-[var(--workspace-titlebar-inset)]" : "justify-start px-2",
-        )}
+        className={workspaceTopbarClass({
+          leadingInset: true,
+          density: "sidebar",
+          className: "min-w-0 items-center gap-2 overflow-hidden",
+        })}
       >
         <SidebarToggleButton collapsed={false} onToggle={onToggleCollapsed} />
         <span className="sr-only">Projects</span>
@@ -291,24 +226,7 @@ export function AppSidebar({
           <span className="min-w-0 truncate">About · {bootstrap.appVersion}</span>
         </button>
       </div>
-      <div
-        className="sidebar-resize-handle no-drag"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        aria-valuemin={MIN_SIDEBAR_WIDTH_PX}
-        aria-valuemax={MAX_SIDEBAR_WIDTH_PX}
-        aria-valuenow={width}
-        tabIndex={0}
-        data-testid="sidebar-resize"
-        title="Drag to resize · double-click to reset"
-        onPointerDown={onResizePointerDown}
-        onPointerMove={onResizePointerMove}
-        onPointerUp={onResizePointerUp}
-        onPointerCancel={onResizePointerUp}
-        onDoubleClick={() => commitWidth(DEFAULT_SIDEBAR_WIDTH_PX)}
-        onKeyDown={onResizeKeyDown}
-      />
+      <SidebarResizeHandle {...resizeHandle} />
       {aboutOpen ? <AboutDialog state={bootstrap} onClose={() => setAboutOpen(false)} /> : null}
       {menu?.kind === "session" ? (
         <SessionContextMenu

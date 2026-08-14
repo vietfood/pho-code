@@ -1,6 +1,12 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { PencilIcon, RotateCcwIcon } from "lucide-react";
-import type { RunWorkEntry, SessionSnapshot, TranscriptBlock, TranscriptMessage } from "@pho-code/protocol";
+import type {
+  RunState,
+  RunWorkEntry,
+  SessionSnapshot,
+  TranscriptBlock,
+  TranscriptMessage,
+} from "@pho-code/protocol";
 import { stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
 import { inferMentionKind } from "./lib/at-mention";
@@ -44,12 +50,6 @@ export function Transcript({
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
-  const wasRunningRef = useRef(false);
-  const live = useLiveRun();
-  const run = live.runId && live.runId === snapshot.run.runId ? live : snapshot.run;
-  const running = run.status === "admitted" || run.status === "streaming";
-  const [liveWorkExpanded, setLiveWorkExpanded] = useState(true);
-  const segments = useMemo(() => groupTranscriptSegments(snapshot.messages), [snapshot.messages]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -65,14 +65,6 @@ export function Transcript({
     };
   }, []);
 
-  useLayoutEffect(() => {
-    if (running && !wasRunningRef.current) {
-      stickToBottomRef.current = true;
-      setLiveWorkExpanded(true);
-    }
-    wasRunningRef.current = running;
-  }, [running]);
-
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller || !stickToBottomRef.current) {
@@ -82,9 +74,7 @@ export function Transcript({
       scroller.scrollTop = scroller.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [liveWorkExpanded, snapshot.messages, run.streamingText, run.work]);
-
-  const liveWorkCounts = countWorkBlocks(run.work);
+  }, [snapshot.messages]);
 
   return (
     <div
@@ -93,6 +83,27 @@ export function Transcript({
       data-testid="transcript"
       aria-live="polite"
     >
+      <SettledTurns messages={snapshot.messages} {...(onRewrite ? { onRewrite } : {})} />
+      <LiveRunTail
+        runId={snapshot.run.runId}
+        snapshotRun={snapshot.run}
+        scrollerRef={scrollerRef}
+        stickToBottomRef={stickToBottomRef}
+      />
+    </div>
+  );
+}
+
+const SettledTurns = memo(function SettledTurns({
+  messages,
+  onRewrite,
+}: {
+  messages: readonly TranscriptMessage[];
+  onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
+}) {
+  const segments = useMemo(() => groupTranscriptSegments(messages), [messages]);
+  return (
+    <>
       {segments.map((segment) => {
         switch (segment.kind) {
           case "user":
@@ -112,6 +123,49 @@ export function Transcript({
           }
         }
       })}
+    </>
+  );
+});
+
+function LiveRunTail({
+  runId,
+  snapshotRun,
+  scrollerRef,
+  stickToBottomRef,
+}: {
+  runId?: string;
+  snapshotRun: RunState;
+  scrollerRef: RefObject<HTMLDivElement | null>;
+  stickToBottomRef: RefObject<boolean>;
+}) {
+  const live = useLiveRun();
+  const run = live.runId && live.runId === runId ? live : snapshotRun;
+  const running = run.status === "admitted" || run.status === "streaming";
+  const wasRunningRef = useRef(false);
+  const [liveWorkExpanded, setLiveWorkExpanded] = useState(true);
+  const liveWorkCounts = countWorkBlocks(run.work);
+
+  useLayoutEffect(() => {
+    if (running && !wasRunningRef.current) {
+      stickToBottomRef.current = true;
+      setLiveWorkExpanded(true);
+    }
+    wasRunningRef.current = running;
+  }, [running, stickToBottomRef]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !stickToBottomRef.current) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [liveWorkExpanded, run.streamingText, run.work, scrollerRef, stickToBottomRef]);
+
+  return (
+    <>
       {liveWorkCounts.steps > 0 ? (
         <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-clip pb-2" data-testid="live-work">
           <div className="space-y-1 px-1 py-0.5">
@@ -150,7 +204,7 @@ export function Transcript({
           {run.error.message}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }
 

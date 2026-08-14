@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { FolderIcon, SquarePenIcon } from "lucide-react";
 import type { RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
 import { compactPath } from "./lib/compact-path";
-import { timeOfDayGreeting } from "./lib/platform";
+import { timeOfDayGreeting } from "./lib/welcome-recents";
 import { formatRelativeTime } from "./lib/relative-time";
 import { collectJumpBackSessions, lastOpenedProject } from "./lib/welcome-recents";
 import { workspaceTopbarClass } from "./lib/workspace-topbar";
@@ -25,13 +25,13 @@ export function WorkspacePicker({
   notice,
 }: {
   recents: readonly RecentWorkspaceRecord[];
-  sessionsByWorkspace?: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
+  sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   appName: string;
   appVersion: string;
   onPick: () => void;
   onOpenRecent: (workspaceId: string) => void;
-  onNewSession?: (workspaceId: string) => void;
-  onOpenSession?: (workspaceId: string, sessionId: string) => void;
+  onNewSession: (workspaceId: string) => void;
+  onOpenSession: (workspaceId: string, sessionId: string) => void;
   busy: boolean;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
@@ -39,7 +39,7 @@ export function WorkspacePicker({
 }) {
   const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
   const lastProject = lastOpenedProject(recents);
-  const jumpBack = collectJumpBackSessions(recents, sessionsByWorkspace ?? {});
+  const jumpBack = collectJumpBackSessions(recents, sessionsByWorkspace);
   const recentPreview = recents.slice(0, 3);
 
   return (
@@ -75,7 +75,7 @@ export function WorkspacePicker({
               <FolderIcon className="size-3.5" aria-hidden="true" />
               Open a project…
             </Button>
-            {lastProject && onNewSession ? (
+            {lastProject ? (
               <Button
                 variant="outline"
                 className="w-full min-w-0 gap-2"
@@ -131,10 +131,10 @@ export function WorkspacePicker({
                       <button
                         type="button"
                         className="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-2 text-left hover:bg-accent disabled:opacity-50"
-                        disabled={busy || !onOpenSession}
+                        disabled={busy}
                         data-testid="welcome-jump-back"
                         title={row.session.title}
-                        onClick={() => onOpenSession?.(row.workspaceId, row.session.sessionId)}
+                        onClick={() => onOpenSession(row.workspaceId, row.session.sessionId)}
                       >
                         <SessionLeadingMark activity={row.session.activity} />
                         <span className="min-w-0 flex-1 overflow-hidden">
