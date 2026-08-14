@@ -4,7 +4,7 @@ These instructions apply to the entire repository. Nested `AGENTS.md` files may 
 
 ## Mission and current maturity
 
-Build a personal, macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 is accepted and archived. Active v2 work aims to make the harness a fast daily driver with legible autonomy, recoverable removal, and bounded retrieval; it is not yet a publicly distributed or adversarially hardened product.
+Build a personal, macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 is accepted and archived. v2 Milestones 0 through 3 are accepted. Remaining v2 work aims to make the harness a fast daily driver with curated capabilities; it is not yet a publicly distributed or adversarially hardened product.
 
 Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/plans/conversation-ui.md`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 

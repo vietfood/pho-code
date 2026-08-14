@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   HostDialogRequest,
   ModelSummary,
@@ -8,12 +8,14 @@ import type {
   SessionSnapshot,
   ThinkingLevel,
 } from "@pho-code/protocol";
+import { ChangeModelDialog } from "./change-model-dialog";
 import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
 import { HostDialog } from "./host-dialog";
 import { cn } from "./lib/cn";
 import { isEmptyConversation } from "./lib/empty-conversation";
+import { sameModel } from "./lib/model-identity";
 import { Transcript } from "./transcript";
 
 export function Conversation({
@@ -38,6 +40,8 @@ export function Conversation({
   onPasteImages,
   onRemoveImage,
   onRewrite,
+  notice,
+  onTrustProject,
 }: {
   snapshot: SessionSnapshot;
   draft: string;
@@ -60,16 +64,35 @@ export function Conversation({
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
+  notice?: ReactNode;
+  onTrustProject?: () => void;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
+  const [pendingModel, setPendingModel] = useState<ModelSummary | null>(null);
 
   useEffect(() => {
-    if (switching || !empty || dialog) {
+    if (switching || !empty || dialog || pendingModel) {
       return;
     }
     document.getElementById("composer-input")?.focus();
-  }, [dialog, empty, switching]);
+  }, [dialog, empty, pendingModel, switching]);
+
+  useEffect(() => {
+    setPendingModel(null);
+  }, [snapshot.session.id, snapshot.workspace.id]);
+
+  function requestModelChange(model: ModelSummary) {
+    if (sameModel(model, snapshot.model)) {
+      return;
+    }
+    // Warn when the chat already has transcript history. Mid-turn stays blocked via selectorsDisabled.
+    if (!empty) {
+      setPendingModel(model);
+      return;
+    }
+    onModelChange(model);
+  }
 
   const composer = (
     <Composer
@@ -84,7 +107,7 @@ export function Conversation({
       availableThinkingLevels={snapshot.availableThinkingLevels}
       supportsThinking={snapshot.supportsThinking}
       selectorsDisabled={switching || running}
-      onModelChange={onModelChange}
+      onModelChange={requestModelChange}
       onThinkingChange={onThinkingChange}
       variant={empty ? "hero" : "docked"}
       {...(empty ? {} : { metaHint: snapshot.workspace.displayName })}
@@ -103,6 +126,20 @@ export function Conversation({
   );
   const hostDialog =
     !switching && dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
+  const changeModelDialog =
+    !switching && pendingModel ? (
+      <ChangeModelDialog
+        model={pendingModel}
+        {...(snapshot.model ? { currentModel: snapshot.model } : {})}
+        {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
+        onCancel={() => setPendingModel(null)}
+        onConfirm={() => {
+          const model = pendingModel;
+          setPendingModel(null);
+          onModelChange(model);
+        }}
+      />
+    ) : null;
 
   return (
     <section
@@ -119,7 +156,9 @@ export function Conversation({
           {...(yoloMode ? { yoloMode: true } : {})}
           {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
           {...(onToggleSidebar ? { onToggleSidebar } : {})}
+          {...(onTrustProject ? { onTrustProject } : {})}
         />
+        {notice}
         {empty ? (
           <EmptySessionStage workspaceName={snapshot.workspace.displayName}>
             {hostDialog}
@@ -137,6 +176,7 @@ export function Conversation({
           </>
         )}
       </div>
+      {changeModelDialog}
       {switching ? (
         <div className="session-switch-veil" data-testid="session-switching" role="status" aria-live="polite">
           <span className="session-switch-pulse" aria-hidden="true" />

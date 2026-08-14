@@ -2,7 +2,7 @@ import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
 import { sessionKeyId } from "./session-lifecycle";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
-import type { PromptAdmission, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
+import type { PromptAdmission, RunState, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
 import type { ExtensionNotification, FeatureSnapshot, HostDialogRequest } from "./resources";
 import type { HarnessSettingsSnapshot, PermissionStatusPayload } from "./settings";
 import type { ProtocolVersion } from "./version";
@@ -191,6 +191,86 @@ export function appendThinkingDelta(work: readonly RunWorkEntry[], delta: string
   return [...work, { type: "thinking", text: delta }];
 }
 
+/** Keep in-flight streaming text/work when a later snapshot for the same run is empty. */
+export function mergeLiveRun(current: RunState | undefined, incoming: RunState): RunState {
+  if (!current) {
+    return incoming;
+  }
+  const sameActiveRun =
+    Boolean(incoming.runId) &&
+    current.runId === incoming.runId &&
+    !isTerminalRunStatus(current.status) &&
+    !isTerminalRunStatus(incoming.status);
+  if (!sameActiveRun) {
+    return incoming;
+  }
+  return {
+    ...incoming,
+    streamingText: current.streamingText || incoming.streamingText,
+    work: current.work.length > 0 ? current.work : incoming.work,
+    startedAt: current.startedAt ?? incoming.startedAt,
+  };
+}
+
+function runIdFromEvent(event: RuntimeEventEnvelope): string | undefined {
+  if (typeof event.runId === "string") {
+    return event.runId;
+  }
+  if (event.payload === null || typeof event.payload !== "object" || !("runId" in event.payload)) {
+    return undefined;
+  }
+  return typeof event.payload.runId === "string" ? event.payload.runId : undefined;
+}
+
+/** Apply a high-frequency run delta without rebuilding conversation chrome. */
+export function applyLiveRunDelta(run: RunState, event: RuntimeEventEnvelope): RunState {
+  if (!isLiveRunDeltaType(event.type)) {
+    return run;
+  }
+  const eventRunId = runIdFromEvent(event);
+  if (eventRunId && run.runId && eventRunId !== run.runId) {
+    return run;
+  }
+
+  switch (event.type) {
+    case RUNTIME_EVENT_TYPES.textDelta: {
+      const payload = event.payload as TextDeltaPayload;
+      return {
+        ...run,
+        runId: run.runId ?? eventRunId,
+        status: "streaming",
+        streamingText: run.streamingText + payload.delta,
+      };
+    }
+    case RUNTIME_EVENT_TYPES.thinkingDelta: {
+      const payload = event.payload as ThinkingDeltaPayload;
+      return {
+        ...run,
+        runId: run.runId ?? eventRunId,
+        status: "streaming",
+        work: appendThinkingDelta(run.work, payload.delta),
+      };
+    }
+    case RUNTIME_EVENT_TYPES.toolEvent: {
+      const payload = event.payload as ToolEventPayload;
+      return {
+        ...run,
+        runId: run.runId ?? eventRunId,
+        status: "streaming",
+        work: upsertToolWork(run.work, {
+          callId: payload.callId,
+          name: payload.name,
+          status: payload.status,
+          inputPreview: payload.inputPreview,
+          outputPreview: payload.outputPreview,
+        }),
+      };
+    }
+    default:
+      return run;
+  }
+}
+
 export function upsertToolWork(work: readonly RunWorkEntry[], tool: ToolActivity): RunWorkEntry[] {
   const index = work.findIndex((entry) => entry.type === "tool" && entry.callId === tool.callId);
   if (index < 0) {
@@ -232,22 +312,9 @@ function preserveLiveRunFields(
   if (!current) {
     return incoming;
   }
-  const sameActiveRun =
-    Boolean(incoming.run.runId) &&
-    current.run.runId === incoming.run.runId &&
-    !isTerminalRunStatus(current.run.status) &&
-    !isTerminalRunStatus(incoming.run.status);
-  if (!sameActiveRun) {
-    return incoming;
-  }
   return {
     ...incoming,
-    run: {
-      ...incoming.run,
-      streamingText: current.run.streamingText || incoming.run.streamingText,
-      work: current.run.work.length > 0 ? current.run.work : incoming.run.work,
-      startedAt: current.run.startedAt ?? incoming.run.startedAt,
-    },
+    run: mergeLiveRun(current.run, incoming.run),
   };
 }
 

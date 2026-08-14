@@ -2,7 +2,7 @@
 
 This roadmap begins after the accepted personal v1. It preserves the v1 architecture and standalone-product philosophy, but it is not a promise that every item ships in one release. Choose a capability because it improves daily use, then give it a bounded milestone when its requirements are known.
 
-The owner has accepted the autonomy foundation, retrieval, and provider-account milestones; promoted session continuity, archive/restore, and recoverable chat removal into Milestone 3; and moved curated skills plus read-only GitHub MCP to draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
+The owner has accepted the autonomy foundation, retrieval, provider-account, and session-continuity milestones; and moved curated skills plus read-only GitHub MCP to draft Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). The items below remain candidates until explicitly promoted; this file no longer owns Milestones 0 through 4.
 
 ## Rules carried forward
 

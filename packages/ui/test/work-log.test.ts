@@ -5,6 +5,7 @@ import {
   countWorkBlocks,
   formatWorkDuration,
   groupTranscriptSegments,
+  settledWorkSummary,
   workedForLabel,
 } from "../src/lib/work-log";
 import { WorkLogToggle } from "../src/work-log-toggle";
@@ -28,16 +29,19 @@ describe("work log helpers", () => {
     ).toEqual({ thoughts: 2, tools: 1, steps: 3 });
   });
 
-  test("formats Codex-style durations and labels", () => {
+  test("formats durations and cute settled activity summaries", () => {
     expect(formatWorkDuration(41_000)).toBe("41s");
     expect(formatWorkDuration(8 * 60_000 + 41_000)).toBe("8m 41s");
+    expect(settledWorkSummary(2, 1)).toBe("Thought, then peeked");
+    expect(settledWorkSummary(1, 0)).toBe("Had a quick think");
+    expect(settledWorkSummary(0, 3)).toBe("Looked around a bit");
     expect(
       workedForLabel({
         live: false,
-        startedAt: "2026-08-13T00:00:00.000Z",
-        endedAt: "2026-08-13T00:08:41.000Z",
+        thoughts: 2,
+        tools: 1,
       }),
-    ).toBe("Worked for 8m 41s");
+    ).toBe("Thought, then peeked");
     expect(
       workedForLabel({
         live: true,
@@ -85,15 +89,15 @@ describe("work log helpers", () => {
 });
 
 describe("work log toggle", () => {
-  test("renders the Worked for label", () => {
+  test("renders the settled activity label", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkLogToggle, {
-        label: "Worked for 8m 41s",
+        label: "Thought, then peeked",
         expanded: false,
         onToggle: () => undefined,
       }),
     );
-    expect(markup).toContain("Worked for 8m 41s");
+    expect(markup).toContain("Thought, then peeked");
     expect(markup).toContain('data-testid="work-log-toggle"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('data-testid="agent-loading"');
@@ -115,7 +119,7 @@ describe("work log toggle", () => {
 });
 
 describe("assistant turn work collapse", () => {
-  test("collapses an entire multi-message turn behind one Worked for control", () => {
+  test("collapses an entire multi-message turn behind one activity summary control", () => {
     const snapshot: SessionSnapshot = {
       session: {
         id: "s1",
@@ -165,7 +169,8 @@ describe("assistant turn work collapse", () => {
 
     const markup = renderToStaticMarkup(createElement(Transcript, { snapshot }));
     expect(markup).toContain('data-testid="assistant-turn"');
-    expect(markup).toContain("Worked for 8m 41s");
+    expect(markup).toContain("Thought, then peeked");
+    expect(markup).not.toContain("Worked for");
     expect(markup).toContain("Final answer only.");
     expect(markup).toContain('data-testid="copy-assistant-output"');
     expect(markup).toContain('aria-label="Copy"');

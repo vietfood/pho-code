@@ -31,11 +31,15 @@ export interface TranscriptToolBlock {
   outputPreview: string;
 }
 
-/** Reopened/admitted image placeholder. Never includes bytes or an absolute path. */
+/**
+ * Admitted image in the transcript. Never includes an absolute path.
+ * `previewDataUrl` is a bounded `data:` URL for display/lightbox when available.
+ */
 export interface TranscriptImageBlock {
   type: "image";
   name: string;
   mimeType: ImageMimeType;
+  previewDataUrl?: string;
 }
 
 export type TranscriptBlock =

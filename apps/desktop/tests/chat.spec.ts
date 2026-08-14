@@ -57,3 +57,36 @@ test("streams a tool run in an isolated workspace and restores the transcript af
     await removeTestDirectory(workspaceDir);
   }
 });
+
+test("keeps composer @ mentions open across spaces until Escape", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const env = {
+    PHO_CODE_AGENT_DIR: agentDir,
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+  };
+
+  try {
+    const app = await launchDesktop(userDataDir, { env });
+    try {
+      const page = await app.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await page.getByTestId("new-session").click();
+      const composer = page.getByTestId("composer");
+      await expect(composer).toBeVisible();
+      await composer.click();
+      await composer.pressSequentially("@KL divergence.md");
+      await expect(page.getByTestId("composer-mentions")).toBeVisible();
+      await composer.press("Escape");
+      await expect(page.getByTestId("composer-mentions")).toBeHidden();
+    } finally {
+      await app.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});

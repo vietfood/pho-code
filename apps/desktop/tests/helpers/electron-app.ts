@@ -65,6 +65,14 @@ Leave a short note when this skill is relevant.
   );
 }
 
+export async function writeProjectPermissionOverride(workspaceDir: string): Promise<void> {
+  await mkdir(join(workspaceDir, ".pi", "extensions", "pi-permission-system"), { recursive: true });
+  await writeFile(
+    join(workspaceDir, ".pi", "extensions", "pi-permission-system", "config.json"),
+    `${JSON.stringify({ permissionReviewLog: true }, null, 2)}\n`,
+  );
+}
+
 export async function removeTestDirectory(directory: string): Promise<void> {
   await recoverablyRemoveOwnedTempFixture(directory);
 }

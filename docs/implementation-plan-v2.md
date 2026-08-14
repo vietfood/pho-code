@@ -4,7 +4,7 @@
 
 This is the active post-v1 implementation plan. Personal v1 is complete and preserved under [`archive/v1`](./archive/v1/README.md).
 
-Milestones 0 through 2 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login. Milestone 3 is the active session-continuity and lifecycle design. The former Milestone 3 curated-capabilities design moves intact to Milestone 4 and remains unimplemented.
+Milestones 0 through 3 are accepted. Milestone 1 closure incorporated owner-monitored FFF use, DNS-bound web connections, pre-decode image limits, additive FFF/Pi search labels, and packaged native-FFF proof. Milestone 2 closure incorporated provider-owned OAuth through Pi `ModelRuntime`, a Provider accounts Settings surface, fake-provider Electron/packaged journeys, and owner-verified live `openai-codex` login. Milestone 3 closure incorporated independently owned session controllers, keyed catalog/cache, a per-chat live-run store, archive/restore, recoverable OS-Trash chat removal, desktop/packaged continuity journeys, and owner-verified real-provider background switching. The former curated-capabilities design remains draft Milestone 4 and is unimplemented.
 
 Implement milestones in order. Do not build later capabilities around mocked contracts when the preceding vertical slice has not validated the runtime, permission, packaging, and desktop behavior it depends on.
 
@@ -202,7 +202,7 @@ Do not expose raw environment variables, full credentials, authorization headers
 
 The Settings page shows only the three owner-facing labels above plus Custom preservation. The third mode requires confirmation and states that ask decisions are auto-approved, explicit denies remain, removal uses recoverable OS Trash, and this is not a sandbox. Private/shared agent-root disclosure, workspace-override disclosure, review-log control, and idle-only application remain intact.
 
-When a project permission override exists but is not trusted, Settings offers the explicit action **Trust this project's permission rules**. Pho Code stores that narrow decision in its own application metadata and re-applies it when reopening the remembered canonical workspace. It does not write Pi's shared `trust.json`, enable project extensions/skills, or generalize the decision to a parent directory. Native folder selection remains a process-lifetime approval until this action is chosen.
+When a project permission override exists but is not remembered, Pho Code prompts with a confirmation dialog after adding or opening that workspace. **Not now** leaves a banner so the owner can trust later; Settings still offers **Trust this project's permission rules**, which reopens the same dialog. Confirming stores that narrow decision in Pho Code application metadata and re-applies it when reopening the remembered canonical workspace. It does not write Pi's shared `trust.json`, enable project extensions/skills, or generalize the decision to a parent directory. Native folder selection remains a process-lifetime approval until this action is chosen.
 
 The review log remains owned by the permission feature. Pho Code may add a bounded viewer or “open log location” action only if it can redact sensitive values and preserve the renderer boundary; otherwise Milestone 0 limits UI work to the existing log toggle and clearer live decisions.
 
@@ -376,7 +376,7 @@ Start with `tools-only` semantics. Register additive FFF-backed tools such as `f
 
 Pho Code owns composer autocomplete. The current extension host intentionally no-ops Pi editor methods including `addAutocompleteProvider`, so FFF's `tools-and-ui` editor integration cannot drive the React composer. Reuse the same runtime-owned index through a typed `searchWorkspaceReferences` command rather than enabling a general extension UI bridge or starting a second index.
 
-An accepted `@` suggestion is inserted inline as `@workspace/relative/path` in the composer text (for example `read @src/composer.tsx`). File and folder mentions stay in the prompt; they are not rendered as chips. Before admission, the runtime extracts `@` paths from the prompt, re-resolves each beneath the current canonical workspace, rejects stale/missing/outside/sensitive targets, and never trusts a renderer-supplied absolute path. A folder mention names the folder; it does not recursively inject its contents.
+An accepted `@` suggestion is inserted inline as `@workspace/relative/path` (for example `read @src/composer.tsx`); paths that contain whitespace are quoted (`@"KL divergence.md"`). The composer mention menu stays open while the caret remains in that `@` token, including spaces in the query, until the owner confirms with Enter/Tab or dismisses with Escape. File and folder mentions stay in the prompt; they are not rendered as chips. Before admission, the runtime extracts `@` paths from the prompt, re-resolves each beneath the current canonical workspace, rejects stale/missing/outside/sensitive targets, and never trusts a renderer-supplied absolute path. A folder mention names the folder; it does not recursively inject its contents.
 
 #### Storage and lifecycle
 
@@ -709,9 +709,9 @@ Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice sat
 
 ### Status
 
-Promoted for implementation by the owner. This section is the implementation contract; the milestone is not yet accepted.
+Accepted. The owner completed the real-provider background-switch, archive/restore, and Trash removal workflow on 2026-08-14, including live thinking surviving chat switches.
 
-The runtime now keeps a bounded registry of independently owned Pi session controllers. Opening another session constructs another `AgentSessionRuntime` instead of calling `newSession` / `switchSession` on the already-live runtime. Application catalog/archive/restore, keyed command routing, recoverable OS-Trash chat removal, per-workspace FFF retrieval contexts, and the renderer conversation cache are wired. Sidebar rows use a right-click or keyboard actions menu; archived chats live in Settings grouped by project. Desktop and packaged continuity journeys passed. The milestone is not accepted until the owner completes a real-provider background-switch plus archive/restore/removal workflow.
+The runtime keeps a bounded registry of independently owned Pi session controllers. Opening another session constructs another `AgentSessionRuntime` instead of calling `newSession` / `switchSession` on the already-live runtime. Application catalog/archive/restore, keyed command routing, recoverable OS-Trash chat removal, per-workspace FFF retrieval contexts, the renderer conversation cache, and a per-chat live-run store are wired. Sidebar rows use a right-click or keyboard actions menu; archived chats live in Settings grouped by project. Desktop and packaged continuity journeys passed.
 
 #### Characterization notes (Pi `0.84.1`)
 
@@ -1113,7 +1113,8 @@ Keep verification proportional. The critical boundaries are independent run owne
 
 #### Owner verified
 
-- a real-provider run continues usefully while the owner switches among at least two chats and two recent workspaces;
+- a real-provider run continues usefully while the owner switches among at least two chats and two recent workspaces (accepted 2026-08-14);
+- live thinking and streaming text continue when switching away from a background agent and returning;
 - attention and completion indicators are understandable without opening every chat;
 - archive/restore organization feels predictable;
 - the removal confirmation and Finder Trash recovery path are acceptable for personal daily use.
@@ -1127,7 +1128,7 @@ Keep verification proportional. The critical boundaries are independent run owne
 
 ### Acceptance gate
 
-Milestone 3 is accepted only when switching sessions no longer replaces or interrupts unrelated live controllers; multiple bounded runs and host dialogs remain correctly session-scoped; sidebar activity and unread state reconcile from authoritative snapshots; archive/restore modifies only versioned application metadata; a running or ambiguous session cannot be removed; a settled exact Pi artifact is moved only through OS Trash with no permanent fallback; aggregate shutdown is bounded and honest; packaged macOS evidence passes; and the owner accepts a real-provider background-switch plus archive/restore/removal workflow.
+Milestone 3 is accepted. Switching sessions no longer replaces or interrupts unrelated live controllers; multiple bounded runs and host dialogs remain correctly session-scoped; sidebar activity and unread state reconcile from authoritative snapshots; archive/restore modifies only versioned application metadata; a running or ambiguous session cannot be removed; a settled exact Pi artifact is moved only through OS Trash with no permanent fallback; aggregate shutdown is bounded and honest; packaged macOS evidence passed; and the owner accepted the real-provider background-switch plus archive/restore/removal workflow, including live thinking surviving chat switches.
 
 ## Milestone 4: curated capabilities
 

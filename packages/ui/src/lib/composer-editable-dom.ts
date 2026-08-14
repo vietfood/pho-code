@@ -1,5 +1,11 @@
 import type { WorkspaceReferenceKind } from "@pho-code/protocol";
-import { inferMentionKind, mentionLabel, parseMentionSegments } from "./at-mention";
+import {
+  formatAtMentionToken,
+  inferMentionKind,
+  mentionLabel,
+  parseMentionSegments,
+  type MentionSkipRange,
+} from "./at-mention";
 
 const FILE_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>';
@@ -41,7 +47,7 @@ export function serializeComposerEditable(root: HTMLElement): string {
     const el = node as HTMLElement;
     const mentionPath = el.dataset.mentionPath;
     if (mentionPath !== undefined && mentionPath !== "") {
-      out += `@${mentionPath}`;
+      out += formatAtMentionToken(mentionPath);
       return;
     }
     if (el.tagName === "BR") {
@@ -69,6 +75,7 @@ export function renderComposerValue(
   value: string,
   kinds: ReadonlyMap<string, WorkspaceReferenceKind> = new Map(),
   documentRef: Document = document,
+  skip?: MentionSkipRange,
 ): void {
   if (value === "") {
     root.replaceChildren();
@@ -76,7 +83,7 @@ export function renderComposerValue(
   }
 
   const fragment = documentRef.createDocumentFragment();
-  const segments = parseMentionSegments(value);
+  const segments = parseMentionSegments(value, skip);
   for (const segment of segments) {
     if (segment.type === "text") {
       appendTextWithBreaks(fragment, segment.text, documentRef);
@@ -222,7 +229,7 @@ function locateOffset(
     const el = node as HTMLElement;
     const mentionPath = el.dataset.mentionPath;
     if (mentionPath !== undefined && mentionPath !== "") {
-      const token = `@${mentionPath}`;
+      const token = formatAtMentionToken(mentionPath);
       if (remaining <= token.length) {
         const parent = el.parentNode;
         if (!parent) {
@@ -270,8 +277,12 @@ function locateOffset(
   return { node: root, offset: root.childNodes.length };
 }
 
-export function composerNeedsChipRender(root: HTMLElement, value: string): boolean {
-  const segments = parseMentionSegments(value);
+export function composerNeedsChipRender(
+  root: HTMLElement,
+  value: string,
+  skip?: MentionSkipRange,
+): boolean {
+  const segments = parseMentionSegments(value, skip);
   const mentionCount = segments.filter((segment) => segment.type === "mention").length;
   if (mentionCount === 0) {
     return false;

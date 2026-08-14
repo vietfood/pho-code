@@ -15,6 +15,7 @@ import {
   createUnsupportedHostUiExtension,
   type RecoverableRemovalService,
 } from "../src/index";
+import { projectPermissionConfigPath } from "../src/permission-settings";
 
 async function makeIsolatedDirs() {
   const root = await mkdtemp(path.join(tmpdir(), "pho-code-test-"));
@@ -460,7 +461,8 @@ describe("Pi harness runtime", () => {
 
   test("project permission approval is process-lifetime in runtime and does not write trust.json", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
-    await mkdir(path.join(workspaceDir, ".pi", "extensions"), { recursive: true });
+    await mkdir(path.dirname(projectPermissionConfigPath(workspaceDir)), { recursive: true });
+    await writeFile(projectPermissionConfigPath(workspaceDir), `${JSON.stringify({ permissionReviewLog: true })}\n`);
     const runtime = await createTestRuntime(agentDir);
 
     try {
@@ -469,7 +471,11 @@ describe("Pi harness runtime", () => {
         approveProjectResources: false,
       });
       expect(remembered.workspace.projectResourcesApproved).toBe(false);
+      const beforeTrust = runtime.getPermissionSettings();
+      expect(beforeTrust.projectOverridePresent).toBe(true);
+      expect(beforeTrust.projectPermissionRulesTrusted).toBe(false);
       const trusted = await runtime.trustProjectPermissionRules(workspaceDir);
+      expect(trusted.projectOverridePresent).toBe(true);
       expect(trusted.projectPermissionRulesTrusted).toBe(true);
       const approved = await runtime.inspectWorkspace({ path: workspaceDir, approveProjectResources: false });
       expect(approved.workspace.projectResourcesApproved).toBe(true);

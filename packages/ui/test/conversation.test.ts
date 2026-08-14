@@ -139,6 +139,51 @@ describe("empty session hero", () => {
     expect(markup).toContain("Can you read ");
   });
 
+  test("renders quoted @ references with spaces as mention chips", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [{ type: "text", text: 'Can you read @"KL divergence.md"' }],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-mention-path="KL divergence.md"');
+    expect(markup).toContain("KL divergence.md");
+  });
+
+  test("renders admitted transcript images with a lightbox preview", () => {
+    const preview =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [
+                { type: "text", text: "look at this" },
+                { type: "image", name: "shot.png", mimeType: "image/png", previewDataUrl: preview },
+              ],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="transcript-image"');
+    expect(markup).toContain('data-testid="markdown-image"');
+    expect(markup).toContain(`src="${preview}"`);
+    expect(markup).not.toContain('data-testid="transcript-image-placeholder"');
+  });
+
   test("lets prepared composer images open a lightbox", () => {
     const preview =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -205,6 +250,11 @@ describe("empty session hero", () => {
     expect(markup).toContain("Steer · go left");
     expect(markup).toContain("Follow-up · then wrap up");
     expect(markup).not.toContain('aria-label="Send"');
+    const modelChunk = markup.slice(
+      markup.indexOf('data-testid="model-selector"'),
+      markup.indexOf('data-testid="model-selector"') + 220,
+    );
+    expect(modelChunk).toContain("disabled");
   });
 
   test("shows static Working text while the agent is waiting for tokens", () => {

@@ -4,6 +4,7 @@ import {
   PINNED_ELECTRON,
   PROTOCOL_VERSION,
   RUNTIME_EVENT_TYPES,
+  applyLiveRunDelta,
   applyRuntimeEvent,
   assertJsonSafe,
   commandFail,
@@ -22,6 +23,7 @@ import {
   isWebSourceRecord,
   isLiveRunDeltaType,
   jsonRoundTrip,
+  mergeLiveRun,
   nodeVersionMeetsMinimum,
   providerDisclosureCopy,
   runtimeEventUpdatesSessionList,
@@ -420,6 +422,52 @@ describe("protocol serialization", () => {
 
     expect(state.snapshot?.run.streamingText).toBe("hello");
     expect(state.snapshot?.run.work).toEqual([{ type: "thinking", text: "keep me" }]);
+  });
+
+  test("live run deltas accumulate thinking without a conversation snapshot", () => {
+    const admitted = { ...idleRunState(), runId: "run-a", status: "admitted" as const };
+    const first = applyLiveRunDelta(admitted, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-a", delta: "Could interpret" },
+      occurredAt: "2026-08-14T00:00:01.000Z",
+      runId: "run-a",
+    });
+    const second = applyLiveRunDelta(first, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 3,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-a", delta: " VAEs" },
+      occurredAt: "2026-08-14T00:00:02.000Z",
+      runId: "run-a",
+    });
+    expect(second.work).toEqual([{ type: "thinking", text: "Could interpret VAEs" }]);
+    expect(applyLiveRunDelta(second, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 4,
+      type: RUNTIME_EVENT_TYPES.thinkingDelta,
+      payload: { runId: "run-b", delta: "other" },
+      occurredAt: "2026-08-14T00:00:03.000Z",
+      runId: "run-b",
+    })).toEqual(second);
+  });
+
+  test("mergeLiveRun keeps in-flight thinking when a later snapshot is empty", () => {
+    const live = applyLiveRunDelta(
+      { ...idleRunState(), runId: "run-a", status: "streaming" },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        sequence: 1,
+        type: RUNTIME_EVENT_TYPES.thinkingDelta,
+        payload: { runId: "run-a", delta: "keep me" },
+        occurredAt: "2026-08-14T00:00:01.000Z",
+        runId: "run-a",
+      },
+    );
+    const opened = { ...idleRunState(), runId: "run-a", status: "streaming" as const };
+    expect(mergeLiveRun(live, opened).work).toEqual([{ type: "thinking", text: "keep me" }]);
+    expect(mergeLiveRun(live, idleRunState()).work).toEqual([]);
   });
 
   test("settings snapshots are JSON-safe", () => {

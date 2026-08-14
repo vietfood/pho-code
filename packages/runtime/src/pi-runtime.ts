@@ -1586,6 +1586,7 @@ export async function createPhoCodeRuntime(
         if (live.key.workspaceId !== cwd) {
           continue;
         }
+        live.runtime.services.settingsManager.setProjectTrusted(true);
         await live.runtime.session.reload();
         await bindHostUi(live);
         const snapshot = await buildSnapshot({ live });
@@ -1725,17 +1726,16 @@ export async function createPhoCodeRuntime(
   };
 
   function currentPermissionSettings() {
+    const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
     const settings = readPermissionSettings({
       agentDir,
       appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
-      ...(selected?.workspace.path ? { workspacePath: selected.workspace.path } : {}),
+      ...(workspacePath ? { workspacePath } : {}),
       yoloActive: registry.list().some((entry) => entry.extensionHost?.yoloActive === true),
     });
     return {
       ...settings,
-      projectPermissionRulesTrusted: (selected?.workspace.path ?? lastWorkspace?.path)
-        ? isProjectApproved(selected?.workspace.path ?? lastWorkspace!.path)
-        : false,
+      projectPermissionRulesTrusted: workspacePath ? isProjectApproved(workspacePath) : true,
     };
   }
 

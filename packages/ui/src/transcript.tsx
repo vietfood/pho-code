@@ -11,11 +11,11 @@ import {
   lastTextBearingMessage,
   rewrittenOriginalText,
   turnTextOutput,
-  turnTiming,
   workedForLabel,
 } from "./lib/work-log";
 import { isNearBottom } from "./lib/stick-to-bottom";
 import { ConservativeMarkdown } from "./markdown";
+import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
@@ -23,7 +23,7 @@ import { WorkLogToggle } from "./work-log-toggle";
 import { Button } from "./ui/button";
 
 // Transcript layout adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
-// Turn-level “Worked for …” collapse is Codex-inspired (visual reference only).
+// Turn-level work collapse is Codex-inspired (visual reference only); settled copy is activity-based.
 // User avatar chip and @ mention chips are harness-owned Cursor-inspired chrome.
 // Assistant-output copy control informed by refs/pi-web MessageView (MIT).
 // Live assistant text uses ConservativeMarkdown with a GFM-only pipeline; KaTeX/Shiki/Mermaid wait until settle.
@@ -91,14 +91,10 @@ export function Transcript({
           case "user":
             return <UserMessageRow key={segment.message.id} message={segment.message} />;
           case "assistantTurn": {
-            const previous = segments[index - 1];
-            const previousUserCreatedAt =
-              previous?.kind === "user" ? previous.message.createdAt : undefined;
             return (
               <AssistantTurn
                 key={segment.key}
                 messages={segment.messages}
-                {...(previousUserCreatedAt ? { previousUserCreatedAt } : {})}
                 {...(onRewrite ? { onRewrite } : {})}
               />
             );
@@ -212,7 +208,11 @@ function UserTranscriptBlockView({ block }: { block: TranscriptBlock }) {
     case "tool":
       return <ToolRow block={block} />;
     case "image":
-      return (
+      return block.previewDataUrl ? (
+        <div className="transcript-image-thumb" data-testid="transcript-image">
+          <MarkdownImage src={block.previewDataUrl} alt={block.name} />
+        </div>
+      ) : (
         <p className="text-xs text-muted-foreground" data-testid="transcript-image-placeholder">
           Image: {block.name}
         </p>
@@ -251,23 +251,21 @@ function UserTextWithMentions({ text }: { text: string }) {
 
 const AssistantTurn = memo(function AssistantTurn({
   messages,
-  previousUserCreatedAt,
   onRewrite,
 }: {
   messages: TranscriptMessage[];
-  previousUserCreatedAt?: string;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
 }) {
   const blocks = collectTurnBlocks(messages);
   const workCounts = countWorkBlocks(blocks);
-  const timing = turnTiming(messages, previousUserCreatedAt);
   const [workExpanded, setWorkExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const label = workedForLabel({
     live: false,
-    ...timing,
+    thoughts: workCounts.thoughts,
+    tools: workCounts.tools,
   });
   const outputText = turnTextOutput(blocks);
   const textBlocks = blocks.filter((block): block is Extract<TranscriptBlock, { type: "text" }> => block.type === "text");

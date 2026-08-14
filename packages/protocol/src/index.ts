@@ -9,6 +9,7 @@ export type { CommandResult } from "./command-result";
 
 export {
   appendThinkingDelta,
+  applyLiveRunDelta,
   applyRuntimeEvent,
   applyRuntimeEventToCache,
   emptyConversationCache,
@@ -16,6 +17,7 @@ export {
   eventSessionKey,
   isLiveRunDeltaType,
   isProcessScopedEventType,
+  mergeLiveRun,
   RUNTIME_EVENT_TYPES,
   runtimeEventUpdatesSessionList,
   upsertToolWork,
@@ -76,6 +78,13 @@ export {
 export { hostnameFromHttpUrl, isSafeHttpUrl } from "./http-url";
 
 export type { DesktopBridge } from "./bridge";
+
+export {
+  extractAtMentionPaths,
+  findCompletedAtMentions,
+  formatAtMentionToken,
+} from "./at-mention";
+export type { CompletedAtMention } from "./at-mention";
 
 export {
   DEFAULT_WORKSPACE_REFERENCE_LIMIT,

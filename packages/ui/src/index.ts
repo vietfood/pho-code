@@ -29,6 +29,7 @@ export {
   groupTranscriptSegments,
   lastTextBearingMessage,
   rewrittenOriginalText,
+  settledWorkSummary,
   turnTextOutput,
   workedForLabel,
 } from "./lib/work-log";
@@ -41,9 +42,17 @@ export {
   toolWorkEntryPreview,
 } from "./tool-presentation";
 export { Transcript } from "./transcript";
-export { replaceLiveRun, resetLiveRunStore } from "./lib/live-run-store";
+export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
+export { ChangeModelDialog } from "./change-model-dialog";
 export { RemoveSessionDialog } from "./remove-session-dialog";
+export { sameModel } from "./lib/model-identity";
+export { ProjectTrustBanner } from "./project-trust-banner";
+export { ProjectTrustDialog } from "./project-trust-dialog";
+export {
+  looksLikeProjectTrustNotification,
+  projectPermissionTrustPending,
+} from "./lib/project-permission-trust";
 export { SETTINGS_SECTIONS, type SettingsSectionId } from "./lib/settings-section";
 export { ProviderAccountsSection } from "./provider-accounts";
 export { WorkspacePicker } from "./workspace-picker";

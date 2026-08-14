@@ -2,6 +2,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { isImageMimeType, type TranscriptBlock, type TranscriptMessage } from "@pho-code/protocol";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { displayToolName } from "./tool-display";
+import { stripWorkspaceReferenceAppendix } from "./workspace-reference";
 
 type SessionMessage = AgentSession["messages"][number];
 
@@ -114,39 +115,66 @@ function toCreatedAt(timestamp: unknown): string | undefined {
 }
 
 export function projectUserContentBlocks(
-  content: string | Array<{ type: string; text?: string; mimeType?: string }>,
+  content: string | Array<{ type: string; text?: string; mimeType?: string; data?: string }>,
 ): TranscriptBlock[] {
   if (typeof content === "string") {
-    return content.length > 0 ? [{ type: "text", text: content }] : [];
+    const text = stripWorkspaceReferenceAppendix(content);
+    return text.length > 0 ? [{ type: "text", text }] : [];
   }
 
   const blocks: TranscriptBlock[] = [];
   let imageIndex = 0;
   for (const part of content) {
     if (part.type === "text" && typeof part.text === "string" && part.text.length > 0) {
-      blocks.push({ type: "text", text: part.text });
+      const text = stripWorkspaceReferenceAppendix(part.text);
+      if (text.length > 0) {
+        blocks.push({ type: "text", text });
+      }
       continue;
     }
     if (part.type === "image") {
       imageIndex += 1;
+      const mimeType = isImageMimeType(part.mimeType) ? part.mimeType : "image/png";
+      const previewDataUrl = transcriptImagePreviewDataUrl(part.data, mimeType);
       blocks.push({
         type: "image",
         name: `image-${imageIndex}`,
-        mimeType: isImageMimeType(part.mimeType) ? part.mimeType : "image/png",
+        mimeType,
+        ...(previewDataUrl ? { previewDataUrl } : {}),
       });
     }
   }
   return blocks;
 }
 
+/** Cap preview payload so session snapshots stay bounded for IPC. */
+const MAX_TRANSCRIPT_IMAGE_PREVIEW_BASE64_CHARS = 400_000;
+
+function transcriptImagePreviewDataUrl(
+  data: string | undefined,
+  mimeType: string,
+): string | undefined {
+  if (typeof data !== "string" || data.length === 0) {
+    return undefined;
+  }
+  const compact = data.replace(/\s+/gu, "");
+  if (compact.length === 0 || compact.length > MAX_TRANSCRIPT_IMAGE_PREVIEW_BASE64_CHARS) {
+    return undefined;
+  }
+  if (!/^[A-Za-z0-9+/]+=*$/u.test(compact)) {
+    return undefined;
+  }
+  return `data:${mimeType};base64,${compact}`;
+}
+
 function userText(content: string | Array<{ type: string; text?: string }>): string {
   if (typeof content === "string") {
-    return content;
+    return stripWorkspaceReferenceAppendix(content);
   }
 
   return content
     .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text ?? "")
+    .map((part) => stripWorkspaceReferenceAppendix(part.text ?? ""))
     .join("");
 }
 

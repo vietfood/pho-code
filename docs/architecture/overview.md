@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for the completed personal v1 and v2 Milestones 0–2. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. The proposed multi-session registry, archive/restore metadata, and recoverable chat removal are specified in the active v2 Milestone 3 implementation plan. The runtime registry, per-workspace FFF retrieval contexts, application catalog/archive/restore/remove path, renderer keyed conversation cache, session actions menu, Settings archived list, and OS-Trash chat removal are present; the milestone is not yet accepted architecture.
+Accepted architecture for the completed personal v1 and v2 Milestones 0–3. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. v2 Milestone 3 adds a bounded multi-session registry, archive/restore metadata, recoverable OS-Trash chat removal, a keyed conversation cache, a per-chat live-run store, session actions, and a Settings archived list, with owner-verified real-provider background switching.
 
 ## Context
 
@@ -79,7 +79,7 @@ The renderer owns presentation and transient interaction state:
 - workspace/session navigation;
 - transcript virtualization and display;
 - composer draft and attachment previews;
-- streaming indicators;
+- streaming indicators and a per-chat live-run projection;
 - tool cards;
 - dialogs and settings views;
 - light/dark theme and accessible interaction.

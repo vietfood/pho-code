@@ -2,6 +2,7 @@ import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import {
   createHarnessError,
+  extractAtMentionPaths,
   HARNESS_ERROR_CODES,
   type WorkspaceReferenceKind,
   type WorkspaceReferenceToken,
@@ -81,21 +82,8 @@ export function assertWorkspaceRelativeInput(relativePath: string, operation: st
   return posix;
 }
 
-const INLINE_AT_MENTION = /(?:^|[\s([{])@([^\s@]+)/gu;
-
 export function extractAtMentions(text: string): string[] {
-  const paths: string[] = [];
-  const seen = new Set<string>();
-  INLINE_AT_MENTION.lastIndex = 0;
-  for (const match of text.matchAll(INLINE_AT_MENTION)) {
-    const relative = match[1]?.trim() ?? "";
-    if (relative === "" || seen.has(relative)) {
-      continue;
-    }
-    seen.add(relative);
-    paths.push(relative);
-  }
-  return paths;
+  return extractAtMentionPaths(text);
 }
 
 export async function validateWorkspaceReference(
@@ -183,6 +171,15 @@ export function serializeWorkspaceReferences(
   const block = `Referenced workspace paths:\n${lines.join("\n")}`;
   return trimmed ? `${trimmed}\n\n${block}` : block;
 }
+
+/** Drop the model-only appendix so the transcript shows the owner's prompt and @ chips. */
+export function stripWorkspaceReferenceAppendix(text: string): string {
+  const stripped = text.replace(WORKSPACE_REFERENCE_APPENDIX, "");
+  return stripped === text ? text : stripped.replace(/\s+$/u, "");
+}
+
+const WORKSPACE_REFERENCE_APPENDIX =
+  /(?:\n\n)?Referenced workspace paths:\n(?:- (?:file|folder) `[^`\n]+`(?: \(names the folder; do not expand its contents unless asked\))?\n?)+$/u;
 
 function isInside(candidate: string, root: string): boolean {
   const relative = path.relative(root, candidate);

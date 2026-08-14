@@ -165,6 +165,24 @@
   background: var(--accent);
 }
 
+.composer-mention-option-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.composer-mention-option-name,
+.composer-mention-option-dir {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-mention-option-dir {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
 .composer-mention-empty {
   padding: 0.55rem 0.5rem;
   color: var(--muted-foreground);
@@ -288,6 +306,38 @@
   border: none;
   border-radius: 0;
   object-fit: cover;
+}
+
+.transcript-image-thumb {
+  margin-top: 0.35rem;
+  max-width: min(100%, 16rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--muted) 35%, transparent);
+}
+
+.transcript-image-thumb .chat-markdown-image-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.transcript-image-thumb .chat-markdown-image-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.transcript-image-thumb .chat-markdown-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 14rem;
+  object-fit: contain;
+  vertical-align: middle;
 }
 
 .composer-image-remove {

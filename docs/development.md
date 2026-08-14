@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 2 are accepted. V2 Milestone 3 is the active session-continuity/lifecycle design; the former curated-capabilities Milestone 3 is now draft Milestone 4. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. Draft v2 Milestone 4 remains curated capabilities (text-only skills plus read-only GitHub MCP). Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while unpromoted work remains in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
 
 After a fresh clone, materialize the references with:
 
@@ -423,6 +423,19 @@ Milestone 2 verification classes:
 - **packaged verified:** unsigned local `.app` exposes the same Provider accounts surface without a Pi CLI
 - **owner verified:** live `openai-codex` login in the system browser, with the resulting Codex account working in Pho Code
 - **not verified:** other Pi OAuth providers; Linux browser integration; separately reported live refresh-on-use or live Codex logout; Keychain-backed storage; MCP OAuth
+
+v2 Milestone 3 acceptance, recorded 2026-08-14:
+
+The owner accepted the real-provider background-switch, archive/restore, and Trash removal workflow, including live thinking surviving chat switches. Desktop and packaged continuity journeys were previously recorded in the [v2 implementation plan](./implementation-plan-v2.md).
+
+Milestone 3 verification classes:
+
+- **unit verified:** composite session keys; catalog/archive metadata; busy-state Trash refusal; keyed live-run store isolation (background thinking survives switch-back)
+- **integration verified:** two real Pi `0.84.1` session runtimes share `ModelRuntime`, persist distinct transcripts, and dispose independently; archive/restore leaves the Pi artifact untouched; settled removal uses the Trash boundary with no permanent fallback
+- **desktop verified:** background deterministic run continues after switching chats; archive/restore; busy Trash refusal; settled Trash
+- **packaged verified:** unsigned local `.app` keeps a background run, persists archive across relaunch, restores, and moves a settled chat to Trash from isolated app-owned data without a Pi CLI
+- **owner verified:** real-provider background switching across chats/workspaces, live thinking across switches, archive/restore, and Finder Trash recovery
+- **not verified:** Linux desktop/package and real Linux Trash; surviving app exit/crash; fork/tree navigation, compaction, worktrees, or unattended background execution
 
 ### Optional real-provider recipe
 

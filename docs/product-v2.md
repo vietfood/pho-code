@@ -97,7 +97,7 @@ Make chats independent working contexts rather than views over one replaceable r
 
 Add archive and restore as reversible application metadata over Pi-owned transcripts. Add owner-initiated session removal only through a dedicated validated operation that moves the exact settled Pi session artifact to the operating-system Trash. Permanent deletion and `rm` remain unavailable in every permission mode, including YOLO. A session with an active run or unresolved host interaction cannot be removed; the owner must let it settle or stop it explicitly first.
 
-The first slice keeps concurrency local and bounded. It does not introduce multi-agent orchestration, worktrees, fork/tree navigation, remote workers, or unattended execution. The detailed ownership, protocol, restart, shutdown, removal, and verification contract is in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
+The first slice keeps concurrency local and bounded. It does not introduce multi-agent orchestration, worktrees, fork/tree navigation, remote workers, or unattended execution. The detailed ownership, protocol, restart, shutdown, removal, and verification contract is in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Milestone 3 is accepted: independently owned session controllers, archive/restore, recoverable OS-Trash chat removal, and owner-verified real-provider background switching are in place.
 
 ### Milestone 4: curated capabilities
 
@@ -105,7 +105,7 @@ Ship five source-owned, text-only coding skills and one concrete MCP-backed capa
 
 The GitHub slice targets a reviewed official `github/github-mcp-server` release behind an application-owned MCP client and Pi tool adapter. The server runs locally over stdio in read-only mode with fixed toolsets and a second Pho Code allowlist. It starts lazily, keeps bounded status, output, cancellation, and process cleanup, and fails independently from local chat and the five skills.
 
-The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after Milestone 3 proves concurrent session ownership and after the owner accepts the first skill bundle and proposed GitHub authentication behavior described there.
+The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md). Implementation begins after the owner accepts the first skill bundle and proposed GitHub authentication behavior described there.
 
 ## Deferred beyond Milestone 4
 

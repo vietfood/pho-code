@@ -21,7 +21,7 @@ import type {
   WorkspaceReferenceKind,
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
-import { findAtQuery, insertAtMention } from "./lib/at-mention";
+import { findAtQuery, insertAtMention, mentionDirectory, mentionLabel } from "./lib/at-mention";
 import { composerHighlight } from "./lib/composer-highlight";
 import { findSlashQuery } from "./lib/slash-query";
 import {
@@ -117,8 +117,10 @@ export function Composer({
   const lastImagePasteRef = useRef<{ fingerprint: string; at: number } | null>(null);
   const showThinking = supportsThinking || availableThinkingLevels.length > 1;
   const hero = variant === "hero";
+  const mentionSessionRef = useRef<{ start: number } | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState(0);
+  const [mentionRaw, setMentionRaw] = useState("");
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PathSuggestion[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -143,18 +145,22 @@ export function Composer({
       return;
     }
 
+    const skip =
+      mentionQuery !== null
+        ? { start: mentionStart, end: mentionStart + 1 + mentionRaw.length }
+        : undefined;
     const serialized = serializeComposerEditable(editor);
-    if (serialized !== value || composerNeedsChipRender(editor, value)) {
+    if (serialized !== value || composerNeedsChipRender(editor, value, skip)) {
       const hadFocus = editor === editor.ownerDocument.activeElement;
       const caret = pendingCaretRef.current ?? (hadFocus ? getComposerCaretOffset(editor) : value.length);
       pendingCaretRef.current = null;
-      renderComposerValue(editor, value, kindsRef.current);
+      renderComposerValue(editor, value, kindsRef.current, editor.ownerDocument, skip);
       if (hadFocus || caret !== value.length) {
         setComposerCaretOffset(editor, caret);
       }
       scrollComposerCaretIntoView(editor);
     }
-  }, [value]);
+  }, [value, mentionQuery, mentionStart, mentionRaw]);
 
   useEffect(() => {
     if (!onSearchReferences || mentionQuery === null) {
@@ -186,7 +192,9 @@ export function Composer({
   }, [mentionQuery, onSearchReferences]);
 
   function closeMention(): void {
+    mentionSessionRef.current = null;
     setMentionQuery(null);
+    setMentionRaw("");
     setSuggestions([]);
     setSearchStatus(null);
   }
@@ -207,11 +215,13 @@ export function Composer({
     }
     const next = serializeComposerEditable(editor);
     const cursor = getComposerCaretOffset(editor);
-    const mention = findAtQuery(next, cursor);
+    const mention = findAtQuery(next, cursor, mentionSessionRef.current?.start ?? null);
     if (mention) {
       closeSlash();
+      mentionSessionRef.current = { start: mention.start };
       setMentionStart(mention.start);
       setMentionQuery(mention.query);
+      setMentionRaw(mention.raw);
       return;
     }
     closeMention();
@@ -236,8 +246,14 @@ export function Composer({
   function selectSuggestion(suggestion: PathSuggestion): void {
     const editor = editorRef.current;
     const cursor = editor ? getComposerCaretOffset(editor) : value.length;
-    const next = insertAtMention(value, { start: mentionStart, query: mentionQuery ?? "" }, cursor, suggestion.path);
+    const next = insertAtMention(
+      value,
+      { start: mentionStart, query: mentionQuery ?? "", raw: mentionRaw },
+      cursor,
+      suggestion.path,
+    );
     kindsRef.current.set(suggestion.path, suggestion.kind);
+    pendingCaretRef.current = next.cursor;
     onChange(next.text);
     closeMention();
     requestAnimationFrame(() => {
@@ -446,21 +462,25 @@ export function Composer({
                 onChange(next.text);
               }}
               onKeyDown={(event) => {
-                if (menuOpen && suggestions.length > 0) {
+                if (menuOpen) {
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
-                    setActiveIndex((index) => (index + 1) % suggestions.length);
+                    if (suggestions.length > 0) {
+                      setActiveIndex((index) => (index + 1) % suggestions.length);
+                    }
                     return;
                   }
                   if (event.key === "ArrowUp") {
                     event.preventDefault();
-                    setActiveIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+                    if (suggestions.length > 0) {
+                      setActiveIndex((index) => (index - 1 + suggestions.length) % suggestions.length);
+                    }
                     return;
                   }
                   if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
                     const selected = suggestions[activeIndex];
                     if (selected) {
-                      event.preventDefault();
                       selectSuggestion(selected);
                     }
                     return;
@@ -485,26 +505,33 @@ export function Composer({
                 {suggestions.length === 0 ? (
                   <div className="composer-mention-empty">{searchStatus ?? "No matching files"}</div>
                 ) : (
-                  suggestions.map((suggestion, index) => (
-                    <button
-                      key={`${suggestion.kind}:${suggestion.path}`}
-                      type="button"
-                      role="option"
-                      aria-selected={index === activeIndex}
-                      className={cn("composer-mention-option", index === activeIndex && "is-active")}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        selectSuggestion(suggestion);
-                      }}
-                    >
-                      {suggestion.kind === "folder" ? (
-                        <FolderIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                      ) : (
-                        <FileIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                      )}
-                      <span className="min-w-0 truncate">{suggestion.path}</span>
-                    </button>
-                  ))
+                  suggestions.map((suggestion, index) => {
+                    const directory = mentionDirectory(suggestion.path);
+                    return (
+                      <button
+                        key={`${suggestion.kind}:${suggestion.path}`}
+                        type="button"
+                        role="option"
+                        aria-selected={index === activeIndex}
+                        className={cn("composer-mention-option", index === activeIndex && "is-active")}
+                        title={suggestion.path}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          selectSuggestion(suggestion);
+                        }}
+                      >
+                        {suggestion.kind === "folder" ? (
+                          <FolderIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                        ) : (
+                          <FileIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
+                        )}
+                        <span className="composer-mention-option-text">
+                          <span className="composer-mention-option-name">{mentionLabel(suggestion.path)}</span>
+                          {directory ? <span className="composer-mention-option-dir">{directory}</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             ) : null}

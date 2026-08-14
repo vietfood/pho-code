@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { FolderIcon, FolderOpenIcon } from "lucide-react";
 import type { RecentWorkspaceRecord } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
@@ -12,6 +13,7 @@ export function WorkspacePicker({
   busy,
   sidebarCollapsed,
   onToggleSidebar,
+  notice,
 }: {
   recents: readonly RecentWorkspaceRecord[];
   onPick: () => void;
@@ -19,6 +21,7 @@ export function WorkspacePicker({
   busy: boolean;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  notice?: ReactNode;
 }) {
   const mac = isMacDesktop();
   const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
@@ -40,6 +43,7 @@ export function WorkspacePicker({
         ) : null}
         <span className="text-xs text-muted-foreground">No active session</span>
       </header>
+      {notice}
       <div className="flex min-h-0 flex-1 flex-col items-start justify-center px-8 py-12">
         <div className="w-full max-w-lg">
           <span
@@ -48,7 +52,11 @@ export function WorkspacePicker({
           >
             <FolderOpenIcon className="size-5 opacity-85" />
           </span>
-          <h1 id="workspace-heading" className="text-xl font-medium tracking-tight text-foreground">
+          <h1
+            id="workspace-heading"
+            data-testid="workspace-heading"
+            className="text-xl font-medium tracking-tight text-foreground"
+          >
             Choose a workspace
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">Open a local folder to start or resume a Pi session.</p>

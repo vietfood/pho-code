@@ -23,6 +23,7 @@ import {
 import { ArchivedChatsSection } from "./archived-chats";
 import { cn } from "./lib/cn";
 import { handleDialogTab } from "./lib/dialog-focus";
+import { projectPermissionTrustPending } from "./lib/project-permission-trust";
 import {
   adjacentSettingsSection,
   initialSettingsSection,
@@ -684,13 +685,15 @@ function PermissionSection({
           Stored in Pho Code&apos;s private data directory. Other Pi installations do not use this permission config.
         </p>
       )}
-      {settings.permission.projectOverridePresent ? (
+      {projectPermissionTrustPending(settings.permission) || settings.permission.projectOverridePresent ? (
         <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
           <p className="text-xs text-warning" role="status">
-            This workspace has its own permission config. It applies only after you explicitly trust this project&apos;s
-            permission rules.
+            {settings.permission.projectOverridePresent
+              ? "This workspace has its own permission config. It applies only after you explicitly trust this project's permission rules."
+              : "This project is not trusted. Project-scoped permission rules stay skipped until you trust it."}
           </p>
-          {settings.permission.projectPermissionRulesRemembered ? (
+          {settings.permission.projectPermissionRulesRemembered &&
+          settings.permission.projectPermissionRulesTrusted ? (
             <p className="text-xs text-muted-foreground" data-testid="project-permission-trusted">
               Trusted by Pho Code for future sessions. This does not enable project extensions or change another Pi
               installation&apos;s trust store.

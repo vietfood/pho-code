@@ -114,41 +114,43 @@ export function formatWorkDuration(elapsedMs: number): string {
   return `${Math.max(1, seconds)}s`;
 }
 
-export function workedForLabel(options: {
-  live: boolean;
-  startedAt?: string;
-  endedAt?: string;
-  nowMs?: number;
-}): string {
-  const { live, startedAt, endedAt, nowMs = Date.now() } = options;
-  const startMs = startedAt ? Date.parse(startedAt) : Number.NaN;
-  const endMs = live ? nowMs : endedAt ? Date.parse(endedAt) : Number.NaN;
-  if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs >= startMs) {
-    const duration = formatWorkDuration(endMs - startMs);
-    return live ? `Working for ${duration}` : `Worked for ${duration}`;
+/** Settled turn collapse copy — activity-based, not a stopwatch (Pi timestamps often undercount). */
+export function settledWorkSummary(thoughts: number, tools: number): string {
+  const safeThoughts = Math.max(0, thoughts);
+  const safeTools = Math.max(0, tools);
+  if (safeTools === 0 && safeThoughts === 0) {
+    return "Behind the scenes";
   }
-  return live ? "Working" : "Worked";
+  if (safeTools === 0) {
+    return safeThoughts <= 1 ? "Had a quick think" : "Thought it through";
+  }
+  if (safeThoughts === 0) {
+    return safeTools === 1 ? "Took a peek" : "Looked around a bit";
+  }
+  if (safeTools === 1) {
+    return "Thought, then peeked";
+  }
+  if (safeTools <= 3) {
+    return "Did a little digging";
+  }
+  return "Went exploring";
 }
 
-export function turnTiming(
-  messages: readonly TranscriptMessage[],
-  previousUserCreatedAt?: string,
-): {
+export function workedForLabel(options: {
+  live: boolean;
+  thoughts?: number;
+  tools?: number;
   startedAt?: string;
-  endedAt?: string;
-} {
-  let startedAt = previousUserCreatedAt;
-  let endedAt: string | undefined;
-  for (const message of messages) {
-    if (!message.createdAt) {
-      continue;
-    }
-    if (!startedAt || message.createdAt < startedAt) {
-      startedAt = message.createdAt;
-    }
-    if (!endedAt || message.createdAt > endedAt) {
-      endedAt = message.createdAt;
-    }
+  nowMs?: number;
+}): string {
+  const { live, startedAt, nowMs = Date.now(), thoughts = 0, tools = 0 } = options;
+  if (!live) {
+    return settledWorkSummary(thoughts, tools);
   }
-  return { ...(startedAt ? { startedAt } : {}), ...(endedAt ? { endedAt } : {}) };
+  const startMs = startedAt ? Date.parse(startedAt) : Number.NaN;
+  if (!Number.isNaN(startMs) && nowMs >= startMs) {
+    const duration = formatWorkDuration(nowMs - startMs);
+    return `Working for ${duration}`;
+  }
+  return "Working";
 }

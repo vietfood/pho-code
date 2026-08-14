@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 and v2 Milestones 0 through 2 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 now owns session continuity/lifecycle; the five source-owned text-only skills and application-owned adapter for a pinned read-only GitHub MCP server move to draft Milestone 4. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
+Personal v1 and v2 Milestones 0 through 3 are accepted. Ordinary global/project feature discovery is disabled, `HarnessFeatureManifest` is the only executable composition input, and packaged builds resolve third-party features only from app-owned resources. v2 Milestone 3 owns session continuity/lifecycle; the five source-owned text-only skills and application-owned adapter for a pinned read-only GitHub MCP server remain draft Milestone 4. Typed settings change supported baked-feature behavior without making the feature set customizable. See the archived [Milestone 5 review](./archive/v1/reviews/milestone-5-code-review.md).
 
 ## Purpose
 
@@ -148,7 +148,7 @@ The normal product has no feature Reload action because the manifest is immutabl
 
 Each settings surface is explicit in the protocol and application UI. Use named commands such as `updatePermissionSettings`, not `setSetting(key, value)`. The runtime adapter owns validation, storage location, migration, and apply/reload behavior for its pinned feature version. The renderer receives a redacted settings snapshot and sends typed intent; it never reads/writes config files.
 
-The first adapter targets the permission package's global config at `<agentDir>/extensions/pi-permission-system/config.json`. The default `agentDir` is Pho Code-owned under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override. The UI discloses the active scope. A project permission override is skipped until the owner explicitly trusts that project's permission rules. Pho Code remembers this narrow decision in its own metadata; it does not write Pi's shared `trust.json`, enable project extensions, or edit the project override.
+The first adapter targets the permission package's global config at `<agentDir>/extensions/pi-permission-system/config.json`. The default `agentDir` is Pho Code-owned under Electron `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override. The UI discloses the active scope. A project permission override is skipped until the owner explicitly trusts that project's permission rules. Adding or reopening such a workspace opens a confirmation dialog; deferring it leaves a banner, and Settings can reopen the same prompt. Pho Code remembers this narrow decision in its own metadata; it does not write Pi's shared `trust.json`, enable project extensions, or edit the project override.
 
 The permission engine is rule-based rather than scalar. Settings exposes baby (strict), okay, you got it, and with great power comes great responsibility while retaining stable `guarded`, `balanced`, and `developer` keys. Unmatched policies, pre-v3 Developer-without-YOLO policies, and YOLO combined with a different stable key are preserved as Custom. The third mode explicitly selects `developer` and enables YOLO, which rewrites `ask` decisions while preserving explicit denies. Preserve fields the simple UI does not own, refuse to overwrite invalid/unrecognized config, and apply updates atomically. Do not show `doublePressToConfirm`; the pinned package documents it as TUI-only and it does not affect this RPC/frontend host.
 
@@ -202,7 +202,7 @@ When a specific MCP feature is implemented:
 
 - Global services may be shared only when their SDK contract supports it.
 - Workspace resource loaders are owned by a workspace runtime context.
-- Session extension runners, host-dialog queues, run state, prepared attachments, and UI projections are owned by a session controller. Milestone 3's registry may keep several such controllers resident; selecting one must not transfer or dispose another controller's state.
+- Session extension runners, host-dialog queues, run state, prepared attachments, and UI projections are owned by a session controller. The accepted Milestone 3 registry may keep several such controllers resident; selecting one must not transfer or dispose another controller's state.
 - Long-lived resources should be created on session start and cleaned up on session shutdown according to Pi extension guidance.
 - A Pi-internal session replacement must rebind that controller's new session. Ordinary Pho Code chat switching selects another controller and is not a Pi session replacement.
 - An app shutdown disposes all session controllers before shared services under one bounded aggregate deadline.

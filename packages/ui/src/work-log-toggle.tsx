@@ -3,8 +3,9 @@ import { ChevronRightIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { workedForLabel } from "./lib/work-log";
 
-// Codex-inspired single “Worked for …” disclosure for an entire assistant turn.
+// Codex-inspired single disclosure for an entire assistant turn.
 // Visual reference only (no Codex source). Collapses all thinking/tool steps at once.
+// Settled labels are activity summaries; live labels still use wall-clock “Working for …”.
 
 export function WorkLogToggle({
   label,

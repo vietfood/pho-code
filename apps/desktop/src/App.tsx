@@ -1,10 +1,12 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import {
+  applyLiveRunDelta,
   applyRuntimeEventToCache,
   emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
   eventSessionKey,
+  extractAtMentionPaths,
   idleProviderAccountsResult,
   isHarnessError,
   RUNTIME_EVENT_TYPES,
@@ -12,6 +14,7 @@ import {
   MAX_SOURCE_IMAGE_BYTES,
   idleRunState,
   isLiveRunDeltaType,
+  mergeLiveRun,
   runtimeEventUpdatesSessionList,
   sessionKeyId,
   type BootstrapState,
@@ -40,13 +43,21 @@ import {
   Conversation,
   NotificationToast,
   fileToBase64,
+  looksLikeProjectTrustNotification,
   pastedImageDisplayName,
+  ProjectTrustBanner,
+  ProjectTrustDialog,
+  projectPermissionTrustPending,
   readSidebarCollapsed,
   RemoveSessionDialog,
   SettingsView,
   WorkspacePicker,
   writeSidebarCollapsed,
+  dropLiveRun,
+  getLiveRunForKey,
   replaceLiveRun,
+  resetLiveRunStore,
+  selectLiveRunKey,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
 
@@ -72,6 +83,9 @@ export function App() {
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<PrepareRemoveSessionResult | null>(null);
+  const [trustDialogOpen, setTrustDialogOpen] = useState(false);
+  const [trustDialogDismissedIds, setTrustDialogDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const composerAfterRun = useRef(false);
@@ -125,7 +139,11 @@ export function App() {
         sessionId: next.activeSession.session.id,
       });
       if (cacheRef.current.selectedKey !== key) {
-        replaceLiveRun(next.activeSession.run, { immediate: true });
+        replaceLiveRun(mergeLiveRun(getLiveRunForKey(key), next.activeSession.run), {
+          immediate: true,
+          key,
+        });
+        selectLiveRunKey(key);
       }
     }
     setCache((current) => {
@@ -161,22 +179,32 @@ export function App() {
     let cancelled = false;
     const bridge = getDesktopBridge();
     const stop = bridge.subscribe((event) => {
+      const eventKey = eventSessionKey(event);
+      const selectedId = cacheRef.current.selectedKey;
+      const eventId = eventKey ? sessionKeyId(eventKey) : undefined;
+      const liveKey = eventId ?? selectedId ?? undefined;
+      if (isLiveRunDeltaType(event.type) && liveKey) {
+        const previous =
+          getLiveRunForKey(liveKey) ??
+          cacheRef.current.byKey[liveKey]?.snapshot?.run ??
+          idleRunState();
+        replaceLiveRun(applyLiveRunDelta(previous, event), { key: liveKey });
+      }
       const next = applyRuntimeEventToCache(cacheRef.current, event);
       cacheRef.current = next;
-      const selected = selectedConversation(next);
-      const eventKey = eventSessionKey(event);
-      const selectedId = next.selectedKey;
-      const eventId = eventKey ? sessionKeyId(eventKey) : undefined;
-      const targetsSelected = !eventId || eventId === selectedId;
-      const run = selected.snapshot?.run ?? idleRunState();
       if (isLiveRunDeltaType(event.type)) {
-        if (targetsSelected) {
-          replaceLiveRun(run);
-        }
         return;
       }
-      if (targetsSelected) {
-        replaceLiveRun(run, { immediate: true });
+      if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved && eventId) {
+        dropLiveRun(eventId);
+      } else if (liveKey) {
+        const owner = next.byKey[liveKey]?.snapshot?.run;
+        if (owner) {
+          replaceLiveRun(mergeLiveRun(getLiveRunForKey(liveKey), owner), {
+            immediate: true,
+            key: liveKey,
+          });
+        }
       }
       if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
         setSessionsByWorkspace((current) => mergeActivityIntoCatalog(current, next.activity));
@@ -227,6 +255,26 @@ export function App() {
       applyAppearanceTheme(appearance);
     }
   }, [appearance]);
+
+  const trustNotification = Boolean(
+    conversation.notification && looksLikeProjectTrustNotification(conversation.notification.message),
+  );
+  const trustPending =
+    projectPermissionTrustPending(conversation.settings?.permission) || trustNotification;
+  const trustWorkspace = workspace?.workspace;
+  const trustWorkspaceId = trustWorkspace?.id;
+  useEffect(() => {
+    if (!trustWorkspaceId || !trustPending) {
+      if (!trustPending) {
+        setTrustDialogOpen(false);
+      }
+      return;
+    }
+    if (trustDialogDismissedIds.has(trustWorkspaceId)) {
+      return;
+    }
+    setTrustDialogOpen(true);
+  }, [trustDialogDismissedIds, trustPending, trustWorkspaceId]);
 
   useEffect(() => {
     const snapshot = conversation.snapshot;
@@ -279,7 +327,10 @@ export function App() {
 
   function applySessionSnapshot(snapshot: SessionSnapshot): void {
     const key = sessionKeyId({ workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id });
-    replaceLiveRun(snapshot.run, { immediate: true });
+    const run = mergeLiveRun(getLiveRunForKey(key), snapshot.run);
+    const nextSnapshot = { ...snapshot, run };
+    replaceLiveRun(run, { immediate: true, key });
+    selectLiveRunKey(key);
     setCache((current) => {
       const existing = current.byKey[key];
       return {
@@ -289,7 +340,7 @@ export function App() {
           ...current.byKey,
           [key]: {
             lastSequence: existing?.lastSequence ?? current.lastSequence,
-            snapshot,
+            snapshot: nextSnapshot,
             dialog: existing?.dialog ?? null,
             notification: existing?.notification ?? null,
             settings: current.settings,
@@ -309,7 +360,7 @@ export function App() {
   }
 
   function resetConversationChrome(): void {
-    replaceLiveRun(idleRunState(), { immediate: true });
+    resetLiveRunStore();
     setCache((current) => ({
       ...emptyConversationCache(),
       settings: current.settings,
@@ -390,13 +441,25 @@ export function App() {
       setError(null);
       setSettingsOpen(false);
       const cached = cache.byKey[nextKey];
+      const merged = mergeLiveRun(getLiveRunForKey(nextKey), cached?.snapshot?.run ?? idleRunState());
+      replaceLiveRun(merged, { immediate: true, key: nextKey });
+      selectLiveRunKey(nextKey);
       if (cached?.snapshot) {
-        setCache((current) => ({ ...current, selectedKey: nextKey }));
-        replaceLiveRun(cached.snapshot.run, { immediate: true });
+        const snapshot: SessionSnapshot = { ...cached.snapshot, run: merged };
+        setCache((current) => ({
+          ...current,
+          selectedKey: nextKey,
+          byKey: {
+            ...current.byKey,
+            [nextKey]: {
+              ...cached,
+              snapshot,
+            },
+          },
+        }));
         restoreComposer(nextKey);
       } else {
         restoreComposer(nextKey);
-        replaceLiveRun(idleRunState(), { immediate: true });
       }
     } else {
       saveComposer(currentKey);
@@ -405,6 +468,7 @@ export function App() {
       setDraft("");
       setPreparedImages([]);
       setSettingsOpen(false);
+      selectLiveRunKey(undefined);
       replaceLiveRun(idleRunState(), { immediate: true });
     }
     try {
@@ -447,6 +511,23 @@ export function App() {
   const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
   const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
   const settingsVisible = settingsOpen && Boolean(conversation.settings);
+  const showTrustBanner = Boolean(
+    trustPending &&
+      trustWorkspaceId &&
+      !trustDialogOpen &&
+      !trustBannerDismissedIds.has(trustWorkspaceId),
+  );
+  const trustNotice =
+    showTrustBanner && trustWorkspace ? (
+      <ProjectTrustBanner
+        sessionTrusted={conversation.settings?.permission.projectPermissionRulesTrusted === true}
+        disabled={busy}
+        onTrust={() => setTrustDialogOpen(true)}
+        onDismiss={() => {
+          setTrustBannerDismissedIds((current) => addWorkspaceId(current, trustWorkspace.id));
+        }}
+      />
+    ) : null;
 
   function leaveSessionIfCurrent(workspaceId: string, sessionId: string, entries: readonly SessionCatalogEntry[]): void {
     if (snapshot?.workspace.id !== workspaceId || snapshot.session.id !== sessionId) {
@@ -485,10 +566,12 @@ export function App() {
       const previousImages = preparedImages;
       setDraft("");
       setPreparedImages([]);
+      const references = extractAtMentionPaths(text).map((path) => ({ path }));
       const payload = {
         sessionId: snapshot.session.id,
         workspaceId: snapshot.workspace.id,
         text,
+        ...(references.length > 0 ? { references } : {}),
         ...(imageIds.length > 0 ? { imageIds } : {}),
       };
       try {
@@ -621,6 +704,8 @@ export function App() {
                 switching={switchingSession}
                 sidebarCollapsed={sidebarCollapsed}
                 onToggleSidebar={toggleSidebar}
+                notice={trustNotice}
+                {...(trustPending ? { onTrustProject: () => setTrustDialogOpen(true) } : {})}
                 {...(conversation.settings?.permission.yoloMode ? { yoloMode: true } : {})}
                 onSubmit={() => {
                   void admitComposer("send");
@@ -775,6 +860,7 @@ export function App() {
             busy={busy}
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={toggleSidebar}
+            notice={trustNotice}
             onPick={() => {
               void runCommand(async () => {
                 const picked = await getDesktopBridge().pickWorkspace();
@@ -829,11 +915,7 @@ export function App() {
             });
           }}
           onTrustProjectPermissionRules={async () => {
-            await runCommand(async () => {
-              const next = await getDesktopBridge().trustProjectPermissionRules();
-              applySettings(next);
-              await refreshBootstrap();
-            });
+            setTrustDialogOpen(true);
           }}
           onImportApiKey={async (input) => {
             await runCommand(async () => {
@@ -894,6 +976,44 @@ export function App() {
           onRemoveSession={requestRemoveSession}
         />
       ) : null}
+      {trustDialogOpen && trustWorkspace ? (
+        <ProjectTrustDialog
+          workspaceName={trustWorkspace.displayName}
+          workspacePath={trustWorkspace.path}
+          sessionTrusted={conversation.settings?.permission.projectPermissionRulesTrusted === true}
+          busy={
+            busy || snapshot?.run.status === "admitted" || snapshot?.run.status === "streaming"
+          }
+          onCancel={() => {
+            setTrustDialogDismissedIds((current) => addWorkspaceId(current, trustWorkspace.id));
+            setTrustDialogOpen(false);
+          }}
+          onConfirm={() => {
+            void runCommand(async () => {
+              const next = await getDesktopBridge().trustProjectPermissionRules();
+              applySettings(next);
+              await refreshBootstrap();
+              setCache((current) => {
+                if (!current.selectedKey) {
+                  return current;
+                }
+                const selected = current.byKey[current.selectedKey];
+                if (!selected) {
+                  return current;
+                }
+                return {
+                  ...current,
+                  byKey: {
+                    ...current.byKey,
+                    [current.selectedKey]: { ...selected, notification: null },
+                  },
+                };
+              });
+              setTrustDialogOpen(false);
+            });
+          }}
+        />
+      ) : null}
       {pendingRemoval ? (
         <RemoveSessionDialog
           pending={pendingRemoval}
@@ -914,7 +1034,7 @@ export function App() {
           }}
         />
       ) : null}
-      {conversation.notification ? (
+      {conversation.notification && !looksLikeProjectTrustNotification(conversation.notification.message) ? (
         <NotificationToast
           notification={conversation.notification}
           onDismiss={() =>
@@ -947,6 +1067,15 @@ export function Root() {
       <App />
     </StrictMode>
   );
+}
+
+function addWorkspaceId(current: ReadonlySet<string>, workspaceId: string): ReadonlySet<string> {
+  if (current.has(workspaceId)) {
+    return current;
+  }
+  const next = new Set(current);
+  next.add(workspaceId);
+  return next;
 }
 
 function errorMessage(cause: unknown): string {
