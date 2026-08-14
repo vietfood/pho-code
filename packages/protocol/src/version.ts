@@ -18,6 +18,8 @@ export const PROTOCOL_COMMANDS = {
   removeSession: "removeSession",
   prepareRemoveProject: "prepareRemoveProject",
   removeProject: "removeProject",
+  prepareRemoveArchivedSessions: "prepareRemoveArchivedSessions",
+  removeArchivedSessions: "removeArchivedSessions",
   sendPrompt: "sendPrompt",
   steerRun: "steerRun",
   queueFollowUp: "queueFollowUp",

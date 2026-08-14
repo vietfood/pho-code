@@ -13,6 +13,7 @@ export function ArchivedChatsSection({
   onRestore,
   onOpen,
   onRemove,
+  onRemoveAll,
 }: {
   projects: readonly RecentWorkspaceRecord[];
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
@@ -20,6 +21,7 @@ export function ArchivedChatsSection({
   onRestore: (workspaceId: string, sessionId: string) => void;
   onOpen: (workspaceId: string, sessionId: string) => void;
   onRemove: (workspaceId: string, sessionId: string) => void;
+  onRemoveAll: (workspaceId: string) => void;
 }) {
   const groups = groupArchivedChatsByProject(projects, sessionsByWorkspace);
   return (
@@ -43,6 +45,7 @@ export function ArchivedChatsSection({
               onRestore={onRestore}
               onOpen={onOpen}
               onRemove={onRemove}
+              onRemoveAll={onRemoveAll}
             />
           ))}
         </div>
@@ -57,22 +60,36 @@ function ArchivedProjectGroup({
   onRestore,
   onOpen,
   onRemove,
+  onRemoveAll,
 }: {
   group: ArchivedChatGroup;
   busy: boolean;
   onRestore: (workspaceId: string, sessionId: string) => void;
   onOpen: (workspaceId: string, sessionId: string) => void;
   onRemove: (workspaceId: string, sessionId: string) => void;
+  onRemoveAll: (workspaceId: string) => void;
 }) {
   return (
     <div className="grid gap-1.5" data-testid="archived-project-group">
-      <div className="min-w-0">
-        <p className="truncate text-xs font-medium" title={group.project.displayName}>
-          {group.project.displayName}
-        </p>
-        <p className="truncate text-[0.625rem] text-muted-foreground" title={group.project.path}>
-          {compactPath(group.project.path)}
-        </p>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium" title={group.project.displayName}>
+            {group.project.displayName}
+          </p>
+          <p className="truncate text-[0.625rem] text-muted-foreground" title={group.project.path}>
+            {compactPath(group.project.path)}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-[0.6875rem] text-muted-foreground"
+          data-testid="remove-all-archived-sessions"
+          disabled={busy}
+          onClick={() => onRemoveAll(group.project.id)}
+        >
+          Delete all
+        </Button>
       </div>
       <ul className="m-0 grid list-none gap-1 p-0">
         {group.sessions.map((session) => (

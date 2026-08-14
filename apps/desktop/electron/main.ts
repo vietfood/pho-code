@@ -34,10 +34,12 @@ import {
   type PasteImagesInput,
   type PickImagesInput,
   type PickImagesResult,
+  type PrepareRemoveArchivedSessionsInput,
   type PrepareRemoveProjectInput,
   type PrepareRemoveSessionInput,
   type QueueFollowUpInput,
   type RemovePreparedImageInput,
+  type RemoveArchivedSessionsInput,
   type RemoveProjectInput,
   type RemoveSessionInput,
   type ReorderRecentWorkspacesInput,
@@ -409,6 +411,22 @@ function registerIpc(): void {
     handleCommand("removeProject", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().removeProject(asRecord(payload) as unknown as RemoveProjectInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.prepareRemoveArchivedSessions, async (event, payload: unknown) =>
+    handleCommand("prepareRemoveArchivedSessions", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().prepareRemoveArchivedSessions(
+        asRecord(payload) as unknown as PrepareRemoveArchivedSessionsInput,
+      );
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.removeArchivedSessions, async (event, payload: unknown) =>
+    handleCommand("removeArchivedSessions", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().removeArchivedSessions(asRecord(payload) as unknown as RemoveArchivedSessionsInput);
     }),
   );
 

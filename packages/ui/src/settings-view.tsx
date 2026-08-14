@@ -115,6 +115,7 @@ export function SettingsView({
   onRestoreArchived,
   onOpenArchived,
   onRemoveSession,
+  onRemoveAllArchived,
   onSkillSourceChange,
   onRefreshSkills,
   onGitHubMcpChange,
@@ -141,6 +142,7 @@ export function SettingsView({
   onRestoreArchived: (workspaceId: string, sessionId: string) => void;
   onOpenArchived: (workspaceId: string, sessionId: string) => void;
   onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onRemoveAllArchived: (workspaceId: string) => void;
   onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
   onRefreshSkills: () => void;
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
@@ -393,6 +395,7 @@ export function SettingsView({
                 onRestoreArchived={onRestoreArchived}
                 onOpenArchived={onOpenArchived}
                 onRemoveSession={onRemoveSession}
+                onRemoveAllArchived={onRemoveAllArchived}
                 onSkillSourceChange={onSkillSourceChange}
                 onRefreshSkills={onRefreshSkills}
                 onGitHubMcpChange={onGitHubMcpChange}
@@ -437,6 +440,7 @@ function SettingsPanel({
   onRestoreArchived,
   onOpenArchived,
   onRemoveSession,
+  onRemoveAllArchived,
   onSkillSourceChange,
   onRefreshSkills,
   onGitHubMcpChange,
@@ -472,6 +476,7 @@ function SettingsPanel({
   onRestoreArchived: (workspaceId: string, sessionId: string) => void;
   onOpenArchived: (workspaceId: string, sessionId: string) => void;
   onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onRemoveAllArchived: (workspaceId: string) => void;
   onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
   onRefreshSkills: () => void;
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
@@ -524,6 +529,7 @@ function SettingsPanel({
           onRestore={onRestoreArchived}
           onOpen={onOpenArchived}
           onRemove={onRemoveSession}
+          onRemoveAll={onRemoveAllArchived}
         />
       );
     case "permissions":

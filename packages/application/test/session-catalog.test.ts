@@ -237,4 +237,35 @@ describe("application session catalog", () => {
       application.removeProject({ workspaceId: workspaceA, confirmationToken: prepared.confirmationToken }),
     ).rejects.toMatchObject({ code: "invalid_command" });
   });
+
+  test("removes only archived chats in a project and keeps the folder", async () => {
+    const { runtime } = createCatalogRuntime();
+    const trashed: string[] = [];
+    runtime.removeValidatedSession = (input) => {
+      trashed.push(input.sessionId);
+      return Promise.resolve({ title: input.sessionId, method: "macos-trash" });
+    };
+    const application = createApplicationService({
+      runtime,
+      versions: { appVersion: "0.0.0", electron: "43.4.0", embeddedNode: "24.18.1" },
+      metadataStore: createMemoryMetadataStore(),
+    });
+    await application.openPickedWorkspace(workspaceA);
+    await application.archiveSession(sessionA);
+    const prepared = await application.prepareRemoveArchivedSessions({ workspaceId: workspaceA });
+    expect(prepared.sessionCount).toBe(1);
+    expect(JSON.stringify(prepared)).not.toContain(".jsonl");
+    const removed = await application.removeArchivedSessions({
+      workspaceId: workspaceA,
+      confirmationToken: prepared.confirmationToken,
+    });
+    expect(removed.recoverable).toBe(true);
+    expect(removed.removedSessionCount).toBe(1);
+    expect(trashed).toEqual(["s-a"]);
+    expect(application.getBootstrapState().recentWorkspaces.map((entry) => entry.id)).toEqual([workspaceA]);
+    expect(await application.listSessionCatalog({ workspaceId: workspaceA, scope: "archived" })).toEqual([]);
+    await expect(
+      application.removeArchivedSessions({ workspaceId: workspaceA, confirmationToken: prepared.confirmationToken }),
+    ).rejects.toMatchObject({ code: "invalid_command" });
+  });
 });

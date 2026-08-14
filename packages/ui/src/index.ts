@@ -57,6 +57,7 @@ export { ChangeModelDialog } from "./change-model-dialog";
 export { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 export { RemoveSessionDialog } from "./remove-session-dialog";
 export { RemoveProjectDialog } from "./remove-project-dialog";
+export { RemoveArchivedSessionsDialog } from "./remove-archived-sessions-dialog";
 export { ProjectContextMenu } from "./project-context-menu";
 export { LoadingDots } from "./loading-dots";
 export { sameModel } from "./lib/model-identity";

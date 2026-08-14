@@ -94,6 +94,32 @@ export interface RemoveProjectResult {
   recentWorkspaces: RecentWorkspaceRecord[];
 }
 
+export interface PrepareRemoveArchivedSessionsInput {
+  workspaceId: string;
+}
+
+export interface PrepareRemoveArchivedSessionsResult {
+  workspaceId: string;
+  displayName: string;
+  path: string;
+  sessionCount: number;
+  confirmationToken: string;
+  sharedAgentDir: boolean;
+  expiresAt: string;
+}
+
+export interface RemoveArchivedSessionsInput {
+  workspaceId: string;
+  confirmationToken: string;
+}
+
+export interface RemoveArchivedSessionsResult {
+  workspaceId: string;
+  removedSessionCount: number;
+  method: string;
+  recoverable: true;
+}
+
 const ACTIVITY_RANK: Record<SessionActivityPhase, number> = {
   attention: 5,
   working: 4,

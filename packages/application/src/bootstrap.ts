@@ -44,6 +44,8 @@ import {
   type OpenSessionInput,
   type PrepareImageInput,
   type PreparedImageSummary,
+  type PrepareRemoveArchivedSessionsInput,
+  type PrepareRemoveArchivedSessionsResult,
   type PrepareRemoveProjectInput,
   type PrepareRemoveProjectResult,
   type PrepareRemoveSessionInput,
@@ -55,6 +57,8 @@ import {
   type QueueFollowUpInput,
   type RecentWorkspaceRecord,
   type RemovePreparedImageInput,
+  type RemoveArchivedSessionsInput,
+  type RemoveArchivedSessionsResult,
   type RemoveProjectInput,
   type RemoveProjectResult,
   type RemoveSessionInput,
@@ -152,6 +156,10 @@ export interface ApplicationService {
   removeSession(input: RemoveSessionInput): Promise<RemoveSessionResult>;
   prepareRemoveProject(input: PrepareRemoveProjectInput): Promise<PrepareRemoveProjectResult>;
   removeProject(input: RemoveProjectInput): Promise<RemoveProjectResult>;
+  prepareRemoveArchivedSessions(
+    input: PrepareRemoveArchivedSessionsInput,
+  ): Promise<PrepareRemoveArchivedSessionsResult>;
+  removeArchivedSessions(input: RemoveArchivedSessionsInput): Promise<RemoveArchivedSessionsResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
@@ -206,6 +214,14 @@ export function createApplicationService(input: {
   let session: SessionSnapshot | undefined;
   const pendingRemovals = new Map<string, { key: SessionKey; fingerprint: string; expiresAt: number }>();
   const pendingProjectRemovals = new Map<
+    string,
+    {
+      workspaceId: string;
+      sessions: Array<{ sessionId: string; fingerprint: string }>;
+      expiresAt: number;
+    }
+  >();
+  const pendingArchivedRemovals = new Map<
     string,
     {
       workspaceId: string;
@@ -594,6 +610,94 @@ export function createApplicationService(input: {
         recentWorkspaces: metadata.recentWorkspaces,
       };
       assertJsonSafe(result, "removeProject");
+      return result;
+    },
+    async prepareRemoveArchivedSessions(command: PrepareRemoveArchivedSessionsInput) {
+      assertActive();
+      const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "prepareRemoveArchivedSessions");
+      const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
+      if (!record) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.workspaceInaccessible,
+          message: "That project is not in the recent list.",
+          operation: "prepareRemoveArchivedSessions",
+          recoverable: true,
+        });
+      }
+      const entries = await loadSessionCatalog(workspaceId, "archived");
+      const sessions: Array<{ sessionId: string; fingerprint: string }> = [];
+      for (const entry of entries) {
+        const inspected = await input.runtime.inspectRemovableSession({
+          workspaceId,
+          sessionId: entry.sessionId,
+        });
+        sessions.push({ sessionId: entry.sessionId, fingerprint: inspected.fingerprint });
+      }
+      if (sessions.length === 0) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That project has no archived chats to delete.",
+          operation: "prepareRemoveArchivedSessions",
+          recoverable: true,
+        });
+      }
+      const confirmationToken = crypto.randomUUID();
+      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
+      pendingArchivedRemovals.set(confirmationToken, {
+        workspaceId,
+        sessions,
+        expiresAt,
+      });
+      const result: PrepareRemoveArchivedSessionsResult = {
+        workspaceId,
+        displayName: record.displayName,
+        path: record.path,
+        sessionCount: sessions.length,
+        confirmationToken,
+        sharedAgentDir: input.runtime.getPermissionSettings().appliesToSharedPiAgentDir === true,
+        expiresAt: new Date(expiresAt).toISOString(),
+      };
+      assertJsonSafe(result, "prepareRemoveArchivedSessions");
+      return result;
+    },
+    async removeArchivedSessions(command: RemoveArchivedSessionsInput) {
+      assertActive();
+      const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "removeArchivedSessions");
+      const confirmationToken = requireNonEmptyString(
+        command.confirmationToken,
+        "confirmationToken",
+        "removeArchivedSessions",
+      );
+      const pending = pendingArchivedRemovals.get(confirmationToken);
+      pendingArchivedRemovals.delete(confirmationToken);
+      if (!pending || Date.now() > pending.expiresAt || pending.workspaceId !== workspaceId) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That removal confirmation expired. Prepare the archived chats again.",
+          operation: "removeArchivedSessions",
+          recoverable: true,
+        });
+      }
+      let method = "macos-trash";
+      for (const target of pending.sessions) {
+        const removed = await input.runtime.removeValidatedSession({
+          workspaceId,
+          sessionId: target.sessionId,
+          fingerprint: target.fingerprint,
+        });
+        method = removed.method;
+        await persist(forgetSessionLifecycle(metadata, { workspaceId, sessionId: target.sessionId }));
+        if (session?.session.id === target.sessionId && session.workspace.id === workspaceId) {
+          session = undefined;
+        }
+      }
+      const result: RemoveArchivedSessionsResult = {
+        workspaceId,
+        removedSessionCount: pending.sessions.length,
+        method,
+        recoverable: true,
+      };
+      assertJsonSafe(result, "removeArchivedSessions");
       return result;
     },
     async sendPrompt(command: SendPromptInput) {

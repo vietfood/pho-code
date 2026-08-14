@@ -23,6 +23,7 @@ import {
   type HarnessSettingsSnapshot,
   type ModelSummary,
   type PreparedImageSummary,
+  type PrepareRemoveArchivedSessionsResult,
   type PrepareRemoveProjectResult,
   type PrepareRemoveSessionResult,
   type ProviderAccountsResult,
@@ -51,6 +52,7 @@ import {
   ProjectTrustDialog,
   projectPermissionTrustPending,
   readSidebarCollapsed,
+  RemoveArchivedSessionsDialog,
   RemoveProjectDialog,
   RemoveSessionDialog,
   SettingsView,
@@ -87,6 +89,9 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<PrepareRemoveSessionResult | null>(null);
   const [pendingProjectRemoval, setPendingProjectRemoval] = useState<PrepareRemoveProjectResult | null>(null);
+  const [pendingArchivedRemoval, setPendingArchivedRemoval] = useState<PrepareRemoveArchivedSessionsResult | null>(
+    null,
+  );
   const [trustDialogOpen, setTrustDialogOpen] = useState(false);
   const [trustDialogDismissedIds, setTrustDialogDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -565,6 +570,15 @@ export function App() {
     );
   }
 
+  function requestRemoveAllArchived(workspaceId: string): void {
+    void runCommand(
+      async () => {
+        setPendingArchivedRemoval(await getDesktopBridge().prepareRemoveArchivedSessions({ workspaceId }));
+      },
+      { busy: false },
+    );
+  }
+
   function admitComposer(kind: "send" | "steer" | "followUp"): void {
     if (!snapshot) {
       return;
@@ -997,6 +1011,7 @@ export function App() {
             });
           }}
           onRemoveSession={requestRemoveSession}
+          onRemoveAllArchived={requestRemoveAllArchived}
           onSkillSourceChange={(input: UpdateSkillSourceSettingsInput) => {
             void runCommand(async () => {
               const next = await getDesktopBridge().updateSkillSourceSettings(input);
@@ -1091,6 +1106,24 @@ export function App() {
               setPendingRemoval(null);
               const entries = await refreshCatalog(prepared.workspaceId);
               leaveSessionIfCurrent(prepared.workspaceId, prepared.sessionId, entries);
+            });
+          }}
+        />
+      ) : null}
+      {pendingArchivedRemoval ? (
+        <RemoveArchivedSessionsDialog
+          pending={pendingArchivedRemoval}
+          busy={busy}
+          onCancel={() => setPendingArchivedRemoval(null)}
+          onConfirm={() => {
+            const prepared = pendingArchivedRemoval;
+            void runCommand(async () => {
+              await getDesktopBridge().removeArchivedSessions({
+                workspaceId: prepared.workspaceId,
+                confirmationToken: prepared.confirmationToken,
+              });
+              setPendingArchivedRemoval(null);
+              await refreshCatalog(prepared.workspaceId);
             });
           }}
         />
