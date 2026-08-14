@@ -5,7 +5,7 @@ import { createWebResearchRuntime, type WebResearchRuntime } from "./web-client"
 import { WebResearchError } from "./web-url";
 
 export const WEB_FEATURE_ID = "pho-web";
-export const WEB_FEATURE_VERSION = "1.0.0";
+export const WEB_FEATURE_VERSION = "1.2.0";
 
 export function createWebFeature(web: WebResearchRuntime = createWebResearchRuntime()): HarnessFeature {
   return {
@@ -25,7 +25,7 @@ function createWebExtension(web: WebResearchRuntime): InlineExtension {
           name: "web_search",
           label: "Web search",
           description:
-            "Search the public web with DuckDuckGo. Returns a small set of titled URLs. Do not use this for local files or private hosts.",
+            "Search the public web across DuckDuckGo, Bing, Brave, Mojeek, and Jina in parallel, then merge unique titled URLs. Do not use this for local files or private hosts. Jina discloses the query to jina.ai; the HTML engines are keyless and may be incomplete.",
           promptSnippet: "Search the public web.",
           promptGuidelines: [
             "Use web_search for current public information.",
@@ -46,7 +46,7 @@ function createWebExtension(web: WebResearchRuntime): InlineExtension {
               });
               return {
                 content: [{ type: "text" as const, text: page.text }],
-                details: { provider: "duckduckgo", sources: page.sources },
+                details: { provider: page.provider, sources: page.sources },
               };
             } catch (error) {
               throw toToolError(error);
@@ -59,10 +59,11 @@ function createWebExtension(web: WebResearchRuntime): InlineExtension {
           name: "fetch_content",
           label: "Fetch content",
           description:
-            "GET a public http: or https: URL and extract readable text. Private, loopback, and credentialed destinations are denied.",
-          promptSnippet: "Fetch a public web page as text.",
+            "GET a public http: or https: URL and extract readable text. YouTube watch/shorts/live URLs return title, channel, description, and captions when they are public. Thin JS pages retry through Jina Reader, which discloses the URL to jina.ai. Private, loopback, and credentialed destinations are denied. Visual frame analysis and Gemini cookie/API video understanding are unavailable.",
+          promptSnippet: "Fetch a public web page or YouTube transcript.",
           promptGuidelines: [
             "Pass a literal public URL.",
+            "For YouTube, pass a watch, shorts, live, embed, or youtu.be URL to get captions and metadata.",
             "Do not fetch file paths, localhost, or metadata endpoints.",
             "Images, PDFs, and binary downloads are unsupported.",
           ],
@@ -81,7 +82,7 @@ function createWebExtension(web: WebResearchRuntime): InlineExtension {
               return {
                 content: [{ type: "text" as const, text: page.text }],
                 details: {
-                  provider: "http",
+                  provider: page.source.provider,
                   sources: [page.source],
                   contentType: page.contentType,
                 },

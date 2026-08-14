@@ -131,6 +131,8 @@ describe("protocol serialization", () => {
   test("keeps web source records JSON-safe", () => {
     const source = { title: "Example", url: "https://example.com/doc", provider: "duckduckgo" as const };
     expect(isWebSourceRecord(source)).toBe(true);
+    expect(isWebSourceRecord({ title: "Jina", url: "https://example.com/doc", provider: "jina" })).toBe(true);
+    expect(isWebSourceRecord({ title: "Talk", url: "https://www.youtube.com/watch?v=abcdefghijk", provider: "youtube" })).toBe(true);
     expect(isWebSourceRecord({ title: "x", url: "file:///etc/passwd", provider: "http" })).toBe(false);
     expect(isJsonSafeValue({ sources: [source] })).toBe(true);
     expect(jsonRoundTrip(source)).toEqual(source);

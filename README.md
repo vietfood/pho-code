@@ -135,7 +135,8 @@ Pho Code is new code. It would not exist in this shape without the projects belo
 
 - **[`@gotgenes/pi-permission-system`](https://www.npmjs.com/package/@gotgenes/pi-permission-system)** by Chris Lasher — the first baked feature: policy, confirm/select/input host UI, and the permission modes Settings exposes.
 - **[`@ff-labs/fff-node`](https://www.npmjs.com/package/@ff-labs/fff-node)** by Dmitry Kovalenko, with tool names informed by [`@ff-labs/pi-fff`](https://www.npmjs.com/package/@ff-labs/pi-fff) — workspace-scoped local retrieval and `@` suggestions. Pho Code owns the adapter and index location; it does not load the Pi TUI extension.
-- **[`pi-web-access`](https://www.npmjs.com/package/pi-web-access)** by Nico Bailon — policy and DuckDuckGo parsing that informed the application-owned `pho-web` tools. Pho Code does not load that extension.
+- **[`pi-web-access`](https://www.npmjs.com/package/pi-web-access)** by Nico Bailon — policy, DuckDuckGo parsing, and YouTube URL detection that informed the application-owned `pho-web` tools. Pho Code does not load that extension.
+- **[Jina Reader / Search](https://github.com/jina-ai/reader)** — keyless HTTP search/extraction used by `pho-web` alongside HTML search engines and for thin JS pages. Queries and target URLs on that path are disclosed to jina.ai.
 - **[Readability](https://github.com/mozilla/readability)**, **[linkedom](https://github.com/WebReflection/linkedom)**, and **[Turndown](https://github.com/mixmark-io/turndown)** — public-page extraction behind `fetch_content`.
 
 Local checkouts of T3 Code, pi-gui, and pi-web live under [`refs/`](./refs) as read-only references. They are not the application base.

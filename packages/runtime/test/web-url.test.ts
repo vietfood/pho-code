@@ -79,4 +79,16 @@ describe("DuckDuckGo HTML parse", () => {
       { title: "Example docs", url: "https://example.com/docs", snippet: "Public documentation" },
     ]);
   });
+
+  test("reads DuckDuckGo Lite table rows", () => {
+    const html = `
+      <table>
+        <tr class="result-link"><td><a href="/l/?uddg=https%3A%2F%2Fexample.com%2Fcu">cuEquivariance</a></td></tr>
+        <tr class="result-snippet"><td>NVIDIA equivariant kernels</td></tr>
+      </table>
+    `;
+    expect(parseDuckDuckGoResults(html)).toEqual([
+      { title: "cuEquivariance", url: "https://example.com/cu", snippet: "NVIDIA equivariant kernels" },
+    ]);
+  });
 });

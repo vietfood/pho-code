@@ -36,7 +36,7 @@ export { createLocalRetrievalRuntime } from "./local-retrieval";
 export type { LocalRetrievalRuntime } from "./local-retrieval";
 export { WEB_FEATURE_ID, WEB_FEATURE_VERSION, createWebFeature } from "./web-feature";
 export { createWebResearchRuntime } from "./web-client";
-export type { WebResearchRuntime } from "./web-client";
+export type { WebResearchRuntime, WebResearchRuntimeOptions } from "./web-client";
 export { APP_OWNED_TOOL_NAMES, displayToolName, displayToolNamesInText } from "./tool-display";
 export { createOsTrashRemovalService, probeTrashFacility } from "./recoverable-removal";
 export type { RecoverableRemovalService, TrashMethod } from "./recoverable-removal";

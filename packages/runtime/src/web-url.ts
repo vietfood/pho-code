@@ -17,6 +17,13 @@ export type PublicHttpRequest = (
   approvedAddresses: readonly LookupAddress[],
 ) => Promise<Response>;
 
+export interface WebPageRequest {
+  (url: string, init: RequestInit, options: { stage: string; signal: AbortSignal }): Promise<{
+    response: Response;
+    finalUrl: string;
+  }>;
+}
+
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 export class WebResearchError extends Error {

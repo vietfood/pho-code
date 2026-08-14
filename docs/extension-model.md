@@ -115,7 +115,7 @@ const retrievalFeature: HarnessFeature = {
 
 const webFeature: HarnessFeature = {
   id: "pho-web",
-  version: "1.0.0",
+  version: "1.2.0",
   inlineFactory: "pho-web",
 };
 ```
@@ -126,7 +126,7 @@ The application-owned Trash feature registers the `move_to_trash` tool through a
 
 The application-owned local-retrieval feature wraps pinned `@ff-labs/fff-node` `0.10.1`. One `FileFinder` per active workspace serves additive `fffind` / `ffgrep` / `fff-multi-grep` tools and the typed `searchWorkspaceReferences` command. Pho Code does not load `@ff-labs/pi-fff` because that extension owns a second index and TUI `@` autocomplete this host no-ops. Index and frecency state live under application data `retrieval/<workspace-hash>/`, never in packaged resources or another Pi installation’s default FFF database. Native lookup failure degrades the feature; ordinary chat continues.
 
-The application-owned `pho-web` feature registers additive `web_search` and `fetch_content` tools. Search uses keyless DuckDuckGo HTML results. Fetch is a public `http:`/`https:` GET with DNS/SSRF, redirect, timeout, and size limits, then Readability/Turndown extraction. Pho Code does not load `pi-web-access`; Exa MCP, Codex/OpenAI search, browser cookies, GitHub cloning, PDF/video, and hosted extraction fallbacks are unavailable. Requests originate in the privileged runtime; the renderer `connect-src 'self'` policy is unchanged.
+The application-owned `pho-web` feature registers additive `web_search` and `fetch_content` tools. Search fans out in parallel across keyless DuckDuckGo HTML/Lite, Bing, Brave, Mojeek, and Jina, then merges unique URLs. Fetch is a public `http:`/`https:` GET with DNS/SSRF, redirect, timeout, and size limits, then Readability/Turndown extraction; YouTube watch/shorts URLs return public captions and metadata when available; thin HTML retries through Jina Reader. Jina discloses the query or URL to jina.ai. Pho Code does not load `pi-web-access`; Exa MCP, Codex/OpenAI search, browser cookies, GitHub cloning, PDF conversion, and Gemini video understanding remain unavailable. Requests originate in the privileged runtime; the renderer `connect-src 'self'` policy is unchanged.
 
 The package currently exposes its service API at the package root while its Pi extension factory is declared by the package's `pi.extensions` manifest. Resolve/package it as a Pi package resource; do not import the root service and assume it is the extension factory. If packaging the published package cannot provide a stable manifest path, add a narrow application adapter or request an upstream factory export rather than reaching through undocumented internal paths throughout the runtime.
 

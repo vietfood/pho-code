@@ -15,7 +15,7 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;
 - additive FFF-backed `fffind` / `ffgrep` / `fff-multi-grep` tools and composer inline `@path` mentions from one workspace-scoped index;
-- additive `pho-web` tools `web_search` (DuckDuckGo) and `fetch_content` (bounded public HTTP GET) with SSRF/redirect/size limits;
+- additive `pho-web` tools `web_search` (parallel DuckDuckGo, Bing, Brave, Mojeek, and Jina, merged unique URLs) and `fetch_content` (bounded public HTTP GET with Readability, YouTube captions/metadata, then Jina Reader for thin JS pages) with SSRF/redirect/size limits;
 - Pi-native **Steer current run** / **Add follow-up** commands with pending queue chips projected from Pi;
 - image attachments (PNG/JPEG/GIF/WebP) picked or pasted, prepared without absolute paths, and admitted only when the selected model accepts images;
 - an application-owned `move_to_trash` tool that uses the operating-system Trash facility and never falls back to permanent deletion;

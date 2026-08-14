@@ -106,6 +106,7 @@ export type {
 } from "./retrieval";
 
 export {
+  isWebSearchProvider,
   isWebSourceProvider,
   isWebSourceRecord,
   MAX_WEB_CONCURRENT_REQUESTS,

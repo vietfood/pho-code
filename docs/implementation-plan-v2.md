@@ -350,7 +350,7 @@ The selected upstreams and references are:
 - [`pi-web-access`](https://pi.dev/packages/pi-web-access) `0.22.0`, selected as the primary web-search and fetch upstream because it already contains general search, attributable sources, SSRF and redirect controls, bounded retrieval, and cancellation-aware provider paths;
 - [`@mrclrchtr/supi-web`](https://github.com/mrclrchtr/supi/tree/main/packages/supi-web), retained only as a secondary extraction reference for content negotiation, Markdown sibling discovery, Readability conversion, and context-window handling. It is not the Milestone 1 search provider or an approved runtime dependency.
 
-FFF `0.10.1` is an accepted exact runtime dependency. Its packaged resolver receives the documented build-time ASAR-unpacked adaptation and fails closed if the pinned upstream source shape changes. `pi-web-access` and `supi-web` remain reviewed references rather than runtime dependencies; Pho Code owns the narrow DuckDuckGo/search and content-extraction adapter. Selected dependencies and materially adapted surfaces are recorded in `docs/references-and-attribution.md` and third-party notices.
+FFF `0.10.1` is an accepted exact runtime dependency. Its packaged resolver receives the documented build-time ASAR-unpacked adaptation and fails closed if the pinned upstream source shape changes. `pi-web-access` and `supi-web` remain reviewed references rather than runtime dependencies; Pho Code owns the multi-engine search and content-extraction adapter. Selected dependencies and materially adapted surfaces are recorded in `docs/references-and-attribution.md` and third-party notices.
 
 Do not load either web extension wholesale. `pi-web-access` exposes substantial behavior outside this milestone, while `supi-web` does not provide general web search and its current fetch boundary is not sufficient for the required private-network, redirect, and response-size policy. Build a small application-owned adapter from a pinned, reviewed upstream surface. Do not silently fork copied code; any material adaptation requires license and attribution records.
 
@@ -394,14 +394,14 @@ Use owned fixtures to prove workspace boundaries, result shape, fail-closed nati
 
 #### Status
 
-Implemented for owner testing. The first provider is keyless DuckDuckGo. `pi-web-access` was audited at `0.22.0` and is **not** loaded.
+Implemented for owner testing. Search fans out in parallel across keyless DuckDuckGo HTML/Lite, Bing, Brave, Mojeek, and Jina, then merges unique URLs. Fetch uses local Readability, public YouTube captions/metadata for watch URLs, and Jina Reader for thin JS pages. `pi-web-access` was audited at `0.22.0` and is **not** loaded.
 
 #### Approved first surface
 
 Expose only:
 
 - `web_search`: public search with a bounded query count and normalized result/source records;
-- `fetch_content`: public `http:`/`https:` GET content extraction for a user- or agent-supplied URL.
+- `fetch_content`: public `http:`/`https:` GET content extraction for a user- or agent-supplied URL, including public YouTube captions and metadata for watch/shorts URLs.
 
 Target exact `pi-web-access` `0.22.0` as the primary implementation upstream behind a source-controlled `pho-web` adapter, subject to the artifact audit above before it enters the lockfile. Reuse only the reviewed search, source-provenance, SSRF/DNS, redirect, timeout, abort, and streamed-size mechanisms needed by these two tools. The adapter owns the tool schemas, policy defaults, provider selection, diagnostics, and mutable storage; upstream Pi commands, configuration files, and unrelated tools are not part of the feature surface.
 
@@ -409,11 +409,11 @@ Target exact `pi-web-access` `0.22.0` as the primary implementation upstream beh
 
 The renderer's production `connect-src 'self'` policy remains unchanged. Requests originate in the privileged runtime adapter. Tool output is projected through the existing untrusted tool-result presentation plus a bounded source model containing title, final URL, provider, and optional publication date. Citations remain clickable only through the existing validated external-link path.
 
-Exclude from the adapter and packaged feature: ambient Codex/OpenAI authentication, browser-cookie Gemini access, authenticated sessions, automatic provider fallback, Exa MCP implicit routing, hosted extraction fallback, curator windows, Pi slash commands, form submission, uploads, arbitrary browsing, local paths, images, PDF conversion, local video, YouTube/video analysis, GitHub cloning, and any command that writes fetched content or repositories outside Pho Code's bounded app-owned cache.
+Exclude from the adapter and packaged feature: ambient Codex/OpenAI authentication, browser-cookie Gemini access, authenticated sessions, Exa MCP implicit routing, Firecrawl/Gemini hosted extraction, curator windows, Pi slash commands, form submission, uploads, arbitrary browsing, local paths, images, PDF conversion, local video files, Gemini visual YouTube understanding, GitHub cloning, and any command that writes fetched content or repositories outside Pho Code's bounded app-owned cache. Keyless HTML search engines and Jina Search/Reader are owned `pho-web` HTTP paths, documented on the tools. Public YouTube captions and metadata are in; cookie/API video vision is not.
 
 #### Network and egress policy
 
-The first implementation uses an explicitly selected provider. Zero-key Exa MCP and reuse of Codex/OpenAI subscription credentials are disabled until separately reviewed because they create implicit remote dependencies and credential coupling.
+The first implementation uses an owned parallel fan-out: DuckDuckGo HTML/Lite, Bing, Brave, Mojeek, and Jina Search, then a merged unique result list. Zero-key Exa MCP and reuse of Codex/OpenAI subscription credentials remain disabled because they create implicit remote dependencies and credential coupling. Jina is a documented keyless HTTP participant, not ambient provider auto-routing.
 
 Apply these decisions:
 
@@ -427,11 +427,11 @@ Apply these decisions:
 
 Validate the URL before connection and after every redirect. Resolve DNS and reject private/special ranges for every address family, defend against DNS rebinding, strip fragments and userinfo, bound redirects, and do not trust proxy variables by default. Apply connection and idle timeouts, an overall deadline, response-byte and extracted-text limits, content-type allowlists, decompression limits, concurrency limits, and one AbortSignal through provider, fetch, extraction, and result projection. Redact authorization-like values and never place raw response headers or unbounded page text into diagnostics.
 
-Default planning bounds are five results per query, one query per call, two concurrent remote requests, 15 seconds per request, three redirects, 5 MiB compressed response, and 100 KiB extracted text. The source audit may tighten these values; any increase requires evidence against context flooding, latency, and provider cost.
+Default planning bounds are eight results per query, one query per call, two concurrent remote tool requests, 15 seconds per request, three redirects, 5 MiB compressed response, and 100 KiB extracted text. Search may issue several provider GETs in parallel inside one tool call. The source audit may tighten these values; any increase requires evidence against context flooding, latency, and provider cost.
 
 #### Failure behavior
 
-Provider unavailable, rate-limited, timed out, blocked, malformed, or unsupported content produces a bounded tool failure naming the stage and retryability. It does not silently switch to an unconfigured provider, browser cookies, or a browser automation fallback. Abort and shutdown settle requests before the runtime reports disposal complete.
+Provider unavailable, rate-limited, timed out, blocked, malformed, or unsupported content produces a bounded tool failure naming the stage and retryability. Empty HTML from one search engine does not fail the call while another engine still returns public URLs; it does not switch to Exa MCP, Codex/OpenAI search, browser cookies, or browser automation. Abort and shutdown settle requests before the runtime reports disposal complete.
 
 ### Slice 3: Pi-native steering and follow-up
 

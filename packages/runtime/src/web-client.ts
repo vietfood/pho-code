@@ -7,17 +7,44 @@ import {
   MAX_WEB_RESPONSE_BYTES,
   MAX_WEB_SEARCH_QUERY,
   MAX_WEB_SEARCH_RESULTS,
+  type WebSearchProvider,
   type WebSourceRecord,
 } from "@pho-code/protocol";
+import {
+  mergeSearchHits,
+  searchEngineSpecs,
+  summarizeSearchProviders,
+  type RankedSearchHit,
+  type WebSearchHit,
+} from "./web-search-providers";
+import { extractYouTubeContent, parseYouTubeVideoId } from "./web-youtube";
 import {
   combineAbortSignals,
   fetchPublicHttpUrl,
   validatePublicHttpUrl,
   WebResearchError,
+  type DnsLookup,
+  type WebPageRequest,
 } from "./web-url";
 
-const SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
-const USER_AGENT = "Pho-Code/1.0 (personal desktop harness)";
+export {
+  BING_SEARCH_ENDPOINT,
+  BRAVE_SEARCH_ENDPOINT,
+  DUCKDUCKGO_HTML_ENDPOINT,
+  DUCKDUCKGO_LITE_ENDPOINT,
+  JINA_SEARCH_ORIGIN,
+  MOJEEK_SEARCH_ENDPOINT,
+  parseBingResults,
+  parseBraveResults,
+  parseDuckDuckGoResults,
+  parseJinaSearchResults,
+  parseMojeekResults,
+} from "./web-search-providers";
+export { parseYouTubeVideoId } from "./web-youtube";
+export const JINA_READER_ORIGIN = "https://r.jina.ai";
+
+const USER_AGENT = "Mozilla/5.0 (compatible; Pho-Code/1.2)";
+const MIN_USEFUL_EXTRACT_CHARS = 160;
 const ALLOWED_FETCH_TYPES = [
   "text/html",
   "application/xhtml+xml",
@@ -33,7 +60,10 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
+export type { WebSearchHit } from "./web-search-providers";
+
 export interface WebSearchPage {
+  provider: WebSearchProvider;
   sources: WebSourceRecord[];
   text: string;
 }
@@ -44,6 +74,13 @@ export interface WebFetchPage {
   contentType: string;
 }
 
+export type { WebPageRequest };
+
+export interface WebResearchRuntimeOptions {
+  fetchPage?: WebPageRequest;
+  lookup?: DnsLookup;
+}
+
 export interface WebResearchRuntime {
   search(input: { query: string; signal?: AbortSignal }): Promise<WebSearchPage>;
   fetchContent(input: { url: string; signal?: AbortSignal }): Promise<WebFetchPage>;
@@ -51,10 +88,18 @@ export interface WebResearchRuntime {
   dispose(): Promise<void>;
 }
 
-export function createWebResearchRuntime(): WebResearchRuntime {
+export function createWebResearchRuntime(options: WebResearchRuntimeOptions = {}): WebResearchRuntime {
   const gate = createConcurrencyGate(MAX_WEB_CONCURRENT_REQUESTS);
   const inflight = new Set<AbortController>();
   let disposed = false;
+  const fetchPage: WebPageRequest =
+    options.fetchPage ??
+    ((url, init, requestOptions) =>
+      fetchPublicHttpUrl(url, init, {
+        stage: requestOptions.stage,
+        signal: requestOptions.signal,
+        ...(options.lookup ? { lookup: options.lookup } : {}),
+      }));
 
   function track<T>(signal: AbortSignal | undefined, run: (combined: AbortSignal) => Promise<T>): Promise<T> {
     if (disposed) {
@@ -72,10 +117,10 @@ export function createWebResearchRuntime(): WebResearchRuntime {
 
   return {
     search(input) {
-      return track(input.signal, (signal) => searchDuckDuckGo(input.query, signal));
+      return track(input.signal, (signal) => searchPublicWeb(input.query, signal, fetchPage, options.lookup));
     },
     fetchContent(input) {
-      return track(input.signal, (signal) => fetchExtractedContent(input.url, signal));
+      return track(input.signal, (signal) => fetchExtractedContent(input.url, signal, fetchPage));
     },
     diagnostics() {
       return [];
@@ -90,70 +135,95 @@ export function createWebResearchRuntime(): WebResearchRuntime {
   };
 }
 
-// DuckDuckGo HTML result parsing adapted from pi-web-access 0.22.0 duckduckgo.ts
-// (MIT, Nico Bailon). Ads skipped; uddg redirect URLs decoded.
-export function parseDuckDuckGoResults(
-  html: string,
-  limit = MAX_WEB_SEARCH_RESULTS,
-): Array<{ title: string; url: string; snippet: string }> {
-  const { document } = parseHTML(html);
-  const hits: Array<{ title: string; url: string; snippet: string }> = [];
-  for (const container of document.querySelectorAll(".result")) {
-    if (container.classList.contains("result--ad")) {
-      continue;
-    }
-    const anchor = container.querySelector(".result__a");
-    const title = anchor?.textContent?.trim() ?? "";
-    const href = anchor?.getAttribute("href")?.trim() ?? "";
-    const url = href ? decodeDuckDuckGoUrl(href) : null;
-    if (!title || !url) {
-      continue;
-    }
-    const snippet = container.querySelector(".result__snippet")?.textContent?.trim() ?? "";
-    hits.push({ title, url, snippet });
-    if (hits.length >= limit) {
-      break;
-    }
-  }
-  return hits;
-}
-
-async function searchDuckDuckGo(query: string, signal: AbortSignal): Promise<WebSearchPage> {
+async function searchPublicWeb(
+  query: string,
+  signal: AbortSignal,
+  fetchPage: WebPageRequest,
+  lookup: DnsLookup | undefined,
+): Promise<WebSearchPage> {
   const trimmed = query.trim().slice(0, MAX_WEB_SEARCH_QUERY);
   if (trimmed === "") {
     throw new WebResearchError("web_search/query", "A search query is required.", false);
   }
-  const endpoint = new URL(SEARCH_ENDPOINT);
-  endpoint.searchParams.set("q", trimmed);
-  const { response } = await fetchPublicHttpUrl(
-    endpoint.toString(),
-    {
-      method: "GET",
-      headers: {
-        Accept: "text/html",
-        "User-Agent": USER_AGENT,
-      },
-      credentials: "omit",
-      signal,
-    },
-    { stage: "web_search/provider", signal },
+
+  const settled = await Promise.allSettled(
+    searchEngineSpecs().map(async (engine) => {
+      const { response } = await fetchPage(
+        engine.url(trimmed),
+        {
+          method: "GET",
+          headers: {
+            "User-Agent": USER_AGENT,
+            ...engine.headers,
+          },
+          credentials: "omit",
+        },
+        { stage: "web_search/provider", signal },
+      );
+      if (!response.ok) {
+        throw new WebResearchError(
+          "web_search/provider",
+          `${engine.provider} returned HTTP ${response.status}.`,
+          response.status >= 500 || response.status === 429,
+        );
+      }
+      const body = await readLimitedText(response, "web_search/provider");
+      return { provider: engine.provider, hits: engine.parse(body, MAX_WEB_SEARCH_RESULTS) };
+    }),
   );
-  if (!response.ok) {
-    throw new WebResearchError(
-      "web_search/provider",
-      `DuckDuckGo returned HTTP ${response.status}.`,
-      response.status >= 500 || response.status === 429,
-    );
+
+  if (signal.aborted) {
+    throw new WebResearchError("web_search/provider", "The request was aborted.", false);
   }
-  const html = await readLimitedText(response, "web_search/provider");
+
+  const groups: Array<{ provider: RankedSearchHit["provider"]; hits: WebSearchHit[] }> = [];
+  const errors: string[] = [];
+  let retryable = false;
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      groups.push(result.value);
+      continue;
+    }
+    const reason = result.reason;
+    if (reason instanceof WebResearchError) {
+      errors.push(reason.message);
+      retryable = retryable || reason.retryable;
+    } else {
+      errors.push(reason instanceof Error ? reason.message : String(reason));
+      retryable = true;
+    }
+  }
+
+  const merged = mergeSearchHits(groups, MAX_WEB_SEARCH_RESULTS);
+  const page = await toSearchPage(merged, lookup);
+  if (page.sources.length > 0) {
+    return page;
+  }
+  throw new WebResearchError(
+    "web_search/provider",
+    errors.length > 0
+      ? `No usable public search results. ${errors.slice(0, 3).join(" ")}`
+      : "No usable public search results.",
+    retryable || errors.length > 0,
+  );
+}
+
+async function toSearchPage(hits: RankedSearchHit[], lookup: DnsLookup | undefined): Promise<WebSearchPage> {
   const sources: WebSourceRecord[] = [];
   const lines: string[] = [];
-  for (const hit of parseDuckDuckGoResults(html)) {
+  for (const hit of hits) {
     try {
-      const safe = await validatePublicHttpUrl(hit.url, { stage: "web_search/result" });
+      const safe = await validatePublicHttpUrl(hit.url, {
+        stage: "web_search/result",
+        ...(lookup ? { lookup } : {}),
+      });
       const url = safe.toString();
-      sources.push({ title: hit.title, url, provider: "duckduckgo" });
-      lines.push(hit.snippet ? `${sources.length}. ${hit.title}\n   ${url}\n   ${hit.snippet}` : `${sources.length}. ${hit.title}\n   ${url}`);
+      sources.push({ title: hit.title, url, provider: hit.provider });
+      lines.push(
+        hit.snippet
+          ? `${sources.length}. ${hit.title}\n   ${url}\n   ${hit.snippet}\n   [${hit.provider}]`
+          : `${sources.length}. ${hit.title}\n   ${url}\n   [${hit.provider}]`,
+      );
     } catch {
       continue;
     }
@@ -161,14 +231,35 @@ async function searchDuckDuckGo(query: string, signal: AbortSignal): Promise<Web
       break;
     }
   }
-  if (sources.length === 0) {
-    throw new WebResearchError("web_search/provider", "DuckDuckGo returned no usable public results.", true);
-  }
-  return { sources, text: lines.join("\n\n") };
+  const provider = summarizeSearchProviders(sources.map((source) => source.provider));
+  return {
+    provider,
+    sources,
+    text: sources.length === 0 ? "" : `Search results (${provider}):\n\n${lines.join("\n\n")}`,
+  };
 }
 
-async function fetchExtractedContent(url: string, signal: AbortSignal): Promise<WebFetchPage> {
-  const { response, finalUrl } = await fetchPublicHttpUrl(
+async function fetchExtractedContent(
+  url: string,
+  signal: AbortSignal,
+  fetchPage: WebPageRequest,
+): Promise<WebFetchPage> {
+  if (parseYouTubeVideoId(url)) {
+    try {
+      const page = await extractYouTubeContent(url, signal, fetchPage);
+      return {
+        source: { title: page.title, url: page.url, provider: "youtube" },
+        text: page.text,
+        contentType: "text/markdown",
+      };
+    } catch (error) {
+      if (error instanceof WebResearchError && !error.retryable) {
+        throw error;
+      }
+    }
+  }
+
+  const { response, finalUrl } = await fetchPage(
     url,
     {
       method: "GET",
@@ -177,7 +268,6 @@ async function fetchExtractedContent(url: string, signal: AbortSignal): Promise<
         "User-Agent": USER_AGENT,
       },
       credentials: "omit",
-      signal,
     },
     { stage: "fetch_content/ssrf", signal },
   );
@@ -188,7 +278,8 @@ async function fetchExtractedContent(url: string, signal: AbortSignal): Promise<
       response.status >= 500 || response.status === 429,
     );
   }
-  const contentType = (response.headers.get("content-type") ?? "application/octet-stream").split(";")[0]?.trim().toLowerCase() ?? "";
+  const contentType =
+    (response.headers.get("content-type") ?? "application/octet-stream").split(";")[0]?.trim().toLowerCase() ?? "";
   if (!isAllowedContentType(contentType)) {
     throw new WebResearchError(
       "fetch_content/mime",
@@ -198,51 +289,172 @@ async function fetchExtractedContent(url: string, signal: AbortSignal): Promise<
   }
   const body = await readLimitedText(response, "fetch_content/body");
   const extracted = extractReadableText(body, contentType, finalUrl);
-  const clipped = extracted.text.slice(0, MAX_WEB_EXTRACTED_CHARS);
-  return {
-    source: { title: extracted.title, url: finalUrl, provider: "http" },
-    text: clipped,
-    contentType,
-  };
-}
-
-function extractReadableText(
-  body: string,
-  contentType: string,
-  url: string,
-): { title: string; text: string } {
-  if (
-    contentType.includes("text/html") ||
-    contentType.includes("application/xhtml+xml")
-  ) {
-    const { document } = parseHTML(body);
-    const documentTitle = document.title?.trim() ?? "";
-    const reader = new Readability(document as never);
-    const article = reader.parse();
-    if (!article || typeof article.content !== "string") {
+  if (extracted && isUsefulExtract(extracted.text)) {
+    return toFetchPage(extracted, finalUrl, contentType, "http");
+  }
+  if (isHtmlContentType(contentType)) {
+    try {
+      return await fetchJinaReader(finalUrl, signal, fetchPage);
+    } catch (error) {
+      if (extracted) {
+        return toFetchPage(extracted, finalUrl, contentType, "http");
+      }
+      if (error instanceof WebResearchError) {
+        throw error;
+      }
       throw new WebResearchError(
         "fetch_content/extract",
         "Could not extract readable content from that page.",
         false,
       );
     }
-    const markdown = turndown.turndown(article.content).trim();
-    if (markdown === "") {
-      throw new WebResearchError(
-        "fetch_content/extract",
-        "Extracted content was empty.",
-        false,
-      );
+  }
+  if (extracted) {
+    return toFetchPage(extracted, finalUrl, contentType, "http");
+  }
+  throw new WebResearchError("fetch_content/extract", "Could not extract readable content from that page.", false);
+}
+
+async function fetchJinaReader(
+  targetUrl: string,
+  signal: AbortSignal,
+  fetchPage: WebPageRequest,
+): Promise<WebFetchPage> {
+  const endpoint = `${JINA_READER_ORIGIN}/${encodeURI(targetUrl)}`;
+  const { response } = await fetchPage(
+    endpoint,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json, text/plain;q=0.8",
+        "User-Agent": USER_AGENT,
+        "X-Retain-Images": "none",
+        "X-Timeout": "15",
+      },
+      credentials: "omit",
+    },
+    { stage: "fetch_content/jina", signal },
+  );
+  if (!response.ok) {
+    throw new WebResearchError(
+      "fetch_content/jina",
+      `Jina Reader returned HTTP ${response.status} for ${targetUrl}.`,
+      response.status >= 500 || response.status === 429,
+    );
+  }
+  const body = await readLimitedText(response, "fetch_content/jina");
+  const extracted = parseJinaReaderBody(body, targetUrl);
+  if (!extracted || extracted.text.trim() === "") {
+    throw new WebResearchError("fetch_content/jina", "Jina Reader returned empty content.", true);
+  }
+  return toFetchPage(extracted, targetUrl, "text/markdown", "jina");
+}
+
+export function extractReadableText(
+  body: string,
+  contentType: string,
+  url: string,
+): { title: string; text: string } | null {
+  if (isHtmlContentType(contentType)) {
+    const parsed = parseHTML(body);
+    const documentTitle = parsed.document.title?.trim() ?? "";
+    try {
+      const reader = new Readability(parsed.document as never);
+      const article = reader.parse();
+      if (article && typeof article.content === "string") {
+        const markdown = turndown.turndown(article.content).trim();
+        if (markdown !== "") {
+          const title = (article.title || documentTitle || url).trim();
+          return { title, text: formatExtractedPage(title, url, markdown) };
+        }
+      }
+    } catch {
+      // Fall through to structural extraction on a fresh parse.
     }
-    const title = (article.title || documentTitle || url).trim();
-    return { title, text: `# ${title}\n\nSource: ${url}\n\n${markdown}` };
+    return extractStructuralHtml(parseHTML(body).document, documentTitle, url);
   }
   const title = url;
-  return { title, text: `Source: ${url}\n\n${body.trim()}` };
+  const trimmed = body.trim();
+  return trimmed === "" ? null : { title, text: `Source: ${url}\n\n${trimmed}` };
+}
+
+function extractStructuralHtml(
+  document: ReturnType<typeof parseHTML>["document"],
+  documentTitle: string,
+  url: string,
+): { title: string; text: string } | null {
+  for (const node of document.querySelectorAll("script, style, noscript, svg")) {
+    node.remove();
+  }
+  const ogTitle = metaContent(document, "og:title") ?? metaContent(document, "twitter:title");
+  const description =
+    metaContent(document, "description") ??
+    metaContent(document, "og:description") ??
+    metaContent(document, "twitter:description") ??
+    "";
+  const title = (ogTitle || documentTitle || url).trim();
+  const main = document.querySelector("article, main, [role='main']") ?? document.body;
+  const raw = main?.textContent?.replace(/\s+/gu, " ").trim() ?? "";
+  const parts = [description, raw].filter((part) => part !== "");
+  if (parts.length === 0) {
+    return null;
+  }
+  return { title, text: formatExtractedPage(title, url, parts.join("\n\n")) };
+}
+
+function parseJinaReaderBody(body: string, url: string): { title: string; text: string } | null {
+  const trimmed = body.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    const record = jinaReaderRecord(parsed);
+    const content = readString(record, ["content", "text", "markdown"]) ?? "";
+    const title = readString(record, ["title", "name"]) ?? url;
+    if (content.trim() !== "") {
+      return { title, text: formatExtractedPage(title, url, content.trim()) };
+    }
+  } catch {
+    // Plain markdown from Jina Reader.
+  }
+  return { title: url, text: formatExtractedPage(url, url, trimmed) };
+}
+
+function toFetchPage(
+  extracted: { title: string; text: string },
+  url: string,
+  contentType: string,
+  provider: WebSourceRecord["provider"],
+): WebFetchPage {
+  return {
+    source: { title: extracted.title, url, provider },
+    text: extracted.text.slice(0, MAX_WEB_EXTRACTED_CHARS),
+    contentType,
+  };
+}
+
+function formatExtractedPage(title: string, url: string, body: string): string {
+  return `# ${title}\n\nSource: ${url}\n\n${body}`.trim();
+}
+
+function isUsefulExtract(text: string): boolean {
+  const body = text.replace(/^# .+\n\nSource: \S+\n\n/u, "").trim();
+  if (body.length < MIN_USEFUL_EXTRACT_CHARS) {
+    return false;
+  }
+  if (body.length < 400 && /enable javascript|checking your browser|just a moment|cookie (consent|settings|policy)|cf-browser/iu.test(body)) {
+    return false;
+  }
+  return true;
 }
 
 function isAllowedContentType(contentType: string): boolean {
   return ALLOWED_FETCH_TYPES.some((allowed) => contentType === allowed || contentType.startsWith(`${allowed}+`));
+}
+
+function isHtmlContentType(contentType: string): boolean {
+  return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 }
 
 async function readLimitedText(response: Response, stage: string): Promise<string> {
@@ -273,15 +485,36 @@ async function readLimitedText(response: Response, stage: string): Promise<strin
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-function decodeDuckDuckGoUrl(href: string): string | null {
-  try {
-    const link = new URL(href, SEARCH_ENDPOINT);
-    const destination = link.searchParams.get("uddg") ?? link.href;
-    const url = new URL(destination);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
+function jinaReaderRecord(parsed: unknown): Record<string, unknown> {
+  if (!isPlainRecord(parsed)) {
+    return {};
   }
+  if (isPlainRecord(parsed.data)) {
+    return parsed.data;
+  }
+  return parsed;
+}
+
+function metaContent(document: ReturnType<typeof parseHTML>["document"], name: string): string | undefined {
+  const property = document.querySelector(`meta[property="${name}"]`)?.getAttribute("content")?.trim();
+  if (property) {
+    return property;
+  }
+  return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content")?.trim() || undefined;
+}
+
+function readString(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function createConcurrencyGate(limit: number): { run<T>(fn: () => Promise<T>): Promise<T> } {
