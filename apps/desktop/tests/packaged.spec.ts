@@ -107,7 +107,7 @@ test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", 
     });
     try {
       const page = await harness.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
       await openSettingsSection(page, "accounts");
       await expect(page.getByTestId("credential-settings")).toBeVisible();
       await page.getByTestId("provider-account-filter").fill("Test OAuth");
@@ -161,7 +161,7 @@ test("packaged app keeps a background run, archive metadata, and Trash removal",
     });
     try {
       const page = await first.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("ABORT_ME");

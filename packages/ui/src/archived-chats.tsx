@@ -106,7 +106,7 @@ function ArchivedChatRow({
   const relative = formatRelativeTime(session.updatedAt);
   return (
     <li className="flex min-w-0 items-start gap-2 rounded-md border border-border/60 px-2 py-1.5">
-      <SessionActivityDot activity={session.activity} />
+      <SessionActivityDot activity={session.activity} className="mt-1 size-3.5" />
       <button
         type="button"
         className="min-w-0 flex-1 text-left disabled:opacity-50"

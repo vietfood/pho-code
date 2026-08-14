@@ -364,6 +364,17 @@
 }
 
 /* Cursor-inspired @ reference chips (visual reference only; harness-owned). */
+.mention-chip-shell {
+  display: inline-flex;
+  max-width: 100%;
+  line-height: 0;
+  vertical-align: -0.125em;
+}
+
+.chat-text .mention-chip-shell {
+  vertical-align: -0.2em;
+}
+
 .mention-chip {
   display: inline-flex;
   max-width: 100%;
@@ -377,7 +388,6 @@
   font-weight: 500;
   font-size: 0.92em;
   line-height: 1.1;
-  vertical-align: middle;
   white-space: nowrap;
   user-select: none;
 }
@@ -489,6 +499,85 @@ html[data-appearance="dark"] .approval-card {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.approval-card-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.approval-card-summary {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.approval-card-caution {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.approval-card-target {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 35%, var(--card));
+  padding: 0.35rem 0.5rem;
+}
+
+.approval-card-target-label {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.approval-card-target-value {
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.approval-card-raw {
+  min-width: 0;
+}
+
+.approval-card-raw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  padding: 0.1rem 0;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.approval-card-raw-toggle:hover {
+  color: var(--foreground);
+}
+
+.approval-card-raw .approval-card-message {
+  margin-top: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--muted) 35%, var(--card));
+  padding: 0.4rem 0.5rem;
 }
 
 .approval-card-options {
@@ -668,7 +757,8 @@ html[data-appearance="dark"] .approval-card {
 
 .approval-card-send:focus-visible,
 .approval-card-icon-button:focus-visible,
-.approval-card-text-action:focus-visible {
+.approval-card-text-action:focus-visible,
+.approval-card-raw-toggle:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring);
 }
@@ -1656,6 +1746,46 @@ html[data-glass="on"] .glass-field {
   background: var(--destructive);
 }
 
+.loading-dots {
+  display: inline-flex;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  color: var(--primary);
+}
+
+.loading-dots__mark {
+  width: 0.1875rem;
+  height: 0.1875rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: loading-dots 1.05s ease-in-out infinite;
+}
+
+.loading-dots__mark:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.loading-dots__mark:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes loading-dots {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
 .session-context-menu {
   position: fixed;
   z-index: 40;
@@ -1688,6 +1818,28 @@ html[data-glass="on"] .glass-field {
 .session-context-menu__item:focus-visible {
   background: var(--accent);
   outline: none;
+}
+
+.session-context-menu__item--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.session-context-menu__item-meta {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+
+.session-context-menu__item:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .session-context-menu__item--danger {
@@ -1757,5 +1909,11 @@ html[data-glass="on"] .glass-field {
   .session-activity-dot-attention {
     animation: none;
     opacity: 1;
+  }
+
+  .loading-dots__mark {
+    animation: none;
+    opacity: 0.7;
+    transform: none;
   }
 }

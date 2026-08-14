@@ -20,7 +20,7 @@ export { GithubChip } from "./github-chip";
 export { SkillChip } from "./skill-chip";
 export { SkillSourceIcon } from "./skill-source-icon";
 export { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
-export { DiagnosticsPanel } from "./diagnostics-panel";
+export { AboutDialog } from "./about-dialog";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ToolRow } from "./tool-row";
@@ -42,10 +42,12 @@ export { CopyButton } from "./copy-button";
 export { copyText } from "./lib/clipboard";
 export {
   buildToolExpandedSections,
+  describeToolInputTarget,
   toolWorkEntryHeading,
   toolWorkEntryIcon,
   toolWorkEntryPreview,
 } from "./tool-presentation";
+export { presentPermissionMessage } from "./permission-prompt";
 export { Transcript } from "./transcript";
 export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
@@ -54,6 +56,9 @@ export { GitHubMcpSettingsSection } from "./github-mcp-settings";
 export { ChangeModelDialog } from "./change-model-dialog";
 export { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 export { RemoveSessionDialog } from "./remove-session-dialog";
+export { RemoveProjectDialog } from "./remove-project-dialog";
+export { ProjectContextMenu } from "./project-context-menu";
+export { LoadingDots } from "./loading-dots";
 export { sameModel } from "./lib/model-identity";
 export { ProjectTrustBanner } from "./project-trust-banner";
 export { ProjectTrustDialog } from "./project-trust-dialog";

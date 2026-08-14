@@ -28,7 +28,7 @@ test("completes the deterministic OAuth journey without exposing secrets or URLs
     });
     try {
       const page = await harness.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
       await openSettingsSection(page, "accounts");
       await expect(page.getByTestId("credential-settings")).toBeVisible();
       await page.getByTestId("provider-account-filter").fill("openai-codex");
