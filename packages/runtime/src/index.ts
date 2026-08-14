@@ -41,6 +41,8 @@ export {
   registerCursorProviderAccount,
 } from "./cursor-sdk-policy";
 export { ASSISTANT_REWRITE_CUSTOM_TYPE } from "./assistant-rewrite";
+export { CONTEXT_PROMPT_CUSTOM_TYPE } from "./context-prompt";
+export { CONTEXT_PROMPT_FEATURE_ID, createContextPromptFeature } from "./context-prompt-feature";
 export { TRASH_FEATURE_ID, TRASH_FEATURE_VERSION, createTrashFeature } from "./trash-feature";
 export { TRASH_TOOL_NAME } from "./trash-target";
 export { RETRIEVAL_FEATURE_ID, RETRIEVAL_FEATURE_VERSION, createRetrievalFeature } from "./retrieval-feature";

@@ -78,6 +78,44 @@ describe("empty session hero", () => {
     expect(markup).not.toContain("Start this session");
   });
 
+  test("shows a Context prompt header control on empty and non-empty chats", () => {
+    const emptyMarkup = renderToStaticMarkup(createElement(Conversation, { snapshot: snapshot(), ...handlers }));
+    expect(emptyMarkup).toContain('data-testid="context-prompt-header"');
+    expect(emptyMarkup).toContain("Context prompt");
+    expect(emptyMarkup).not.toContain('data-testid="context-prompt-dialog"');
+
+    const filledMarkup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(filledMarkup).toContain('data-testid="context-prompt-header"');
+    expect(filledMarkup).not.toContain("· Custom");
+  });
+
+  test("marks the header when this session’s context prompt is customized", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          contextPrompt: {
+            customized: true,
+            editable: true,
+            preamble: "Custom preamble",
+            defaultPreamble: "Default preamble",
+            compiled: "Custom preamble",
+            sections: [],
+          },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-testid="context-prompt-header"');
+    expect(markup).toContain("· Custom");
+  });
+
   test("docks the composer once the transcript has a message", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {

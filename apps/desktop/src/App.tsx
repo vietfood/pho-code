@@ -421,6 +421,34 @@ export function App() {
     [patchSnapshot],
   );
 
+  const onUpdateContextPrompt = useCallback(
+    async (input: { preamble: string; disabledSectionIds: string[]; reset?: boolean }) => {
+      const selectedKey = cacheRef.current.selectedKey;
+      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+      if (!snap) {
+        return;
+      }
+      try {
+        setError(null);
+        const next = await getDesktopBridge().updateSessionContextPrompt({
+          sessionId: snap.session.id,
+          workspaceId: snap.workspace.id,
+          ...(input.reset
+            ? { reset: true }
+            : { preamble: input.preamble, disabledSectionIds: input.disabledSectionIds }),
+        });
+        patchSnapshot((current) => ({
+          ...current,
+          ...(next.contextPrompt ? { contextPrompt: next.contextPrompt } : {}),
+        }));
+      } catch (cause) {
+        setError(errorMessage(cause));
+        throw cause;
+      }
+    },
+    [patchSnapshot],
+  );
+
   const sidebarBootstrap = useMemo(() => {
     if (!bootstrap) {
       return null;
@@ -743,6 +771,7 @@ export function App() {
                 }}
                 {...(conversation.settings?.skills ? { skills: conversation.settings.skills } : {})}
                 onRewrite={onRewrite}
+                onUpdateContextPrompt={onUpdateContextPrompt}
                 onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
                 onStop={() => {
                   const runId = snapshot.run.runId;

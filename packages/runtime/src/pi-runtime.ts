@@ -32,6 +32,7 @@ import {
   isThinkingLevel,
   isWorkspaceReferenceToken,
   MAX_ASSISTANT_REWRITE_CHARS,
+  MAX_CONTEXT_PROMPT_PREAMBLE_CHARS,
   MAX_QUEUE_MESSAGE_PREVIEW,
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
@@ -39,6 +40,7 @@ import {
   GITHUB_MCP_FEATURE_ID,
   isExternalSkillSourceId,
   requireMatchingSessionKey,
+  sessionKeyId,
   sessionActivityPhase,
   type AbortRunInput,
   type CancelProviderLoginInput,
@@ -63,6 +65,7 @@ import {
   type RespondProviderAuthPromptInput,
   type RewriteAssistantOutputInput,
   type RuntimeEvent,
+  type UpdateSessionContextPromptInput,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
   type SendPromptInput,
@@ -121,6 +124,17 @@ import { RETRIEVAL_FEATURE_ID } from "./retrieval-feature";
 import { createWebResearchRuntime } from "./web-client";
 import { createSkillSourceRegistry } from "./skill-source";
 import { createSkillInvokeFeature, SKILL_INVOKE_FEATURE_ID } from "./skill-invoke";
+import {
+  applyDisabledSectionIds,
+  collectContextPromptRecord,
+  compileContextPrompt,
+  CONTEXT_PROMPT_CUSTOM_TYPE,
+  enabledToolNames,
+  liveContextPromptSections,
+  projectSessionContextPrompt,
+  type ToolPromptSource,
+} from "./context-prompt";
+import { CONTEXT_PROMPT_FEATURE_ID, createContextPromptFeature } from "./context-prompt-feature";
 import { resolveCuratedSkillsRoot } from "./skills-feature";
 import { createGitHubMcpFeature } from "./github-mcp-feature";
 import { createGitHubMcpRuntime } from "./github-mcp-runtime";
@@ -221,6 +235,8 @@ export async function createPhoCodeRuntime(
   const trustStore = new ProjectTrustStore(agentDir);
   const approvedProjectPaths = new Set<string>();
   const listeners = new Set<(event: RuntimeEvent) => void>();
+  const compiledContextPromptByKey = new Map<string, string>();
+  let bindingKey: SessionKey | undefined;
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
   const resolvedCursorSdk = resolveCursorSdkFeature(locator);
@@ -255,17 +271,27 @@ export async function createPhoCodeRuntime(
           })),
     options.testHostUi === true,
   );
-  const featureManifest = options.deterministicTestModel
-    ? baseManifest
-    : {
-        features: [
-          ...baseManifest.features.filter(
-            (feature) => feature.id !== SKILL_INVOKE_FEATURE_ID && feature.id !== GITHUB_MCP_FEATURE_ID,
-          ),
-          createSkillInvokeFeature(skillSources),
-          createGitHubMcpFeature(githubMcp),
-        ],
-      };
+  const contextPromptFeature = createContextPromptFeature({
+    compiledFor: (keyId) => compiledContextPromptByKey.get(keyId),
+    bindingKeyId: () => (bindingKey ? sessionKeyId(bindingKey) : undefined),
+  });
+  const featureManifest = {
+    features: [
+      ...(options.deterministicTestModel
+        ? baseManifest.features.filter((feature) => feature.id !== CONTEXT_PROMPT_FEATURE_ID)
+        : [
+            ...baseManifest.features.filter(
+              (feature) =>
+                feature.id !== SKILL_INVOKE_FEATURE_ID &&
+                feature.id !== GITHUB_MCP_FEATURE_ID &&
+                feature.id !== CONTEXT_PROMPT_FEATURE_ID,
+            ),
+            createSkillInvokeFeature(skillSources),
+            createGitHubMcpFeature(githubMcp),
+          ]),
+      contextPromptFeature,
+    ],
+  };
   const compositionDiagnostics = [
     ...(featureManifest.features.some((feature) => feature.id === PERMISSION_FEATURE_ID) ? resolvedDefault.diagnostics : []),
     ...(featureManifest.features.some((feature) => feature.id === CURSOR_SDK_FEATURE_ID)
@@ -482,6 +508,7 @@ export async function createPhoCodeRuntime(
     }
     session.unsubscribe?.();
     session.unsubscribe = undefined;
+    compiledContextPromptByKey.delete(sessionKeyId(session.key));
     session.extensionHost?.dispose();
     session.extensionHost = undefined;
     session.preparedImages.clear();
@@ -785,6 +812,7 @@ export async function createPhoCodeRuntime(
       supportsThinking: session.supportsThinking(),
       usage,
       queue: projectQueue(session),
+      contextPrompt: projectContextPrompt(live),
       ...(contextUsage ? { contextUsage } : {}),
     };
     if (model) {
@@ -954,6 +982,7 @@ export async function createPhoCodeRuntime(
       });
     }
     live.extensionHost.beginBinding();
+    bindingKey = live.key;
     try {
       await session.bindExtensions({
         uiContext: live.extensionHost.createUiContext(),
@@ -964,8 +993,10 @@ export async function createPhoCodeRuntime(
         },
       });
     } finally {
+      bindingKey = undefined;
       live.extensionHost.endBinding();
     }
+    applyContextPromptState(live);
   }
 
   async function handleAgentEvent(live: LiveSession, event: AgentSessionEvent): Promise<void> {
@@ -1173,6 +1204,52 @@ export async function createPhoCodeRuntime(
       diagnostics: services.diagnostics,
     };
   };
+
+  function contextPromptEditable(live: LiveSession): boolean {
+    if (live.activeRun && !live.activeRun.settled) {
+      return false;
+    }
+    return projectSessionMessages(live.runtime.session).length === 0;
+  }
+
+  function toolPromptSources(session: AgentSession): ToolPromptSource[] {
+    return session.getAllTools().map((tool) => {
+      const definition = session.getToolDefinition(tool.name);
+      return {
+        name: tool.name,
+        ...(definition?.label ? { label: definition.label } : {}),
+        description: tool.description,
+        ...(definition?.promptSnippet ? { promptSnippet: definition.promptSnippet } : {}),
+        ...(tool.promptGuidelines && tool.promptGuidelines.length > 0
+          ? { promptGuidelines: [...tool.promptGuidelines] }
+          : {}),
+      };
+    });
+  }
+
+  function projectContextPrompt(live: LiveSession) {
+    const session = live.runtime.session;
+    return projectSessionContextPrompt({
+      cwd: live.workspace.path,
+      tools: toolPromptSources(session),
+      agentsFiles: session.resourceLoader.getAgentsFiles().agentsFiles,
+      liveSystemPrompt: session.systemPrompt,
+      record: collectContextPromptRecord(session.sessionManager.getEntries()),
+      editable: contextPromptEditable(live),
+    });
+  }
+
+  function applyContextPromptState(live: LiveSession): void {
+    const session = live.runtime.session;
+    const keyId = sessionKeyId(live.key);
+    const record = collectContextPromptRecord(session.sessionManager.getEntries());
+    if (!record) {
+      compiledContextPromptByKey.delete(keyId);
+      return;
+    }
+    compiledContextPromptByKey.set(keyId, record.compiled);
+    session.setActiveToolsByName(enabledToolNames(record.sections));
+  }
 
   const runtime: HarnessRuntime = {
     get disposeCount() {
@@ -1599,6 +1676,82 @@ export async function createPhoCodeRuntime(
         text: input.text === original ? null : input.text,
         rewrittenAt: new Date().toISOString(),
       });
+      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+        sessionId: snapshot.session.id,
+        payload: snapshot,
+      });
+      return snapshot;
+    },
+    async updateSessionContextPrompt(input: UpdateSessionContextPromptInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "updateSessionContextPrompt");
+      const session = live.runtime.session;
+      if (live.activeRun && !live.activeRun.settled) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before changing the context prompt.",
+          operation: "updateSessionContextPrompt",
+          recoverable: true,
+        });
+      }
+      if (!contextPromptEditable(live)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Context prompt can only be customized before the first message.",
+          operation: "updateSessionContextPrompt",
+          recoverable: true,
+        });
+      }
+      if (input.reset === true) {
+        session.sessionManager.appendCustomEntry(CONTEXT_PROMPT_CUSTOM_TYPE, { reset: true });
+        compiledContextPromptByKey.delete(sessionKeyId(live.key));
+        session.setActiveToolsByName(session.getAllTools().map((tool) => tool.name));
+      } else {
+        const preamble = typeof input.preamble === "string" ? input.preamble : "";
+        if (preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "The context prompt preamble is too long.",
+            operation: "updateSessionContextPrompt",
+            recoverable: true,
+          });
+        }
+        const disabledSectionIds = [];
+        for (const id of input.disabledSectionIds ?? []) {
+          if (typeof id !== "string" || id.trim() === "") {
+            throw createHarnessError({
+              code: HARNESS_ERROR_CODES.invalidCommand,
+              message: "Each disabled section id must be a non-empty string.",
+              operation: "updateSessionContextPrompt",
+              recoverable: true,
+            });
+          }
+          disabledSectionIds.push(id);
+        }
+        const sections = applyDisabledSectionIds(
+          liveContextPromptSections(
+            live.workspace.path,
+            toolPromptSources(session),
+            session.resourceLoader.getAgentsFiles().agentsFiles,
+          ),
+          disabledSectionIds,
+        );
+        const compiled = compileContextPrompt({
+          preamble,
+          sections,
+          cwd: live.workspace.path,
+        });
+        session.sessionManager.appendCustomEntry(CONTEXT_PROMPT_CUSTOM_TYPE, {
+          preamble,
+          disabledSectionIds,
+          compiled,
+          sections,
+        });
+        compiledContextPromptByKey.set(sessionKeyId(live.key), compiled);
+        session.setActiveToolsByName(enabledToolNames(sections));
+      }
       const snapshot = await buildSnapshot({ refreshCatalog: false, live });
       emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,

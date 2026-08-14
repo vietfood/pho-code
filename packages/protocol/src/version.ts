@@ -30,6 +30,7 @@ export const PROTOCOL_COMMANDS = {
   setSessionModel: "setSessionModel",
   setThinkingLevel: "setThinkingLevel",
   rewriteAssistantOutput: "rewriteAssistantOutput",
+  updateSessionContextPrompt: "updateSessionContextPrompt",
   resolveHostDialog: "resolveHostDialog",
   getSettings: "getSettings",
   updateAppearanceSettings: "updateAppearanceSettings",

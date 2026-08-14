@@ -136,6 +136,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "updateAppearanceSettings",
       "updateGitHubMcpSettings",
       "updatePermissionSettings",
+      "updateSessionContextPrompt",
       "updateSkillSourceSettings",
     ]);
   } finally {

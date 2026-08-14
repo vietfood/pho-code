@@ -55,6 +55,7 @@ export { SettingsView } from "./settings-view";
 export { SkillsSettingsSection } from "./skills-settings";
 export { GitHubMcpSettingsSection } from "./github-mcp-settings";
 export { ChangeModelDialog } from "./change-model-dialog";
+export { ContextPromptDialog } from "./context-prompt-dialog";
 export { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 export { RemoveSessionDialog } from "./remove-session-dialog";
 export { RemoveProjectDialog } from "./remove-project-dialog";

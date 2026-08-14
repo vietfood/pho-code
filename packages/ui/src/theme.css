@@ -1843,6 +1843,104 @@ html[data-glass="on"] .glass-field {
   }
 }
 
+.context-prompt-preamble {
+  width: 100%;
+  max-height: 7.25rem;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--muted) 28%, var(--background));
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  padding: 0.4rem 0.55rem;
+}
+
+.context-prompt-preamble:read-only {
+  color: var(--muted-foreground);
+}
+
+.context-prompt-group {
+  margin-bottom: 0.7rem;
+}
+
+.context-prompt-group:last-child {
+  margin-bottom: 0;
+}
+
+.context-prompt-group__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.28rem;
+}
+
+.context-prompt-section {
+  margin-bottom: 0.28rem;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--muted) 28%, transparent);
+}
+
+.context-prompt-section:last-child {
+  margin-bottom: 0;
+}
+
+.context-prompt-section.is-off {
+  opacity: 0.62;
+}
+
+.context-prompt-section.is-off .context-prompt-section__toggle + label {
+  color: var(--muted-foreground);
+}
+
+.context-prompt-section__toggle {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--foreground);
+}
+
+.context-prompt-section__toggle:disabled {
+  cursor: default;
+}
+
+.context-prompt-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.context-prompt-expand:hover,
+.context-prompt-expand:focus-visible {
+  background: var(--accent);
+  color: var(--foreground);
+  outline: none;
+}
+
+.context-prompt-body {
+  margin: 0;
+  padding: 0 0.55rem 0.5rem 1.85rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

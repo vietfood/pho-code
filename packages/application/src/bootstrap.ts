@@ -18,6 +18,7 @@ import {
   isSessionCatalogScope,
   isSessionKey,
   MAX_ASSISTANT_REWRITE_CHARS,
+  MAX_CONTEXT_PROMPT_PREAMBLE_CHARS,
   MAX_PREPARED_IMAGES,
   MAX_PROVIDER_AUTH_VALUE,
   MAX_WORKSPACE_REFERENCE_QUERY,
@@ -68,6 +69,7 @@ import {
   type RespondProviderAuthPromptInput,
   type RestoreSessionInput,
   type RewriteAssistantOutputInput,
+  type UpdateSessionContextPromptInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -169,6 +171,7 @@ export interface ApplicationService {
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
+  updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): HarnessSettingsSnapshot;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
@@ -839,6 +842,60 @@ export function createApplicationService(input: {
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "rewriteAssistantOutput");
+      }
+    },
+    async updateSessionContextPrompt(command: UpdateSessionContextPromptInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "updateSessionContextPrompt");
+      if (command.reset === true) {
+        try {
+          const snapshot = await input.runtime.updateSessionContextPrompt({ ...scope, reset: true });
+          adoptSelectedSnapshot(snapshot);
+          assertJsonSafe(snapshot, "updateSessionContextPrompt");
+          return snapshot;
+        } catch (error) {
+          throw normalizeCommandError(error, "updateSessionContextPrompt");
+        }
+      }
+      if (typeof command.preamble !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "A context prompt preamble is required.",
+          operation: "updateSessionContextPrompt",
+          recoverable: true,
+        });
+      }
+      if (command.preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The context prompt preamble is too long.",
+          operation: "updateSessionContextPrompt",
+          recoverable: true,
+        });
+      }
+      const disabledSectionIds: string[] = [];
+      for (const id of command.disabledSectionIds ?? []) {
+        if (typeof id !== "string" || id.trim() === "") {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.invalidCommand,
+            message: "Each disabled section id must be a non-empty string.",
+            operation: "updateSessionContextPrompt",
+            recoverable: true,
+          });
+        }
+        disabledSectionIds.push(id);
+      }
+      try {
+        const snapshot = await input.runtime.updateSessionContextPrompt({
+          ...scope,
+          preamble: command.preamble,
+          disabledSectionIds,
+        });
+        adoptSelectedSnapshot(snapshot);
+        assertJsonSafe(snapshot, "updateSessionContextPrompt");
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "updateSessionContextPrompt");
       }
     },
     async resolveHostDialog(command: ResolveHostDialogInput) {

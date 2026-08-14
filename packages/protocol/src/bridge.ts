@@ -30,6 +30,7 @@ import type {
   StartProviderLoginInput,
 } from "./credentials";
 import type { RuntimeEventEnvelope, Unsubscribe } from "./events";
+import type { UpdateSessionContextPromptInput } from "./context-prompt";
 import type { ResolveHostDialogInput } from "./resources";
 import type { SearchWorkspaceReferencesInput, SearchWorkspaceReferencesResult } from "./retrieval";
 import type {
@@ -95,6 +96,7 @@ export interface DesktopBridge {
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
+  updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): Promise<HarnessSettingsSnapshot>;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;

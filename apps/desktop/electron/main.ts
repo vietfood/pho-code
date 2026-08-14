@@ -47,6 +47,7 @@ import {
   type RespondProviderAuthPromptInput,
   type RestoreSessionInput,
   type RewriteAssistantOutputInput,
+  type UpdateSessionContextPromptInput,
   type SearchWorkspaceReferencesInput,
   type SendPromptInput,
   type SetSessionModelInput,
@@ -520,6 +521,15 @@ function registerIpc(): void {
     handleCommand("rewriteAssistantOutput", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().rewriteAssistantOutput(asRecord(payload) as unknown as RewriteAssistantOutputInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.updateSessionContextPrompt, async (event, payload: unknown) =>
+    handleCommand("updateSessionContextPrompt", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().updateSessionContextPrompt(
+        asRecord(payload) as unknown as UpdateSessionContextPromptInput,
+      );
     }),
   );
 

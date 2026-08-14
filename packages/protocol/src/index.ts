@@ -80,6 +80,25 @@ export { hostnameFromHttpUrl, isSafeHttpUrl } from "./http-url";
 export type { DesktopBridge } from "./bridge";
 
 export {
+  agentsSectionId,
+  DEFAULT_CONTEXT_PROMPT_PREAMBLE,
+  emptySessionContextPrompt,
+  isContextPromptSectionKind,
+  MAX_CONTEXT_PROMPT_PREAMBLE_CHARS,
+  parseToolSectionId,
+  PI_DOCS_SECTION_BODY,
+  PI_DOCS_SECTION_ID,
+  toolSectionId,
+  CONTEXT_PROMPT_SECTION_KINDS,
+} from "./context-prompt";
+export type {
+  ContextPromptSection,
+  ContextPromptSectionKind,
+  SessionContextPrompt,
+  UpdateSessionContextPromptInput,
+} from "./context-prompt";
+
+export {
   extractAtMentionPaths,
   findCompletedAtMentions,
   formatAtMentionToken,

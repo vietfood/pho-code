@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
   setSessionModel: "pho-code:v1:setSessionModel",
   setThinkingLevel: "pho-code:v1:setThinkingLevel",
   rewriteAssistantOutput: "pho-code:v1:rewriteAssistantOutput",
+  updateSessionContextPrompt: "pho-code:v1:updateSessionContextPrompt",
   resolveHostDialog: "pho-code:v1:resolveHostDialog",
   getSettings: "pho-code:v1:getSettings",
   updateAppearanceSettings: "pho-code:v1:updateAppearanceSettings",

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, type RuntimeEvent } from "@pho-code/protocol";
+import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, PI_DOCS_SECTION_ID, toolSectionId, type RuntimeEvent } from "@pho-code/protocol";
 import {
   PERMISSION_FEATURE_ID,
   TEST_PROMPT,
@@ -984,6 +984,77 @@ describe("Pi harness runtime", () => {
       stop();
     } finally {
       await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("customizes context prompt on an empty session, freezes A after the first message, and restores it on reopen", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    await writeFile(path.join(workspaceDir, "AGENTS.md"), "# Workspace instructions\n");
+    const runtime = await createTestRuntime(agentDir);
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      expect(created.contextPrompt?.customized).toBe(false);
+      expect(created.contextPrompt?.editable).toBe(true);
+      expect(created.contextPrompt?.sections.some((section) => section.id === "agents:AGENTS.md")).toBe(true);
+
+      const bashId = toolSectionId("bash");
+      const saved = await runtime.updateSessionContextPrompt({
+        sessionId: created.session.id,
+        workspaceId: created.workspace.id,
+        preamble: "You are a brief test assistant.",
+        disabledSectionIds: [bashId, PI_DOCS_SECTION_ID],
+      });
+      expect(saved.contextPrompt?.customized).toBe(true);
+      expect(saved.contextPrompt?.compiled).toContain("You are a brief test assistant.");
+      expect(saved.contextPrompt?.compiled).toContain("# Workspace instructions");
+      expect(saved.contextPrompt?.compiled).not.toContain("Pi documentation");
+      expect(saved.contextPrompt?.sections.find((section) => section.id === bashId)?.enabled).toBe(false);
+
+      const events: RuntimeEvent[] = [];
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      await runtime.sendPrompt({ sessionId: created.session.id, text: "hello" });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      stop();
+
+      const after = await runtime.getSessionSnapshot({
+        sessionId: created.session.id,
+        workspaceId: created.workspace.id,
+      });
+      expect(after.contextPrompt?.editable).toBe(false);
+      expect(after.contextPrompt?.compiled).toContain("You are a brief test assistant.");
+      await expect(
+        runtime.updateSessionContextPrompt({
+          sessionId: created.session.id,
+          workspaceId: created.workspace.id,
+          preamble: "nope",
+          disabledSectionIds: [],
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.invalidCommand });
+    } finally {
+      await runtime.dispose();
+    }
+
+    const reopened = await createTestRuntime(agentDir);
+    try {
+      const listed = await reopened.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const sessionId = listed.sessions[0]?.id;
+      expect(sessionId).toBeDefined();
+      const resumed = await reopened.openSession(listed.workspace.id, sessionId ?? "");
+      expect(resumed.contextPrompt?.customized).toBe(true);
+      expect(resumed.contextPrompt?.editable).toBe(false);
+      expect(resumed.contextPrompt?.compiled).toContain("You are a brief test assistant.");
+    } finally {
+      await reopened.dispose();
     }
   }, 30_000);
 });

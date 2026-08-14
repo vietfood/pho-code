@@ -1,4 +1,5 @@
 import type { ImageMimeType } from "./attachments";
+import type { SessionContextPrompt } from "./context-prompt";
 import type { HarnessError } from "./errors";
 import type { FeatureSnapshot } from "./resources";
 import type { WorkspaceReferenceToken } from "./retrieval";
@@ -150,6 +151,7 @@ export interface SessionSnapshot {
   contextUsage?: ContextUsageSummary;
   usage?: SessionUsageSummary;
   queue?: SessionQueueState;
+  contextPrompt?: SessionContextPrompt;
 }
 
 export interface PromptAdmission {
