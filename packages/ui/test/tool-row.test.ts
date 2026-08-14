@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { ToolRow } from "../src/tool-row";
 import {
   buildToolExpandedSections,
+  describeToolInputTarget,
   toolWorkEntryHeading,
   toolWorkEntryIcon,
   toolWorkEntryPreview,
@@ -64,6 +65,15 @@ describe("tool presentation", () => {
       label: "Output",
       language: "json",
       text: '{\n  "ok": true\n}',
+    });
+  });
+
+  test("describes a fetch URL target without truncating it", () => {
+    const url =
+      "https://raw.githubusercontent.com/NVIDIA/cuEquivariance/54925c1e28bb17046ec6fd009c30ed08fc53c2c9/cuequivariance/cuequivariance/SKILL.md";
+    expect(describeToolInputTarget("fetch", JSON.stringify({ url }))).toEqual({
+      label: "URL",
+      value: url,
     });
   });
 

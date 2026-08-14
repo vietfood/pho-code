@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { ArrowUpIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import type { HostDialogRequest, ResolveHostDialogInput } from "@pho-code/protocol";
 import { handleDialogTab } from "./lib/dialog-focus";
 import { hostDialogEnterResolution } from "./lib/host-dialog-keys";
 import { cn } from "./lib/cn";
+import { presentPermissionMessage } from "./permission-prompt";
 
 // Compact composer-dock approval card. Visual density adapted from Beautiful UI
 // ApprovalCard.tsx (MIT, Shane Levine, https://www.beautifului.dev/ retrieved 2026-08-13):
 // title + dismiss, compact radio rows, footer send arrow. Multi-question pager,
 // auto-advance, and demo “answers sent” omitted — one Pi host prompt at a time.
 // Focus loop, Escape, digit shortcuts, and Enter confirm remain harness-owned.
+// Permission-prompt summary + collapsed raw request is harness-owned.
 // Earlier T3 ComposerPendingApprovalPanel chrome (MIT) is retained as provenance.
 
 export function HostDialog({
@@ -157,7 +159,7 @@ export function HostDialog({
             </button>
           </div>
           {request.message ? (
-            <pre className="approval-card-message">{request.message}</pre>
+            <HostDialogMessage key={request.requestId} message={request.message} />
           ) : null}
           {request.kind === "select" ? (
             <SelectFields
@@ -192,6 +194,53 @@ export function HostDialog({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function HostDialogMessage({ message }: { message: string }) {
+  const presented = presentPermissionMessage(message);
+  const [showRaw, setShowRaw] = useState(false);
+
+  return (
+    <div className="approval-card-explain">
+      {presented.summary ? (
+        <p className="approval-card-summary" data-testid="extension-dialog-summary">
+          {presented.summary}
+        </p>
+      ) : null}
+      {presented.caution ? <p className="approval-card-caution">{presented.caution}</p> : null}
+      {presented.target ? (
+        <div className="approval-card-target">
+          <span className="approval-card-target-label">{presented.target.label}</span>
+          <span className="approval-card-target-value">{presented.target.value}</span>
+        </div>
+      ) : null}
+      {presented.showRaw ? (
+        <div className="approval-card-raw">
+          <button
+            type="button"
+            className="approval-card-raw-toggle"
+            aria-expanded={showRaw}
+            data-testid="extension-dialog-view-request"
+            onClick={() => setShowRaw((value) => !value)}
+          >
+            <ChevronDownIcon
+              className={cn(
+                "size-3 shrink-0 transition-transform duration-150 motion-reduce:transition-none",
+                showRaw ? "rotate-0" : "-rotate-90",
+              )}
+              aria-hidden="true"
+            />
+            {showRaw ? "Hide request" : "View request"}
+          </button>
+          {showRaw ? (
+            <pre className="approval-card-message" data-testid="extension-dialog-raw-request">
+              {presented.rawDetail}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

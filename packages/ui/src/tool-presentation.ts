@@ -89,6 +89,49 @@ export function toolWorkEntryPreview(name: string, inputPreview: string, outputP
   return compactOneLine(inputPreview);
 }
 
+export function describeToolInputTarget(
+  name: string,
+  inputPreview: string,
+): { label: string; value: string } | null {
+  const trimmed = inputPreview.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = tryParseJson(trimmed);
+  if (parsed && isPlainObject(parsed)) {
+    const key = normalizeToolName(name);
+    if (isShellTool(key)) {
+      const command = firstString(parsed, ["command", "cmd"]);
+      if (command) {
+        return { label: "Command", value: command };
+      }
+    }
+    const primary = primaryToolField(key, parsed);
+    if (primary) {
+      return { label: labelForField(primary.field), value: primary.value };
+    }
+  }
+  const quoted = extractQuotedField(trimmed, ["url", "path", "file_path", "query", "pattern", "command", "cmd"]);
+  if (quoted) {
+    return quoted;
+  }
+  return null;
+}
+
+export function prettyToolInputJson(inputPreview: string): string | null {
+  const parsed = tryParseJson(inputPreview.trim());
+  if (parsed === undefined) {
+    return null;
+  }
+  if (isPlainObject(parsed) || Array.isArray(parsed)) {
+    return JSON.stringify(parsed, null, 2);
+  }
+  if (typeof parsed === "string") {
+    return parsed;
+  }
+  return null;
+}
+
 export function buildToolExpandedSections(
   name: string,
   inputPreview: string,
@@ -312,4 +355,41 @@ function firstString(record: Record<string, unknown>, fields: string[]): string 
     }
   }
   return null;
+}
+
+function extractQuotedField(
+  value: string,
+  fields: readonly string[],
+): { label: string; value: string } | null {
+  for (const field of fields) {
+    const match = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "u").exec(value);
+    const extracted = match?.[1];
+    if (extracted) {
+      return { label: labelForField(field), value: unescapeJsonString(extracted) };
+    }
+  }
+  return null;
+}
+
+function unescapeJsonString(value: string): string {
+  return value.replace(/\\(["\\/bfnrt])/gu, (_, ch: string) => {
+    switch (ch) {
+      case '"':
+      case "\\":
+      case "/":
+        return ch;
+      case "b":
+        return "\b";
+      case "f":
+        return "\f";
+      case "n":
+        return "\n";
+      case "r":
+        return "\r";
+      case "t":
+        return "\t";
+      default:
+        return ch;
+    }
+  });
 }

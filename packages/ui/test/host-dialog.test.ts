@@ -30,6 +30,28 @@ describe("inline host dialog", () => {
     expect(markup).not.toContain("glass-panel");
   });
 
+  test("permission prompts show a readable summary and hide the raw request until opened", () => {
+    const markup = renderToStaticMarkup(
+      createElement(HostDialog, {
+        request: {
+          requestId: "req-fetch",
+          kind: "select",
+          title: "Permission Required",
+          message:
+            'Current agent requested tool \'fetch\' with input {"url":"https://raw.githubusercontent.com/NVIDIA/cuEquivariance/SKILL.md"}. Allow this call?',
+          options: ["Yes", 'Yes, allow tool "fetch_content" for this session', "No", "No, provide reason"],
+        },
+        onResolve: () => undefined,
+      }),
+    );
+    expect(markup).toContain("The agent wants to fetch a file from GitHub.");
+    expect(markup).toContain("https://raw.githubusercontent.com/NVIDIA/cuEquivariance/SKILL.md");
+    expect(markup).toContain("View request");
+    expect(markup).toContain('data-testid="extension-dialog-view-request"');
+    expect(markup).not.toContain("Current agent requested tool");
+    expect(markup).not.toContain('data-testid="extension-dialog-raw-request"');
+  });
+
   test("confirm prompts keep Approve/Decline with a compact send control", () => {
     const markup = renderToStaticMarkup(
       createElement(HostDialog, {
