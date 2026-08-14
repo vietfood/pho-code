@@ -11,7 +11,7 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
 - multi-turn streaming chat with sanitized GFM live tokens, compositor-only caret/enter/pulse motion, thinking blocks, KaTeX/Shiki/Mermaid after settle (KaTeX only when the text looks like math), copy and owner rewrite for settled assistant output and copy for fenced code blocks, tool activity, Stop, and error states;
-- a T3-inspired conversation UI with a wider collapsible project/session sidebar (manual folder order, no MRU bump on session switch), per-chat activity, archive/restore, and Move chat to Trash, a centered empty-session composer, and an anchored composer after the first message;
+- a T3-inspired conversation UI with a wider collapsible project/session sidebar (manual folder order, no MRU bump on session switch), per-chat activity with a chat icon or Beautiful UI Dots while a run is live, archive/restore, Move chat to Trash, and a warned Remove project that trashes that folder’s chats, a centered empty-session composer, and an anchored composer after the first message;
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes, plus three Pho Code-authored text-only skills available through `/` after the built-in source (always on) or an explicitly enabled Codex/Cursor/Claude/Pi user root;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;
 - `pi-cursor-sdk` `0.2.0` as a baked Cursor provider (local Cursor SDK agents only; ambient `~/.cursor` settings and Cursor Cloud are disabled by harness policy); selecting a Cursor model shows an honest warning dialog with the Cursor mark;
@@ -59,7 +59,7 @@ Milestone 5 completed the standalone boundary:
 
 The acceptance review additionally made packaged resource overrides development-only and added pinned-version validation for the permission feature. See the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md).
 
-## Active v2 planning
+## Accepted personal v2 boundary
 
 The owner approved this current milestone order:
 
@@ -67,9 +67,9 @@ The owner approved this current milestone order:
 - **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
 - **Milestone 2 — accounts and subscription login:** accepted as provider-owned OAuth through Pi `ModelRuntime`, with a Provider accounts Settings surface, opaque system-browser handles, cancellation, logout, and model-list synchronization. The deterministic fake-provider journey is in the Electron and packaged lanes. The owner completed a live `openai-codex` login and confirmed it works.
 - **Milestone 3 — session continuity and lifecycle:** accepted. Independently owned session controllers, keyed catalog/cache, a per-chat live-run store, sidebar activity, archive/restore, recoverable OS-Trash chat removal, and per-workspace FFF indexes are in source. Desktop verified: background-run switching, archive/restore, busy-state Trash refusal, and settled Trash. Packaged verified: background-run switching, archive persist across relaunch, restore, and settled Trash from isolated app-owned data without a Pi CLI. The owner accepted the real-provider background-switch, live thinking across chat switches, archive/restore, and Trash workflow on 2026-08-14. A later correction keyed image prepare and dialog resolve to the composite session and compared event identity as `{workspaceId, sessionId}`.
-- **Milestone 4 — interoperable skills and GitHub MCP:** slice 1 is in source (three Pho Code skills, `SkillSourceRegistry`, Settings source toggles/inventory/Refresh, `/` insert from enabled sources, compatibility popups, multi-feature staging without `rm`). Skills are not baked into Pi session context; enabling a source makes its skills available to insert later. Slice 2 is in implementation: Settings-controlled read-only GitHub MCP with a pinned `github/github-mcp-server` `v1.9.0` binary, official MCP TypeScript client `1.30.0`, explicit PAT authentication through the OS secret store, and `github_` allowlisted tools. External sources stay disabled until trusted. Arbitrary/project skill discovery, executable skill assets, generic MCP configuration, GitHub OAuth, and GitHub mutations remain rejected.
+- **Milestone 4 — interoperable skills and GitHub MCP:** accepted on 2026-08-14. Three Pho Code skills, fixed owner-enabled Codex/Cursor/Claude/Pi sources, provenance inventory, Refresh, and on-demand `/`/named loading are in source without baking skill paths into Pi. The Settings-controlled GitHub capability uses pinned `github/github-mcp-server` `v1.9.0`, MCP client `1.30.0`, OS-secret-store PAT authentication, and one fixed `mcp` dispatcher restricted to qualified `github:<read-tool>` targets. External sources stay disabled until trusted. Arbitrary/project skill discovery, executable skill assets, generic MCP configuration, GitHub OAuth, and GitHub mutations remain rejected.
 
-[`product-v2.md`](./product-v2.md) defines the intended product boundary. [`implementation-plan-v2.md`](./implementation-plan-v2.md) contains the accepted Milestone 0 through 3 contracts and the in-progress Milestone 4 contract. V2 ends at Milestone 4; after its acceptance review, the v2 planning and evidence record moves under `docs/archive/v2`. No advanced-feature Milestone 5 blocks v2 completion.
+Personal v2 is complete and archived under [`archive/v2`](./archive/v2/README.md), including the accepted [product boundary](./archive/v2/product-v2.md), [implementation plan](./archive/v2/implementation-plan-v2.md), and [Milestone 4 closure review](./archive/v2/reviews/milestone-4-code-review.md). No advanced-feature Milestone 5 blocks v2 completion.
 
 Browser automation, diff/checkpoint workflows, session fork/tree and compaction controls, terminal, multi-agent worktrees, public distribution, and isolation are separated into independently promotable future-release phases in the [roadmap](./roadmap-vnext.md). They are not unfinished v2 work. UI polish, defect fixes, and owner-reviewed skill additions that preserve the accepted boundaries may continue as v2.x maintenance after archival.
 
@@ -81,4 +81,4 @@ bun run stage:github-mcp
 bun run dev
 ```
 
-Use [`implementation-plan-v2.md`](./implementation-plan-v2.md) for active work, [`archive/v1`](./archive/v1/README.md) for the closed v1 record, and [`roadmap-vnext.md`](./roadmap-vnext.md) for work not yet promoted. Update this brief when the accepted product boundary changes.
+Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, and [`roadmap-vnext.md`](./roadmap-vnext.md) for future work not yet promoted. Update this brief when the accepted product boundary changes.

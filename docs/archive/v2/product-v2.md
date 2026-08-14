@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft product boundary for owner calibration. Personal v1 is accepted and preserved under [`archive/v1`](./archive/v1/README.md). This document defines the intended outcome for v2; only capabilities promoted into [`implementation-plan-v2.md`](./implementation-plan-v2.md) are authorized implementation work.
+Accepted and archived personal-v2 product boundary. Personal v1 is preserved under [`archive/v1`](../v1/README.md). This document records the v2 outcome; future implementation work begins from the live [`roadmap-vnext.md`](../../roadmap-vnext.md), not by reopening this contract.
 
 ## Outcome
 
@@ -105,11 +105,11 @@ Read compatible user-level skills directly from fixed Codex, Cursor, Claude, and
 
 Add one Settings-controlled MCP-backed capability: read-only GitHub investigation for repositories, issues, pull requests, reviews, checks, workflows, and bounded Actions logs. A reviewed, pinned official `github/github-mcp-server` binary runs locally over stdio in read-only/lockdown mode behind an application allowlist. The owner can enable or disable its connection/tool exposure without installing or removing code. GitHub write operations, dynamic tool discovery, arbitrary servers, and project `.mcp.json` remain unavailable.
 
-GitHub MCP authentication uses only an explicitly supplied personal access token (PAT) retained in operating-system-backed secret storage. Pho Code does not implement GitHub OAuth, a GitHub App flow, device authorization, browser-cookie reuse, or ambient `gh`/environment credential discovery. Settings lets the owner add, replace, or remove the PAT. Disabling MCP retains the PAT; removing the credential disconnects the capability. A fine-grained, minimum-permission PAT is recommended, while the packaged server's read-only mode and Pho Code's tool allowlist remain mandatory regardless of token scope. The detailed contract remains drafted in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
+GitHub MCP authentication uses only an explicitly supplied personal access token (PAT) retained in operating-system-backed secret storage. Pho Code does not implement GitHub OAuth, a GitHub App flow, device authorization, browser-cookie reuse, or ambient `gh`/environment credential discovery. Settings lets the owner add, replace, or remove the PAT. Disabling MCP retains the PAT; removing the credential disconnects the capability. A fine-grained, minimum-permission PAT is recommended, while the packaged server's read-only mode and Pho Code's tool allowlist remain mandatory regardless of token scope. The accepted detailed contract is in [`implementation-plan-v2.md`](./implementation-plan-v2.md).
 
 ## V2 closure and post-v2 work
 
-Milestones 0 through 4 are the complete v2 product plan. There is no v2 Milestone 5. V2 becomes complete only after Milestone 4 passes its acceptance gate; at that point the v2 product, implementation, evidence, and review records are archived under `docs/archive/v2`, while `current-state.md` and `development.md` remain the live entry points.
+Milestones 0 through 4 are the complete accepted v2 product plan. There is no v2 Milestone 5. The product, implementation, evidence, and review records are archived here; [`current-state.md`](../../current-state.md) and [`development.md`](../../development.md) remain the live entry points.
 
 V2.x releases may polish the UI, improve accessibility and performance, fix defects, and add or refine owner-selected Pho Code skills within the accepted extension boundary. A new MCP, browser control, terminal, multi-agent execution, process isolation, or another capability that changes trust or lifecycle boundaries requires a separately promoted future-release phase rather than silently reopening v2.
 
@@ -125,7 +125,7 @@ V2.x releases may polish the UI, improve accessibility and performance, fix defe
 - signing, notarization, update channels, public distribution, and production threat response;
 - arbitrary user-managed extensions, skills, packages, or MCP servers.
 
-Deferral means these capabilities do not shape or block v2 completion. [`roadmap-vnext.md`](./roadmap-vnext.md) separates the former advanced-feature milestone into independently promotable future-release phases.
+Deferral means these capabilities did not shape or block v2 completion. [`roadmap-vnext.md`](../../roadmap-vnext.md) separates the former advanced-feature milestone into independently promotable future-release phases.
 
 ## Success criteria for the first v2 slice
 

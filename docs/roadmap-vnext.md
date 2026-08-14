@@ -2,7 +2,7 @@
 
 This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs.
 
-V2 consists only of Milestones 0 through 4. The owner has accepted Milestones 0 through 3; interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT are in-progress Milestone 4 in [`product-v2.md`](./product-v2.md) and [`implementation-plan-v2.md`](./implementation-plan-v2.md). When Milestone 4 is accepted, the v2 record is archived and this file becomes the promotion queue for later releases.
+V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](./archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
 UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan.
 

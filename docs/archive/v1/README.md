@@ -11,8 +11,8 @@ Archived records:
 Active documents remain at the top level of `docs`:
 
 - [`../../current-state.md`](../../current-state.md);
-- [`../../product-v2.md`](../../product-v2.md);
-- [`../../implementation-plan-v2.md`](../../implementation-plan-v2.md);
+- [`../v2/product-v2.md`](../v2/product-v2.md);
+- [`../v2/implementation-plan-v2.md`](../v2/implementation-plan-v2.md);
 - [`../../architecture`](../../architecture/);
 - [`../../extension-model.md`](../../extension-model.md);
 - [`../../development.md`](../../development.md);

@@ -4,18 +4,18 @@ These instructions apply to the entire repository. Nested `AGENTS.md` files may 
 
 ## Mission and current maturity
 
-Build a personal, macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 is accepted and archived. v2 Milestones 0 through 3 are accepted. Remaining v2 work aims to make the harness a fast daily driver with curated capabilities; it is not yet a publicly distributed or adversarially hardened product.
+Build a macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 and v2 are accepted and archived. The next product decision is whether to promote a bounded public-release phase; Pho Code is not yet publicly distributed or adversarially hardened.
 
 Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/plans/conversation-ui.md`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 
 Read these files before nontrivial implementation:
 
 1. `docs/current-state.md`
-2. `docs/product-v2.md`
+2. `docs/archive/v2/product-v2.md`
 3. `docs/architecture/overview.md`
 4. `docs/architecture/desktop-shell.md`
 5. `docs/extension-model.md`
-6. `docs/implementation-plan-v2.md`
+6. `docs/archive/v2/implementation-plan-v2.md`
 7. `docs/plans/conversation-ui.md` when changing conversation chrome
 8. `docs/development.md`
 9. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
@@ -140,7 +140,7 @@ bun run test:desktop
 bun run build
 ```
 
-Use the narrower package command during iteration, followed by the required milestone exit checks in `docs/implementation-plan-v2.md`.
+Use the narrower package command during iteration, followed by the exit checks in the promoted implementation plan. The accepted v2 checks remain recorded in `docs/archive/v2/implementation-plan-v2.md`.
 
 ## Filesystem and deletion
 

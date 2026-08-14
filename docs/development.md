@@ -2,7 +2,7 @@
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Milestones 0 through 5 of personal v1 and v2 Milestones 0 through 3 are accepted. v2 Milestone 4 slice 1 covers provenance-labeled skills from fixed, owner-enabled Codex/Cursor/Claude/Pi user roots, `/` insert without baking skills into Pi context, and three Pho Code-authored skills. Slice 2 covers one Settings-controlled read-only GitHub MCP with a pinned `v1.9.0` server and an explicitly supplied PAT retained in the OS secret store; GitHub OAuth is not part of this integration. V2 ends at Milestone 4 and is archived after that milestone's acceptance review. Read the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md) before changing identity, data ownership, packaged feature resolution, packaging, or credential import. Active work lives in the [v2 implementation plan](./implementation-plan-v2.md), while independently promotable future-release phases remain in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only. See the archived [v1 Milestone 0 review](./archive/v1/reviews/milestone-0-code-review.md) before changing bootstrap security or shutdown.
+The repository is a Bun TypeScript workspace with an Electron conversation window on the Pi SDK. Personal v1 and v2 are accepted and archived. V2 Milestone 4 adds provenance-labeled skills from fixed, owner-enabled Codex/Cursor/Claude/Pi roots, `/` insertion without baking skills into Pi context, three Pho Code-authored skills, and one Settings-controlled read-only GitHub MCP with a pinned `v1.9.0` server and an explicitly supplied PAT retained in the OS secret store. GitHub calls use one fixed `mcp` dispatcher so MCP permission policy governs qualified `github:<tool>` targets; GitHub OAuth is not part of this integration. Read the [v2 archive](./archive/v2/README.md) and [Milestone 4 closure review](./archive/v2/reviews/milestone-4-code-review.md) before changing this boundary. Independently promotable future-release phases remain in the [roadmap](./roadmap-vnext.md). Conversation chrome lives in the [Conversation UI track](./plans/conversation-ui.md). The three reference submodules remain read-only.
 
 After a fresh clone, materialize the references with:
 
@@ -429,7 +429,7 @@ Milestone 2 verification classes:
 
 v2 Milestone 3 acceptance, recorded 2026-08-14:
 
-The owner accepted the real-provider background-switch, archive/restore, and Trash removal workflow, including live thinking surviving chat switches. Desktop and packaged continuity journeys were previously recorded in the [v2 implementation plan](./implementation-plan-v2.md).
+The owner accepted the real-provider background-switch, archive/restore, and Trash removal workflow, including live thinking surviving chat switches. Desktop and packaged continuity journeys are recorded in the archived [v2 implementation plan](./archive/v2/implementation-plan-v2.md).
 
 Milestone 3 verification classes:
 

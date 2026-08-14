@@ -77,13 +77,13 @@ Capabilities enter the app as source-controlled, pinned features. Settings chang
 Start here if you want to use or extend the app:
 
 - [Current state](./docs/current-state.md) — what exists today
-- [Product v2](./docs/product-v2.md) — the daily-driver boundary
+- [Archived product v2](./docs/archive/v2/product-v2.md) — the accepted daily-driver boundary
 - [Development runbook](./docs/development.md) — commands, isolation, and verification
 - [Architecture](./docs/architecture/overview.md) — ownership and dependency direction
 - [Desktop shell](./docs/architecture/desktop-shell.md) — why Electron
 - [Extension model](./docs/extension-model.md) — baked features, not a plugin platform
 - [Conversation UI](./docs/plans/conversation-ui.md) — transcript, sidebar, and chrome
-- [V2 implementation plan](./docs/implementation-plan-v2.md) — active milestone work
+- [V2 archive](./docs/archive/v2/README.md) — accepted Milestones 0 through 4 and closure evidence
 - [Later roadmap](./docs/roadmap-vnext.md) — work not yet promoted
 - [Personal v1 archive](./docs/archive/v1/README.md) — the closed first release
 
