@@ -181,6 +181,7 @@ interface LiveSession {
   workspace: WorkspaceSummary;
   preparedImages: ReturnType<typeof createPreparedImageStore>;
   generation: number;
+  githubBindingRevision: number;
   selectedAt: number;
   disposing: boolean;
   activeRun?: ActiveRun;
@@ -302,6 +303,7 @@ export async function createPhoCodeRuntime(
   let selected: LiveSession | undefined;
   let lastWorkspace: WorkspaceSummary | undefined;
   let generation = 0;
+  let githubBindingRevision = 0;
   let catalogCache:
     | {
         workspacePath: string;
@@ -425,6 +427,7 @@ export async function createPhoCodeRuntime(
       workspace,
       preparedImages: createPreparedImageStore(),
       generation,
+      githubBindingRevision,
       selectedAt: Date.now(),
       disposing: false,
     };
@@ -851,6 +854,15 @@ export async function createPhoCodeRuntime(
     registry.select(selectedKey);
   }
 
+  async function refreshGitHubBinding(live: LiveSession): Promise<void> {
+    if (live.githubBindingRevision === githubBindingRevision) {
+      return;
+    }
+    await live.runtime.session.reload();
+    await bindHostUi(live);
+    live.githubBindingRevision = githubBindingRevision;
+  }
+
   async function loadWorkspaceFeatures(cwd: string): Promise<FeatureSnapshot> {
     const live = registry.list().find((entry) => entry.key.workspaceId === cwd) ?? selected;
     if (live?.runtime.session && live.key.workspaceId === cwd) {
@@ -1057,6 +1069,12 @@ export async function createPhoCodeRuntime(
     }
     run.settled = true;
     live.activeRun = undefined;
+    const failedMessage = live.runtime.session.agent.state.errorMessage;
+    try {
+      await refreshGitHubBinding(live);
+    } catch (bindingError) {
+      console.error("Failed to refresh GitHub MCP tools after the run settled:", bindingError);
+    }
     const snapshot = await buildSnapshot({ live });
     if (error) {
       const harnessError = toHarnessError(error, "sendPrompt", HARNESS_ERROR_CODES.runFailed);
@@ -1082,7 +1100,6 @@ export async function createPhoCodeRuntime(
       return;
     }
 
-    const failedMessage = live.runtime.session.agent.state.errorMessage;
     if (run.abortRequested) {
       snapshot.run = { ...idleRunState(), runId: run.runId, status: "cancelled" };
     } else if (failedMessage) {
@@ -1295,7 +1312,6 @@ export async function createPhoCodeRuntime(
     async sendPrompt(input: SendPromptInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "sendPrompt");
-      const session = live.runtime.session;
       if (live.activeRun && !live.activeRun.settled) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
@@ -1304,6 +1320,8 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
+      await refreshGitHubBinding(live);
+      const session = live.runtime.session;
       registry.assertCanAdmitRun("sendPrompt");
       const { models, modelError } = await listModels();
       if (!session.model && models.length === 0) {
@@ -1825,6 +1843,7 @@ export async function createPhoCodeRuntime(
     async updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput) {
       assertNotDisposed();
       const snapshot = await githubMcp.setEnabled(input.enabled === true);
+      githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
       assertJsonSafe(snapshot, "updateGitHubMcpSettings");
       return snapshot;
@@ -1832,6 +1851,7 @@ export async function createPhoCodeRuntime(
     async importGitHubPat(input: ImportGitHubPatInput) {
       assertNotDisposed();
       const snapshot = await githubMcp.importPat(input.token);
+      githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
       assertJsonSafe(snapshot, "importGitHubPat");
       assertNoCanaries(snapshot, [input.token], "importGitHubPat");
@@ -1840,6 +1860,7 @@ export async function createPhoCodeRuntime(
     async removeGitHubPat() {
       assertNotDisposed();
       const snapshot = await githubMcp.removePat();
+      githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
       assertJsonSafe(snapshot, "removeGitHubPat");
       return snapshot;

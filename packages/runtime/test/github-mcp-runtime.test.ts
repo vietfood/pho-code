@@ -9,6 +9,7 @@ import {
 import { FORBIDDEN_GITHUB_MCP_TOOLS, intersectGitHubMcpTools } from "../src/github-mcp-allowlist";
 import { GITHUB_MCP_SERVER_ARGS } from "../src/github-mcp-artifact";
 import { createGitHubMcpRuntime, formatGitHubMcpToolResult, MAX_GITHUB_MCP_RESULT_CHARS } from "../src/github-mcp-runtime";
+import { createGitHubMcpFeature } from "../src/github-mcp-feature";
 import { createMemorySecretStore, GITHUB_MCP_SECRET_ACCOUNT, GITHUB_MCP_SECRET_SERVICE } from "../src/secret-store";
 
 const FAKE_SERVER = fileURLToPath(new URL("./fake-github-mcp-stdio.ts", import.meta.url));
@@ -148,6 +149,26 @@ describe("GitHub MCP runtime", () => {
     await github.dispose();
   });
 
+  test("registers one fixed mcp dispatcher so MCP permission policy applies", async () => {
+    const github = createGitHubMcpRuntime({
+      secretStore: createMemorySecretStore({
+        [`${GITHUB_MCP_SECRET_SERVICE}\0${GITHUB_MCP_SECRET_ACCOUNT}`]: CANARY,
+      }),
+      enabled: true,
+      launch: () => launchFake(),
+    });
+    await github.startIfEnabled();
+    const registered: Array<{ name?: string }> = [];
+    const feature = createGitHubMcpFeature(github);
+    feature.extensionFactories?.[0]?.factory({
+      registerTool(tool: { name?: string }) {
+        registered.push(tool);
+      },
+    } as never);
+    expect(registered.map((tool) => tool.name)).toEqual(["mcp"]);
+    await github.dispose();
+  });
+
   test("refuses readiness when the fake server advertises a write tool", async () => {
     const github = createGitHubMcpRuntime({
       secretStore: createMemorySecretStore({
@@ -208,6 +229,17 @@ describe("GitHub MCP runtime", () => {
     await github.importPat(CANARY);
     expect(JSON.stringify(github.snapshot())).not.toContain(CANARY);
     await expect(github.callTool({ piName: "github_get_me", args: {} })).rejects.toThrow("GitHub MCP is off.");
+    await github.dispose();
+  });
+
+  test("clears cached account identity when replacing a PAT", async () => {
+    const github = createGitHubMcpRuntime({
+      secretStore: createMemorySecretStore(),
+      accountLogin: "previous-owner",
+    });
+    const replaced = await github.importPat(CANARY);
+    expect(replaced.account.patConfigured).toBe(true);
+    expect(replaced.account.login).toBeUndefined();
     await github.dispose();
   });
 });

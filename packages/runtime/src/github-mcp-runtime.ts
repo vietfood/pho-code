@@ -274,6 +274,7 @@ export function createGitHubMcpRuntime(options: GitHubMcpRuntimeOptions): GitHub
       await options.secretStore.set(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT, next);
       secrets.length = 0;
       secrets.push(next);
+      accountLogin = undefined;
       if (enabled) {
         await stop("not_started");
         await start().catch(() => undefined);
