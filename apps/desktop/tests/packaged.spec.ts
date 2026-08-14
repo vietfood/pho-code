@@ -195,6 +195,8 @@ test("packaged app keeps a background run, archive metadata, and Trash removal",
     try {
       const page = await second.firstWindow();
       await expect(page.getByTestId("session-item")).toHaveCount(1);
+      await page.getByTestId("session-item").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
       await openSettingsSection(page, "archived");
       await expect(page.getByTestId("archived-chat-item")).toBeVisible();
       await page.getByTestId("restore-session").click();

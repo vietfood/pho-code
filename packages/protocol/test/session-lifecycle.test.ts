@@ -207,4 +207,46 @@ describe("keyed conversation routing", () => {
     expect(JSON.stringify(summary)).not.toContain("rm ");
     expect(JSON.stringify(summary)).not.toContain(".jsonl");
   });
+
+  test("preserves process settings when an auth flow starts with no selected chat", () => {
+    const settings = {
+      appearance: {
+        palette: "default" as const,
+        mode: "dark" as const,
+        glassEnabled: false,
+        glassStrength: 55,
+        uiFontSize: 18,
+        chatFontSize: 16,
+      },
+      permission: {
+        profile: "balanced" as const,
+        yoloMode: false,
+        permissionReviewLog: false,
+        projectOverridePresent: false,
+        projectPermissionRulesTrusted: false,
+        projectPermissionRulesRemembered: false,
+        appliesToSharedPiAgentDir: false,
+      },
+    };
+    const cache = applyRuntimeEventToCache(
+      { ...emptyConversationCache(), settings },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        sequence: 1,
+        type: RUNTIME_EVENT_TYPES.providerAuthFlow,
+        payload: {
+          flowId: "flow-1",
+          providerId: "pho-test-oauth",
+          method: "oauth",
+          phase: "prompting",
+          revision: 1,
+          startedAt: "2026-08-14T00:00:00.000Z",
+          updatedAt: "2026-08-14T00:00:00.000Z",
+        },
+        occurredAt: "2026-08-14T00:00:00.000Z",
+      },
+    );
+    expect(cache.settings).toEqual(settings);
+    expect(cache.authFlow?.flowId).toBe("flow-1");
+  });
 });

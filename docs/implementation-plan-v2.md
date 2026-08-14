@@ -711,7 +711,7 @@ Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice sat
 
 Promoted for implementation by the owner. This section is the implementation contract; the milestone is not yet accepted.
 
-The runtime now keeps a bounded registry of independently owned Pi session controllers. Opening another session constructs another `AgentSessionRuntime` instead of calling `newSession` / `switchSession` on the already-live runtime. Application catalog/archive/restore, keyed command routing, recoverable OS-Trash chat removal, per-workspace FFF retrieval contexts, and the renderer conversation cache are wired. Sidebar rows use a right-click or keyboard actions menu; archived chats live in Settings grouped by project. Desktop and packaged continuity journeys are in source. The milestone is not accepted until those lanes pass and the owner completes a real-provider background-switch plus archive/restore/removal workflow.
+The runtime now keeps a bounded registry of independently owned Pi session controllers. Opening another session constructs another `AgentSessionRuntime` instead of calling `newSession` / `switchSession` on the already-live runtime. Application catalog/archive/restore, keyed command routing, recoverable OS-Trash chat removal, per-workspace FFF retrieval contexts, and the renderer conversation cache are wired. Sidebar rows use a right-click or keyboard actions menu; archived chats live in Settings grouped by project. Desktop and packaged continuity journeys passed. The milestone is not accepted until the owner completes a real-provider background-switch plus archive/restore/removal workflow.
 
 #### Characterization notes (Pi `0.84.1`)
 

@@ -532,12 +532,13 @@ export function applyRuntimeEventToCache(
 
   if (isProcessScopedEventType(event.type)) {
     const selected = cache.selectedKey ? cache.byKey[cache.selectedKey] : undefined;
-    const nextSelected = selected
-      ? applyRuntimeEvent({ ...selected, lastSequence: cache.lastSequence }, event)
-      : applyRuntimeEvent(
-          { ...emptyConversationState(), lastSequence: cache.lastSequence },
-          event,
-        );
+    const base = selected ?? {
+      ...emptyConversationState(),
+      lastSequence: cache.lastSequence,
+      settings: cache.settings,
+      authFlow: cache.authFlow,
+    };
+    const nextSelected = applyRuntimeEvent({ ...base, lastSequence: cache.lastSequence }, event);
     return {
       ...cache,
       lastSequence: event.sequence,
