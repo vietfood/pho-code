@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, type Dirent } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
 import {
   EXTERNAL_SKILL_SOURCE_IDS,
@@ -425,7 +425,23 @@ function admitSkill(
   if (!fileStat.isFile() && !fileStat.isSymbolicLink()) {
     return undefined;
   }
-  if (fileStat.size > MAX_SKILL_MARKDOWN_BYTES) {
+  let resolvedFileStat;
+  try {
+    resolvedFileStat = statSync(resolvedFile);
+  } catch {
+    return {
+      sourceId,
+      skillName: directoryName,
+      displayName: directoryName,
+      compatibility: "incompatible",
+      reason: "SKILL.md could not be inspected.",
+      skillDir,
+    };
+  }
+  if (!resolvedFileStat.isFile()) {
+    return undefined;
+  }
+  if (resolvedFileStat.size > MAX_SKILL_MARKDOWN_BYTES) {
     return {
       sourceId,
       skillName: directoryName,
@@ -449,7 +465,7 @@ function admitSkill(
         skillDir,
       };
     }
-    markdown = bytes.toString("utf8");
+    markdown = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     return {
       sourceId,

@@ -126,6 +126,32 @@ describe("skill source registry", () => {
     expect(registry.effectiveSkillPaths()).toEqual([realpathSync(path.join(codexRoot, ".system", "system-review"))]);
   });
 
+  test("rejects oversized symlink targets and malformed UTF-8", async () => {
+    const { home, pho } = await makeHome();
+    const cursorRoot = path.join(home, ".cursor", "skills");
+    const oversizedDir = path.join(cursorRoot, "oversized");
+    await mkdir(oversizedDir, { recursive: true });
+    const oversizedTarget = path.join(cursorRoot, "oversized-target.md");
+    await writeFile(oversizedTarget, Buffer.alloc(65 * 1024, 0x61));
+    await symlink(oversizedTarget, path.join(oversizedDir, "SKILL.md"));
+
+    const malformedDir = path.join(cursorRoot, "malformed");
+    await mkdir(malformedDir, { recursive: true });
+    await writeFile(path.join(malformedDir, "SKILL.md"), Buffer.from([0x2d, 0x2d, 0x2d, 0x0a, 0xc3, 0x28]));
+
+    const registry = createSkillSourceRegistry({
+      homedir: home,
+      phoCodeSkillsRoot: pho,
+      enabledExternalSources: ["cursor"],
+    });
+    expect(registry.snapshot().inventory.find((entry) => entry.skillName === "oversized")?.compatibility).toBe(
+      "incompatible",
+    );
+    expect(registry.snapshot().inventory.find((entry) => entry.skillName === "malformed")?.compatibility).toBe(
+      "incompatible",
+    );
+  });
+
   test("marks executable-dependent skills limited and shadows colliding names", async () => {
     const { home, pho } = await makeHome();
     await writeSkill(pho, "shared-name", TEXT_SKILL.replace("demo-skill", "shared-name"));

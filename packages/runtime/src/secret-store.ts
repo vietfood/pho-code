@@ -61,7 +61,12 @@ function createMacosKeychainStore(run: typeof spawnSync): SecretStore {
       }
     },
     async delete(service, account) {
-      run("/usr/bin/security", ["delete-generic-password", "-s", service, "-a", account], { encoding: "utf8" });
+      const result = run("/usr/bin/security", ["delete-generic-password", "-s", service, "-a", account], {
+        encoding: "utf8",
+      });
+      if (result.status !== 0 && !macosSecretWasAlreadyAbsent(result.stderr)) {
+        throw secretStoreError("Could not remove the GitHub token from the macOS Keychain.", result.stderr);
+      }
     },
   };
 }
@@ -91,7 +96,10 @@ function createLinuxSecretServiceStore(run: typeof spawnSync): SecretStore {
       }
     },
     async delete(service, account) {
-      run("secret-tool", ["clear", "service", service, "account", account], { encoding: "utf8" });
+      const result = run("secret-tool", ["clear", "service", service, "account", account], { encoding: "utf8" });
+      if (result.status !== 0) {
+        throw secretStoreError("Could not remove the GitHub token from the Secret Service keyring.", result.stderr);
+      }
     },
   };
 }
@@ -124,6 +132,10 @@ function secretStoreError(message: string, stderr: string | null | undefined) {
     recoverable: true,
     details: { reason: "secret_store_write_failed", stderrBytes: stderr?.length ?? 0 },
   });
+}
+
+function macosSecretWasAlreadyAbsent(stderr: string | null | undefined): boolean {
+  return /could not be found in the keychain/iu.test(stderr ?? "");
 }
 
 function secretKey(service: string, account: string): string {
