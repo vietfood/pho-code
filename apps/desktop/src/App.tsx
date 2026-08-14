@@ -23,6 +23,7 @@ import {
   type HarnessSettingsSnapshot,
   type ModelSummary,
   type PreparedImageSummary,
+  type PrepareRemoveProjectResult,
   type PrepareRemoveSessionResult,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
@@ -50,6 +51,7 @@ import {
   ProjectTrustDialog,
   projectPermissionTrustPending,
   readSidebarCollapsed,
+  RemoveProjectDialog,
   RemoveSessionDialog,
   SettingsView,
   WorkspacePicker,
@@ -84,6 +86,7 @@ export function App() {
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<PrepareRemoveSessionResult | null>(null);
+  const [pendingProjectRemoval, setPendingProjectRemoval] = useState<PrepareRemoveProjectResult | null>(null);
   const [trustDialogOpen, setTrustDialogOpen] = useState(false);
   const [trustDialogDismissedIds, setTrustDialogDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -553,6 +556,15 @@ export function App() {
     );
   }
 
+  function requestRemoveProject(workspaceId: string): void {
+    void runCommand(
+      async () => {
+        setPendingProjectRemoval(await getDesktopBridge().prepareRemoveProject({ workspaceId }));
+      },
+      { busy: false },
+    );
+  }
+
   function admitComposer(kind: "send" | "steer" | "followUp"): void {
     if (!snapshot) {
       return;
@@ -666,6 +678,7 @@ export function App() {
               );
             }}
             onRemoveSession={requestRemoveSession}
+            onRemoveProject={requestRemoveProject}
             onReorderProjects={(workspaceIds) => {
               const previous = bootstrap.recentWorkspaces;
               const byId = new Map(previous.map((entry) => [entry.id, entry]));
@@ -1078,6 +1091,54 @@ export function App() {
               setPendingRemoval(null);
               const entries = await refreshCatalog(prepared.workspaceId);
               leaveSessionIfCurrent(prepared.workspaceId, prepared.sessionId, entries);
+            });
+          }}
+        />
+      ) : null}
+      {pendingProjectRemoval ? (
+        <RemoveProjectDialog
+          pending={pendingProjectRemoval}
+          busy={busy}
+          onCancel={() => setPendingProjectRemoval(null)}
+          onConfirm={() => {
+            const prepared = pendingProjectRemoval;
+            void runCommand(async () => {
+              const removed = await getDesktopBridge().removeProject({
+                workspaceId: prepared.workspaceId,
+                confirmationToken: prepared.confirmationToken,
+              });
+              setPendingProjectRemoval(null);
+              setSessionsByWorkspace((current) => {
+                const next = { ...current };
+                delete next[prepared.workspaceId];
+                return next;
+              });
+              setBootstrap((current) =>
+                current ? { ...current, recentWorkspaces: removed.recentWorkspaces } : current,
+              );
+              const wasOpen =
+                snapshot?.workspace.id === prepared.workspaceId || workspace?.workspace.id === prepared.workspaceId;
+              if (!wasOpen) {
+                await refreshBootstrap();
+                return;
+              }
+              const nextProject = removed.recentWorkspaces[0];
+              if (!nextProject) {
+                setWorkspace(null);
+                setDraft("");
+                setPreparedImages([]);
+                resetConversationChrome();
+                await refreshBootstrap();
+                return;
+              }
+              const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId: nextProject.id });
+              setWorkspace(opened);
+              setDraft("");
+              setPreparedImages([]);
+              resetConversationChrome();
+              rememberSessions(opened.workspace.id, []);
+              void refreshCatalog(opened.workspace.id).catch(() => undefined);
+              await refreshBootstrap();
             });
           }}
         />
