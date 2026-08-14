@@ -93,7 +93,7 @@ The detailed contract lives in [`implementation-plan-v2.md`](./implementation-pl
 
 ### Milestone 3: session continuity and lifecycle
 
-Make chats independent working contexts rather than views over one replaceable runtime. An agent run continues when the owner opens another chat or workspace, and every live session retains its own run, queue, prepared attachments, extension binding, permission dialog, and event stream. The sidebar projects bounded working, attention, completed, failed, archived, and selected state without making the renderer authoritative for session lifecycle.
+Make chats independent working contexts rather than views over one replaceable runtime. An agent run continues when the owner opens another chat or workspace, and every live session retains its own run, queue, prepared attachments, extension binding, permission dialog, and event stream. The sidebar projects bounded working, attention, completed, failed, and selected state without making the renderer authoritative for session lifecycle. Archived chats leave the project list and appear in Settings, grouped by project.
 
 Add archive and restore as reversible application metadata over Pi-owned transcripts. Add owner-initiated session removal only through a dedicated validated operation that moves the exact settled Pi session artifact to the operating-system Trash. Permanent deletion and `rm` remain unavailable in every permission mode, including YOLO. A session with an active run or unresolved host interaction cannot be removed; the owner must let it settle or stop it explicitly first.
 

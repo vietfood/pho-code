@@ -709,9 +709,18 @@ Milestone 2 is accepted. The generic adapter and OpenAI Codex vertical slice sat
 
 ### Status
 
-Promoted for implementation by the owner. This section is the implementation contract; code is not yet accepted.
+Promoted for implementation by the owner. This section is the implementation contract; the milestone is not yet accepted.
 
-The current application has one `AgentSessionRuntime`, one `activeRun`, one prepared-image store, one extension-host dialog queue, and one renderer conversation projection. Opening another session calls Pi's session-replacement path and invalidates or disposes the previous live context. That architecture makes a sidebar switch a runtime-lifecycle action and prevents an agent from continuing reliably while the owner reads or starts another chat.
+The runtime now keeps a bounded registry of independently owned Pi session controllers. Opening another session constructs another `AgentSessionRuntime` instead of calling `newSession` / `switchSession` on the already-live runtime. Application catalog/archive/restore, keyed command routing, recoverable OS-Trash chat removal, per-workspace FFF retrieval contexts, and the renderer conversation cache are wired. Sidebar rows use a right-click or keyboard actions menu; archived chats live in Settings grouped by project. Desktop and packaged continuity journeys are in source. The milestone is not accepted until those lanes pass and the owner completes a real-provider background-switch plus archive/restore/removal workflow.
+
+#### Characterization notes (Pi `0.84.1`)
+
+Pinned SDK evidence from `packages/runtime/test/pi-session-identity.test.ts`:
+
+- `SessionManager.create(cwd)` / `list(cwd)` / `open(path)` identify a session by Pi id plus a single regular `.jsonl` artifact under the agent-dir session folder. One logical session is one file; do not Trash a directory or guess sibling names.
+- Session ids are unique within a workspace listing, not a substitute for the composite `{ workspaceId, sessionId }` key.
+- Two `AgentSessionRuntime` instances can share one `ModelRuntime` and one workspace, persist distinct transcripts, and dispose independently. Same-workspace create/open must therefore construct another runtime (`SessionManager.create` / `open`), not call `newSession` / `switchSession` on the already-live runtime.
+- Disposing one runtime does not rewrite or remove the other's JSONL file. Reopening uses `SessionManager.open(info.path)` after the previous runtime has been disposed.
 
 ### Outcome
 
@@ -922,8 +931,8 @@ Migration from the current metadata version initializes no archived records and 
 Archive behavior:
 
 - available for idle, working, attention, completed, and failed sessions;
-- immediately removes the row from the ordinary project list and adds it to an Archived view grouped by workspace;
-- keeps a working archived session resident and visible in Archived with its activity state;
+- immediately removes the row from the ordinary project list and adds it to Settings → Archived, grouped by project;
+- keeps a working archived session resident and visible in Settings → Archived with its activity state;
 - if the selected session is archived, selects the next ordinary session in the same workspace, then another recent workspace session, or creates/shows the workspace's empty-session state according to existing navigation behavior;
 - does not mark unread output as viewed unless the archived chat was actually displayed;
 - is idempotent for an already archived session.
@@ -980,8 +989,8 @@ Tests use an injected fake for ordinary logic and the existing owned-fixture OS 
 
 Extend the existing project/session sidebar rather than adding a dashboard:
 
-- each ordinary session row has a compact actions menu with Archive and, when eligible, Move to Trash;
-- Archived is a secondary collapsible section or focused view, grouped by workspace, with Restore and Move to Trash;
+- each ordinary session row has a right-click actions menu with Archive chat and Move to Trash;
+- Archived chats live in Settings, grouped by project, with Restore and Move to Trash;
 - running and attention states stay visible in both ordinary and Archived lists;
 - selecting a session uses an already resident snapshot immediately when safe, then reconciles with an authoritative snapshot without a full-app loading screen;
 - switching preserves project order, sidebar expansion, per-session draft, scroll state where practical, and the conversation shell;

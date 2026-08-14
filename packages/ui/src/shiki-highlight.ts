@@ -16,7 +16,7 @@ function getHighlighter(): Promise<Highlighter> {
     highlighterPromise = import("shiki").then((mod) =>
       mod.createHighlighter({
         themes: ["github-light", "github-dark"],
-        langs: ["text", "typescript", "javascript", "tsx", "jsx", "json", "bash", "shell", "markdown", "python", "css", "html", "yaml", "toml", "diff", "rust", "go"],
+        langs: ["text"],
       }),
     );
   }

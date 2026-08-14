@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for the completed personal v1 and v2 Milestones 0–2. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. The proposed multi-session registry, archive/restore metadata, and recoverable chat removal are specified in the active v2 Milestone 3 implementation plan; they are not yet accepted architecture or current behavior.
+Accepted architecture for the completed personal v1 and v2 Milestones 0–2. Milestones 0 through 5 of personal v1 are accepted, including typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. See the archived [Milestone 5 review](../archive/v1/reviews/milestone-5-code-review.md). v2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth login, logout, and redacted flow projection through Pi `ModelRuntime`, with owner-verified live `openai-codex` login. The proposed multi-session registry, archive/restore metadata, and recoverable chat removal are specified in the active v2 Milestone 3 implementation plan. The runtime registry, per-workspace FFF retrieval contexts, application catalog/archive/restore/remove path, renderer keyed conversation cache, session actions menu, Settings archived list, and OS-Trash chat removal are present; the milestone is not yet accepted architecture.
 
 ## Context
 
@@ -42,13 +42,13 @@ Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, settings snapshots, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
-| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, transcript projection |
-| Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases and metadata |
-| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, Permissions) with deferred API-key fields and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid) |
+| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, composite session keys, catalog/activity/archive commands, settings snapshots, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
+| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host with a bounded session-controller registry, per-controller activity, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool and chat removal, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, transcript projection |
+| Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace and appearance metadata |
+| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, Archived, Permissions) with deferred API-key fields and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid) |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
 | Renderer | `apps/desktop/src` | Viewport-owning React shell |
-| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, host-UI, permission, settings, credentials, OAuth, developer, and packaged Electron specs |
+| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, credentials, OAuth, developer, and packaged Electron specs |
 
 ## Target v1 system view
 

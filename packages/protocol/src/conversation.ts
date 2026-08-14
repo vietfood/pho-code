@@ -150,13 +150,14 @@ export interface SessionSnapshot {
 
 export interface PromptAdmission {
   sessionId: string;
+  workspaceId?: string;
   runId: string;
   admitted: boolean;
 }
 
 export interface OpenSessionInput {
   sessionId: string;
-  /** When set and different from the active workspace, switch workspace before opening. */
+  /** Composite session owner. Required when more than one live session exists. */
   workspaceId?: string;
 }
 
@@ -167,6 +168,7 @@ export interface CreateSessionInput {
 
 export interface SendPromptInput {
   sessionId: string;
+  workspaceId?: string;
   text: string;
   /** Optional extra workspace-relative paths. Inline `@path` mentions in `text` are also extracted. */
   references?: WorkspaceReferenceToken[];
@@ -176,6 +178,7 @@ export interface SendPromptInput {
 
 export interface SteerRunInput {
   sessionId: string;
+  workspaceId?: string;
   runId: string;
   text: string;
   references?: WorkspaceReferenceToken[];
@@ -184,6 +187,7 @@ export interface SteerRunInput {
 
 export interface QueueFollowUpInput {
   sessionId: string;
+  workspaceId?: string;
   runId: string;
   text: string;
   references?: WorkspaceReferenceToken[];
@@ -192,6 +196,7 @@ export interface QueueFollowUpInput {
 
 export interface QueueAdmission {
   sessionId: string;
+  workspaceId?: string;
   runId: string;
   admitted: boolean;
   queue: SessionQueueState;
@@ -199,6 +204,7 @@ export interface QueueAdmission {
 
 export interface AbortRunInput {
   sessionId: string;
+  workspaceId?: string;
   runId: string;
 }
 
@@ -216,12 +222,14 @@ export interface ReorderRecentWorkspacesInput {
 
 export interface SetSessionModelInput {
   sessionId: string;
+  workspaceId?: string;
   provider: string;
   id: string;
 }
 
 export interface SetThinkingLevelInput {
   sessionId: string;
+  workspaceId?: string;
   level: ThinkingLevel;
 }
 
@@ -230,6 +238,7 @@ export const MAX_ASSISTANT_REWRITE_CHARS = 100_000;
 
 export interface RewriteAssistantOutputInput {
   sessionId: string;
+  workspaceId?: string;
   messageId: string;
   text: string;
 }

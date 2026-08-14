@@ -11,15 +11,27 @@ import {
   isAppearancePalette,
   isChatFontSize,
   isGlassStrength,
+  isSessionKey,
+  isSessionOutcome,
   isUiFontSize,
+  sessionKeyEquals,
   type AppearanceMode,
   type AppearancePalette,
   type RecentWorkspaceRecord,
+  type SessionKey,
+  type SessionOutcome,
 } from "@pho-code/protocol";
 
-export const METADATA_VERSION = 4 as const;
+export const METADATA_VERSION = 5 as const;
 export const MAX_RECENT_WORKSPACES = 8;
-const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3]);
+const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4]);
+
+export interface SessionLifecycleRecord extends SessionKey {
+  archivedAt?: string;
+  lastViewedAt?: string;
+  lastOutcome?: SessionOutcome;
+  lastOutcomeAt?: string;
+}
 
 export interface AppMetadata {
   version: typeof METADATA_VERSION;
@@ -31,6 +43,7 @@ export interface AppMetadata {
   uiFontSize: number;
   chatFontSize: number;
   trustedPermissionWorkspaceIds: string[];
+  sessionLifecycle: SessionLifecycleRecord[];
   selectedWorkspaceId?: string;
   selectedSessionId?: string;
 }
@@ -51,6 +64,7 @@ export function emptyMetadata(): AppMetadata {
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     chatFontSize: DEFAULT_CHAT_FONT_SIZE,
     trustedPermissionWorkspaceIds: [],
+    sessionLifecycle: [],
   };
 }
 
@@ -83,6 +97,7 @@ export function rememberWorkspace(metadata: AppMetadata, record: RecentWorkspace
       uiFontSize: metadata.uiFontSize,
       chatFontSize: metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
+      sessionLifecycle: metadata.sessionLifecycle,
       selectedWorkspaceId: record.id,
     },
     metadata.selectedSessionId,
@@ -125,6 +140,7 @@ export function selectSession(metadata: AppMetadata, sessionId: string | undefin
       uiFontSize: metadata.uiFontSize,
       chatFontSize: metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
+      sessionLifecycle: metadata.sessionLifecycle,
       ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
     },
     sessionId,
@@ -161,6 +177,7 @@ export function setAppearance(
       uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
       chatFontSize: patch.chatFontSize ?? metadata.chatFontSize,
       trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
+      sessionLifecycle: metadata.sessionLifecycle,
       ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
     },
     metadata.selectedSessionId,
@@ -213,6 +230,7 @@ export function parseMetadata(value: unknown): AppMetadata {
     trustedPermissionWorkspaceIds: Array.isArray(candidate.trustedPermissionWorkspaceIds)
       ? [...new Set(candidate.trustedPermissionWorkspaceIds.filter((entry): entry is string => typeof entry === "string"))]
       : [],
+    sessionLifecycle: parseSessionLifecycle(candidate.sessionLifecycle),
   };
   if (typeof candidate.selectedWorkspaceId === "string") {
     metadata.selectedWorkspaceId = candidate.selectedWorkspaceId;
@@ -235,6 +253,168 @@ export function trustPermissionWorkspace(metadata: AppMetadata, workspaceId: str
 
 export function isPermissionWorkspaceTrusted(metadata: AppMetadata, workspaceId: string): boolean {
   return metadata.trustedPermissionWorkspaceIds.includes(workspaceId);
+}
+
+export function getSessionLifecycle(
+  metadata: AppMetadata,
+  key: SessionKey,
+): SessionLifecycleRecord | undefined {
+  return metadata.sessionLifecycle.find((entry) => sessionKeyEquals(entry, key));
+}
+
+export function archiveSessionMetadata(
+  metadata: AppMetadata,
+  key: SessionKey,
+  archivedAt: string,
+): AppMetadata {
+  return upsertSessionLifecycle(metadata, key, (current) => ({
+    ...current,
+    archivedAt: current.archivedAt ?? archivedAt,
+  }));
+}
+
+export function restoreSessionMetadata(metadata: AppMetadata, key: SessionKey): AppMetadata {
+  const current = getSessionLifecycle(metadata, key);
+  if (!current?.archivedAt) {
+    return metadata;
+  }
+  const next: SessionLifecycleRecord = {
+    workspaceId: current.workspaceId,
+    sessionId: current.sessionId,
+  };
+  if (current.lastViewedAt) {
+    next.lastViewedAt = current.lastViewedAt;
+  }
+  if (current.lastOutcome) {
+    next.lastOutcome = current.lastOutcome;
+  }
+  if (current.lastOutcomeAt) {
+    next.lastOutcomeAt = current.lastOutcomeAt;
+  }
+  if (!next.lastViewedAt && !next.lastOutcome && !next.lastOutcomeAt) {
+    return {
+      ...metadata,
+      sessionLifecycle: metadata.sessionLifecycle.filter((entry) => !sessionKeyEquals(entry, key)),
+    };
+  }
+  return upsertSessionLifecycle(metadata, key, () => next);
+}
+
+export function markSessionViewed(metadata: AppMetadata, key: SessionKey, viewedAt: string): AppMetadata {
+  return upsertSessionLifecycle(metadata, key, (current) => {
+    const next: SessionLifecycleRecord = {
+      ...current,
+      lastViewedAt: viewedAt,
+    };
+    delete next.lastOutcome;
+    delete next.lastOutcomeAt;
+    return next;
+  });
+}
+
+export function recordSessionOutcome(
+  metadata: AppMetadata,
+  key: SessionKey,
+  outcome: SessionOutcome,
+  occurredAt: string,
+): AppMetadata {
+  return upsertSessionLifecycle(metadata, key, (current) => ({
+    ...current,
+    lastOutcome: outcome,
+    lastOutcomeAt: occurredAt,
+  }));
+}
+
+export function pruneOrphanSessionLifecycle(
+  metadata: AppMetadata,
+  existing: readonly SessionKey[],
+): AppMetadata {
+  const known = existing.filter(isSessionKey);
+  const sessionLifecycle = metadata.sessionLifecycle.filter((entry) =>
+    known.some((candidate) => sessionKeyEquals(candidate, entry)),
+  );
+  if (sessionLifecycle.length === metadata.sessionLifecycle.length) {
+    return metadata;
+  }
+  return { ...metadata, sessionLifecycle };
+}
+
+export function forgetSessionLifecycle(metadata: AppMetadata, key: SessionKey): AppMetadata {
+  const sessionLifecycle = metadata.sessionLifecycle.filter((entry) => !sessionKeyEquals(entry, key));
+  if (sessionLifecycle.length === metadata.sessionLifecycle.length) {
+    return metadata;
+  }
+  const next = { ...metadata, sessionLifecycle };
+  if (metadata.selectedSessionId === key.sessionId) {
+    return selectSession(next, undefined);
+  }
+  return next;
+}
+
+function upsertSessionLifecycle(
+  metadata: AppMetadata,
+  key: SessionKey,
+  update: (current: SessionLifecycleRecord) => SessionLifecycleRecord,
+): AppMetadata {
+  if (!isSessionKey(key)) {
+    return metadata;
+  }
+  const index = metadata.sessionLifecycle.findIndex((entry) => sessionKeyEquals(entry, key));
+  const current: SessionLifecycleRecord =
+    index >= 0 ? metadata.sessionLifecycle[index]! : { workspaceId: key.workspaceId, sessionId: key.sessionId };
+  const next = update(current);
+  const sessionLifecycle =
+    index >= 0
+      ? metadata.sessionLifecycle.map((entry, entryIndex) => (entryIndex === index ? next : entry))
+      : [...metadata.sessionLifecycle, next];
+  return { ...metadata, sessionLifecycle };
+}
+
+function parseSessionLifecycle(value: unknown): SessionLifecycleRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const records: SessionLifecycleRecord[] = [];
+  for (const entry of value) {
+    const parsed = parseLifecycleRecord(entry);
+    if (parsed) {
+      records.push(parsed);
+    }
+  }
+  return records;
+}
+
+function parseLifecycleRecord(value: unknown): SessionLifecycleRecord | undefined {
+  if (!isSessionKey(value)) {
+    return undefined;
+  }
+  const candidate = value as SessionLifecycleRecord & Record<string, unknown>;
+  const record: SessionLifecycleRecord = {
+    workspaceId: candidate.workspaceId,
+    sessionId: candidate.sessionId,
+  };
+  if (typeof candidate.archivedAt === "string" && candidate.archivedAt.trim() !== "") {
+    record.archivedAt = candidate.archivedAt;
+  }
+  if (typeof candidate.lastViewedAt === "string" && candidate.lastViewedAt.trim() !== "") {
+    record.lastViewedAt = candidate.lastViewedAt;
+  }
+  if (isSessionOutcome(candidate.lastOutcome)) {
+    record.lastOutcome = candidate.lastOutcome;
+  }
+  if (typeof candidate.lastOutcomeAt === "string" && candidate.lastOutcomeAt.trim() !== "") {
+    record.lastOutcomeAt = candidate.lastOutcomeAt;
+  }
+  if (
+    "title" in candidate ||
+    "preview" in candidate ||
+    "path" in candidate ||
+    "transcript" in candidate ||
+    "error" in candidate
+  ) {
+    // Drop forbidden fields by reconstructing only the allowed identity/annotation keys.
+  }
+  return record;
 }
 
 function copySelection(base: AppMetadata, sessionId: string | undefined): AppMetadata {

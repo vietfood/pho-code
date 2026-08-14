@@ -4,6 +4,19 @@ import { MarkdownCodeBlock } from "./markdown-codeblock";
 
 type MermaidThemeName = "dark" | "default";
 
+type MermaidRenderer = {
+  initialize: (config: {
+    startOnLoad: boolean;
+    securityLevel: "strict";
+    theme: MermaidThemeName;
+    fontFamily: string;
+  }) => void;
+  render: (id: string, source: string) => Promise<{ svg: string }>;
+};
+
+let mermaidMod: MermaidRenderer | null = null;
+let mermaidTheme: MermaidThemeName | null = null;
+
 function preferredMermaidTheme(prefersDark: boolean): MermaidThemeName {
   return prefersDark ? "dark" : "default";
 }
@@ -14,14 +27,19 @@ function useMermaidTheme(): MermaidThemeName {
 }
 
 async function renderMermaidSvg(source: string, theme: MermaidThemeName, renderId: string): Promise<string> {
-  const mermaid = (await import("mermaid")).default;
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    theme,
-    fontFamily: "inherit",
-  });
-  const { svg } = await mermaid.render(renderId, source);
+  if (!mermaidMod) {
+    mermaidMod = (await import("mermaid")).default;
+  }
+  if (mermaidTheme !== theme) {
+    mermaidMod.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme,
+      fontFamily: "inherit",
+    });
+    mermaidTheme = theme;
+  }
+  const { svg } = await mermaidMod.render(renderId, source);
   return svg;
 }
 

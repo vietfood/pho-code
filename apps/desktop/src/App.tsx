@@ -1,8 +1,10 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import {
-  applyRuntimeEvent,
+  applyRuntimeEventToCache,
+  emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
+  eventSessionKey,
   idleProviderAccountsResult,
   isHarnessError,
   RUNTIME_EVENT_TYPES,
@@ -11,16 +13,20 @@ import {
   idleRunState,
   isLiveRunDeltaType,
   runtimeEventUpdatesSessionList,
+  sessionKeyId,
   type BootstrapState,
+  type ConversationCacheState,
   type ConversationViewState,
   type HarnessSettingsSnapshot,
   type ModelSummary,
   type PreparedImageSummary,
+  type PrepareRemoveSessionResult,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
   type ResolveHostDialogInput,
+  type SessionCatalogEntry,
+  type SessionActivitySummary,
   type SessionSnapshot,
-  type SessionSummary,
   type ThinkingLevel,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
@@ -36,6 +42,7 @@ import {
   fileToBase64,
   pastedImageDisplayName,
   readSidebarCollapsed,
+  RemoveSessionDialog,
   SettingsView,
   WorkspacePicker,
   writeSidebarCollapsed,
@@ -48,22 +55,30 @@ type PendingSession = {
   sessionId: string | null;
 };
 
+type ComposerChrome = {
+  draft: string;
+  images: PreparedImageSummary[];
+};
+
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapState | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
-  const [conversation, setConversation] = useState<ConversationViewState>(emptyConversationState);
-  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionSummary[]>>({});
+  const [cache, setCache] = useState<ConversationCacheState>(emptyConversationCache);
+  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionCatalogEntry[]>>({});
   const [draft, setDraft] = useState("");
   const [preparedImages, setPreparedImages] = useState<PreparedImageSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingSession, setPendingSession] = useState<PendingSession | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<PrepareRemoveSessionResult | null>(null);
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const composerAfterRun = useRef(false);
-  const conversationRef = useRef(conversation);
-  conversationRef.current = conversation;
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  const composersRef = useRef<Record<string, ComposerChrome>>({});
+  const conversation = selectedConversation(cache);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((current) => {
@@ -73,9 +88,15 @@ export function App() {
     });
   }, []);
 
-  const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionSummary[]) => {
+  const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
   }, []);
+
+  const refreshCatalog = useCallback(async (workspaceId: string) => {
+    const entries = await getDesktopBridge().listSessionCatalog({ workspaceId, scope: "all" });
+    rememberSessions(workspaceId, entries);
+    return entries;
+  }, [rememberSessions]);
 
   const refreshBootstrap = useCallback(async () => {
     const bridge = getDesktopBridge();
@@ -95,50 +116,75 @@ export function App() {
         features: next.features ?? next.activeSession?.features ?? emptyFeatureSnapshot(),
         ...(next.modelError ? { modelError: next.modelError } : {}),
       });
-      rememberSessions(next.selectedWorkspace.id, sessions);
+      void refreshCatalog(next.selectedWorkspace.id).catch(() => undefined);
     }
     if (next.activeSession) {
-      rememberSessions(next.activeSession.workspace.id, next.activeSession.sessions);
-      if (conversationRef.current.snapshot?.session.id !== next.activeSession.session.id) {
+      void refreshCatalog(next.activeSession.workspace.id).catch(() => undefined);
+      const key = sessionKeyId({
+        workspaceId: next.activeSession.workspace.id,
+        sessionId: next.activeSession.session.id,
+      });
+      if (cacheRef.current.selectedKey !== key) {
         replaceLiveRun(next.activeSession.run, { immediate: true });
       }
     }
-    setConversation((current) => {
+    setCache((current) => {
       const active = next.activeSession;
       if (!active) {
         return { ...current, settings };
       }
-      const sameSession = current.snapshot?.session.id === active.session.id;
-      if (sameSession) {
-        return { ...current, settings };
+      const key = sessionKeyId({ workspaceId: active.workspace.id, sessionId: active.session.id });
+      const existing = current.byKey[key];
+      if (current.selectedKey === key && existing) {
+        return { ...current, settings, selectedKey: key };
       }
       return {
-        lastSequence: 0,
-        snapshot: active,
-        dialog: null,
-        notification: null,
+        ...current,
+        selectedKey: key,
         settings,
-        authFlow: current.authFlow,
+        byKey: {
+          ...current.byKey,
+          [key]: {
+            lastSequence: existing?.lastSequence ?? current.lastSequence,
+            snapshot: active,
+            dialog: existing?.dialog ?? null,
+            notification: existing?.notification ?? null,
+            settings,
+            authFlow: current.authFlow,
+          },
+        },
       };
     });
-  }, [rememberSessions]);
+  }, [refreshCatalog]);
 
   useEffect(() => {
     let cancelled = false;
     const bridge = getDesktopBridge();
     const stop = bridge.subscribe((event) => {
-      const next = applyRuntimeEvent(conversationRef.current, event);
-      conversationRef.current = next;
-      const run = next.snapshot?.run ?? idleRunState();
+      const next = applyRuntimeEventToCache(cacheRef.current, event);
+      cacheRef.current = next;
+      const selected = selectedConversation(next);
+      const eventKey = eventSessionKey(event);
+      const selectedId = next.selectedKey;
+      const eventId = eventKey ? sessionKeyId(eventKey) : undefined;
+      const targetsSelected = !eventId || eventId === selectedId;
+      const run = selected.snapshot?.run ?? idleRunState();
       if (isLiveRunDeltaType(event.type)) {
-        replaceLiveRun(run);
+        if (targetsSelected) {
+          replaceLiveRun(run);
+        }
         return;
       }
-      replaceLiveRun(run, { immediate: true });
-      if (runtimeEventUpdatesSessionList(event.type) && next.snapshot) {
-        rememberSessions(next.snapshot.workspace.id, next.snapshot.sessions);
+      if (targetsSelected) {
+        replaceLiveRun(run, { immediate: true });
       }
-      setConversation(next);
+      if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
+        setSessionsByWorkspace((current) => mergeActivityIntoCatalog(current, next.activity));
+      }
+      if (runtimeEventUpdatesSessionList(event.type) && eventKey) {
+        void refreshCatalog(eventKey.workspaceId).catch(() => undefined);
+      }
+      setCache(next);
       if (event.type === RUNTIME_EVENT_TYPES.providerAuthFlow) {
         const phase = (event.payload as { phase?: string }).phase;
         if (phase === "completed" || phase === "failed" || phase === "cancelled") {
@@ -163,7 +209,16 @@ export function App() {
       cancelled = true;
       stop();
     };
-  }, [refreshBootstrap, rememberSessions]);
+  }, [refreshBootstrap, refreshCatalog]);
+
+  useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+    for (const project of bootstrap?.recentWorkspaces ?? []) {
+      void refreshCatalog(project.id).catch(() => undefined);
+    }
+  }, [bootstrap, refreshCatalog, settingsOpen]);
 
   const appearance = conversation.settings?.appearance;
   useEffect(() => {
@@ -194,12 +249,15 @@ export function App() {
 
   const resolveHostDialog = useCallback(
     (resolution: Omit<ResolveHostDialogInput, "requestId">) => {
+      const dialog = conversation.dialog;
       void getDesktopBridge().resolveHostDialog({
-        requestId: conversation.dialog?.requestId ?? "",
+        requestId: dialog?.requestId ?? "",
+        ...(dialog?.workspaceId ? { workspaceId: dialog.workspaceId } : {}),
+        ...(dialog?.sessionId ? { sessionId: dialog.sessionId } : {}),
         ...resolution,
       });
     },
-    [conversation.dialog?.requestId],
+    [conversation.dialog],
   );
 
   async function runCommand(action: () => Promise<void>, options: { busy?: boolean } = {}): Promise<void> {
@@ -220,15 +278,26 @@ export function App() {
   }
 
   function applySessionSnapshot(snapshot: SessionSnapshot): void {
+    const key = sessionKeyId({ workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id });
     replaceLiveRun(snapshot.run, { immediate: true });
-    setConversation((current) => ({
-      lastSequence: current.lastSequence,
-      snapshot,
-      dialog: null,
-      notification: null,
-      settings: current.settings,
-      authFlow: current.authFlow,
-    }));
+    setCache((current) => {
+      const existing = current.byKey[key];
+      return {
+        ...current,
+        selectedKey: key,
+        byKey: {
+          ...current.byKey,
+          [key]: {
+            lastSequence: existing?.lastSequence ?? current.lastSequence,
+            snapshot,
+            dialog: existing?.dialog ?? null,
+            notification: existing?.notification ?? null,
+            settings: current.settings,
+            authFlow: current.authFlow,
+          },
+        },
+      };
+    });
     setWorkspace({
       workspace: snapshot.workspace,
       sessions: snapshot.sessions,
@@ -236,20 +305,20 @@ export function App() {
       features: snapshot.features,
       ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
     });
-    rememberSessions(snapshot.workspace.id, snapshot.sessions);
+    void refreshCatalog(snapshot.workspace.id).catch(() => undefined);
   }
 
   function resetConversationChrome(): void {
     replaceLiveRun(idleRunState(), { immediate: true });
-    setConversation((current) => ({
-      ...emptyConversationState(),
+    setCache((current) => ({
+      ...emptyConversationCache(),
       settings: current.settings,
       authFlow: current.authFlow,
     }));
   }
 
   function applyAuthFlow(snapshot: ProviderAuthFlowSnapshot): void {
-    setConversation((current) => {
+    setCache((current) => {
       const currentFlow = current.authFlow;
       if (
         currentFlow &&
@@ -263,18 +332,46 @@ export function App() {
   }
 
   function applySettings(settings: HarnessSettingsSnapshot): void {
-    setConversation((current) => ({ ...current, settings }));
+    setCache((current) => ({ ...current, settings }));
   }
 
   function patchSnapshot(
     patch: (snapshot: NonNullable<ConversationViewState["snapshot"]>) => NonNullable<ConversationViewState["snapshot"]>,
   ): void {
-    setConversation((current) => {
-      if (!current.snapshot) {
+    setCache((current) => {
+      if (!current.selectedKey) {
         return current;
       }
-      return { ...current, snapshot: patch(current.snapshot) };
+      const selected = current.byKey[current.selectedKey];
+      if (!selected?.snapshot) {
+        return current;
+      }
+      return {
+        ...current,
+        byKey: {
+          ...current.byKey,
+          [current.selectedKey]: { ...selected, snapshot: patch(selected.snapshot) },
+        },
+      };
     });
+  }
+
+  function saveComposer(key: string | null): void {
+    if (!key) {
+      return;
+    }
+    composersRef.current[key] = { draft, images: preparedImages };
+  }
+
+  function restoreComposer(key: string | null): void {
+    if (!key) {
+      setDraft("");
+      setPreparedImages([]);
+      return;
+    }
+    const stored = composersRef.current[key];
+    setDraft(stored?.draft ?? "");
+    setPreparedImages(stored?.images ?? []);
   }
 
   async function switchSession(
@@ -282,20 +379,39 @@ export function App() {
     sessionId: string | null,
     action: () => Promise<SessionSnapshot>,
   ): Promise<void> {
-    if (sessionId && sessionId === conversation.snapshot?.session.id) {
-      return;
+    const currentKey = cache.selectedKey;
+    if (sessionId) {
+      const nextKey = sessionKeyId({ workspaceId, sessionId });
+      if (nextKey === currentKey) {
+        return;
+      }
+      saveComposer(currentKey);
+      setPendingSession({ workspaceId, sessionId });
+      setError(null);
+      setSettingsOpen(false);
+      const cached = cache.byKey[nextKey];
+      if (cached?.snapshot) {
+        setCache((current) => ({ ...current, selectedKey: nextKey }));
+        replaceLiveRun(cached.snapshot.run, { immediate: true });
+        restoreComposer(nextKey);
+      } else {
+        restoreComposer(nextKey);
+        replaceLiveRun(idleRunState(), { immediate: true });
+      }
+    } else {
+      saveComposer(currentKey);
+      setPendingSession({ workspaceId, sessionId });
+      setError(null);
+      setDraft("");
+      setPreparedImages([]);
+      setSettingsOpen(false);
+      replaceLiveRun(idleRunState(), { immediate: true });
     }
-    setPendingSession({ workspaceId, sessionId });
-    setError(null);
-    setDraft("");
-    setPreparedImages([]);
-    setSettingsOpen(false);
-    replaceLiveRun(idleRunState(), { immediate: true });
     try {
       const opened = await action();
       applySessionSnapshot(opened);
+      restoreComposer(sessionKeyId({ workspaceId: opened.workspace.id, sessionId: opened.session.id }));
       setPendingSession(null);
-      // Soft metadata refresh; do not block or remount the shell.
       void refreshBootstrap().catch(() => undefined);
     } catch (cause) {
       setError(errorMessage(cause));
@@ -332,6 +448,29 @@ export function App() {
   const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
   const settingsVisible = settingsOpen && Boolean(conversation.settings);
 
+  function leaveSessionIfCurrent(workspaceId: string, sessionId: string, entries: readonly SessionCatalogEntry[]): void {
+    if (snapshot?.workspace.id !== workspaceId || snapshot.session.id !== sessionId) {
+      return;
+    }
+    const next = entries.find((entry) => !entry.archived && entry.sessionId !== sessionId);
+    if (next) {
+      void switchSession(workspaceId, next.sessionId, () =>
+        getDesktopBridge().openSession({ workspaceId, sessionId: next.sessionId }),
+      );
+      return;
+    }
+    void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
+  }
+
+  function requestRemoveSession(workspaceId: string, sessionId: string): void {
+    void runCommand(
+      async () => {
+        setPendingRemoval(await getDesktopBridge().prepareRemoveSession({ workspaceId, sessionId }));
+      },
+      { busy: false },
+    );
+  }
+
   function admitComposer(kind: "send" | "steer" | "followUp"): void {
     if (!snapshot) {
       return;
@@ -348,6 +487,7 @@ export function App() {
       setPreparedImages([]);
       const payload = {
         sessionId: snapshot.session.id,
+        workspaceId: snapshot.workspace.id,
         text,
         ...(imageIds.length > 0 ? { imageIds } : {}),
       };
@@ -410,7 +550,7 @@ export function App() {
                   setDraft("");
                   setPreparedImages([]);
                   resetConversationChrome();
-                  rememberSessions(picked.workspace.id, picked.sessions);
+                  await refreshCatalog(picked.workspace.id);
                   await refreshBootstrap();
                 }
               });
@@ -418,8 +558,7 @@ export function App() {
             onExpandProject={(workspaceId) => {
               void runCommand(
                 async () => {
-                  const sessions = await getDesktopBridge().listWorkspaceSessions({ workspaceId });
-                  rememberSessions(workspaceId, sessions);
+                  await refreshCatalog(workspaceId);
                 },
                 { busy: false },
               );
@@ -432,6 +571,17 @@ export function App() {
                 getDesktopBridge().openSession({ workspaceId, sessionId }),
               );
             }}
+            onArchiveSession={(workspaceId, sessionId) => {
+              void runCommand(
+                async () => {
+                  await getDesktopBridge().archiveSession({ workspaceId, sessionId });
+                  const entries = await refreshCatalog(workspaceId);
+                  leaveSessionIfCurrent(workspaceId, sessionId, entries);
+                },
+                { busy: false },
+              );
+            }}
+            onRemoveSession={requestRemoveSession}
             onReorderProjects={(workspaceIds) => {
               const previous = bootstrap.recentWorkspaces;
               const byId = new Map(previous.map((entry) => [entry.id, entry]));
@@ -461,7 +611,7 @@ export function App() {
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {snapshot ? (
-          <div key={snapshot.session.id} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div key={snapshot.session.id} className="session-pane-enter flex min-h-0 flex-1 flex-col overflow-hidden">
               <Conversation
                 snapshot={snapshot}
                 draft={draft}
@@ -521,7 +671,11 @@ export function App() {
                 }}
                 onRemoveImage={(imageId) => {
                   void runCommand(async () => {
-                    await getDesktopBridge().removePreparedImage({ imageId });
+                    await getDesktopBridge().removePreparedImage({
+                      imageId,
+                      sessionId: snapshot.session.id,
+                      workspaceId: snapshot.workspace.id,
+                    });
                     setPreparedImages((current) => current.filter((image) => image.id !== imageId));
                   });
                 }}
@@ -530,6 +684,7 @@ export function App() {
                     setError(null);
                     const next = await getDesktopBridge().rewriteAssistantOutput({
                       sessionId: snapshot.session.id,
+                      workspaceId: snapshot.workspace.id,
                       messageId,
                       text,
                     });
@@ -548,6 +703,7 @@ export function App() {
                   void runCommand(async () => {
                     await getDesktopBridge().abortRun({
                       sessionId: snapshot.session.id,
+                      workspaceId: snapshot.workspace.id,
                       runId,
                     });
                   });
@@ -560,6 +716,7 @@ export function App() {
                       try {
                         await getDesktopBridge().setSessionModel({
                           sessionId: snapshot.session.id,
+                          workspaceId: snapshot.workspace.id,
                           provider: model.provider,
                           id: model.id,
                         });
@@ -586,6 +743,7 @@ export function App() {
                       try {
                         await getDesktopBridge().setThinkingLevel({
                           sessionId: snapshot.session.id,
+                          workspaceId: snapshot.workspace.id,
                           level,
                         });
                       } catch (cause) {
@@ -607,6 +765,7 @@ export function App() {
             aria-busy="true"
           >
             <div className="session-switch-veil">
+              <span className="session-switch-pulse" aria-hidden="true" />
               <span className="sr-only">Opening session…</span>
             </div>
           </div>
@@ -624,7 +783,7 @@ export function App() {
                   setDraft("");
                   setPreparedImages([]);
                   resetConversationChrome();
-                  rememberSessions(picked.workspace.id, picked.sessions);
+                  await refreshCatalog(picked.workspace.id);
                   await refreshBootstrap();
                 }
               });
@@ -636,7 +795,8 @@ export function App() {
                 setDraft("");
                 setPreparedImages([]);
                 resetConversationChrome();
-                rememberSessions(opened.workspace.id, opened.sessions);
+                rememberSessions(opened.workspace.id, []);
+                void refreshCatalog(opened.workspace.id).catch(() => undefined);
                 await refreshBootstrap();
               });
             }}
@@ -650,6 +810,8 @@ export function App() {
           busy={busy}
           providerAccounts={providerAccounts}
           authFlow={conversation.authFlow ?? providerAccounts.flow}
+          projects={projects}
+          sessionsByWorkspace={sessionsByWorkspace}
           onClose={() => setSettingsOpen(false)}
           onAppearanceChange={(input: UpdateAppearanceSettingsInput) => {
             void runCommand(
@@ -710,12 +872,69 @@ export function App() {
               await refreshBootstrap();
             });
           }}
+          onRestoreArchived={(workspaceId, sessionId) => {
+            void runCommand(
+              async () => {
+                await getDesktopBridge().restoreSession({ workspaceId, sessionId });
+                await refreshCatalog(workspaceId);
+              },
+              { busy: false },
+            );
+          }}
+          onOpenArchived={(workspaceId, sessionId) => {
+            void runCommand(async () => {
+              await getDesktopBridge().restoreSession({ workspaceId, sessionId });
+              await refreshCatalog(workspaceId);
+              setSettingsOpen(false);
+              await switchSession(workspaceId, sessionId, () =>
+                getDesktopBridge().openSession({ workspaceId, sessionId }),
+              );
+            });
+          }}
+          onRemoveSession={requestRemoveSession}
+        />
+      ) : null}
+      {pendingRemoval ? (
+        <RemoveSessionDialog
+          pending={pendingRemoval}
+          busy={busy}
+          onCancel={() => setPendingRemoval(null)}
+          onConfirm={() => {
+            const prepared = pendingRemoval;
+            void runCommand(async () => {
+              await getDesktopBridge().removeSession({
+                workspaceId: prepared.workspaceId,
+                sessionId: prepared.sessionId,
+                confirmationToken: prepared.confirmationToken,
+              });
+              setPendingRemoval(null);
+              const entries = await refreshCatalog(prepared.workspaceId);
+              leaveSessionIfCurrent(prepared.workspaceId, prepared.sessionId, entries);
+            });
+          }}
         />
       ) : null}
       {conversation.notification ? (
         <NotificationToast
           notification={conversation.notification}
-          onDismiss={() => setConversation((current) => ({ ...current, notification: null }))}
+          onDismiss={() =>
+            setCache((current) => {
+              if (!current.selectedKey) {
+                return current;
+              }
+              const selected = current.byKey[current.selectedKey];
+              if (!selected) {
+                return current;
+              }
+              return {
+                ...current,
+                byKey: {
+                  ...current.byKey,
+                  [current.selectedKey]: { ...selected, notification: null },
+                },
+              };
+            })
+          }
         />
       ) : null}
     </AppShell>
@@ -738,4 +957,36 @@ function errorMessage(cause: unknown): string {
     return cause.message;
   }
   return "The desktop command failed.";
+}
+
+function selectedConversation(cache: ConversationCacheState): ConversationViewState {
+  const selected = cache.selectedKey ? cache.byKey[cache.selectedKey] : undefined;
+  return {
+    ...(selected ?? emptyConversationState()),
+    settings: cache.settings ?? selected?.settings ?? null,
+    authFlow: cache.authFlow ?? selected?.authFlow ?? null,
+  };
+}
+
+function mergeActivityIntoCatalog(
+  current: Record<string, SessionCatalogEntry[]>,
+  activity: readonly SessionActivitySummary[],
+): Record<string, SessionCatalogEntry[]> {
+  if (activity.length === 0) {
+    return current;
+  }
+  const byId = new Map(activity.map((entry) => [sessionKeyId(entry), entry]));
+  let changed = false;
+  const next: Record<string, SessionCatalogEntry[]> = {};
+  for (const [workspaceId, entries] of Object.entries(current)) {
+    next[workspaceId] = entries.map((entry) => {
+      const updated = byId.get(sessionKeyId(entry));
+      if (!updated) {
+        return entry;
+      }
+      changed = true;
+      return { ...entry, activity: updated };
+    });
+  }
+  return changed ? next : current;
 }

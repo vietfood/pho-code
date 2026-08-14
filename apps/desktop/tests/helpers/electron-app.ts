@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, _electron as electron, type ElectronApplication, type Page } from "@playwright/test";
+import { expect, _electron as electron, type ElectronApplication, type Locator, type Page } from "@playwright/test";
 import { recoverablyRemoveOwnedTempFixture, TEST_FIXTURE_PREFIX } from "./owned-temp-path";
 
 const desktopDir = dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
@@ -80,7 +80,7 @@ export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Pr
 
 export async function openSettingsSection(
   page: Page,
-  section: "appearance" | "accounts" | "permissions",
+  section: "appearance" | "accounts" | "archived" | "permissions",
 ): Promise<void> {
   const view = page.getByTestId("settings-view");
   if ((await view.count()) === 0 || !(await view.isVisible())) {
@@ -89,6 +89,19 @@ export async function openSettingsSection(
   }
   await page.getByTestId(`settings-tab-${section}`).click();
   await expect(page.getByTestId(`settings-panel-${section}`)).toBeVisible();
+}
+
+export function selectedSessionItem(page: Page): Locator {
+  return page.locator('[data-testid="session-item"][aria-current="true"]');
+}
+
+export function unselectedSessionItem(page: Page): Locator {
+  return page.locator('[data-testid="session-item"]:not([aria-current="true"])');
+}
+
+export async function openSessionActions(sessionItem: Locator): Promise<void> {
+  await sessionItem.locator("xpath=ancestor::li[1]").getByTestId("session-actions").click();
+  await expect(sessionItem.page().getByTestId("session-context-menu")).toBeVisible();
 }
 
 function desktopLaunchEnv(userDataDir: string, extraEnv: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {

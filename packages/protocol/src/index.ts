@@ -10,19 +10,25 @@ export type { CommandResult } from "./command-result";
 export {
   appendThinkingDelta,
   applyRuntimeEvent,
+  applyRuntimeEventToCache,
+  emptyConversationCache,
   emptyConversationState,
+  eventSessionKey,
   isLiveRunDeltaType,
+  isProcessScopedEventType,
   RUNTIME_EVENT_TYPES,
   runtimeEventUpdatesSessionList,
   upsertToolWork,
 } from "./events";
 export type {
+  ConversationCacheState,
   ConversationViewState,
   ExtensionDialogSettledPayload,
   RuntimeEvent,
   RuntimeEventEnvelope,
   RuntimeEventType,
   RunFailedPayload,
+  SessionRemovedPayload,
   TextDeltaPayload,
   ThinkingDeltaPayload,
   ToolEventPayload,
@@ -206,6 +212,40 @@ export type {
   TranscriptThinkingBlock,
   TranscriptToolBlock,
 } from "./conversation";
+
+export {
+  activityRank,
+  compareSessionActivity,
+  isSessionActivityPhase,
+  isSessionCatalogScope,
+  isSessionKey,
+  isSessionOutcome,
+  parseSessionKeyId,
+  requireMatchingSessionKey,
+  SESSION_ACTIVITY_PHASES,
+  SESSION_CATALOG_SCOPES,
+  SESSION_OUTCOMES,
+  sessionActivityPhase,
+  sessionKeyEquals,
+  sessionKeyId,
+  visibleActivityPhase,
+} from "./session-lifecycle";
+export type {
+  ArchiveSessionInput,
+  GetSessionSnapshotInput,
+  ListSessionCatalogInput,
+  PrepareRemoveSessionInput,
+  PrepareRemoveSessionResult,
+  RemoveSessionInput,
+  RemoveSessionResult,
+  RestoreSessionInput,
+  SessionActivityPhase,
+  SessionActivitySummary,
+  SessionCatalogEntry,
+  SessionCatalogScope,
+  SessionKey,
+  SessionOutcome,
+} from "./session-lifecycle";
 
 export {
   emptyFeatureSnapshot,

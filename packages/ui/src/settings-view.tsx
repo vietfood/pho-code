@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
 import {
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
@@ -15,9 +15,12 @@ import {
   type ManagedPermissionProfileId,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
+  type RecentWorkspaceRecord,
+  type SessionCatalogEntry,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
+import { ArchivedChatsSection } from "./archived-chats";
 import { cn } from "./lib/cn";
 import { handleDialogTab } from "./lib/dialog-focus";
 import {
@@ -91,6 +94,8 @@ export function SettingsView({
   busy,
   providerAccounts,
   authFlow,
+  projects,
+  sessionsByWorkspace,
   onClose,
   onAppearanceChange,
   onPermissionApply,
@@ -101,12 +106,17 @@ export function SettingsView({
   onOpenAuthLink,
   onCancelAuth,
   onLogoutProvider,
+  onRestoreArchived,
+  onOpenArchived,
+  onRemoveSession,
 }: {
   settings: HarnessSettingsSnapshot;
   running: boolean;
   busy: boolean;
   providerAccounts: ProviderAccountsResult;
   authFlow: ProviderAuthFlowSnapshot | null;
+  projects: readonly RecentWorkspaceRecord[];
+  sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   onClose: () => void;
   onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
   onPermissionApply: (input: UpdatePermissionSettingsInput) => Promise<void>;
@@ -117,6 +127,9 @@ export function SettingsView({
   onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
   onCancelAuth: (flowId: string) => Promise<void>;
   onLogoutProvider: (providerId: string) => Promise<void>;
+  onRestoreArchived: (workspaceId: string, sessionId: string) => void;
+  onOpenArchived: (workspaceId: string, sessionId: string) => void;
+  onRemoveSession: (workspaceId: string, sessionId: string) => void;
 }) {
   const flowActive = isActiveAuthFlow(authFlow);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -359,6 +372,11 @@ export function SettingsView({
                 onOpenAuthLink={onOpenAuthLink}
                 onCancelAuth={onCancelAuth}
                 onLogoutProvider={onLogoutProvider}
+                projects={projects}
+                sessionsByWorkspace={sessionsByWorkspace}
+                onRestoreArchived={onRestoreArchived}
+                onOpenArchived={onOpenArchived}
+                onRemoveSession={onRemoveSession}
               />
             </div>
           </div>
@@ -393,6 +411,11 @@ function SettingsPanel({
   onOpenAuthLink,
   onCancelAuth,
   onLogoutProvider,
+  projects,
+  sessionsByWorkspace,
+  onRestoreArchived,
+  onOpenArchived,
+  onRemoveSession,
 }: {
   section: SettingsSectionId;
   settings: HarnessSettingsSnapshot;
@@ -418,6 +441,11 @@ function SettingsPanel({
   onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
   onCancelAuth: (flowId: string) => Promise<void>;
   onLogoutProvider: (providerId: string) => Promise<void>;
+  projects: readonly RecentWorkspaceRecord[];
+  sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
+  onRestoreArchived: (workspaceId: string, sessionId: string) => void;
+  onOpenArchived: (workspaceId: string, sessionId: string) => void;
+  onRemoveSession: (workspaceId: string, sessionId: string) => void;
 }): ReactNode {
   switch (section) {
     case "appearance":
@@ -435,6 +463,17 @@ function SettingsPanel({
           onOpenLink={onOpenAuthLink}
           onCancelLogin={onCancelAuth}
           onLogout={onLogoutProvider}
+        />
+      );
+    case "archived":
+      return (
+        <ArchivedChatsSection
+          projects={projects}
+          sessionsByWorkspace={sessionsByWorkspace}
+          busy={busy}
+          onRestore={onRestoreArchived}
+          onOpen={onOpenArchived}
+          onRemove={onRemoveSession}
         />
       );
     case "permissions":
@@ -468,6 +507,8 @@ function SectionIcon({ id, className }: { id: SettingsSectionId; className?: str
       return <PaletteIcon className={className} aria-hidden="true" />;
     case "accounts":
       return <KeyRoundIcon className={className} aria-hidden="true" />;
+    case "archived":
+      return <ArchiveIcon className={className} aria-hidden="true" />;
     case "permissions":
       return <ShieldIcon className={className} aria-hidden="true" />;
     default: {

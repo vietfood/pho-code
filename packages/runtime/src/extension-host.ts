@@ -34,6 +34,7 @@ export interface ExtensionHost {
   commandContextActions(): ExtensionCommandContextActions;
   onError(error: ExtensionError): void;
   takeDiagnostics(): ResourceDiagnostic[];
+  hasPendingDialog(): boolean;
   resolveDialog(input: ResolveHostDialogInput): void;
   cancelPending(): void;
   dispose(): void;
@@ -118,6 +119,9 @@ export function createExtensionHost(input: {
       const copy = [...diagnostics];
       diagnostics.length = 0;
       return copy;
+    },
+    hasPendingDialog() {
+      return pending.size > 0;
     },
     resolveDialog(resolution) {
       const dialog = pending.get(resolution.requestId);

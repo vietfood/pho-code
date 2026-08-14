@@ -2,9 +2,21 @@ export {
   createDisposableStubHarnessRuntime,
   createStubHarnessRuntime,
 } from "./harness-runtime";
-export type { HarnessRuntime, InspectWorkspaceInput, RuntimeCapabilities } from "./harness-runtime";
+export type {
+  HarnessRuntime,
+  InspectWorkspaceInput,
+  RemovableSessionInspection,
+  RemovedSessionResult,
+  RuntimeCapabilities,
+} from "./harness-runtime";
 export { createPhoCodeRuntime } from "./pi-runtime";
 export type { PhoCodeRuntimeOptions } from "./pi-runtime";
+export {
+  MAX_CONCURRENT_ACTIVE_RUNS,
+  MAX_RESIDENT_SESSION_CONTROLLERS,
+  createSessionRegistry,
+} from "./session-registry";
+export type { SessionRegistry, SessionRegistryHost } from "./session-registry";
 export { sniffImageMime } from "./image-bytes";
 export {
   PERMISSION_FEATURE_ID,

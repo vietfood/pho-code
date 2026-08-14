@@ -34,13 +34,13 @@ Do not run install/build commands inside a reference submodule as if that built 
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, and `rewriteAssistantOutput` |
-| `packages/runtime` | Pi session/loader ownership, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, deterministic test model |
-| `packages/application` | Workspace/session/prompt/settings/credential use cases, recent-workspace and appearance metadata, validation, shutdown |
-| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, Permissions) with deferred API-key import and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
+| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input host-UI records, typed appearance/permission settings, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, and `rewriteAssistantOutput` |
+| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, deterministic test model |
+| `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace and appearance metadata, validation, shutdown |
+| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, host dialogs, floating Settings dialog (Appearance, Accounts, Archived, Permissions) with deferred API-key import and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, agent-dir override, test seams |
 | `apps/desktop/src` | Shell state and conversation React composition |
-| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/host-ui/permission/settings/credentials specs, packaged artifact lane, unit tests, fail-closed trash helper |
+| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/session-lifecycle/host-ui/permission/settings/credentials specs, packaged artifact lane, unit tests, fail-closed trash helper |
 
 The production build writes `apps/desktop/out/main`, `out/preload`, and `out/renderer`. These are ignored build artifacts, not distributable installers.
 
@@ -68,7 +68,7 @@ Run commands from the repository root:
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun test` | Run non-GUI unit and integration tests. |
-| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, host-UI, permission, settings, and credentials specs. |
+| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, and credentials specs. |
 | `bun run package:mac` | Stage baked features and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
 | `bun run test:packaged` | Smoke the packaged `.app` with isolated user data, baked-feature loading, and a PATH that does not contain `pi`. |
 

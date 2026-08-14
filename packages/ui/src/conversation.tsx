@@ -139,6 +139,7 @@ export function Conversation({
       </div>
       {switching ? (
         <div className="session-switch-veil" data-testid="session-switching" role="status" aria-live="polite">
+          <span className="session-switch-pulse" aria-hidden="true" />
           <span className="sr-only">Opening session…</span>
         </div>
       ) : null}

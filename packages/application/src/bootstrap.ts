@@ -15,6 +15,8 @@ import {
   isThinkingLevel,
   isUiFontSize,
   isWorkspaceReferenceToken,
+  isSessionCatalogScope,
+  isSessionKey,
   MAX_ASSISTANT_REWRITE_CHARS,
   MAX_PREPARED_IMAGES,
   MAX_PROVIDER_AUTH_VALUE,
@@ -23,14 +25,17 @@ import {
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   nodeVersionMeetsMinimum,
   type AbortRunInput,
+  type ArchiveSessionInput,
   type BootstrapState,
   type CancelProviderLoginInput,
   type CredentialProviderSummary,
   type CreateSessionInput,
   type FeatureSnapshot,
+  type GetSessionSnapshotInput,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
+  type ListSessionCatalogInput,
   type ListWorkspaceSessionsInput,
   type LogoutProviderInput,
   type OpenProviderAuthLinkInput,
@@ -38,6 +43,8 @@ import {
   type OpenSessionInput,
   type PrepareImageInput,
   type PreparedImageSummary,
+  type PrepareRemoveSessionInput,
+  type PrepareRemoveSessionResult,
   type PromptAdmission,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
@@ -45,14 +52,20 @@ import {
   type QueueFollowUpInput,
   type RecentWorkspaceRecord,
   type RemovePreparedImageInput,
+  type RemoveSessionInput,
+  type RemoveSessionResult,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RestoreSessionInput,
   type RewriteAssistantOutputInput,
   type RuntimeEvent,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
   type SendPromptInput,
+  type SessionCatalogEntry,
+  type SessionKey,
+  type SessionActivitySummary,
   type SessionSnapshot,
   type SessionSummary,
   type AppearanceMode,
@@ -67,18 +80,36 @@ import {
   type UpdatePermissionSettingsInput,
   type WorkspaceReferenceToken,
   type WorkspaceSnapshot,
+  RUNTIME_EVENT_TYPES,
+  eventSessionKey,
+  sessionKeyEquals,
+  sessionKeyId,
 } from "@pho-code/protocol";
 import type { HarnessRuntime } from "@pho-code/runtime";
 import {
+  archiveSessionMetadata,
+  forgetSessionLifecycle,
   isPermissionWorkspaceTrusted,
+  markSessionViewed,
+  pruneOrphanSessionLifecycle,
+  recordSessionOutcome,
   rememberWorkspace,
   reorderRecentWorkspaces as applyRecentWorkspaceOrder,
+  restoreSessionMetadata,
   selectSession,
   setAppearance,
   trustPermissionWorkspace,
   type AppMetadata,
   type AppMetadataStore,
 } from "./metadata";
+import {
+  filterCatalogScope,
+  isArchivedSession,
+  isSelectedSession,
+  projectCatalogActivity,
+  projectCatalogEntry,
+  selectedSessionKey,
+} from "./session-catalog";
 
 export interface ApplicationHostVersions {
   electron: string;
@@ -95,8 +126,14 @@ export interface ApplicationService {
   openRecentWorkspace(input: OpenRecentWorkspaceInput): Promise<WorkspaceSnapshot>;
   reorderRecentWorkspaces(input: ReorderRecentWorkspacesInput): Promise<RecentWorkspaceRecord[]>;
   listWorkspaceSessions(input: ListWorkspaceSessionsInput): Promise<SessionSummary[]>;
+  listSessionCatalog(input: ListSessionCatalogInput): Promise<SessionCatalogEntry[]>;
+  getSessionSnapshot(input: GetSessionSnapshotInput): Promise<SessionSnapshot>;
   createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
   openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
+  archiveSession(input: ArchiveSessionInput): Promise<SessionCatalogEntry>;
+  restoreSession(input: RestoreSessionInput): Promise<SessionCatalogEntry>;
+  prepareRemoveSession(input: PrepareRemoveSessionInput): Promise<PrepareRemoveSessionResult>;
+  removeSession(input: RemoveSessionInput): Promise<RemoveSessionResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
@@ -125,6 +162,7 @@ export interface ApplicationService {
 }
 
 const MAX_PROMPT_LENGTH = 100_000;
+const REMOVAL_TOKEN_TTL_MS = 30_000;
 
 export function createApplicationService(input: {
   runtime: HarnessRuntime;
@@ -142,6 +180,7 @@ export function createApplicationService(input: {
   });
   let workspace: WorkspaceSnapshot | undefined;
   let session: SessionSnapshot | undefined;
+  const pendingRemovals = new Map<string, { key: SessionKey; fingerprint: string; expiresAt: number }>();
 
   function assertActive(): void {
     if (shutdownAttempt) {
@@ -185,7 +224,7 @@ export function createApplicationService(input: {
         },
         recentWorkspaces: metadata.recentWorkspaces,
         models: workspace?.models ?? session?.models ?? [],
-        sessions: workspace?.sessions ?? session?.sessions ?? [],
+        sessions: ordinarySessions(workspace?.sessions ?? session?.sessions ?? []),
       };
       if (workspace?.features) {
         state.features = workspace.features;
@@ -293,9 +332,34 @@ export function createApplicationService(input: {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "listWorkspaceSessions");
       const path = resolveWorkspacePath(workspaceId);
-      const sessions = await input.runtime.listWorkspaceSessions(path);
+      const sessions = ordinarySessions(await input.runtime.listWorkspaceSessions(path));
       assertJsonSafe(sessions, "listWorkspaceSessions");
       return sessions;
+    },
+    async listSessionCatalog(command: ListSessionCatalogInput) {
+      assertActive();
+      const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "listSessionCatalog");
+      if (!isSessionCatalogScope(command.scope)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "scope must be active, archived, or all.",
+          operation: "listSessionCatalog",
+          recoverable: true,
+        });
+      }
+      const entries = await loadSessionCatalog(workspaceId, command.scope);
+      assertJsonSafe(entries, "listSessionCatalog");
+      return entries;
+    },
+    async getSessionSnapshot(command: GetSessionSnapshotInput) {
+      assertActive();
+      const key = requireSessionKey(command, "getSessionSnapshot");
+      const snapshot = await input.runtime.getSessionSnapshot(key);
+      if (isSelectedSession(selectedSessionKey(session), key)) {
+        adoptSelectedSnapshot(snapshot);
+      }
+      assertJsonSafe(snapshot, "getSessionSnapshot");
+      return snapshot;
     },
     async createSession(command: CreateSessionInput = {}) {
       assertActive();
@@ -311,15 +375,13 @@ export function createApplicationService(input: {
         });
       }
       const snapshot = await input.runtime.createSession(workspace.workspace.id);
-      session = snapshot;
-      workspace = {
-        workspace: snapshot.workspace,
-        sessions: snapshot.sessions,
-        models: snapshot.models,
-        features: snapshot.features,
-        ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-      };
-      await persist(selectSession(metadata, snapshot.session.id));
+      replaceSelectedSnapshot(snapshot);
+      await persist(
+        markSessionViewed(selectSession(metadata, snapshot.session.id), {
+          workspaceId: snapshot.workspace.id,
+          sessionId: snapshot.session.id,
+        }, new Date().toISOString()),
+      );
       assertJsonSafe(snapshot, "createSession");
       return snapshot;
     },
@@ -338,26 +400,95 @@ export function createApplicationService(input: {
         });
       }
       const snapshot = await input.runtime.openSession(workspace.workspace.id, sessionId);
-      session = snapshot;
-      workspace = {
-        workspace: snapshot.workspace,
-        sessions: snapshot.sessions,
-        models: snapshot.models,
-        features: snapshot.features,
-        ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-      };
-      await persist(selectSession(metadata, snapshot.session.id));
+      replaceSelectedSnapshot(snapshot);
+      await persist(
+        markSessionViewed(selectSession(metadata, snapshot.session.id), {
+          workspaceId: snapshot.workspace.id,
+          sessionId: snapshot.session.id,
+        }, new Date().toISOString()),
+      );
       assertJsonSafe(snapshot, "openSession");
       return snapshot;
     },
+    async archiveSession(command: ArchiveSessionInput) {
+      assertActive();
+      const key = requireSessionKey(command, "archiveSession");
+      await persist(archiveSessionMetadata(metadata, key, new Date().toISOString()));
+      const entry = await loadCatalogEntry(key);
+      assertJsonSafe(entry, "archiveSession");
+      return entry;
+    },
+    async restoreSession(command: RestoreSessionInput) {
+      assertActive();
+      const key = requireSessionKey(command, "restoreSession");
+      await persist(restoreSessionMetadata(metadata, key));
+      const entry = await loadCatalogEntry(key);
+      assertJsonSafe(entry, "restoreSession");
+      return entry;
+    },
+    async prepareRemoveSession(command: PrepareRemoveSessionInput) {
+      assertActive();
+      const key = requireSessionKey(command, "prepareRemoveSession");
+      const inspected = await input.runtime.inspectRemovableSession(key);
+      const entry = await loadCatalogEntry(key);
+      const confirmationToken = crypto.randomUUID();
+      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
+      pendingRemovals.set(confirmationToken, {
+        key,
+        fingerprint: inspected.fingerprint,
+        expiresAt,
+      });
+      const result: PrepareRemoveSessionResult = {
+        workspaceId: key.workspaceId,
+        sessionId: key.sessionId,
+        title: inspected.title || entry.title,
+        workspaceDisplayName: workspaceDisplayName(key.workspaceId),
+        confirmationToken,
+        sharedAgentDir: input.runtime.getPermissionSettings().appliesToSharedPiAgentDir === true,
+        expiresAt: new Date(expiresAt).toISOString(),
+      };
+      assertJsonSafe(result, "prepareRemoveSession");
+      return result;
+    },
+    async removeSession(command: RemoveSessionInput) {
+      assertActive();
+      const key = requireSessionKey(command, "removeSession");
+      const confirmationToken = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeSession");
+      const pending = pendingRemovals.get(confirmationToken);
+      pendingRemovals.delete(confirmationToken);
+      if (!pending || Date.now() > pending.expiresAt || !sessionKeyEquals(pending.key, key)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "That removal confirmation expired. Prepare the chat again.",
+          operation: "removeSession",
+          recoverable: true,
+        });
+      }
+      const removed = await input.runtime.removeValidatedSession({
+        ...key,
+        fingerprint: pending.fingerprint,
+      });
+      await persist(forgetSessionLifecycle(metadata, key));
+      if (session && session.session.id === key.sessionId && session.workspace.id === key.workspaceId) {
+        session = undefined;
+      }
+      const result: RemoveSessionResult = {
+        workspaceId: key.workspaceId,
+        sessionId: key.sessionId,
+        title: removed.title,
+        method: removed.method,
+        recoverable: true,
+      };
+      assertJsonSafe(result, "removeSession");
+      return result;
+    },
     async sendPrompt(command: SendPromptInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "sendPrompt");
+      const scope = sessionCommandScope(command, "sendPrompt");
       const payload = parsePromptPayload(command, "sendPrompt");
-      requireOpenSession(session, sessionId, "sendPrompt");
       try {
         const admission = await input.runtime.sendPrompt({
-          sessionId,
+          ...scope,
           ...payload,
         });
         assertJsonSafe(admission, "sendPrompt");
@@ -368,13 +499,12 @@ export function createApplicationService(input: {
     },
     async steerRun(command: SteerRunInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "steerRun");
+      const scope = sessionCommandScope(command, "steerRun");
       const runId = requireNonEmptyString(command.runId, "runId", "steerRun");
       const payload = parsePromptPayload(command, "steerRun");
-      requireOpenSession(session, sessionId, "steerRun");
       try {
         const admission = await input.runtime.steerRun({
-          sessionId,
+          ...scope,
           runId,
           ...payload,
         });
@@ -386,13 +516,12 @@ export function createApplicationService(input: {
     },
     async queueFollowUp(command: QueueFollowUpInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "queueFollowUp");
+      const scope = sessionCommandScope(command, "queueFollowUp");
       const runId = requireNonEmptyString(command.runId, "runId", "queueFollowUp");
       const payload = parsePromptPayload(command, "queueFollowUp");
-      requireOpenSession(session, sessionId, "queueFollowUp");
       try {
         const admission = await input.runtime.queueFollowUp({
-          sessionId,
+          ...scope,
           runId,
           ...payload,
         });
@@ -416,45 +545,33 @@ export function createApplicationService(input: {
       assertActive();
       const imageId = requireNonEmptyString(command.imageId, "imageId", "removePreparedImage");
       try {
-        await input.runtime.removePreparedImage({ imageId });
+        await input.runtime.removePreparedImage({
+          imageId,
+          ...(command.sessionId ? sessionCommandScope(command as { sessionId: string; workspaceId?: string }, "removePreparedImage") : {}),
+        });
       } catch (error) {
         throw normalizeCommandError(error, "removePreparedImage");
       }
     },
     async abortRun(command: AbortRunInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "abortRun");
+      const scope = sessionCommandScope(command, "abortRun");
       const runId = requireNonEmptyString(command.runId, "runId", "abortRun");
-      await input.runtime.abortRun({ sessionId, runId });
+      await input.runtime.abortRun({ ...scope, runId });
     },
     async setSessionModel(command: SetSessionModelInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "setSessionModel");
+      const scope = sessionCommandScope(command, "setSessionModel");
       const provider = requireNonEmptyString(command.provider, "provider", "setSessionModel");
       const id = requireNonEmptyString(command.id, "id", "setSessionModel");
-      if (!session || session.session.id !== sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "Open a session before changing the model.",
-          operation: "setSessionModel",
-          recoverable: true,
-        });
-      }
-      const snapshot = await input.runtime.setSessionModel({ sessionId, provider, id });
-      session = snapshot;
-      workspace = {
-        workspace: snapshot.workspace,
-        sessions: snapshot.sessions,
-        models: snapshot.models,
-        features: snapshot.features,
-        ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-      };
+      const snapshot = await input.runtime.setSessionModel({ ...scope, provider, id });
+      adoptSelectedSnapshot(snapshot);
       assertJsonSafe(snapshot, "setSessionModel");
       return snapshot;
     },
     async setThinkingLevel(command: SetThinkingLevelInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "setThinkingLevel");
+      const scope = sessionCommandScope(command, "setThinkingLevel");
       if (!isThinkingLevel(command.level)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
@@ -463,29 +580,14 @@ export function createApplicationService(input: {
           recoverable: true,
         });
       }
-      if (!session || session.session.id !== sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "Open a session before changing the thinking level.",
-          operation: "setThinkingLevel",
-          recoverable: true,
-        });
-      }
-      const snapshot = await input.runtime.setThinkingLevel({ sessionId, level: command.level });
-      session = snapshot;
-      workspace = {
-        workspace: snapshot.workspace,
-        sessions: snapshot.sessions,
-        models: snapshot.models,
-        features: snapshot.features,
-        ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-      };
+      const snapshot = await input.runtime.setThinkingLevel({ ...scope, level: command.level });
+      adoptSelectedSnapshot(snapshot);
       assertJsonSafe(snapshot, "setThinkingLevel");
       return snapshot;
     },
     async rewriteAssistantOutput(command: RewriteAssistantOutputInput) {
       assertActive();
-      const sessionId = requireNonEmptyString(command.sessionId, "sessionId", "rewriteAssistantOutput");
+      const scope = sessionCommandScope(command, "rewriteAssistantOutput");
       const messageId = requireNonEmptyString(command.messageId, "messageId", "rewriteAssistantOutput");
       if (typeof command.text !== "string") {
         throw createHarnessError({
@@ -503,28 +605,13 @@ export function createApplicationService(input: {
           recoverable: true,
         });
       }
-      if (!session || session.session.id !== sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "Open a session before rewriting assistant output.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
-      }
       try {
         const snapshot = await input.runtime.rewriteAssistantOutput({
-          sessionId,
+          ...scope,
           messageId,
           text: command.text,
         });
-        session = snapshot;
-        workspace = {
-          workspace: snapshot.workspace,
-          sessions: snapshot.sessions,
-          models: snapshot.models,
-          features: snapshot.features,
-          ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
-        };
+        adoptSelectedSnapshot(snapshot);
         assertJsonSafe(snapshot, "rewriteAssistantOutput");
         return snapshot;
       } catch (error) {
@@ -536,6 +623,9 @@ export function createApplicationService(input: {
       const requestId = requireNonEmptyString(command.requestId, "requestId", "resolveHostDialog");
       await input.runtime.resolveHostDialog({
         requestId,
+        ...(typeof command.sessionId === "string" && command.sessionId.trim() !== ""
+          ? sessionCommandScope({ sessionId: command.sessionId, workspaceId: command.workspaceId }, "resolveHostDialog")
+          : {}),
         ...(command.cancelled === true ? { cancelled: true } : {}),
         ...(command.confirmed === true ? { confirmed: true } : {}),
         ...(typeof command.selected === "string" ? { selected: command.selected } : {}),
@@ -854,28 +944,66 @@ export function createApplicationService(input: {
     },
     subscribe(listener) {
       return input.runtime.subscribe((event) => {
-        if (event.type === "sessionSnapshot" || event.type === "runSettled") {
-          session = event.payload as SessionSnapshot;
-          workspace = {
-            workspace: session.workspace,
-            sessions: session.sessions,
-            models: session.models,
-            features: session.features,
-            ...(session.modelError ? { modelError: session.modelError } : {}),
-          };
+        const selectedKey = selectedSessionKey(session);
+        const eventKey = eventSessionKey(event);
+        const matchesSelected =
+          selectedKey !== undefined &&
+          (eventKey ? sessionKeyEquals(selectedKey, eventKey) : event.sessionId === selectedKey.sessionId);
+
+        if (
+          (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
+          matchesSelected
+        ) {
+          adoptSelectedSnapshot(event.payload as SessionSnapshot);
         }
-        if (event.type === "featureSnapshot" && workspace) {
+        if (event.type === RUNTIME_EVENT_TYPES.featureSnapshot && matchesSelected && workspace) {
           const features = event.payload as FeatureSnapshot;
           workspace = { ...workspace, features };
           if (session) {
             session = { ...session, features };
           }
         }
+        if (
+          eventKey &&
+          selectedKey &&
+          !sessionKeyEquals(eventKey, selectedKey) &&
+          (event.type === RUNTIME_EVENT_TYPES.runSettled || event.type === RUNTIME_EVENT_TYPES.runFailed)
+        ) {
+          const outcome =
+            event.type === RUNTIME_EVENT_TYPES.runFailed
+              ? "failed"
+              : (event.payload as SessionSnapshot).run.status === "failed"
+                ? "failed"
+                : (event.payload as SessionSnapshot).run.status === "cancelled"
+                  ? undefined
+                  : "completed";
+          if (outcome) {
+            void persist(recordSessionOutcome(metadata, eventKey, outcome, event.occurredAt));
+          }
+        }
+        if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved) {
+          const removed = event.payload as { workspaceId: string; sessionId: string };
+          if (
+            session &&
+            session.session.id === removed.sessionId &&
+            session.workspace.id === removed.workspaceId
+          ) {
+            session = undefined;
+          }
+        }
+        if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
+          listener({
+            ...event,
+            payload: enrichActivity(event.payload as SessionCatalogEntry["activity"][]),
+          });
+          return;
+        }
         listener(event);
       });
     },
     shutdown() {
       if (!shutdownAttempt) {
+        pendingRemovals.clear();
         shutdownAttempt = input.runtime.dispose();
       }
       return shutdownAttempt;
@@ -921,6 +1049,14 @@ export function createApplicationService(input: {
     return workspaceId;
   }
 
+  function workspaceDisplayName(workspaceId: string): string {
+    if (workspace?.workspace.id === workspaceId) {
+      return workspace.workspace.displayName;
+    }
+    const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
+    return record?.displayName ?? workspaceId;
+  }
+
   async function ensureWorkspaceSelected(workspaceId: string, operation: string): Promise<void> {
     if (workspace?.workspace.id === workspaceId) {
       return;
@@ -955,6 +1091,99 @@ export function createApplicationService(input: {
         recoverable: true,
       });
     }
+  }
+
+  function replaceSelectedSnapshot(snapshot: SessionSnapshot): void {
+    session = snapshot;
+    workspace = {
+      workspace: snapshot.workspace,
+      sessions: snapshot.sessions,
+      models: snapshot.models,
+      features: snapshot.features,
+      ...(snapshot.modelError ? { modelError: snapshot.modelError } : {}),
+    };
+  }
+
+  function adoptSelectedSnapshot(snapshot: SessionSnapshot): void {
+    const selected = selectedSessionKey(session);
+    const key = { workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id };
+    if (selected && !sessionKeyEquals(selected, key)) {
+      return;
+    }
+    replaceSelectedSnapshot(snapshot);
+  }
+
+  function ordinarySessions(sessions: readonly SessionSummary[]): SessionSummary[] {
+    return sessions.filter(
+      (entry) => !isArchivedSession(metadata, { workspaceId: entry.workspaceId, sessionId: entry.id }),
+    );
+  }
+
+  function enrichActivity(summaries: readonly SessionActivitySummary[]): SessionActivitySummary[] {
+    const selected = selectedSessionKey(session);
+    return summaries.map((summary) =>
+      projectCatalogActivity(metadata, summary, summary, isSelectedSession(selected, summary)),
+    );
+  }
+
+  async function loadSessionCatalog(workspaceId: string, scope: ListSessionCatalogInput["scope"]): Promise<SessionCatalogEntry[]> {
+    const path = resolveWorkspacePath(workspaceId);
+    const listed = await input.runtime.listWorkspaceSessions(path);
+    const liveById = new Map(
+      input.runtime.listSessionActivity().map((entry) => [sessionKeyId(entry), entry] as const),
+    );
+    const selected = selectedSessionKey(session);
+    const known: SessionKey[] = [
+      ...metadata.sessionLifecycle.filter((entry) => entry.workspaceId !== workspaceId),
+      ...listed.map((entry) => ({ workspaceId: entry.workspaceId, sessionId: entry.id })),
+    ];
+    const pruned = pruneOrphanSessionLifecycle(metadata, known);
+    if (pruned !== metadata) {
+      void persist(pruned);
+    }
+    const entries = listed.map((entry) => {
+      const key = { workspaceId: entry.workspaceId, sessionId: entry.id };
+      return projectCatalogEntry(metadata, entry, liveById.get(sessionKeyId(key)), isSelectedSession(selected, key));
+    });
+    return filterCatalogScope(entries, scope);
+  }
+
+  async function loadCatalogEntry(key: SessionKey): Promise<SessionCatalogEntry> {
+    const entries = await loadSessionCatalog(key.workspaceId, "all");
+    const entry = entries.find((candidate) => sessionKeyEquals(candidate, key));
+    if (!entry) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionNotFound,
+        message: "The selected session was not found.",
+        operation: "sessionCatalog",
+        recoverable: true,
+      });
+    }
+    return entry;
+  }
+
+  function requireSessionKey(value: Partial<SessionKey>, operation: string): SessionKey {
+    if (!isSessionKey(value)) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.invalidCommand,
+        message: `${operation} requires workspaceId and sessionId.`,
+        operation,
+        recoverable: true,
+      });
+    }
+    return value;
+  }
+
+  function sessionCommandScope(
+    command: { sessionId: string; workspaceId?: string },
+    operation: string,
+  ): { sessionId: string; workspaceId?: string } {
+    const sessionId = requireNonEmptyString(command.sessionId, "sessionId", operation);
+    const workspaceId =
+      typeof command.workspaceId === "string" && command.workspaceId.trim() !== ""
+        ? command.workspaceId.trim()
+        : undefined;
+    return workspaceId ? { sessionId, workspaceId } : { sessionId };
   }
 }
 
@@ -1076,21 +1305,6 @@ function parsePromptPayload(
     ...(references.length > 0 ? { references } : {}),
     ...(imageIds.length > 0 ? { imageIds } : {}),
   };
-}
-
-function requireOpenSession(
-  session: SessionSnapshot | undefined,
-  sessionId: string,
-  operation: string,
-): void {
-  if (!session || session.session.id !== sessionId) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.sessionNotFound,
-      message: "Open a session before sending a prompt.",
-      operation,
-      recoverable: true,
-    });
-  }
 }
 
 function normalizeCommandError(error: unknown, operation: string) {

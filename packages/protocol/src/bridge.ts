@@ -37,6 +37,17 @@ import type {
   UpdateAppearanceSettingsInput,
   UpdatePermissionSettingsInput,
 } from "./settings";
+import type {
+  ArchiveSessionInput,
+  GetSessionSnapshotInput,
+  ListSessionCatalogInput,
+  PrepareRemoveSessionInput,
+  PrepareRemoveSessionResult,
+  RemoveSessionInput,
+  RemoveSessionResult,
+  RestoreSessionInput,
+  SessionCatalogEntry,
+} from "./session-lifecycle";
 import type { RecentWorkspaceRecord, SessionSummary, WorkspaceSnapshot } from "./workspace";
 
 export interface DesktopBridge {
@@ -45,8 +56,14 @@ export interface DesktopBridge {
   openRecentWorkspace(input: OpenRecentWorkspaceInput): Promise<WorkspaceSnapshot>;
   reorderRecentWorkspaces(input: ReorderRecentWorkspacesInput): Promise<RecentWorkspaceRecord[]>;
   listWorkspaceSessions(input: ListWorkspaceSessionsInput): Promise<SessionSummary[]>;
+  listSessionCatalog(input: ListSessionCatalogInput): Promise<SessionCatalogEntry[]>;
+  getSessionSnapshot(input: GetSessionSnapshotInput): Promise<SessionSnapshot>;
   createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
   openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
+  archiveSession(input: ArchiveSessionInput): Promise<SessionCatalogEntry>;
+  restoreSession(input: RestoreSessionInput): Promise<SessionCatalogEntry>;
+  prepareRemoveSession(input: PrepareRemoveSessionInput): Promise<PrepareRemoveSessionResult>;
+  removeSession(input: RemoveSessionInput): Promise<RemoveSessionResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;

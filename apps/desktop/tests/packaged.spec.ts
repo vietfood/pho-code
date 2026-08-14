@@ -6,11 +6,13 @@ import {
   launchPackagedDesktop,
   makeUserDataDir,
   makeWorkspaceDir,
+  openSessionActions,
+  openSettingsSection,
   pathWithoutPi,
   expandSettledWorkLog,
-  openSettingsSection,
   removeTestDirectory,
   resolvePackagedAppPath,
+  unselectedSessionItem,
   writeResourceFixture,
 } from "./helpers/electron-app";
 
@@ -138,6 +140,74 @@ test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", 
       await expect(page.getByTestId("no-configured-providers")).toBeVisible();
     } finally {
       await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("packaged app keeps a background run, archive metadata, and Trash removal", async () => {
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+
+  try {
+    const first = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await first.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · Protocol 1");
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("composer").fill("ABORT_ME");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("session-activity")).toHaveAttribute("data-activity", "working", { timeout: 20_000 });
+
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(2);
+      await page.getByTestId("composer").fill("hello from B");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("transcript")).toContainText("Hello from the test model.", { timeout: 20_000 });
+
+      await unselectedSessionItem(page).click();
+      await expect(page.getByTestId("transcript")).toContainText("BEGIN_ABORT_STREAM", { timeout: 20_000 });
+      await expect(page.getByTestId("transcript")).toContainText("END_ABORT_STREAM", { timeout: 20_000 });
+
+      await openSessionActions(unselectedSessionItem(page));
+      await page.getByTestId("archive-session").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(1);
+    } finally {
+      await first.close();
+    }
+
+    const second = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await second.firstWindow();
+      await expect(page.getByTestId("session-item")).toHaveCount(1);
+      await openSettingsSection(page, "archived");
+      await expect(page.getByTestId("archived-chat-item")).toBeVisible();
+      await page.getByTestId("restore-session").click();
+      await page.getByTestId("settings-close").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(2);
+
+      await openSessionActions(unselectedSessionItem(page));
+      await page.getByTestId("remove-session").click();
+      await expect(page.getByTestId("remove-session-dialog")).toBeVisible();
+      await page.getByTestId("remove-session-confirm").click();
+      await expect(page.getByTestId("session-item")).toHaveCount(1);
+    } finally {
+      await second.close();
     }
   } finally {
     await removeTestDirectory(userDataDir);

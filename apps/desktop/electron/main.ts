@@ -20,9 +20,12 @@ import {
   windowBackgroundForAppearance,
   type AbortRunInput,
   type AppearanceSettings,
+  type ArchiveSessionInput,
   type CommandResult,
   type CreateSessionInput,
+  type GetSessionSnapshotInput,
   type ImportProviderApiKeyInput,
+  type ListSessionCatalogInput,
   type ListWorkspaceSessionsInput,
   type LogoutProviderInput,
   type OpenProviderAuthLinkInput,
@@ -30,11 +33,14 @@ import {
   type OpenSessionInput,
   type PasteImagesInput,
   type PickImagesResult,
+  type PrepareRemoveSessionInput,
   type QueueFollowUpInput,
   type RemovePreparedImageInput,
+  type RemoveSessionInput,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
+  type RestoreSessionInput,
   type RewriteAssistantOutputInput,
   type SearchWorkspaceReferencesInput,
   type SendPromptInput,
@@ -329,6 +335,20 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(IPC_CHANNELS.listSessionCatalog, async (event, payload: unknown) =>
+    handleCommand("listSessionCatalog", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().listSessionCatalog(asRecord(payload) as unknown as ListSessionCatalogInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.getSessionSnapshot, async (event, payload: unknown) =>
+    handleCommand("getSessionSnapshot", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().getSessionSnapshot(asRecord(payload) as unknown as GetSessionSnapshotInput);
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.createSession, async (event, payload: unknown) =>
     handleCommand("createSession", async () => {
       assertTrustedSender(event, trustedRenderer);
@@ -340,6 +360,34 @@ function registerIpc(): void {
     handleCommand("openSession", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().openSession(asRecord(payload) as unknown as OpenSessionInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.archiveSession, async (event, payload: unknown) =>
+    handleCommand("archiveSession", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().archiveSession(asRecord(payload) as unknown as ArchiveSessionInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.restoreSession, async (event, payload: unknown) =>
+    handleCommand("restoreSession", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().restoreSession(asRecord(payload) as unknown as RestoreSessionInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.prepareRemoveSession, async (event, payload: unknown) =>
+    handleCommand("prepareRemoveSession", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().prepareRemoveSession(asRecord(payload) as unknown as PrepareRemoveSessionInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.removeSession, async (event, payload: unknown) =>
+    handleCommand("removeSession", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().removeSession(asRecord(payload) as unknown as RemoveSessionInput);
     }),
   );
 

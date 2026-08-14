@@ -1,3 +1,5 @@
+import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
+import { sessionKeyId } from "./session-lifecycle";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type { PromptAdmission, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
@@ -20,6 +22,8 @@ export const RUNTIME_EVENT_TYPES = {
   settingsSnapshot: "settingsSnapshot",
   permissionStatus: "permissionStatus",
   providerAuthFlow: "providerAuthFlow",
+  sessionActivity: "sessionActivity",
+  sessionRemoved: "sessionRemoved",
 } as const;
 
 export type RuntimeEventType = (typeof RUNTIME_EVENT_TYPES)[keyof typeof RUNTIME_EVENT_TYPES];
@@ -28,7 +32,9 @@ export interface RuntimeEventEnvelope<T = unknown> {
   protocolVersion: ProtocolVersion;
   sequence: number;
   sessionId?: string;
+  workspaceId?: string;
   runId?: string;
+  controllerGeneration?: number;
   type: string;
   payload: T;
   occurredAt: string;
@@ -55,6 +61,12 @@ export interface RunFailedPayload {
 
 export interface ExtensionDialogSettledPayload {
   requestId: string;
+  workspaceId?: string;
+  sessionId?: string;
+}
+
+export interface SessionRemovedPayload extends SessionKey {
+  title: string;
 }
 
 export type RuntimeEvent =
@@ -71,7 +83,9 @@ export type RuntimeEvent =
   | (RuntimeEventEnvelope<ExtensionNotification> & { type: typeof RUNTIME_EVENT_TYPES.extensionNotification })
   | (RuntimeEventEnvelope<HarnessSettingsSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.settingsSnapshot })
   | (RuntimeEventEnvelope<PermissionStatusPayload> & { type: typeof RUNTIME_EVENT_TYPES.permissionStatus })
-  | (RuntimeEventEnvelope<ProviderAuthFlowSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.providerAuthFlow });
+  | (RuntimeEventEnvelope<ProviderAuthFlowSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.providerAuthFlow })
+  | (RuntimeEventEnvelope<SessionActivitySummary[]> & { type: typeof RUNTIME_EVENT_TYPES.sessionActivity })
+  | (RuntimeEventEnvelope<SessionRemovedPayload> & { type: typeof RUNTIME_EVENT_TYPES.sessionRemoved });
 
 export type Unsubscribe = () => void;
 
@@ -84,12 +98,32 @@ export interface ConversationViewState {
   authFlow: ProviderAuthFlowSnapshot | null;
 }
 
+export interface ConversationCacheState {
+  lastSequence: number;
+  selectedKey: string | null;
+  byKey: Record<string, ConversationViewState>;
+  activity: SessionActivitySummary[];
+  settings: HarnessSettingsSnapshot | null;
+  authFlow: ProviderAuthFlowSnapshot | null;
+}
+
 export function emptyConversationState(): ConversationViewState {
   return {
     lastSequence: 0,
     snapshot: null,
     dialog: null,
     notification: null,
+    settings: null,
+    authFlow: null,
+  };
+}
+
+export function emptyConversationCache(): ConversationCacheState {
+  return {
+    lastSequence: 0,
+    selectedKey: null,
+    byKey: {},
+    activity: [],
     settings: null,
     authFlow: null,
   };
@@ -127,6 +161,19 @@ export function runtimeEventUpdatesSessionList(type: string): boolean {
   switch (type) {
     case RUNTIME_EVENT_TYPES.sessionSnapshot:
     case RUNTIME_EVENT_TYPES.runSettled:
+    case RUNTIME_EVENT_TYPES.sessionActivity:
+    case RUNTIME_EVENT_TYPES.sessionRemoved:
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function isProcessScopedEventType(type: string): boolean {
+  switch (type) {
+    case RUNTIME_EVENT_TYPES.settingsSnapshot:
+    case RUNTIME_EVENT_TYPES.permissionStatus:
+    case RUNTIME_EVENT_TYPES.providerAuthFlow:
       return true;
     default:
       return false;
@@ -210,6 +257,10 @@ export function applyRuntimeEvent(
 ): ConversationViewState {
   if (event.sequence <= state.lastSequence) {
     return state;
+  }
+
+  if (eventTargetsOtherSession(state, event)) {
+    return { ...state, lastSequence: event.sequence };
   }
 
   const currentRunId = state.snapshot?.run.runId;
@@ -427,7 +478,113 @@ export function applyRuntimeEvent(
         lastSequence: event.sequence,
         authFlow: event.payload as ProviderAuthFlowSnapshot,
       };
+    case RUNTIME_EVENT_TYPES.sessionActivity:
+    case RUNTIME_EVENT_TYPES.sessionRemoved:
+      return { ...state, lastSequence: event.sequence };
     default:
       return { ...state, lastSequence: event.sequence };
   }
+}
+
+function eventTargetsOtherSession(state: ConversationViewState, event: RuntimeEventEnvelope): boolean {
+  if (isProcessScopedEventType(event.type)) {
+    return false;
+  }
+  const eventSessionId = event.sessionId ?? eventSessionIdFromPayload(event);
+  if (!eventSessionId || !state.snapshot) {
+    return false;
+  }
+  return eventSessionId !== state.snapshot.session.id;
+}
+
+function eventSessionIdFromPayload(event: RuntimeEventEnvelope): string | undefined {
+  if (event.payload === null || typeof event.payload !== "object") {
+    return undefined;
+  }
+  const payload = event.payload as { sessionId?: unknown };
+  return typeof payload.sessionId === "string" ? payload.sessionId : undefined;
+}
+
+export function eventSessionKey(event: RuntimeEventEnvelope): SessionKey | undefined {
+  const sessionId = event.sessionId ?? eventSessionIdFromPayload(event);
+  const workspaceId =
+    event.workspaceId ??
+    (event.payload !== null && typeof event.payload === "object"
+      ? typeof (event.payload as { workspaceId?: unknown }).workspaceId === "string"
+        ? (event.payload as { workspaceId: string }).workspaceId
+        : typeof (event.payload as { session?: { workspaceId?: unknown } }).session?.workspaceId === "string"
+          ? (event.payload as { session: { workspaceId: string } }).session.workspaceId
+          : undefined
+      : undefined);
+  if (!sessionId || !workspaceId) {
+    return undefined;
+  }
+  return { workspaceId, sessionId };
+}
+
+export function applyRuntimeEventToCache(
+  cache: ConversationCacheState,
+  event: RuntimeEventEnvelope,
+): ConversationCacheState {
+  if (event.sequence <= cache.lastSequence) {
+    return cache;
+  }
+
+  if (isProcessScopedEventType(event.type)) {
+    const selected = cache.selectedKey ? cache.byKey[cache.selectedKey] : undefined;
+    const nextSelected = selected
+      ? applyRuntimeEvent({ ...selected, lastSequence: cache.lastSequence }, event)
+      : applyRuntimeEvent(
+          { ...emptyConversationState(), lastSequence: cache.lastSequence },
+          event,
+        );
+    return {
+      ...cache,
+      lastSequence: event.sequence,
+      settings: nextSelected.settings,
+      authFlow: nextSelected.authFlow,
+      byKey: cache.selectedKey
+        ? { ...cache.byKey, [cache.selectedKey]: { ...nextSelected, lastSequence: event.sequence } }
+        : cache.byKey,
+    };
+  }
+
+  if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
+    return {
+      ...cache,
+      lastSequence: event.sequence,
+      activity: event.payload as SessionActivitySummary[],
+    };
+  }
+
+  if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved) {
+    const payload = event.payload as SessionRemovedPayload;
+    const key = sessionKeyId(payload);
+    const { [key]: _removed, ...rest } = cache.byKey;
+    return {
+      ...cache,
+      lastSequence: event.sequence,
+      selectedKey: cache.selectedKey === key ? null : cache.selectedKey,
+      byKey: rest,
+      activity: cache.activity.filter(
+        (entry) => !(entry.workspaceId === payload.workspaceId && entry.sessionId === payload.sessionId),
+      ),
+    };
+  }
+
+  const key = eventSessionKey(event);
+  if (!key) {
+    return { ...cache, lastSequence: event.sequence };
+  }
+  const id = sessionKeyId(key);
+  const current = cache.byKey[id] ?? { ...emptyConversationState(), lastSequence: cache.lastSequence };
+  const next = applyRuntimeEvent({ ...current, lastSequence: cache.lastSequence }, event);
+  return {
+    ...cache,
+    lastSequence: event.sequence,
+    byKey: {
+      ...cache.byKey,
+      [id]: { ...next, lastSequence: event.sequence },
+    },
+  };
 }

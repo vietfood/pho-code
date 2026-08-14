@@ -20,6 +20,7 @@ describe("sanitized markdown", () => {
     expect(html).not.toContain("<script");
     expect(html).not.toContain("javascript:");
     expect(html).not.toContain("alert(1)");
+    expect(html).not.toContain("katex");
   });
 
   test("renders safe https and data images with markdown-image chrome", () => {

@@ -43,6 +43,7 @@ export {
 export { Transcript } from "./transcript";
 export { replaceLiveRun, resetLiveRunStore } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
+export { RemoveSessionDialog } from "./remove-session-dialog";
 export { SETTINGS_SECTIONS, type SettingsSectionId } from "./lib/settings-section";
 export { ProviderAccountsSection } from "./provider-accounts";
 export { WorkspacePicker } from "./workspace-picker";
@@ -50,3 +51,4 @@ export { ConservativeMarkdown } from "./markdown";
 export { WorkEntryIcon } from "./work-entry-icon";
 export { applyAppearanceFonts } from "./lib/appearance-fonts";
 export { applyAppearanceTheme, readResolvedAppearance } from "./lib/appearance-theme";
+export { sessionActivityLabel, sessionRowActivity } from "./lib/session-activity";

@@ -242,6 +242,7 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="markdown"');
     expect(markup).toContain("<strong>");
     expect(markup).toContain("<code>");
+    expect(markup).toContain("streaming-caret");
     expect(markup).not.toContain("katex");
   });
 });

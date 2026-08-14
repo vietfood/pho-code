@@ -33,6 +33,8 @@ export interface HostDialogRequest {
   message?: string;
   options?: string[];
   placeholder?: string;
+  workspaceId?: string;
+  sessionId?: string;
 }
 
 export interface ExtensionNotification {
@@ -43,6 +45,8 @@ export interface ExtensionNotification {
 
 export interface ResolveHostDialogInput {
   requestId: string;
+  workspaceId?: string;
+  sessionId?: string;
   cancelled?: boolean;
   confirmed?: boolean;
   selected?: string;

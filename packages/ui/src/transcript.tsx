@@ -132,8 +132,9 @@ export function Transcript({
         </div>
       ) : null}
       {run.streamingText ? (
-        <article className="chat-text mx-auto w-full min-w-0 max-w-3xl overflow-x-clip px-1 py-0.5 pb-4" data-testid="streaming-text">
+        <article className="streaming-text chat-text mx-auto w-full min-w-0 max-w-3xl overflow-x-clip px-1 py-0.5 pb-4" data-testid="streaming-text">
           <ConservativeMarkdown text={run.streamingText} streaming />
+          {running ? <span className="streaming-caret" aria-hidden="true" /> : null}
         </article>
       ) : null}
       {running && !run.streamingText && liveWorkCounts.steps === 0 ? (

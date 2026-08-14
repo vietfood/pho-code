@@ -36,6 +36,8 @@ export interface PrepareImageInput {
 
 export interface RemovePreparedImageInput {
   imageId: string;
+  sessionId?: string;
+  workspaceId?: string;
 }
 
 export interface PickImagesResult {

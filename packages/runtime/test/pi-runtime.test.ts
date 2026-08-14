@@ -1,8 +1,9 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, rename, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, type RuntimeEvent } from "@pho-code/protocol";
 import {
   PERMISSION_FEATURE_ID,
@@ -12,6 +13,7 @@ import {
   createDefaultFeatureManifest,
   createPhoCodeRuntime,
   createUnsupportedHostUiExtension,
+  type RecoverableRemovalService,
 } from "../src/index";
 
 async function makeIsolatedDirs() {
@@ -25,13 +27,18 @@ async function makeIsolatedDirs() {
 
 async function createTestRuntime(
   agentDir: string,
-  options: { testHostUi?: boolean; useDefaultManifest?: boolean } = {},
+  options: {
+    testHostUi?: boolean;
+    useDefaultManifest?: boolean;
+    removalService?: RecoverableRemovalService;
+  } = {},
 ) {
   return createPhoCodeRuntime({
     agentDir,
     deterministicTestModel: true,
     ...(options.testHostUi ? { testHostUi: true } : {}),
     ...(options.useDefaultManifest ? { featureManifest: createDefaultFeatureManifest() } : {}),
+    ...(options.removalService ? { removalService: options.removalService } : {}),
   });
 }
 
@@ -678,6 +685,222 @@ describe("Pi harness runtime", () => {
       await runtime.dispose();
     }
   }, 45_000);
+
+  test("a background prompt continues after creating and using another session", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const first = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const firstPrompt = runtime.sendPrompt({
+        sessionId: first.session.id,
+        text: TEST_PROMPT.abortMe,
+      });
+      const second = await runtime.createSession(workspace.workspace.id);
+      expect(second.session.id).not.toBe(first.session.id);
+      const secondPrompt = runtime.sendPrompt({
+        sessionId: second.session.id,
+        text: "hello from the second chat",
+      });
+      await secondPrompt;
+      await waitForEvent(
+        events,
+        RUNTIME_EVENT_TYPES.runSettled,
+        (event) => event.sessionId === second.session.id,
+      );
+      await firstPrompt;
+      await waitForEvent(
+        events,
+        RUNTIME_EVENT_TYPES.runSettled,
+        (event) => event.sessionId === first.session.id,
+      );
+
+      const firstReopened = await runtime.openSession(workspace.workspace.id, first.session.id);
+      const secondReopened = await runtime.openSession(workspace.workspace.id, second.session.id);
+      expect(
+        firstReopened.messages.some((message) =>
+          message.blocks.some((block) => block.type === "text" && block.text.includes("ABORT")),
+        ),
+      ).toBe(true);
+      expect(
+        secondReopened.messages.some((message) =>
+          message.blocks.some((block) => block.type === "text" && block.text.includes("hello from the second chat")),
+        ),
+      ).toBe(true);
+      expect(firstReopened.session.id).toBe(first.session.id);
+      expect(secondReopened.session.id).toBe(second.session.id);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 60_000);
+
+  test("getSessionSnapshot does not steal selection from another live chat", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const first = await runtime.createSession(workspace.workspace.id);
+      const second = await runtime.createSession(workspace.workspace.id);
+      expect(runtime.listSessionActivity().find((entry) => entry.sessionId === second.session.id)?.selected).toBe(true);
+
+      const snapshot = await runtime.getSessionSnapshot({
+        workspaceId: first.workspace.id,
+        sessionId: first.session.id,
+      });
+      expect(snapshot.session.id).toBe(first.session.id);
+      const activity = runtime.listSessionActivity();
+      expect(activity.find((entry) => entry.sessionId === second.session.id)?.selected).toBe(true);
+      expect(activity.find((entry) => entry.sessionId === first.session.id)?.selected).toBe(false);
+    } finally {
+      await runtime.dispose();
+    }
+  }, 60_000);
+
+  test("refuses to remove a session while a prompt is running", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir);
+    const events: RuntimeEvent[] = [];
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        workspaceId: created.workspace.id,
+        text: TEST_PROMPT.abortMe,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runAdmitted, (event) => event.sessionId === created.session.id);
+      await expect(
+        runtime.inspectRemovableSession({
+          workspaceId: created.workspace.id,
+          sessionId: created.session.id,
+        }),
+      ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.sessionRemovalRefused });
+      await prompt;
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 60_000);
+
+  test("keeps the Pi artifact when injected Trash fails", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const removal: RecoverableRemovalService = {
+      async moveToTrash() {
+        throw new Error("injected trash failure");
+      },
+    };
+    const runtime = await createTestRuntime(agentDir, { removalService: removal });
+    const events: RuntimeEvent[] = [];
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      await runtime.sendPrompt({
+        sessionId: created.session.id,
+        workspaceId: created.workspace.id,
+        text: "hello",
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.sessionId === created.session.id);
+      const listed = await SessionManager.list(created.workspace.path);
+      const info = listed.find((entry) => entry.id === created.session.id);
+      expect(info).toBeDefined();
+      await access(info!.path);
+      const inspected = await runtime.inspectRemovableSession({
+        workspaceId: created.workspace.id,
+        sessionId: created.session.id,
+      });
+      await expect(
+        runtime.removeValidatedSession({
+          workspaceId: created.workspace.id,
+          sessionId: created.session.id,
+          fingerprint: inspected.fingerprint,
+        }),
+      ).rejects.toMatchObject({
+        code: HARNESS_ERROR_CODES.runtimeUnavailable,
+        message: expect.stringContaining("injected trash failure"),
+        recoverable: true,
+      });
+      await access(info!.path);
+      const listedAfter = await SessionManager.list(created.workspace.path);
+      expect(listedAfter.some((entry) => entry.id === created.session.id)).toBe(true);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 60_000);
+
+  test("moves a settled session through an injected Trash service", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const simulatedTrashDir = path.join(agentDir, "simulated-os-trash");
+    let trashedPath = "";
+    const removal: RecoverableRemovalService = {
+      async moveToTrash(input) {
+        await mkdir(simulatedTrashDir, { recursive: true });
+        trashedPath = path.join(simulatedTrashDir, path.basename(input.canonicalPath));
+        await rename(input.canonicalPath, trashedPath);
+        return { method: "macos-trash" };
+      },
+    };
+    const runtime = await createTestRuntime(agentDir, { removalService: removal });
+    const events: RuntimeEvent[] = [];
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      await runtime.sendPrompt({
+        sessionId: created.session.id,
+        workspaceId: created.workspace.id,
+        text: "hello",
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.sessionId === created.session.id);
+      const listed = await SessionManager.list(created.workspace.path);
+      expect(listed.some((entry) => entry.id === created.session.id)).toBe(true);
+      const inspected = await runtime.inspectRemovableSession({
+        workspaceId: created.workspace.id,
+        sessionId: created.session.id,
+      });
+      const removed = await runtime.removeValidatedSession({
+        workspaceId: created.workspace.id,
+        sessionId: created.session.id,
+        fingerprint: inspected.fingerprint,
+      });
+      expect(removed.method).toBe("macos-trash");
+      await access(trashedPath);
+      const listedAfter = await SessionManager.list(created.workspace.path);
+      expect(listedAfter.some((entry) => entry.id === created.session.id)).toBe(false);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 60_000);
 });
 
 async function waitForEvent(

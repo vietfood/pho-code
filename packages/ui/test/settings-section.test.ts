@@ -8,13 +8,19 @@ import {
 } from "../src/lib/settings-section";
 
 describe("settings sections", () => {
-  test("lists appearance, accounts, and permissions in a stable order", () => {
-    expect(SETTINGS_SECTIONS.map((section) => section.id)).toEqual(["appearance", "accounts", "permissions"]);
+  test("lists appearance, accounts, archived, and permissions in a stable order", () => {
+    expect(SETTINGS_SECTIONS.map((section) => section.id)).toEqual([
+      "appearance",
+      "accounts",
+      "archived",
+      "permissions",
+    ]);
     expect(DEFAULT_SETTINGS_SECTION).toBe("appearance");
   });
 
   test("accepts only known section ids", () => {
     expect(isSettingsSectionId("accounts")).toBe(true);
+    expect(isSettingsSectionId("archived")).toBe(true);
     expect(isSettingsSectionId("diagnostics")).toBe(false);
   });
 
@@ -26,5 +32,6 @@ describe("settings sections", () => {
     expect(adjacentSettingsSection("appearance", 1)).toBe("accounts");
     expect(adjacentSettingsSection("permissions", 1)).toBe("appearance");
     expect(adjacentSettingsSection("appearance", -1)).toBe("permissions");
+    expect(adjacentSettingsSection("accounts", 1)).toBe("archived");
   });
 });

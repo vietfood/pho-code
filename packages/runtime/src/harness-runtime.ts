@@ -27,6 +27,8 @@ import {
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
   type SendPromptInput,
+  type SessionActivitySummary,
+  type SessionKey,
   type SessionSnapshot,
   type SessionSummary,
   type SetSessionModelInput,
@@ -47,14 +49,28 @@ export interface InspectWorkspaceInput {
   approveProjectResources: boolean;
 }
 
+export interface RemovableSessionInspection {
+  title: string;
+  fingerprint: string;
+}
+
+export interface RemovedSessionResult {
+  title: string;
+  method: string;
+}
+
 export interface HarnessRuntime {
   readonly disposeCount: number;
   getCapabilities(): RuntimeCapabilities;
   getAgentDir(): string;
   inspectWorkspace(input: InspectWorkspaceInput): Promise<WorkspaceSnapshot>;
   listWorkspaceSessions(workspaceId: string): Promise<SessionSummary[]>;
+  listSessionActivity(): SessionActivitySummary[];
+  getSessionSnapshot(key: SessionKey): Promise<SessionSnapshot>;
   createSession(workspaceId: string): Promise<SessionSnapshot>;
   openSession(workspaceId: string, sessionId: string): Promise<SessionSnapshot>;
+  inspectRemovableSession(key: SessionKey): Promise<RemovableSessionInspection>;
+  removeValidatedSession(input: SessionKey & { fingerprint: string }): Promise<RemovedSessionResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
   steerRun(input: SteerRunInput): Promise<QueueAdmission>;
   queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
@@ -112,11 +128,23 @@ export function createDisposableStubHarnessRuntime(options?: {
     listWorkspaceSessions() {
       return Promise.reject(unavailable("listWorkspaceSessions"));
     },
+    listSessionActivity() {
+      return [];
+    },
+    getSessionSnapshot() {
+      return Promise.reject(unavailable("getSessionSnapshot"));
+    },
     createSession() {
       return Promise.reject(unavailable("createSession"));
     },
     openSession() {
       return Promise.reject(unavailable("openSession"));
+    },
+    inspectRemovableSession() {
+      return Promise.reject(unavailable("inspectRemovableSession"));
+    },
+    removeValidatedSession() {
+      return Promise.reject(unavailable("removeValidatedSession"));
     },
     sendPrompt() {
       return Promise.reject(unavailable("sendPrompt"));

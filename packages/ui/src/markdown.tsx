@@ -6,20 +6,21 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "./lib/cn";
+import { ensureKatexCss } from "./lib/ensure-katex-css";
+import { looksLikeMath } from "./lib/looks-like-math";
 import { markdownUrlTransform, safeMarkdownImageSrc } from "./lib/safe-markdown-image-src";
 import { MarkdownCodeBlock } from "./markdown-codeblock";
 import { MarkdownImage } from "./markdown-image";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ShikiCodeBlock } from "./shiki-code";
-import "katex/dist/katex.min.css";
 
 // Chat markdown presentation adapted from refs/t3code ChatMarkdown.tsx + index.css
 // (MIT, T3 Tools Inc., 6bc6cb6). rehype-raw and file-link graph omitted; code-block
 // copy uses harness CopyButton (T3 chrome pattern). Shiki highlighting adapted
 // separately in shiki-code.tsx. KaTeX via remark-math + rehype-katex after sanitize
 // (official safe order). Markdown images: http(s)/data only with lightbox;
-// workspace/file: deferred. Live streaming uses GFM + sanitize only (no math,
-// Shiki, or Mermaid) so the token path stays off KaTeX.
+// workspace/file: deferred. Live streaming uses GFM + sanitize only. Settled
+// KaTeX runs only when the text looks like math; KaTeX CSS loads on that path.
 
 const sanitizeSchema = {
   ...defaultSchema,
@@ -36,10 +37,10 @@ const sanitizeSchema = {
   },
 };
 
-const streamingRemarkPlugins: Options["remarkPlugins"] = [remarkGfm];
-const streamingRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema]];
-const settledRemarkPlugins: Options["remarkPlugins"] = [remarkGfm, remarkMath];
-const settledRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
+const gfmRemarkPlugins: Options["remarkPlugins"] = [remarkGfm];
+const gfmRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema]];
+const mathRemarkPlugins: Options["remarkPlugins"] = [remarkGfm, remarkMath];
+const mathRehypePlugins: Options["rehypePlugins"] = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 function PlainCodeBlock({ language, className, text }: { language: string; className?: string; text: string }) {
   return (
@@ -119,11 +120,16 @@ export const ConservativeMarkdown = memo(function ConservativeMarkdown({
   className?: string;
   streaming?: boolean;
 }) {
+  const useMath = !streaming && looksLikeMath(text);
+  if (useMath) {
+    ensureKatexCss();
+  }
+
   return (
     <div className={cn("chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80", className)} data-testid="markdown">
       <ReactMarkdown
-        remarkPlugins={streaming ? streamingRemarkPlugins : settledRemarkPlugins}
-        rehypePlugins={streaming ? streamingRehypePlugins : settledRehypePlugins}
+        remarkPlugins={useMath ? mathRemarkPlugins : gfmRemarkPlugins}
+        rehypePlugins={useMath ? mathRehypePlugins : gfmRehypePlugins}
         urlTransform={markdownUrlTransform}
         components={streaming ? streamingComponents : settledComponents}
       >

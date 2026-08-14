@@ -10,6 +10,11 @@ export const SETTINGS_SECTIONS = [
     description: "Provider API keys and sign-in.",
   },
   {
+    id: "archived",
+    label: "Archived",
+    description: "Restore or move archived chats to Trash.",
+  },
+  {
     id: "permissions",
     label: "Permissions",
     description: "What the agent may do in a workspace.",

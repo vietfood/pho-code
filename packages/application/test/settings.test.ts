@@ -42,7 +42,7 @@ describe("application settings", () => {
         },
       ],
     });
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(5);
     expect(migrated.palette).toBe("default");
     expect(migrated.mode).toBe("system");
     expect(migrated.glassEnabled).toBe(DEFAULT_GLASS_ENABLED);

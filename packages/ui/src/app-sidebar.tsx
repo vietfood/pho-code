@@ -11,6 +11,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronDownIcon,
+  EllipsisVerticalIcon,
   FolderIcon,
   FolderPlusIcon,
   InfoIcon,
@@ -19,12 +20,14 @@ import {
   SettingsIcon,
   SquarePenIcon,
 } from "lucide-react";
-import type { BootstrapState, RecentWorkspaceRecord, SessionSummary } from "@pho-code/protocol";
+import type { BootstrapState, RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
 import { DiagnosticsPanel } from "./diagnostics-panel";
 import { compactPath } from "./lib/compact-path";
 import { cn } from "./lib/cn";
 import { isMacDesktop } from "./lib/platform";
 import { formatRelativeTime } from "./lib/relative-time";
+import { SessionActivityDot } from "./session-activity-dot";
+import { SessionContextMenu } from "./session-context-menu";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { Button } from "./ui/button";
 
@@ -42,6 +45,8 @@ export function AppSidebar({
   onAddProject,
   onNewSession,
   onOpenSession,
+  onArchiveSession,
+  onRemoveSession,
   onExpandProject,
   onReorderProjects,
   onOpenSettings,
@@ -51,11 +56,13 @@ export function AppSidebar({
   projects: readonly RecentWorkspaceRecord[];
   activeWorkspaceId?: string;
   selectedSessionId?: string;
-  sessionsByWorkspace: Readonly<Record<string, readonly SessionSummary[]>>;
+  sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   bootstrap: BootstrapState;
   onAddProject: () => void;
   onNewSession: (workspaceId: string) => void;
   onOpenSession: (workspaceId: string, sessionId: string) => void;
+  onArchiveSession: (workspaceId: string, sessionId: string) => void;
+  onRemoveSession: (workspaceId: string, sessionId: string) => void;
   onExpandProject: (workspaceId: string) => void;
   onReorderProjects: (workspaceIds: string[]) => void;
   onOpenSettings: () => void;
@@ -64,6 +71,12 @@ export function AppSidebar({
 }) {
   const mac = isMacDesktop();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [menu, setMenu] = useState<{
+    workspaceId: string;
+    sessionId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const canNewSession = Boolean(activeWorkspaceId);
   const projectIds = projects.map((project) => project.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -165,6 +178,9 @@ export function AppSidebar({
                       onToggle={() => toggleProject(project.id)}
                       onNewSession={() => onNewSession(project.id)}
                       onOpenSession={(sessionId) => onOpenSession(project.id, sessionId)}
+                      onOpenMenu={(sessionId, point) => {
+                        setMenu({ workspaceId: project.id, sessionId, x: point.x, y: point.y });
+                      }}
                     />
                   );
                 })}
@@ -192,6 +208,16 @@ export function AppSidebar({
           </div>
         </div>
       </div>
+      {menu ? (
+        <SessionContextMenu
+          x={menu.x}
+          y={menu.y}
+          archived={false}
+          onArchive={() => onArchiveSession(menu.workspaceId, menu.sessionId)}
+          onRemove={() => onRemoveSession(menu.workspaceId, menu.sessionId)}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </aside>
   );
 }
@@ -206,20 +232,23 @@ function SortableProjectRow({
   onToggle,
   onNewSession,
   onOpenSession,
+  onOpenMenu,
 }: {
   project: RecentWorkspaceRecord;
   open: boolean;
   active: boolean;
   busy: boolean;
-  sessions: readonly SessionSummary[];
+  sessions: readonly SessionCatalogEntry[];
   selectedSessionId?: string;
   onToggle: () => void;
   onNewSession: () => void;
   onOpenSession: (sessionId: string) => void;
+  onOpenMenu: (sessionId: string, point: { x: number; y: number }) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id,
   });
+  const ordinary = sessions.filter((session) => !session.archived);
 
   return (
     <li
@@ -282,7 +311,7 @@ function SortableProjectRow({
           </span>
         </button>
         <div className="flex shrink-0 items-center gap-0.5 pt-0.5">
-          <span className="px-0.5 text-[0.6875rem] tabular-nums text-sidebar-muted-foreground">{sessions.length}</span>
+          <span className="px-0.5 text-[0.6875rem] tabular-nums text-sidebar-muted-foreground">{ordinary.length}</span>
           <Button
             size="icon-sm"
             variant="ghost"
@@ -301,47 +330,19 @@ function SortableProjectRow({
         </div>
       </div>
       {open ? (
-        <div className="mt-px min-w-0 space-y-px overflow-hidden pb-0.5">
-          {sessions.length > 0 ? (
+        <div className="project-sessions-enter mt-px min-w-0 space-y-px overflow-hidden pb-0.5">
+          {ordinary.length > 0 ? (
             <ul className="m-0 grid min-w-0 list-none gap-px p-0">
-              {sessions.map((session) => {
-                const selected = session.id === selectedSessionId && active;
-                const relative = formatRelativeTime(session.updatedAt);
-                return (
-                  <li key={session.id} className="min-w-0 overflow-hidden">
-                    <button
-                      type="button"
-                      className={cn(
-                        "grid w-full min-w-0 grid-cols-[1.25rem_1.25rem_minmax(0,1fr)_auto] items-start gap-1 overflow-hidden rounded-md px-1 py-1.5 text-left hover:bg-sidebar-row-hover disabled:opacity-50",
-                        selected && "bg-sidebar-row-selected",
-                      )}
-                      data-testid="session-item"
-                      aria-current={selected}
-                      disabled={busy}
-                      onClick={() => onOpenSession(session.id)}
-                    >
-                      <span className="size-5" aria-hidden="true" />
-                      <MessageSquareIcon
-                        className="mt-0.5 size-3.5 shrink-0 text-sidebar-muted-foreground"
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 overflow-hidden">
-                        <strong className="block truncate text-xs font-medium leading-snug">{session.title}</strong>
-                        {session.preview ? (
-                          <span className="mt-0.5 block truncate text-[0.625rem] leading-snug text-sidebar-muted-foreground">
-                            {session.preview}
-                          </span>
-                        ) : null}
-                      </span>
-                      {relative ? (
-                        <span className="mt-0.5 shrink-0 text-[0.5625rem] leading-snug tabular-nums text-sidebar-muted-foreground">
-                          {relative}
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
+              {ordinary.map((session) => (
+                <SessionRow
+                  key={session.sessionId}
+                  session={session}
+                  selected={session.sessionId === selectedSessionId && active}
+                  busy={busy}
+                  onOpen={() => onOpenSession(session.sessionId)}
+                  onOpenMenu={(point) => onOpenMenu(session.sessionId, point)}
+                />
+              ))}
             </ul>
           ) : (
             <p className="grid grid-cols-[1.25rem_1.25rem_minmax(0,1fr)] gap-1 px-1 py-1.5 text-[0.6875rem] text-muted-foreground">
@@ -352,6 +353,92 @@ function SortableProjectRow({
           )}
         </div>
       ) : null}
+    </li>
+  );
+}
+
+function SessionRow({
+  session,
+  selected,
+  busy,
+  onOpen,
+  onOpenMenu,
+}: {
+  session: SessionCatalogEntry;
+  selected: boolean;
+  busy: boolean;
+  onOpen: () => void;
+  onOpenMenu: (point: { x: number; y: number }) => void;
+}) {
+  const relative = formatRelativeTime(session.updatedAt);
+  return (
+    <li className="group min-w-0 overflow-hidden">
+      <div
+        className={cn(
+          "grid w-full min-w-0 grid-cols-[1.25rem_1.25rem_minmax(0,1fr)_auto] items-start gap-1 overflow-hidden rounded-md px-1 py-1.5 hover:bg-sidebar-row-hover",
+          selected && "bg-sidebar-row-selected",
+        )}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenMenu({ x: event.clientX, y: event.clientY });
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            onOpenMenu({ x: rect.left, y: rect.bottom });
+          }
+        }}
+      >
+        <SessionActivityDot activity={session.activity} />
+        <button
+          type="button"
+          className="contents text-left disabled:opacity-50"
+          data-testid="session-item"
+          aria-current={selected}
+          disabled={busy}
+          onClick={onOpen}
+        >
+          <MessageSquareIcon
+            className="mt-0.5 size-3.5 shrink-0 text-sidebar-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 overflow-hidden">
+            <strong className="block truncate text-xs font-medium leading-snug">{session.title}</strong>
+            {session.preview ? (
+              <span className="mt-0.5 block truncate text-[0.625rem] leading-snug text-sidebar-muted-foreground">
+                {session.preview}
+              </span>
+            ) : null}
+          </span>
+        </button>
+        <div className="flex shrink-0 items-start gap-0.5">
+          {relative ? (
+            <span className="mt-0.5 text-[0.5625rem] leading-snug tabular-nums text-sidebar-muted-foreground">
+              {relative}
+            </span>
+          ) : null}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            data-testid="session-actions"
+            disabled={busy}
+            aria-haspopup="menu"
+            aria-label={`Actions for ${session.title}`}
+            className="size-6 text-sidebar-muted-foreground opacity-0 hover:text-sidebar-foreground focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              onOpenMenu({ x: rect.right, y: rect.bottom });
+            }}
+          >
+            <EllipsisVerticalIcon className="size-3" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
     </li>
   );
 }

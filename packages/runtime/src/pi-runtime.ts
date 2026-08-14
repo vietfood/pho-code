@@ -36,6 +36,7 @@ import {
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   emptyQueueState,
+  sessionActivityPhase,
   type AbortRunInput,
   type CancelProviderLoginInput,
   type CredentialProviderSummary,
@@ -48,6 +49,8 @@ import {
   type PrepareImageInput,
   type PromptAdmission,
   type FeatureSnapshot,
+  type HostDialogRequest,
+  type ExtensionDialogSettledPayload,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
   type QueueAdmission,
@@ -63,6 +66,8 @@ import {
   type SessionQueueState,
   type SessionSnapshot,
   type SessionSummary,
+  type SessionKey,
+  type SessionActivitySummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
   type StartProviderLoginInput,
@@ -77,7 +82,13 @@ import {
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { createDefaultFeatureManifest, emptyFeatureManifest, flattenFeatureManifest, resolvePermissionFeature, PERMISSION_FEATURE_ID, type HarnessFeatureManifest } from "./features";
-import type { HarnessRuntime, InspectWorkspaceInput } from "./harness-runtime";
+import type {
+  HarnessRuntime,
+  InspectWorkspaceInput,
+  RemovableSessionInspection,
+  RemovedSessionResult,
+} from "./harness-runtime";
+import { validateSessionArtifact } from "./session-artifact";
 import { displayToolName } from "./tool-display";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
@@ -95,6 +106,9 @@ import { RETRIEVAL_FEATURE_ID } from "./retrieval-feature";
 import { createWebResearchRuntime } from "./web-client";
 import { projectModelSummary, modelSupportsImages } from "./model-summary";
 import { createPreparedImageStore } from "./image-store";
+import {
+  createSessionRegistry,
+} from "./session-registry";
 import { createDeterministicTestProvider, createHarnessMarkTool, TEST_TOOL_NAME } from "./test-model";
 import { firstUserPreview, projectMessages } from "./transcript";
 import {
@@ -134,6 +148,39 @@ interface ActiveRun {
   startedAt: string;
 }
 
+interface LiveSession {
+  key: SessionKey;
+  runtime: AgentSessionRuntime;
+  workspace: WorkspaceSummary;
+  preparedImages: ReturnType<typeof createPreparedImageStore>;
+  generation: number;
+  selectedAt: number;
+  disposing: boolean;
+  activeRun?: ActiveRun;
+  unsubscribe?: Unsubscribe;
+  extensionHost?: ExtensionHost;
+}
+
+function liveSessionProtected(session: LiveSession): boolean {
+  if (session.disposing) {
+    return true;
+  }
+  if (session.activeRun && !session.activeRun.settled) {
+    return true;
+  }
+  if (session.extensionHost?.hasPendingDialog()) {
+    return true;
+  }
+  if (session.preparedImages.size() > 0) {
+    return true;
+  }
+  const piSession = session.runtime.session;
+  if (piSession.getSteeringMessages().length > 0 || piSession.getFollowUpMessages().length > 0) {
+    return true;
+  }
+  return false;
+}
+
 export async function createPhoCodeRuntime(
   options: PhoCodeRuntimeOptions = {},
 ): Promise<HarnessRuntime> {
@@ -150,13 +197,13 @@ export async function createPhoCodeRuntime(
   const retrievalDataDir = path.join(options.applicationDataDir ?? agentDir, "retrieval");
   const retrieval = createLocalRetrievalRuntime({ dataDir: retrievalDataDir });
   const web = createWebResearchRuntime();
-  const preparedImages = createPreparedImageStore();
+  const removalService = options.removalService ?? createOsTrashRemovalService();
   const featureManifest = withTestHostUi(
     options.featureManifest ??
       (options.deterministicTestModel
         ? emptyFeatureManifest()
         : createDefaultFeatureManifest(locator, {
-            removal: options.removalService ?? createOsTrashRemovalService(),
+            removal: removalService,
             agentDir,
             retrieval,
             web,
@@ -192,11 +239,9 @@ export async function createPhoCodeRuntime(
   let sequence = 0;
   let disposeCount = 0;
   let disposed = false;
-  let piRuntime: AgentSessionRuntime | undefined;
-  let unsubscribeSession: Unsubscribe | undefined;
-  let activeWorkspace: WorkspaceSummary | undefined;
-  let activeRun: ActiveRun | undefined;
-  let extensionHost: ExtensionHost | undefined;
+  let selected: LiveSession | undefined;
+  let lastWorkspace: WorkspaceSummary | undefined;
+  let generation = 0;
   let catalogCache:
     | {
         workspacePath: string;
@@ -205,6 +250,31 @@ export async function createPhoCodeRuntime(
         sessions: SessionSummary[];
       }
     | undefined;
+
+  const registry = createSessionRegistry<LiveSession>({
+    async openController(key) {
+      return instantiateSession(key.workspaceId, key.sessionId);
+    },
+    async createController(workspaceId) {
+      return instantiateSession(workspaceId);
+    },
+    keyOf(controller) {
+      return controller.key;
+    },
+    isProtected: liveSessionProtected,
+    lastSelectedAt(controller) {
+      return controller.selectedAt;
+    },
+    markSelected(controller, at) {
+      controller.selectedAt = at;
+    },
+    hasActiveRun(controller) {
+      return Boolean(controller.activeRun && !controller.activeRun.settled);
+    },
+    async dispose(controller, reason) {
+      await disposeLiveSession(controller, reason);
+    },
+  });
 
   function emit(event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">): void {
     sequence += 1;
@@ -221,6 +291,227 @@ export async function createPhoCodeRuntime(
       } catch (error) {
         console.error("Runtime event listener failed:", error);
       }
+    }
+  }
+
+  function emitFor(
+    session: LiveSession,
+    event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">,
+  ): void {
+    emit({
+      ...event,
+      workspaceId: session.key.workspaceId,
+      sessionId: event.sessionId ?? session.key.sessionId,
+    });
+  }
+
+  function liveHasQueuedWork(session: LiveSession): boolean {
+    if (session.disposing) {
+      return false;
+    }
+    try {
+      const piSession = session.runtime.session;
+      return piSession.getSteeringMessages().length > 0 || piSession.getFollowUpMessages().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  function projectLiveActivity(session: LiveSession): SessionActivitySummary {
+    const working = Boolean(session.activeRun && !session.activeRun.settled) || liveHasQueuedWork(session);
+    const attention = session.extensionHost?.hasPendingDialog() === true;
+    const updatedAt = session.activeRun?.startedAt ?? new Date().toISOString();
+    const summary: SessionActivitySummary = {
+      workspaceId: session.key.workspaceId,
+      sessionId: session.key.sessionId,
+      phase: sessionActivityPhase({ attention, working }),
+      selected: selected === session,
+      archived: false,
+      unread: false,
+      updatedAt,
+    };
+    if (session.activeRun) {
+      summary.runId = session.activeRun.runId;
+      summary.startedAt = session.activeRun.startedAt;
+    }
+    return summary;
+  }
+
+  function emitActivity(): void {
+    emit({
+      type: RUNTIME_EVENT_TYPES.sessionActivity,
+      payload: registry.list().map(projectLiveActivity),
+    });
+  }
+
+  async function instantiateSession(workspaceId: string, sessionId?: string): Promise<LiveSession> {
+    const cwd = await canonicalizeWorkspaceDirectory(
+      workspaceId,
+      sessionId ? "openSession" : "createSession",
+    );
+    const workspace = workspaceSummary(cwd);
+    const next = sessionId
+      ? await openPiRuntime(cwd, sessionId)
+      : await createAgentSessionRuntime(createRuntime, {
+          cwd,
+          agentDir,
+          sessionManager: SessionManager.create(cwd),
+        });
+    const key: SessionKey = { workspaceId: cwd, sessionId: next.session.sessionId };
+    generation += 1;
+    const live: LiveSession = {
+      key,
+      runtime: next,
+      workspace,
+      preparedImages: createPreparedImageStore(),
+      generation,
+      selectedAt: Date.now(),
+      disposing: false,
+    };
+    reportDiagnostics(next.diagnostics);
+    next.setBeforeSessionInvalidate(() => {
+      live.unsubscribe?.();
+      live.unsubscribe = undefined;
+    });
+    next.setRebindSession(async () => {
+      bindSession(live);
+      await bindHostUi(live);
+    });
+    bindSession(live);
+    await bindHostUi(live);
+    await retrieval.bind(cwd);
+    return live;
+  }
+
+  async function openPiRuntime(cwd: string, sessionId: string): Promise<AgentSessionRuntime> {
+    const infos = await SessionManager.list(cwd);
+    const info = infos.find((entry) => entry.id === sessionId);
+    if (!info) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionNotFound,
+        message: "The selected session was not found.",
+        operation: "openSession",
+        recoverable: true,
+        details: { sessionId },
+      });
+    }
+    return createAgentSessionRuntime(createRuntime, {
+      cwd,
+      agentDir,
+      sessionManager: SessionManager.open(info.path),
+    });
+  }
+
+  async function disposeLiveSession(session: LiveSession, _reason: "evicted" | "removed" | "shutdown"): Promise<void> {
+    if (session.disposing) {
+      return;
+    }
+    session.disposing = true;
+    session.extensionHost?.cancelPending();
+    if (session.activeRun && !session.activeRun.settled) {
+      session.activeRun.abortRequested = true;
+      try {
+        await session.runtime.session.abort();
+        await session.activeRun.promptDone.catch(() => undefined);
+      } catch {
+        // Best-effort abort during eviction or shutdown.
+      }
+    }
+    session.unsubscribe?.();
+    session.unsubscribe = undefined;
+    session.extensionHost?.dispose();
+    session.extensionHost = undefined;
+    session.preparedImages.clear();
+    try {
+      await session.runtime.services.settingsManager.flush();
+    } catch (error) {
+      console.error("Failed to flush Pi settings during session dispose:", error);
+    }
+    await session.runtime.dispose();
+    if (selected === session) {
+      selected = undefined;
+    }
+    await releaseWorkspaceIfUnused(session.workspace.path);
+  }
+
+  function workspaceHasResidentController(workspacePath: string): boolean {
+    return registry.list().some((entry) => entry.workspace.path === workspacePath);
+  }
+
+  async function releaseWorkspaceIfUnused(workspacePath: string | undefined): Promise<void> {
+    if (!workspacePath) {
+      return;
+    }
+    if (workspaceHasResidentController(workspacePath) || lastWorkspace?.path === workspacePath) {
+      return;
+    }
+    await retrieval.unbind(workspacePath);
+  }
+
+  function locateController(sessionId: string, workspaceId: string | undefined, operation: string): LiveSession {
+    if (workspaceId && workspaceId.trim() !== "") {
+      const match = registry.get({ workspaceId, sessionId });
+      if (!match) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionNotFound,
+          message: "The target session is not open.",
+          operation,
+          recoverable: true,
+        });
+      }
+      return match;
+    }
+    const matches = registry.list().filter((entry) => entry.key.sessionId === sessionId);
+    if (matches.length === 1 && matches[0]) {
+      return matches[0];
+    }
+    if (selected?.key.sessionId === sessionId) {
+      return selected;
+    }
+    throw createHarnessError({
+      code: HARNESS_ERROR_CODES.sessionNotFound,
+      message: "The target session is not the active session.",
+      operation,
+      recoverable: true,
+    });
+  }
+
+  function hasAnyActiveRun(): boolean {
+    return registry.activeRunCount() > 0;
+  }
+
+  async function resolveListedSession(cwd: string, sessionId: string, operation: string): Promise<SessionInfo> {
+    const infos = await SessionManager.list(cwd);
+    const info = infos.find((entry) => entry.id === sessionId);
+    if (!info) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionNotFound,
+        message: "The selected session was not found.",
+        operation,
+        recoverable: true,
+        details: { sessionId },
+      });
+    }
+    return info;
+  }
+
+  async function validateListedArtifact(cwd: string, info: SessionInfo) {
+    return validateSessionArtifact(info.path, info.id, {
+      agentDir,
+      workspacePath: cwd,
+      ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
+      ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
+    });
+  }
+
+  function refuseBusyRemoval(live: LiveSession | undefined, operation: string): void {
+    if (live && liveSessionProtected(live)) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionRemovalRefused,
+        message: "This chat is still running or waiting. Stop it first, then try again.",
+        operation,
+        recoverable: true,
+      });
     }
   }
 
@@ -279,9 +570,9 @@ export async function createPhoCodeRuntime(
 
   async function refreshModelsAfterAuth(): Promise<void> {
     clearCatalogCache();
-    if (piRuntime?.session) {
-      const snapshot = await buildSnapshot();
-      emit({
+    for (const session of registry.list()) {
+      const snapshot = await buildSnapshot({ live: session });
+      emitFor(session, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
@@ -386,10 +677,12 @@ export async function createPhoCodeRuntime(
     };
   }
 
-  async function buildSnapshot(options: { refreshCatalog?: boolean } = {}): Promise<SessionSnapshot> {
+  async function buildSnapshot(options: { refreshCatalog?: boolean; live?: LiveSession } = {}): Promise<SessionSnapshot> {
     const refreshCatalog = options.refreshCatalog !== false;
-    const session = requireSession();
-    const workspace = activeWorkspace ?? workspaceSummary(session.sessionManager.getCwd());
+    const live = options.live ?? requireLiveSession();
+    const session = live.runtime.session;
+    const workspace = live.workspace;
+    const activeRun = live.activeRun;
     const { models, modelError, sessions } = await resolveCatalog(workspace.path, refreshCatalog);
     const model = session.model ? projectModelSummary(session.model) : models[0];
     const run = activeRun
@@ -419,14 +712,11 @@ export async function createPhoCodeRuntime(
       messages: projectSessionMessages(session),
       run: activeRun && !activeRun.settled ? { ...run, status: "streaming" } : idleRunState(),
       models,
-      sessions: mergeActiveSession(sessions, {
-        id: session.sessionId,
-        workspaceId: workspace.id,
-        title: session.sessionName?.trim() || firstUserPreview(session.messages) || "New session",
-        updatedAt: new Date().toISOString(),
-        ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
-      }),
-      features: withHostDiagnostics(projectFeatureSnapshot(featureManifest, session.resourceLoader, compositionDiagnostics)),
+      sessions: mergeResidentSessions(sessions, workspace.id),
+      features: withHostDiagnostics(
+        projectFeatureSnapshot(featureManifest, session.resourceLoader, compositionDiagnostics),
+        live,
+      ),
       thinkingLevel,
       availableThinkingLevels: availableThinkingLevels.length > 0 ? availableThinkingLevels : [thinkingLevel],
       supportsThinking: session.supportsThinking(),
@@ -455,6 +745,24 @@ export async function createPhoCodeRuntime(
     return snapshot;
   }
 
+  function mergeResidentSessions(sessions: SessionSummary[], workspaceId: string): SessionSummary[] {
+    let merged = sessions;
+    for (const live of registry.list()) {
+      if (live.key.workspaceId !== workspaceId) {
+        continue;
+      }
+      const session = live.runtime.session;
+      merged = mergeActiveSession(merged, {
+        id: session.sessionId,
+        workspaceId,
+        title: session.sessionName?.trim() || firstUserPreview(session.messages) || "New session",
+        updatedAt: new Date().toISOString(),
+        ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
+      });
+    }
+    return merged;
+  }
+
   function resourceLoaderOptions() {
     return {
       noExtensions: true,
@@ -474,8 +782,12 @@ export async function createPhoCodeRuntime(
   }
 
   async function loadWorkspaceFeatures(cwd: string): Promise<FeatureSnapshot> {
-    if (piRuntime?.session && activeWorkspace?.path === cwd) {
-      return withHostDiagnostics(projectFeatureSnapshot(featureManifest, piRuntime.session.resourceLoader, compositionDiagnostics));
+    const live = registry.list().find((entry) => entry.key.workspaceId === cwd) ?? selected;
+    if (live?.runtime.session && live.key.workspaceId === cwd) {
+      return withHostDiagnostics(
+        projectFeatureSnapshot(featureManifest, live.runtime.session.resourceLoader, compositionDiagnostics),
+        live,
+      );
     }
     const settingsManager = SettingsManager.create(cwd, agentDir);
     const loader = new DefaultResourceLoader({
@@ -490,9 +802,9 @@ export async function createPhoCodeRuntime(
     return withHostDiagnostics(projectFeatureSnapshot(featureManifest, loader, compositionDiagnostics));
   }
 
-  function withHostDiagnostics(snapshot: FeatureSnapshot): FeatureSnapshot {
+  function withHostDiagnostics(snapshot: FeatureSnapshot, live?: LiveSession): FeatureSnapshot {
     const extra = [
-      ...(extensionHost?.takeDiagnostics() ?? []),
+      ...(live?.extensionHost?.takeDiagnostics() ?? []),
       ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
     ];
     if (extra.length === 0) {
@@ -504,9 +816,8 @@ export async function createPhoCodeRuntime(
     };
   }
 
-  function requireSession(): AgentSession {
-    const session = piRuntime?.session;
-    if (!session) {
+  function requireLiveSession(): LiveSession {
+    if (!selected) {
       throw createHarnessError({
         code: HARNESS_ERROR_CODES.sessionNotFound,
         message: "No active session is open.",
@@ -514,61 +825,77 @@ export async function createPhoCodeRuntime(
         recoverable: true,
       });
     }
-    return session;
+    return selected;
   }
 
-  function bindSession(): void {
-    unsubscribeSession?.();
-    const session = requireSession();
-    unsubscribeSession = session.subscribe((event) => {
-      void handleAgentEvent(event);
+  function bindSession(live: LiveSession): void {
+    live.unsubscribe?.();
+    live.unsubscribe = live.runtime.session.subscribe((event) => {
+      void handleAgentEvent(live, event);
     });
   }
 
-  async function bindHostUi(): Promise<void> {
-    const session = requireSession();
-    extensionHost?.cancelPending();
-    if (!extensionHost) {
-      extensionHost = createExtensionHost({
-        emit,
-        waitForIdle: () => requireSession().waitForIdle(),
-        newSession: async () => {
-          if (!piRuntime) {
-            return { cancelled: true };
+  async function bindHostUi(live: LiveSession): Promise<void> {
+    const session = live.runtime.session;
+    live.extensionHost?.cancelPending();
+    if (!live.extensionHost) {
+      live.extensionHost = createExtensionHost({
+        emit: (event) => {
+          if (event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest) {
+            const payload: HostDialogRequest = {
+              ...(event.payload as HostDialogRequest),
+              workspaceId: live.key.workspaceId,
+              sessionId: live.key.sessionId,
+            };
+            emitFor(live, { ...event, payload });
+            emitActivity();
+            return;
           }
-          return piRuntime.newSession();
+          if (event.type === RUNTIME_EVENT_TYPES.extensionDialogSettled) {
+            const payload: ExtensionDialogSettledPayload = {
+              ...(event.payload as ExtensionDialogSettledPayload),
+              workspaceId: live.key.workspaceId,
+              sessionId: live.key.sessionId,
+            };
+            emitFor(live, { ...event, payload });
+            emitActivity();
+            return;
+          }
+          emitFor(live, event);
         },
+        waitForIdle: () => live.runtime.session.waitForIdle(),
+        newSession: async () => ({ cancelled: true }),
         reload: async () => {
-          await requireSession().reload();
-          await bindHostUi();
+          await live.runtime.session.reload();
+          await bindHostUi(live);
         },
       });
     }
-    extensionHost.beginBinding();
+    live.extensionHost.beginBinding();
     try {
       await session.bindExtensions({
-        uiContext: extensionHost.createUiContext(),
+        uiContext: live.extensionHost.createUiContext(),
         mode: "rpc",
-        commandContextActions: extensionHost.commandContextActions(),
+        commandContextActions: live.extensionHost.commandContextActions(),
         onError: (error) => {
-          extensionHost?.onError(error);
+          live.extensionHost?.onError(error);
         },
       });
     } finally {
-      extensionHost.endBinding();
+      live.extensionHost.endBinding();
     }
   }
 
-  async function handleAgentEvent(event: AgentSessionEvent): Promise<void> {
-    const runId = activeRun?.runId;
-    const sessionId = piRuntime?.session.sessionId;
+  async function handleAgentEvent(live: LiveSession, event: AgentSessionEvent): Promise<void> {
+    const runId = live.activeRun?.runId;
+    const sessionId = live.key.sessionId;
     switch (event.type) {
       case "message_update": {
         if (!runId) {
           return;
         }
         if (event.assistantMessageEvent.type === "text_delta") {
-          emit({
+          emitFor(live, {
             type: RUNTIME_EVENT_TYPES.textDelta,
             sessionId,
             runId,
@@ -577,7 +904,7 @@ export async function createPhoCodeRuntime(
           return;
         }
         if (event.assistantMessageEvent.type === "thinking_delta") {
-          emit({
+          emitFor(live, {
             type: RUNTIME_EVENT_TYPES.thinkingDelta,
             sessionId,
             runId,
@@ -590,7 +917,7 @@ export async function createPhoCodeRuntime(
         if (!runId) {
           return;
         }
-        emit({
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
@@ -608,7 +935,7 @@ export async function createPhoCodeRuntime(
         if (!runId) {
           return;
         }
-        emit({
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
@@ -626,7 +953,7 @@ export async function createPhoCodeRuntime(
         if (!runId) {
           return;
         }
-        emit({
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
@@ -635,27 +962,88 @@ export async function createPhoCodeRuntime(
             callId: event.toolCallId,
             name: displayToolName(event.toolName),
             status: event.isError ? "failed" : "completed",
-            // End events omit args; reducer keeps the prior inputPreview.
             inputPreview: "",
             outputPreview: previewToolResult(event.result),
           },
         });
         return;
       case "queue_update": {
-        if (!sessionId) {
-          return;
-        }
-        emit({
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.sessionSnapshot,
           sessionId,
           runId,
-          payload: await buildSnapshot({ refreshCatalog: false }),
+          payload: await buildSnapshot({ refreshCatalog: false, live }),
         });
         return;
       }
       default:
         return;
     }
+  }
+
+  async function finishRun(live: LiveSession, run: ActiveRun, error?: unknown): Promise<void> {
+    if (run.settled || live.activeRun?.runId !== run.runId) {
+      return;
+    }
+    run.settled = true;
+    live.activeRun = undefined;
+    const snapshot = await buildSnapshot({ live });
+    if (error) {
+      const harnessError = toHarnessError(error, "sendPrompt", HARNESS_ERROR_CODES.runFailed);
+      snapshot.run = {
+        ...snapshot.run,
+        runId: run.runId,
+        status: "failed",
+        error: harnessError,
+      };
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.runFailed,
+        sessionId: run.sessionId,
+        runId: run.runId,
+        payload: { runId: run.runId, error: harnessError },
+      });
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+        sessionId: run.sessionId,
+        runId: run.runId,
+        payload: snapshot,
+      });
+      emitActivity();
+      return;
+    }
+
+    const failedMessage = live.runtime.session.agent.state.errorMessage;
+    if (run.abortRequested) {
+      snapshot.run = { ...idleRunState(), runId: run.runId, status: "cancelled" };
+    } else if (failedMessage) {
+      const harnessError = createHarnessError({
+        code: HARNESS_ERROR_CODES.runFailed,
+        message: failedMessage,
+        operation: "sendPrompt",
+        recoverable: true,
+      });
+      snapshot.run = {
+        ...idleRunState(),
+        runId: run.runId,
+        status: "failed",
+        error: harnessError,
+      };
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.runFailed,
+        sessionId: run.sessionId,
+        runId: run.runId,
+        payload: { runId: run.runId, error: harnessError },
+      });
+    } else {
+      snapshot.run = { ...idleRunState(), runId: run.runId, status: "settled" };
+    }
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.runSettled,
+      sessionId: run.sessionId,
+      runId: run.runId,
+      payload: snapshot,
+    });
+    emitActivity();
   }
 
   const createRuntime: CreateAgentSessionRuntimeFactory = async ({
@@ -699,94 +1087,6 @@ export async function createPhoCodeRuntime(
     };
   };
 
-  async function replaceRuntime(next: AgentSessionRuntime, workspace: WorkspaceSummary): Promise<void> {
-    unsubscribeSession?.();
-    unsubscribeSession = undefined;
-    if (piRuntime && piRuntime !== next) {
-      await piRuntime.dispose();
-    }
-    piRuntime = next;
-    activeWorkspace = workspace;
-    await retrieval.bind(workspace.path);
-    activeRun = undefined;
-    preparedImages.clear();
-    clearCatalogCache();
-    reportDiagnostics(next.diagnostics);
-    next.setBeforeSessionInvalidate(() => {
-      unsubscribeSession?.();
-      unsubscribeSession = undefined;
-    });
-    next.setRebindSession(async () => {
-      bindSession();
-      await bindHostUi();
-    });
-    bindSession();
-    await bindHostUi();
-  }
-
-  async function finishRun(run: ActiveRun, error?: unknown): Promise<void> {
-    if (run.settled || activeRun?.runId !== run.runId) {
-      return;
-    }
-    run.settled = true;
-    activeRun = undefined;
-    const snapshot = await buildSnapshot();
-    if (error) {
-      const harnessError = toHarnessError(error, "sendPrompt", HARNESS_ERROR_CODES.runFailed);
-      snapshot.run = {
-        ...snapshot.run,
-        runId: run.runId,
-        status: "failed",
-        error: harnessError,
-      };
-      emit({
-        type: RUNTIME_EVENT_TYPES.runFailed,
-        sessionId: run.sessionId,
-        runId: run.runId,
-        payload: { runId: run.runId, error: harnessError },
-      });
-      emit({
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: run.sessionId,
-        runId: run.runId,
-        payload: snapshot,
-      });
-      return;
-    }
-
-    const failedMessage = piRuntime?.session.agent.state.errorMessage;
-    if (run.abortRequested) {
-      snapshot.run = { ...idleRunState(), runId: run.runId, status: "cancelled" };
-    } else if (failedMessage) {
-      const harnessError = createHarnessError({
-        code: HARNESS_ERROR_CODES.runFailed,
-        message: failedMessage,
-        operation: "sendPrompt",
-        recoverable: true,
-      });
-      snapshot.run = {
-        ...idleRunState(),
-        runId: run.runId,
-        status: "failed",
-        error: harnessError,
-      };
-      emit({
-        type: RUNTIME_EVENT_TYPES.runFailed,
-        sessionId: run.sessionId,
-        runId: run.runId,
-        payload: { runId: run.runId, error: harnessError },
-      });
-    } else {
-      snapshot.run = { ...idleRunState(), runId: run.runId, status: "settled" };
-    }
-    emit({
-      type: RUNTIME_EVENT_TYPES.runSettled,
-      sessionId: run.sessionId,
-      runId: run.runId,
-      payload: snapshot,
-    });
-  }
-
   const runtime: HarnessRuntime = {
     get disposeCount() {
       return disposeCount;
@@ -803,13 +1103,17 @@ export async function createPhoCodeRuntime(
       if (input.approveProjectResources) {
         approvedProjectPaths.add(cwd);
       }
-      activeWorkspace = workspaceSummary(cwd);
+      const previousWorkspace = lastWorkspace?.path;
+      lastWorkspace = workspaceSummary(cwd);
       await retrieval.bind(cwd);
+      if (previousWorkspace && previousWorkspace !== cwd) {
+        await releaseWorkspaceIfUnused(previousWorkspace);
+      }
       const { models, modelError } = await listModels();
       const features = await loadWorkspaceFeatures(cwd);
       const snapshot: WorkspaceSnapshot = {
         workspace: workspaceSummary(cwd),
-        sessions: await listSessions(cwd),
+        sessions: mergeResidentSessions(await listSessions(cwd), cwd),
         models,
         features,
       };
@@ -821,113 +1125,108 @@ export async function createPhoCodeRuntime(
     async listWorkspaceSessions(workspaceId: string) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(workspaceId, "listWorkspaceSessions");
-      const sessions = await listSessions(cwd);
-      if (piRuntime?.session && (activeWorkspace?.path === cwd || piRuntime.cwd === cwd)) {
-        const session = piRuntime.session;
-        return mergeActiveSession(sessions, {
-          id: session.sessionId,
-          workspaceId: cwd,
-          title: session.sessionName?.trim() || firstUserPreview(session.messages) || "New session",
-          updatedAt: new Date().toISOString(),
-          ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
-        });
-      }
-      return sessions;
+      return mergeResidentSessions(await listSessions(cwd), cwd);
+    },
+    listSessionActivity() {
+      assertNotDisposed();
+      return registry.list().map(projectLiveActivity);
+    },
+    async getSessionSnapshot(key: SessionKey) {
+      assertNotDisposed();
+      const cwd = await canonicalizeWorkspaceDirectory(key.workspaceId, "getSessionSnapshot");
+      const live =
+        registry.get({ workspaceId: cwd, sessionId: key.sessionId }) ??
+        (await registry.open({ workspaceId: cwd, sessionId: key.sessionId }));
+      return buildSnapshot({ live, refreshCatalog: false });
     },
     async createSession(workspaceId: string) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(workspaceId, "createSession");
-      const workspace = workspaceSummary(cwd);
-      if (piRuntime && piRuntime.cwd === cwd) {
-        const result = await piRuntime.newSession();
-        if (result.cancelled) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.sessionBusy,
-            message: "Session replacement was cancelled.",
-            operation: "createSession",
-            recoverable: true,
-          });
-        }
-        bindSession();
-        await bindHostUi();
-      } else {
-        const next = await createAgentSessionRuntime(createRuntime, {
-          cwd,
-          agentDir,
-          sessionManager: SessionManager.create(cwd),
-        });
-        await replaceRuntime(next, workspace);
-      }
-      preparedImages.clear();
-      activeWorkspace = workspace;
-      const snapshot = await buildSnapshot();
-      emit({
+      const live = await registry.create(cwd);
+      selected = live;
+      lastWorkspace = live.workspace;
+      registry.select(live.key);
+      await retrieval.bind(live.workspace.path);
+      clearCatalogCache();
+      const snapshot = await buildSnapshot({ live });
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
       });
+      emitActivity();
       return snapshot;
     },
     async openSession(workspaceId: string, sessionId: string) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(workspaceId, "openSession");
-      const workspace = workspaceSummary(cwd);
-      const sessions = await listSessions(cwd);
-      const listed = sessions.find((session) => session.id === sessionId);
-      const infos = await SessionManager.list(cwd);
-      const info = infos.find((entry) => entry.id === sessionId);
-      if (!info || !listed) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The selected session was not found.",
-          operation: "openSession",
-          recoverable: true,
-          details: { sessionId },
-        });
-      }
-
-      if (piRuntime && piRuntime.cwd === cwd) {
-        const result = await piRuntime.switchSession(info.path);
-        if (result.cancelled) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.sessionBusy,
-            message: "Session replacement was cancelled.",
-            operation: "openSession",
-            recoverable: true,
-          });
-        }
-        bindSession();
-        await bindHostUi();
-      } else {
-        const next = await createAgentSessionRuntime(createRuntime, {
-          cwd,
-          agentDir,
-          sessionManager: SessionManager.open(info.path),
-        });
-        await replaceRuntime(next, workspace);
-      }
-      preparedImages.clear();
-      activeWorkspace = workspace;
-      const snapshot = await buildSnapshot();
-      emit({
+      const live = await registry.open({ workspaceId: cwd, sessionId });
+      selected = live;
+      lastWorkspace = live.workspace;
+      registry.select(live.key);
+      await retrieval.bind(live.workspace.path);
+      clearCatalogCache();
+      const snapshot = await buildSnapshot({ live });
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
       });
+      emitActivity();
       return snapshot;
+    },
+    async inspectRemovableSession(key: SessionKey): Promise<RemovableSessionInspection> {
+      assertNotDisposed();
+      const cwd = await canonicalizeWorkspaceDirectory(key.workspaceId, "prepareRemoveSession");
+      refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: key.sessionId }), "prepareRemoveSession");
+      const info = await resolveListedSession(cwd, key.sessionId, "prepareRemoveSession");
+      const artifact = await validateListedArtifact(cwd, info);
+      const summary = sessionSummaryFromInfo(cwd, info);
+      return { title: summary.title, fingerprint: artifact.fingerprint };
+    },
+    async removeValidatedSession(input: SessionKey & { fingerprint: string }): Promise<RemovedSessionResult> {
+      assertNotDisposed();
+      const cwd = await canonicalizeWorkspaceDirectory(input.workspaceId, "removeSession");
+      return registry.runLocked({ workspaceId: cwd, sessionId: input.sessionId }, async () => {
+        refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: input.sessionId }), "removeSession");
+        const info = await resolveListedSession(cwd, input.sessionId, "removeSession");
+        const artifact = await validateListedArtifact(cwd, info);
+        if (artifact.fingerprint !== input.fingerprint) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.sessionArtifactInvalid,
+            message: "The session transcript changed before it could be moved to Trash.",
+            operation: "removeSession",
+            recoverable: true,
+          });
+        }
+        const summary = sessionSummaryFromInfo(cwd, info);
+        await registry.remove({ workspaceId: cwd, sessionId: input.sessionId });
+        let moved;
+        try {
+          moved = await removalService.moveToTrash({
+            canonicalPath: artifact.canonicalPath,
+            workspacePath: cwd,
+            signal: new AbortController().signal,
+          });
+        } catch (error) {
+          throw toHarnessError(error, "removeSession", HARNESS_ERROR_CODES.runtimeUnavailable);
+        }
+        clearCatalogCache();
+        emit({
+          type: RUNTIME_EVENT_TYPES.sessionRemoved,
+          sessionId: input.sessionId,
+          workspaceId: cwd,
+          payload: { workspaceId: cwd, sessionId: input.sessionId, title: summary.title },
+        });
+        emitActivity();
+        return { title: summary.title, method: moved.method };
+      });
     },
     async sendPrompt(input: SendPromptInput) {
       assertNotDisposed();
-      const session = requireSession();
-      if (input.sessionId !== session.sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The prompt target is not the active session.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
-      }
-      if (activeRun && !activeRun.settled) {
+      const live = locateController(input.sessionId, input.workspaceId, "sendPrompt");
+      const session = live.runtime.session;
+      if (live.activeRun && !live.activeRun.settled) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "The session is already running a prompt.",
@@ -935,6 +1234,7 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
+      registry.assertCanAdmitRun("sendPrompt");
       const { models, modelError } = await listModels();
       if (!session.model && models.length === 0) {
         throw createHarnessError({
@@ -945,8 +1245,8 @@ export async function createPhoCodeRuntime(
         });
       }
 
-      const promptText = await resolvePromptText(input, "sendPrompt");
-      const images = takePreparedImages(input.imageIds, "sendPrompt");
+      const promptText = await resolvePromptText(input, "sendPrompt", live);
+      const images = takePreparedImages(live, input.imageIds, "sendPrompt");
       if (promptText.trim() === "" && images.length === 0) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
@@ -979,34 +1279,36 @@ export async function createPhoCodeRuntime(
         settled: false,
         startedAt: new Date().toISOString(),
       };
-      activeRun = run;
+      live.activeRun = run;
 
-      const promptDone = session.prompt(promptText, {
-        source: "interactive",
-        ...(images.length > 0 ? { images: images.map((record) => record.content) } : {}),
-        preflightResult: (success) => {
-          admitted = success;
-          if (!success) {
-            run.settled = true;
-            if (activeRun === run) {
-              activeRun = undefined;
+      const promptDone = retrieval.runWithWorkspace(live.workspace.path, () =>
+        session.prompt(promptText, {
+          source: "interactive",
+          ...(images.length > 0 ? { images: images.map((record) => record.content) } : {}),
+          preflightResult: (success) => {
+            admitted = success;
+            if (!success) {
+              run.settled = true;
+              if (live.activeRun === run) {
+                live.activeRun = undefined;
+              }
             }
-          }
-          resolvePreflight(success);
-        },
-      });
+            resolvePreflight(success);
+          },
+        }),
+      );
       run.promptDone = promptDone;
 
       void promptDone.then(
-        () => finishRun(run),
+        () => finishRun(live, run),
         (error: unknown) => {
           if (run.settled && !admitted) {
             return;
           }
           if (run.abortRequested) {
-            return finishRun(run);
+            return finishRun(live, run);
           }
-          return finishRun(run, error);
+          return finishRun(live, run, error);
         },
       );
 
@@ -1021,25 +1323,27 @@ export async function createPhoCodeRuntime(
           details: { sessionId: session.sessionId, runId },
         });
       }
-      forgetPreparedImages(input.imageIds);
+      forgetPreparedImages(live, input.imageIds);
 
       const admission: PromptAdmission = {
         sessionId: session.sessionId,
+        workspaceId: live.key.workspaceId,
         runId,
         admitted: true,
       };
-      emit({
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: session.sessionId,
         runId,
-        payload: await buildSnapshot(),
+        payload: await buildSnapshot({ live }),
       });
-      emit({
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.runAdmitted,
         sessionId: session.sessionId,
         runId,
         payload: admission,
       });
+      emitActivity();
       return admission;
     },
     async steerRun(input: SteerRunInput) {
@@ -1054,8 +1358,8 @@ export async function createPhoCodeRuntime(
     },
     async prepareImage(input: PrepareImageInput) {
       assertNotDisposed();
-      requireSession();
-      const summary = preparedImages.add(input, "prepareImage");
+      const live = requireLiveSession();
+      const summary = live.preparedImages.add(input, "prepareImage");
       assertJsonSafe(summary, "prepareImage");
       return summary;
     },
@@ -1070,39 +1374,29 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
-      preparedImages.remove(imageId);
+      const live =
+        input.sessionId !== undefined
+          ? locateController(input.sessionId, input.workspaceId, "removePreparedImage")
+          : requireLiveSession();
+      live.preparedImages.remove(imageId);
     },
     async abortRun(input: AbortRunInput) {
       assertNotDisposed();
-      const session = requireSession();
-      if (input.sessionId !== session.sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The abort target is not the active session.",
-          operation: "abortRun",
-          recoverable: true,
-        });
-      }
-      if (!activeRun || activeRun.runId !== input.runId) {
+      const live = locateController(input.sessionId, input.workspaceId, "abortRun");
+      const session = live.runtime.session;
+      if (!live.activeRun || live.activeRun.runId !== input.runId) {
         return;
       }
-      activeRun.abortRequested = true;
+      live.activeRun.abortRequested = true;
       session.clearQueue();
       await session.abort();
-      await activeRun.promptDone.catch(() => undefined);
+      await live.activeRun.promptDone.catch(() => undefined);
     },
     async setSessionModel(input: SetSessionModelInput) {
       assertNotDisposed();
-      const session = requireSession();
-      if (input.sessionId !== session.sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The model target is not the active session.",
-          operation: "setSessionModel",
-          recoverable: true,
-        });
-      }
-      if (activeRun && !activeRun.settled) {
+      const live = locateController(input.sessionId, input.workspaceId, "setSessionModel");
+      const session = live.runtime.session;
+      if (live.activeRun && !live.activeRun.settled) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before changing the model.",
@@ -1129,8 +1423,8 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
-      const snapshot = await buildSnapshot({ refreshCatalog: false });
-      emit({
+      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
@@ -1139,16 +1433,9 @@ export async function createPhoCodeRuntime(
     },
     async setThinkingLevel(input: SetThinkingLevelInput) {
       assertNotDisposed();
-      const session = requireSession();
-      if (input.sessionId !== session.sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The thinking-level target is not the active session.",
-          operation: "setThinkingLevel",
-          recoverable: true,
-        });
-      }
-      if (activeRun && !activeRun.settled) {
+      const live = locateController(input.sessionId, input.workspaceId, "setThinkingLevel");
+      const session = live.runtime.session;
+      if (live.activeRun && !live.activeRun.settled) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before changing the thinking level.",
@@ -1165,8 +1452,8 @@ export async function createPhoCodeRuntime(
         });
       }
       session.setThinkingLevel(input.level);
-      const snapshot = await buildSnapshot({ refreshCatalog: false });
-      emit({
+      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
@@ -1175,15 +1462,8 @@ export async function createPhoCodeRuntime(
     },
     async rewriteAssistantOutput(input: RewriteAssistantOutputInput) {
       assertNotDisposed();
-      const session = requireSession();
-      if (input.sessionId !== session.sessionId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The rewrite target is not the active session.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
-      }
+      const live = locateController(input.sessionId, input.workspaceId, "rewriteAssistantOutput");
+      const session = live.runtime.session;
       if (typeof input.text !== "string") {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidCommand,
@@ -1212,7 +1492,7 @@ export async function createPhoCodeRuntime(
       }
       const displayed = joinedText(target.blocks);
       if (input.text === displayed) {
-        return buildSnapshot({ refreshCatalog: false });
+        return buildSnapshot({ refreshCatalog: false, live });
       }
       const original = originalJoinedText(target.blocks);
       session.sessionManager.appendCustomEntry(ASSISTANT_REWRITE_CUSTOM_TYPE, {
@@ -1220,8 +1500,8 @@ export async function createPhoCodeRuntime(
         text: input.text === original ? null : input.text,
         rewrittenAt: new Date().toISOString(),
       });
-      const snapshot = await buildSnapshot({ refreshCatalog: false });
-      emit({
+      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+      emitFor(live, {
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         sessionId: snapshot.session.id,
         payload: snapshot,
@@ -1230,7 +1510,11 @@ export async function createPhoCodeRuntime(
     },
     async resolveHostDialog(input: ResolveHostDialogInput) {
       assertNotDisposed();
-      extensionHost?.resolveDialog(input);
+      const live =
+        input.sessionId !== undefined
+          ? locateController(input.sessionId, input.workspaceId, "resolveHostDialog")
+          : requireLiveSession();
+      live.extensionHost?.resolveDialog(input);
     },
     getPermissionSettings() {
       assertNotDisposed();
@@ -1238,7 +1522,7 @@ export async function createPhoCodeRuntime(
     },
     async updatePermissionSettings(input: UpdatePermissionSettingsInput) {
       assertNotDisposed();
-      if (activeRun && !activeRun.settled) {
+      if (hasAnyActiveRun()) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before changing permission settings.",
@@ -1246,19 +1530,20 @@ export async function createPhoCodeRuntime(
           recoverable: true,
         });
       }
-      const settings = applyPermissionSettingsPatch({
+      applyPermissionSettingsPatch({
         agentDir,
         appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
         patch: input,
-        ...(activeWorkspace?.path ? { workspacePath: activeWorkspace.path } : {}),
-        yoloActive: extensionHost?.yoloActive === true,
+        ...(selected?.workspace.path ?? lastWorkspace?.path
+          ? { workspacePath: selected?.workspace.path ?? lastWorkspace!.path }
+          : {}),
+        yoloActive: registry.list().some((entry) => entry.extensionHost?.yoloActive === true),
       });
-      if (!piRuntime?.session) {
-        return settings;
-      }
       try {
-        await piRuntime.session.reload();
-        await bindHostUi();
+        for (const live of registry.list()) {
+          await live.runtime.session.reload();
+          await bindHostUi(live);
+        }
       } catch (error) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.resourceReloadFailed,
@@ -1270,22 +1555,24 @@ export async function createPhoCodeRuntime(
           },
         });
       }
-      const snapshot = await buildSnapshot();
-      emit({
-        type: RUNTIME_EVENT_TYPES.featureSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot.features,
-      });
-      emit({
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
+      if (selected) {
+        const snapshot = await buildSnapshot({ live: selected });
+        emitFor(selected, {
+          type: RUNTIME_EVENT_TYPES.featureSnapshot,
+          sessionId: snapshot.session.id,
+          payload: snapshot.features,
+        });
+        emitFor(selected, {
+          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+          sessionId: snapshot.session.id,
+          payload: snapshot,
+        });
+      }
       return currentPermissionSettings();
     },
     async trustProjectPermissionRules(workspacePath: string) {
       assertNotDisposed();
-      if (activeRun && !activeRun.settled) {
+      if (hasAnyActiveRun()) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before changing project trust.",
@@ -1295,17 +1582,19 @@ export async function createPhoCodeRuntime(
       }
       const cwd = await canonicalizeWorkspaceDirectory(workspacePath, "trustProjectPermissionRules");
       approvedProjectPaths.add(cwd);
-      if (piRuntime?.session && piRuntime.cwd === cwd) {
-        await piRuntime.session.reload();
-        await bindHostUi();
-        activeWorkspace = workspaceSummary(cwd);
-        const snapshot = await buildSnapshot();
-        emit({
+      for (const live of registry.list()) {
+        if (live.key.workspaceId !== cwd) {
+          continue;
+        }
+        await live.runtime.session.reload();
+        await bindHostUi(live);
+        const snapshot = await buildSnapshot({ live });
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.featureSnapshot,
           sessionId: snapshot.session.id,
           payload: snapshot.features,
         });
-        emit({
+        emitFor(live, {
           type: RUNTIME_EVENT_TYPES.sessionSnapshot,
           sessionId: snapshot.session.id,
           payload: snapshot,
@@ -1319,7 +1608,7 @@ export async function createPhoCodeRuntime(
     },
     async importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult> {
       assertNotDisposed();
-      if (activeRun && !activeRun.settled) {
+      if (hasAnyActiveRun()) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before importing an API key.",
@@ -1349,7 +1638,7 @@ export async function createPhoCodeRuntime(
       const snapshot = await authFlow.start({
         providerId,
         method: input.method,
-        runActive: Boolean(activeRun && !activeRun.settled),
+        runActive: hasAnyActiveRun(),
       });
       assertJsonSafe(snapshot, "startProviderLogin");
       assertNoCanaries(snapshot, authFlow.canaries(), "startProviderLogin");
@@ -1375,7 +1664,7 @@ export async function createPhoCodeRuntime(
     },
     async logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult> {
       assertNotDisposed();
-      if (activeRun && !activeRun.settled) {
+      if (hasAnyActiveRun()) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionBusy,
           message: "Wait for the current run to finish before changing provider accounts.",
@@ -1389,7 +1678,8 @@ export async function createPhoCodeRuntime(
     },
     async searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult> {
       assertNotDisposed();
-      if (!activeWorkspace) {
+      const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
+      if (!workspacePath) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.workspaceNotSelected,
           message: "Select a workspace before searching files.",
@@ -1398,8 +1688,10 @@ export async function createPhoCodeRuntime(
         });
       }
       const query = typeof input.query === "string" ? input.query.slice(0, MAX_WORKSPACE_REFERENCE_QUERY) : "";
+      await retrieval.bind(workspacePath);
       const result = await retrieval.searchPaths({
         query,
+        workspacePath,
         ...(input.kinds ? { kinds: input.kinds } : {}),
         ...(input.limit !== undefined ? { limit: input.limit } : {}),
       });
@@ -1420,34 +1712,13 @@ export async function createPhoCodeRuntime(
       disposeCount += 1;
       clearCatalogCache();
       await authFlow.dispose();
-      extensionHost?.cancelPending();
-      if (activeRun) {
-        activeRun.abortRequested = true;
-        try {
-          await piRuntime?.session.abort();
-          await activeRun.promptDone.catch(() => undefined);
-        } catch {
-          // Best-effort abort during shutdown.
-        }
-      }
-      unsubscribeSession?.();
-      unsubscribeSession = undefined;
-      extensionHost?.dispose();
-      extensionHost = undefined;
       listeners.clear();
       try {
-        await piRuntime?.services.settingsManager.flush();
-      } catch (error) {
-        console.error("Failed to flush Pi settings during dispose:", error);
-      }
-      try {
-        await piRuntime?.dispose();
+        await registry.disposeAll();
       } finally {
         await retrieval.dispose();
         await web.dispose();
-        preparedImages.clear();
-        piRuntime = undefined;
-        activeRun = undefined;
+        selected = undefined;
         restoreAgentDirEnv(previousAgentDirEnv, options.agentDir);
       }
     },
@@ -1457,13 +1728,13 @@ export async function createPhoCodeRuntime(
     const settings = readPermissionSettings({
       agentDir,
       appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
-      ...(activeWorkspace?.path ? { workspacePath: activeWorkspace.path } : {}),
-      yoloActive: extensionHost?.yoloActive === true,
+      ...(selected?.workspace.path ? { workspacePath: selected.workspace.path } : {}),
+      yoloActive: registry.list().some((entry) => entry.extensionHost?.yoloActive === true),
     });
     return {
       ...settings,
-      projectPermissionRulesTrusted: activeWorkspace?.path
-        ? isProjectApproved(activeWorkspace.path)
+      projectPermissionRulesTrusted: (selected?.workspace.path ?? lastWorkspace?.path)
+        ? isProjectApproved(selected?.workspace.path ?? lastWorkspace!.path)
         : false,
     };
   }
@@ -1481,6 +1752,7 @@ export async function createPhoCodeRuntime(
   async function resolvePromptText(
     input: { text?: string; references?: SendPromptInput["references"] },
     operation: string,
+    live: LiveSession,
   ): Promise<string> {
     const text = typeof input.text === "string" ? input.text : "";
     const explicit = [];
@@ -1510,15 +1782,7 @@ export async function createPhoCodeRuntime(
     if (references.length === 0) {
       return text;
     }
-    const workspacePath = activeWorkspace?.path ?? piRuntime?.cwd;
-    if (!workspacePath) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.workspaceNotSelected,
-        message: "Select a workspace before attaching file references.",
-        operation,
-        recoverable: true,
-      });
-    }
+    const workspacePath = live.workspace.path;
     const validated = [];
     for (const token of references) {
       validated.push(await validateWorkspaceReference(token, workspacePath));
@@ -1526,18 +1790,22 @@ export async function createPhoCodeRuntime(
     return serializeWorkspaceReferences(text, validated);
   }
 
-  function takePreparedImages(imageIds: readonly string[] | undefined, operation: string) {
+  function takePreparedImages(
+    live: LiveSession,
+    imageIds: readonly string[] | undefined,
+    operation: string,
+  ) {
     if (!imageIds || imageIds.length === 0) {
       return [];
     }
-    return preparedImages.lookup(imageIds, operation);
+    return live.preparedImages.lookup(imageIds, operation);
   }
 
-  function forgetPreparedImages(imageIds: readonly string[] | undefined): void {
+  function forgetPreparedImages(live: LiveSession, imageIds: readonly string[] | undefined): void {
     if (!imageIds || imageIds.length === 0) {
       return;
     }
-    preparedImages.forget(imageIds);
+    live.preparedImages.forget(imageIds);
   }
 
   async function enqueueDuringRun(
@@ -1550,16 +1818,9 @@ export async function createPhoCodeRuntime(
     ) => Promise<void>,
   ): Promise<QueueAdmission> {
     assertNotDisposed();
-    const session = requireSession();
-    if (input.sessionId !== session.sessionId) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionNotFound,
-        message: "The queue target is not the active session.",
-        operation,
-        recoverable: true,
-      });
-    }
-    if (!activeRun || activeRun.settled || activeRun.runId !== input.runId) {
+    const live = locateController(input.sessionId, input.workspaceId, operation);
+    const session = live.runtime.session;
+    if (!live.activeRun || live.activeRun.settled || live.activeRun.runId !== input.runId) {
       throw createHarnessError({
         code: HARNESS_ERROR_CODES.invalidCommand,
         message: operation === "steerRun" ? "Steer requires the current run." : "A follow-up requires the current run.",
@@ -1567,8 +1828,8 @@ export async function createPhoCodeRuntime(
         recoverable: true,
       });
     }
-    const promptText = await resolvePromptText(input, operation);
-    const records = takePreparedImages(input.imageIds, operation);
+    const promptText = await resolvePromptText(input, operation, live);
+    const records = takePreparedImages(live, input.imageIds, operation);
     if (promptText.trim() === "" && records.length === 0) {
       throw createHarnessError({
         code: HARNESS_ERROR_CODES.invalidCommand,
@@ -1586,25 +1847,28 @@ export async function createPhoCodeRuntime(
       });
     }
     try {
-      await enqueue(
-        session,
-        promptText,
-        records.map((record) => record.content),
+      await retrieval.runWithWorkspace(live.workspace.path, () =>
+        enqueue(
+          session,
+          promptText,
+          records.map((record) => record.content),
+        ),
       );
     } catch (error) {
       throw toHarnessError(error, operation, HARNESS_ERROR_CODES.promptRejected);
     }
-    forgetPreparedImages(input.imageIds);
-    const snapshot = await buildSnapshot({ refreshCatalog: false });
-    emit({
+    forgetPreparedImages(live, input.imageIds);
+    const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+    emitFor(live, {
       type: RUNTIME_EVENT_TYPES.sessionSnapshot,
       sessionId: session.sessionId,
-      runId: activeRun.runId,
+      runId: live.activeRun.runId,
       payload: snapshot,
     });
     const admission: QueueAdmission = {
       sessionId: session.sessionId,
-      runId: activeRun.runId,
+      workspaceId: live.key.workspaceId,
+      runId: live.activeRun.runId,
       admitted: true,
       queue: snapshot.queue ?? emptyQueueState(),
     };

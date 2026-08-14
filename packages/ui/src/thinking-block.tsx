@@ -74,6 +74,11 @@ export function ThinkingBlock({
                 aria-hidden="true"
               />
             </span>
+            {live ? (
+              <span className="flex size-4 items-center justify-center" aria-hidden="true">
+                <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60 motion-reduce:animate-none" />
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
