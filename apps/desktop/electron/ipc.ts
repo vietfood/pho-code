@@ -46,5 +46,11 @@ export const IPC_CHANNELS = {
   updateGitHubMcpSettings: "pho-code:v1:updateGitHubMcpSettings",
   importGitHubPat: "pho-code:v1:importGitHubPat",
   removeGitHubPat: "pho-code:v1:removeGitHubPat",
+  getChangeReviewSet: "pho-code:v1:getChangeReviewSet",
+  getChangeDiff: "pho-code:v1:getChangeDiff",
+  getChangeFileView: "pho-code:v1:getChangeFileView",
+  approveChanges: "pho-code:v1:approveChanges",
+  prepareUndoChanges: "pho-code:v1:prepareUndoChanges",
+  applyUndoChanges: "pho-code:v1:applyUndoChanges",
   event: "pho-code:v1:event",
 } as const;

@@ -54,6 +54,12 @@ const bridge: DesktopBridge = {
   updateGitHubMcpSettings: (input) => invoke(IPC_CHANNELS.updateGitHubMcpSettings, input),
   importGitHubPat: (input) => invoke(IPC_CHANNELS.importGitHubPat, input),
   removeGitHubPat: () => invoke(IPC_CHANNELS.removeGitHubPat),
+  getChangeReviewSet: (input) => invoke(IPC_CHANNELS.getChangeReviewSet, input),
+  getChangeDiff: (input) => invoke(IPC_CHANNELS.getChangeDiff, input),
+  getChangeFileView: (input) => invoke(IPC_CHANNELS.getChangeFileView, input),
+  approveChanges: (input) => invoke(IPC_CHANNELS.approveChanges, input),
+  prepareUndoChanges: (input) => invoke(IPC_CHANNELS.prepareUndoChanges, input),
+  applyUndoChanges: (input) => invoke(IPC_CHANNELS.applyUndoChanges, input),
   subscribe(listener) {
     const handler = (_event: Electron.IpcRendererEvent, envelope: RuntimeEventEnvelope) => {
       listener(envelope);

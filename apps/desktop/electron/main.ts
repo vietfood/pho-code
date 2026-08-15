@@ -59,6 +59,12 @@ import {
   type UpdateSkillSourceSettingsInput,
   type UpdateGitHubMcpSettingsInput,
   type ImportGitHubPatInput,
+  type GetChangeReviewSetInput,
+  type GetChangeDiffInput,
+  type GetChangeFileViewInput,
+  type ApproveChangesInput,
+  type ApplyUndoChangesInput,
+  type PrepareUndoChangesInput,
 } from "@pho-code/protocol";
 import { decodePastedImageBase64 } from "./image-base64";
 import {
@@ -664,6 +670,48 @@ function registerIpc(): void {
     handleCommand("removeGitHubPat", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().removeGitHubPat();
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.getChangeReviewSet, async (event, payload: unknown) =>
+    handleCommand("getChangeReviewSet", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().getChangeReviewSet(asRecord(payload) as unknown as GetChangeReviewSetInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.getChangeDiff, async (event, payload: unknown) =>
+    handleCommand("getChangeDiff", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().getChangeDiff(asRecord(payload) as unknown as GetChangeDiffInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.getChangeFileView, async (event, payload: unknown) =>
+    handleCommand("getChangeFileView", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().getChangeFileView(asRecord(payload) as unknown as GetChangeFileViewInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.approveChanges, async (event, payload: unknown) =>
+    handleCommand("approveChanges", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().approveChanges(asRecord(payload) as unknown as ApproveChangesInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.prepareUndoChanges, async (event, payload: unknown) =>
+    handleCommand("prepareUndoChanges", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().prepareUndoChanges(asRecord(payload) as unknown as PrepareUndoChangesInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.applyUndoChanges, async (event, payload: unknown) =>
+    handleCommand("applyUndoChanges", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().applyUndoChanges(asRecord(payload) as unknown as ApplyUndoChangesInput);
     }),
   );
 }
