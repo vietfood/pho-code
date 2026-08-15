@@ -67,6 +67,7 @@ describe("change-review protocol", () => {
     expect(latestChangeReview([summary, { ...summary, runId: "run-2", updatedAt: "2026-08-16T00:00:00.000Z" }])?.runId).toBe(
       "run-2",
     );
+    expect(CHANGE_REVIEW_COPY.alreadyApplied).toContain("already on disk");
     expect(CHANGE_REVIEW_COPY.trackedOnly).toBe("Changes");
     expect(CHANGE_REVIEW_COPY.notAllChanges).toContain("Undo all is unavailable");
     expect(CHANGE_LEDGER_DISCLOSURE).toContain("application data");

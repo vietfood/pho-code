@@ -23,6 +23,7 @@ export interface StoredFileChangeRecord {
   byteLengthBefore?: number;
   byteLengthAfter?: number;
   limitation?: ChangeLimitation;
+  undoTempName?: string;
 }
 
 export function isCompletePendingRecord(record: StoredFileChangeRecord): boolean {
@@ -172,6 +173,12 @@ export function applyApproveTransition(
   record: StoredFileChangeRecord,
   probe: WorkspaceFileProbe,
 ): StoredFileChangeRecord {
+  if (record.status === "conflict") {
+    if (probe.state === "limited") {
+      return { ...record, status: "unavailable", limitation: probe.limitation };
+    }
+    return { ...record, status: "approved" };
+  }
   if (record.status !== "pending") {
     return record;
   }
@@ -191,7 +198,7 @@ export function applyCurrentHashConflict(
   record: StoredFileChangeRecord,
   probe: WorkspaceFileProbe,
 ): StoredFileChangeRecord {
-  if (record.status !== "pending") {
+  if (record.status !== "pending" && record.status !== "conflict") {
     return record;
   }
   if (probe.state === "limited") {
@@ -200,7 +207,10 @@ export function applyCurrentHashConflict(
   if (typeof record.afterHash !== "string") {
     return record;
   }
-  if (probe.state === "absent" || probe.hash !== record.afterHash) {
+  if (probe.state === "hashed" && probe.hash === record.afterHash) {
+    return record.status === "conflict" ? { ...record, status: "pending" } : record;
+  }
+  if (record.status === "pending") {
     return { ...record, status: "conflict" };
   }
   return record;

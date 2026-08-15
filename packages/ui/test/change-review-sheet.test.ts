@@ -167,7 +167,7 @@ describe("change review sheet", () => {
     expect(markup).not.toContain("@@ -12,4 +12,6 @@");
   });
 
-  test("shows approved and conflict states without Approve for non-pending files", () => {
+  test("shows approved without actions and conflict with Approve only", () => {
     const approved = {
       ...pendingReview,
       pendingCount: 0,
@@ -205,8 +205,33 @@ describe("change review sheet", () => {
       }),
     );
     expect(conflictMarkup).toContain("Conflict");
-    expect(conflictMarkup).not.toContain('data-testid="change-review-approve"');
+    expect(conflictMarkup).toContain('data-testid="change-review-approve"');
     expect(conflictMarkup).not.toContain('data-testid="change-review-undo"');
+  });
+
+  test("shows Approve all when more than one pending or conflict file is visible", () => {
+    const twoConflicts = {
+      ...pendingReview,
+      pendingCount: 0,
+      conflictCount: 2,
+      fileCount: 2,
+      files: [
+        { ...pendingReview.files[0]!, status: "conflict" as const },
+        { ...pendingReview.files[0]!, relativePath: "other.txt", status: "conflict" as const },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ChangeReviewSheet, {
+        review: twoConflicts,
+        selectedPath: "tracked.txt",
+        diff: { ...diff, status: "conflict" },
+        onSelectPath: () => undefined,
+        onApprove: () => undefined,
+        onApproveAll: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="change-review-approve-all"');
+    expect(markup).not.toContain('data-testid="change-review-undo"');
   });
 
   test("unavailable files show capture diagnostic instead of hunks", () => {

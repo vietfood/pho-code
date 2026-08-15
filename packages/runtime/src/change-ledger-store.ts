@@ -14,6 +14,7 @@ import {
 } from "@pho-code/protocol";
 import { hashBytes } from "./change-hash";
 import type { ChangeOperation, StoredFileChangeRecord } from "./change-record";
+import { isUndoTempName } from "./change-identity";
 
 export const CHANGE_LEDGER_SCHEMA_VERSION = 1 as const;
 
@@ -318,6 +319,12 @@ function parseFileRecord(value: unknown): StoredFileChangeRecord | undefined {
   }
   if (candidate.limitation) {
     record.limitation = candidate.limitation;
+  }
+  if (typeof candidate.undoTempName === "string") {
+    if (!isUndoTempName(candidate.undoTempName)) {
+      return undefined;
+    }
+    record.undoTempName = candidate.undoTempName;
   }
   return record;
 }

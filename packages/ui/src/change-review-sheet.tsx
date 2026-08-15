@@ -61,7 +61,8 @@ export function ChangeReviewSheet({
   onLoadMore?: () => void;
 }) {
   const selected = review?.files.find((file) => file.relativePath === selectedPath);
-  const pending = review?.files.filter((file) => file.status === "pending") ?? [];
+  const actionable =
+    review?.files.filter((file) => file.status === "pending" || file.status === "conflict") ?? [];
   const groups = useMemo(() => groupFiles(review?.files ?? []), [review?.files]);
   const showFileList = (review?.files.length ?? 0) > 1;
   const copyText = serializeDiff(diff);
@@ -122,27 +123,27 @@ export function ChangeReviewSheet({
               ) : null}
               <div className="ms-auto flex gap-1.5">
                 {selected.status === "pending" ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      data-testid="change-review-undo"
-                      disabled={busy || loading}
-                      onClick={() => onPrepareUndo(selected.relativePath)}
-                    >
-                      Undo
-                    </Button>
-                    <Button
-                      size="sm"
-                      data-testid="change-review-approve"
-                      disabled={busy || loading}
-                      onClick={() => onApprove(selected.relativePath)}
-                    >
-                      Approve
-                    </Button>
-                  </>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="change-review-undo"
+                    disabled={busy || loading}
+                    onClick={() => onPrepareUndo(selected.relativePath)}
+                  >
+                    Undo
+                  </Button>
                 ) : null}
-                {pending.length > 1 && !review?.filesTruncated ? (
+                {selected.status === "pending" || selected.status === "conflict" ? (
+                  <Button
+                    size="sm"
+                    data-testid="change-review-approve"
+                    disabled={busy || loading}
+                    onClick={() => onApprove(selected.relativePath)}
+                  >
+                    Approve
+                  </Button>
+                ) : null}
+                {actionable.length > 1 && !review?.filesTruncated ? (
                   <Button
                     size="sm"
                     variant="outline"

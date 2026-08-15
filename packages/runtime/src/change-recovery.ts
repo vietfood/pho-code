@@ -1,22 +1,22 @@
-import { randomUUID } from "node:crypto";
-import { open, rename, stat } from "node:fs/promises";
-import path from "node:path";
+import { open, rename } from "node:fs/promises";
 import { MAX_CHANGE_SNAPSHOT_BYTES } from "@pho-code/protocol";
 import { hashBytes } from "./change-hash";
+import {
+  ChangeRecoveryConflictError,
+  assertPathHoldsIdentity,
+  type FilesystemIdentity,
+} from "./change-identity";
 import type { RecoverableRemovalService } from "./recoverable-removal";
 
-export class ChangeRecoveryConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ChangeRecoveryConflictError";
-  }
-}
+export { ChangeRecoveryConflictError } from "./change-identity";
 
 export interface ChangeRecoveryService {
   restoreExact(input: {
     canonicalPath: string;
     workspacePath: string;
     expectedCurrentHash: string;
+    expectedIdentity: FilesystemIdentity;
+    temporaryPath: string;
     bytes: Uint8Array;
     signal: AbortSignal;
   }): Promise<void>;
@@ -27,51 +27,51 @@ export function createAtomicChangeRecoveryService(
 ): ChangeRecoveryService {
   return {
     async restoreExact(input) {
-      const info = await stat(input.canonicalPath);
-      if (!info.isFile()) {
-        throw new ChangeRecoveryConflictError("The tracked path is no longer a regular file.");
-      }
       if (input.signal.aborted) {
         throw new Error("Undo was cancelled.");
       }
-      const currentHash = await hashBoundedRegularFile(input.canonicalPath);
-      if (currentHash !== input.expectedCurrentHash) {
-        throw new ChangeRecoveryConflictError("The file changed after the Undo preview.");
+      let handle;
+      try {
+        handle = await open(input.canonicalPath, "r");
+      } catch {
+        throw new ChangeRecoveryConflictError("The tracked path is no longer the same file.");
       }
-
-      const temporaryPath = path.join(
-        path.dirname(input.canonicalPath),
-        `.pho-code-undo-${randomUUID()}.tmp`,
-      );
       let temporaryCreated = false;
       try {
-        const handle = await open(temporaryPath, "wx", info.mode);
+        const current = await hashOpenRegularFile(handle, input.canonicalPath, input.expectedIdentity);
+        if (current.hash !== input.expectedCurrentHash) {
+          throw new ChangeRecoveryConflictError("The file changed after the Undo preview.");
+        }
+        const temp = await open(input.temporaryPath, "wx", current.mode);
         temporaryCreated = true;
         try {
-          await handle.writeFile(input.bytes);
-          await handle.sync();
+          await temp.writeFile(input.bytes);
+          await temp.sync();
         } finally {
-          await handle.close();
+          await temp.close();
         }
         if (input.signal.aborted) {
           throw new Error("Undo was cancelled.");
         }
-        const finalHash = await hashBoundedRegularFile(input.canonicalPath);
-        if (finalHash !== input.expectedCurrentHash) {
+        const latest = await hashOpenRegularFile(handle, input.canonicalPath, input.expectedIdentity);
+        if (latest.hash !== input.expectedCurrentHash) {
           throw new ChangeRecoveryConflictError("The file changed while Undo was being prepared.");
         }
-        await rename(temporaryPath, input.canonicalPath);
+        await assertPathHoldsIdentity(input.canonicalPath, input.expectedIdentity);
+        await rename(input.temporaryPath, input.canonicalPath);
         temporaryCreated = false;
       } finally {
+        await handle.close();
         if (temporaryCreated) {
           try {
             await removal.moveToTrash({
-              canonicalPath: temporaryPath,
+              canonicalPath: input.temporaryPath,
               workspacePath: input.workspacePath,
               signal: new AbortController().signal,
             });
           } catch {
             // The owned temporary file is deliberately left in place when recoverable cleanup fails.
+            // The ledger journals the temp name so the next review open can Trash it.
           }
         }
       }
@@ -79,20 +79,23 @@ export function createAtomicChangeRecoveryService(
   };
 }
 
-async function hashBoundedRegularFile(canonicalPath: string): Promise<string> {
-  const handle = await open(canonicalPath, "r");
-  try {
-    const info = await handle.stat();
-    if (!info.isFile() || info.size > MAX_CHANGE_SNAPSHOT_BYTES) {
-      throw new ChangeRecoveryConflictError("The tracked file can no longer be restored safely.");
-    }
-    const buffer = Buffer.alloc(info.size);
-    const { bytesRead } = await handle.read(buffer, 0, info.size, 0);
-    if (bytesRead !== info.size) {
-      throw new ChangeRecoveryConflictError("The tracked file changed while it was being checked.");
-    }
-    return hashBytes(buffer.subarray(0, bytesRead));
-  } finally {
-    await handle.close();
+async function hashOpenRegularFile(
+  handle: Awaited<ReturnType<typeof open>>,
+  canonicalPath: string,
+  expected: FilesystemIdentity,
+): Promise<{ hash: string; mode: number }> {
+  const info = await handle.stat();
+  if (!info.isFile() || info.size > MAX_CHANGE_SNAPSHOT_BYTES) {
+    throw new ChangeRecoveryConflictError("The tracked file can no longer be restored safely.");
   }
+  if (String(info.dev) !== expected.device || String(info.ino) !== expected.inode) {
+    throw new ChangeRecoveryConflictError("The tracked path is no longer the same file.");
+  }
+  const buffer = Buffer.alloc(info.size);
+  const { bytesRead } = await handle.read(buffer, 0, info.size, 0);
+  if (bytesRead !== info.size) {
+    throw new ChangeRecoveryConflictError("The tracked file changed while it was being checked.");
+  }
+  await assertPathHoldsIdentity(canonicalPath, expected);
+  return { hash: hashBytes(buffer.subarray(0, bytesRead)), mode: info.mode };
 }

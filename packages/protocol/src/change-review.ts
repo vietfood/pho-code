@@ -62,9 +62,10 @@ export const CHANGE_LEDGER_DISCLOSURE =
 
 export const CHANGE_REVIEW_COPY = {
   alreadyApplied:
-    "",
+    "These writes and edits are already on disk. Approve records that you accept the current file; it does not write the files again. Undo restores the captured before-image only when the current file still matches the agent result.",
   trackedOnly: "Changes",
-  notAllChanges: "",
+  notAllChanges:
+    "Only Pi write and edit calls are tracked. Shell commands and other tools are not. Undo all is unavailable because restoring several files plus Trash cannot be made atomic.",
 } as const;
 
 export interface FileChangeSummary {

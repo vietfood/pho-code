@@ -141,6 +141,10 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       await expect(page.getByTestId("change-review-error")).toContainText(/no longer matches|conflict|unavailable/i);
       expect(await readFile(trackedPath, "utf8")).toBe("owner edit\n");
       await expect(page.getByTestId("change-review-status")).toContainText("Conflict");
+      await expect(page.getByTestId("change-review-undo")).toHaveCount(0);
+      await page.getByTestId("change-review-approve").click();
+      await expect(page.getByTestId("change-review-status")).toContainText("Approved");
+      expect(await readFile(trackedPath, "utf8")).toBe("owner edit\n");
     } finally {
       await second.close();
     }

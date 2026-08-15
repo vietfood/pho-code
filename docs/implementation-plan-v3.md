@@ -224,14 +224,15 @@ Milestone 0/1 uses the already-pinned Pi SDK public `generateUnifiedPatch` (`@ea
 
 Approve is a ledger transition protected by review-set revision:
 
-1. resolve the exact scope and selected pending paths;
+1. resolve the exact scope and selected pending or conflict paths;
 2. refresh current hashes;
-3. if current equals the recorded after-image, mark the item approved;
-4. if current differs, refuse exact approval and mark conflict;
-5. persist the manifest atomically;
-6. publish the updated bounded summary.
+3. if a pending item's current hash equals the recorded after-image, mark it approved;
+4. if a pending item's current hash differs, mark conflict;
+5. if the item is already conflict, Approve records that the owner accepts the current disk state (including later edits) and marks it approved without writing the file;
+6. persist the manifest atomically;
+7. publish the updated bounded summary.
 
-A later UI may offer **Accept current state** for a conflict, but it must be a distinct operation that records the overlap and advances the accepted baseline. It is not silently folded into the first v3 Approve button.
+Conflict must not permanently block Move chat to Trash. Approve on a conflict is the acknowledge-current-disk path. It does not restore or overwrite the file.
 
 Approve never calls Git, writes workspace files, affects permissions, or changes the Pi transcript.
 
@@ -254,7 +255,7 @@ Whole-set preview succeeds only when every selected item has a defined result. T
 `applyUndoChanges`:
 
 1. consumes the preview token under a per-scope operation lock;
-2. revalidates workspace identity, review revision, canonical paths, kinds, and current hashes;
+2. revalidates workspace device/inode identity, file device/inode identity, review revision, canonical paths, kinds, and current hashes;
 3. refuses the entire token if any selected fact changed;
 4. restores modified files through atomic replacement;
 5. moves unchanged created files through the injected OS Trash service;
@@ -276,7 +277,7 @@ This is a deliberate tightening of the product aspiration: “Undo all” must n
 - Application shutdown settles in-flight capture writes under the existing bounded aggregate deadline. Unsettled records remain `capturing`/`indeterminate` for startup reconciliation.
 - Startup loads only bounded summaries for remembered sessions. Diff blobs remain lazy.
 
-Chosen chat-removal behavior: refuse Move chat to Trash while it owns pending, capturing, undoing, conflict, or indeterminate review state. The owner first Approves or Undoes those changes. Undo all remains unavailable.
+Chosen chat-removal behavior: refuse Move chat to Trash while it owns pending, capturing, undoing, conflict, or indeterminate review state. The owner first Approves pending matches, Approves conflicts to accept current disk, or Undoes still-matching pending files. Undo all remains unavailable.
 
 ## Milestone 0: attributed change ledger
 
@@ -393,7 +394,7 @@ Undo an unchanged attributed modification without overwriting later owner work, 
 
 ### Implementation record (2026-08-15)
 
-Implemented in source; **not owner-accepted**. Per-file Undo uses a five-minute single-use in-memory preview token bound to review scope, relative path, kind, canonical workspace path, revision, and current after-hash. Apply holds the review-scope lock across preview consume, restore/Trash, and finalize so a concurrent `getChangeReviewSet` cannot bump revision mid-operation. Modified files restore through sibling-temp atomic rename; unchanged created files use the injected OS Trash adapter with no `rm`/`unlink` fallback, then wait until the path is absent. Leftover `undoing` is reconciled on `getChangeReviewSet` and is never reported as fully undone while the after-image is still on disk. Undo all remains unavailable. Pending review is kept until Approve or Undo; approved and undone records are retained; a 250 MiB ledger budget marks new snapshots unavailable rather than deleting old records. Evidence: `packages/runtime/test/change-ledger.test.ts`, `packages/runtime/test/change-capture-runtime.test.ts`, `packages/ui/test/change-review-sheet.test.ts`, Electron `apps/desktop/tests/change-review.spec.ts` (Approve, safe Undo, conflict refusal, relaunch), and packaged `apps/desktop/tests/packaged.spec.ts` created-file Undo through OS Trash without a Pi CLI (`bun run package:mac`, then the Undo packaged journey). The full packaged Playwright file still has unrelated About/OAuth flakes. Owner proof with an external editor remains outstanding.
+Implemented in source; **not owner-accepted**. Codex review wrap-up (2026-08-15): preview tokens bind workspace and file device/inode identity in addition to canonical path, kind, revision, and after-hash. Apply holds the review-scope lock across preview consume, restore/Trash, and finalize. Restore hashes through a held file descriptor and rechecks directory-entry identity immediately before `rename`; created-file Undo does the same immediately before OS Trash. A residual TOCTOU remains between that last identity check and the path-based rename/Trash syscall; it is documented rather than claimed closed. Sibling Undo temps are journaled in the ledger; failed restores Trash leftovers before dropping the journal, and the next review open recovers crash orphans. Conflicts refresh back to pending when the after-image returns, and Approve on a conflict acknowledges current disk so Move chat to Trash is not permanently blocked. Unknown filesystem errors become `change_undo_failed` with message `Undo failed.` and do not carry raw codes or absolute paths. Undo all remains unavailable. Evidence remains the M2 unit, Electron, and packaged Undo journeys. Owner proof with an external editor remains outstanding.
 
 ## Deferred extension: broader workspace mutation observation
 

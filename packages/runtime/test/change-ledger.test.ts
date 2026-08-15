@@ -1,5 +1,5 @@
-import { mkdir, mkdtemp, readFile, rename, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -19,6 +19,7 @@ import type { RecoverableRemovalService } from "../src/recoverable-removal";
 import { buildUnifiedDiffPage, pageFileText, parseUnifiedDiff } from "../src/change-diff";
 import { classifyBytes, detectLineEnding } from "../src/change-text";
 import { createFileChangeLedgerStore, opaqueScopeId } from "../src/change-ledger-store";
+import { createUndoTempName } from "../src/change-identity";
 import { decodeWriteEditPath, resolveCapturePath } from "../src/change-path";
 
 const scope = { workspaceId: "/tmp/ws", sessionId: "s1", runId: "r1" };
@@ -106,8 +107,17 @@ describe("change records", () => {
     expect(applyApproveTransition(pending, { state: "hashed", hash: "other" }).status).toBe("conflict");
     expect(applyApproveTransition(pending, { state: "absent" }).status).toBe("conflict");
     expect(applyApproveTransition(pending, { state: "limited", limitation: "too-large" }).status).toBe("unavailable");
+    expect(applyApproveTransition({ ...pending, status: "conflict" }, { state: "hashed", hash: "owner" }).status).toBe(
+      "approved",
+    );
     expect(applyCurrentHashConflict(pending, { state: "hashed", hash: "other" }).status).toBe("conflict");
     expect(applyCurrentHashConflict(pending, { state: "hashed", hash: "after" }).status).toBe("pending");
+    expect(applyCurrentHashConflict({ ...pending, status: "conflict" }, { state: "hashed", hash: "after" }).status).toBe(
+      "pending",
+    );
+    expect(applyCurrentHashConflict({ ...pending, status: "conflict" }, { state: "hashed", hash: "owner" }).status).toBe(
+      "conflict",
+    );
     expect(applyCurrentHashConflict(pending, { state: "limited", limitation: "too-large" }).status).toBe("unavailable");
   });
 });
@@ -490,6 +500,136 @@ describe("safe per-file Undo", () => {
     });
     expect((await readFile(conflictPath, "utf8"))).toBe("owner\n");
     expect((await review.getReviewSet(conflictScope)).files[0]?.status).toBe("conflict");
+    expect(await capture.hasBlockingReview(workspace, "s1")).toBe(true);
+    await writeFile(conflictPath, "agent\n");
+    expect((await review.getReviewSet(conflictScope)).files[0]?.status).toBe("pending");
+    await writeFile(conflictPath, "owner\n");
+    const conflicted = await review.getReviewSet(conflictScope);
+    expect(conflicted.files[0]?.status).toBe("conflict");
+    const acknowledged = await review.approve({
+      ...conflictScope,
+      expectedRevision: conflicted.revision,
+      relativePaths: ["conflict.txt"],
+    });
+    expect(acknowledged.files[0]?.status).toBe("approved");
+    expect((await readFile(conflictPath, "utf8"))).toBe("owner\n");
+    expect(await capture.hasBlockingReview(workspace, "s1")).toBe(false);
+  });
+
+  test("refuses Undo when the path is replaced with identical bytes at a new inode", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-undo-inode-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const filePath = path.join(workspace, "note.txt");
+    await writeFile(filePath, "before\n");
+    const capture = createChangeCaptureService({ store: createFileChangeLedgerStore(path.join(root, "ledger")) });
+    const review = createReviewForTest(capture, workspace, root, { randomId: () => "inode-token" });
+    const inodeScope = { workspaceId: workspace, sessionId: "s1", runId: "undo-inode" };
+    const identity = { ...inodeScope, workspacePath: workspace, toolName: "edit" as const, toolCallId: "edit-inode" };
+    await capture.begin({ ...identity, args: { path: "note.txt" } });
+    await writeFile(filePath, "after\n");
+    await capture.settle({ ...identity, args: { path: "note.txt" }, isError: false });
+    const pending = await review.getReviewSet(inodeScope);
+    const preview = await review.prepareUndo({
+      ...inodeScope,
+      relativePath: "note.txt",
+      expectedRevision: pending.revision,
+    });
+    const before = await stat(filePath);
+    await unlink(filePath);
+    await writeFile(filePath, "after\n");
+    const replaced = await stat(filePath);
+    expect(`${replaced.dev}:${replaced.ino}`).not.toBe(`${before.dev}:${before.ino}`);
+    await expect(review.applyUndo({ ...inodeScope, previewToken: preview.previewToken })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.changeReviewConflict,
+    });
+    expect((await readFile(filePath, "utf8"))).toBe("after\n");
+  });
+
+  test("trashes a journaled Undo temp on the next review open", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-undo-journal-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const capture = createChangeCaptureService({ store: createFileChangeLedgerStore(path.join(root, "ledger")) });
+    const review = createReviewForTest(capture, workspace, root);
+    const journalScope = { workspaceId: workspace, sessionId: "s1", runId: "undo-journal" };
+    const identity = { ...journalScope, workspacePath: workspace, toolName: "write" as const, toolCallId: "write-journal" };
+    await capture.begin({ ...identity, args: { path: "created.txt" } });
+    await writeFile(path.join(workspace, "created.txt"), "agent\n");
+    await capture.settle({ ...identity, args: { path: "created.txt" }, isError: false });
+    await review.getReviewSet(journalScope);
+    const undoTempName = createUndoTempName();
+    const tempPath = path.join(workspace, undoTempName);
+    await writeFile(tempPath, "orphan-temp\n");
+    const manifest = await capture.loadManifest(journalScope);
+    expect(manifest).toBeDefined();
+    if (manifest) {
+      manifest.files[0]!.undoTempName = undoTempName;
+      await capture.saveManifest(manifest);
+    }
+    expect(existsSync(tempPath)).toBe(true);
+    const snapshot = await review.getReviewSet(journalScope);
+    expect(snapshot.files[0]?.status).toBe("pending");
+    expect(existsSync(tempPath)).toBe(false);
+    expect(existsSync(path.join(root, "trash", undoTempName))).toBe(true);
+    expect((await capture.loadManifest(journalScope))?.files[0]?.undoTempName).toBeUndefined();
+    expect((await readFile(path.join(workspace, "created.txt"), "utf8"))).toBe("agent\n");
+  });
+
+  test("redacts filesystem errors and trashes a leftover Undo temp after a failed restore", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-undo-redact-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const filePath = path.join(workspace, "note.txt");
+    await writeFile(filePath, "before\n");
+    const removal = fakeTrashService(root);
+    const capture = createChangeCaptureService({ store: createFileChangeLedgerStore(path.join(root, "ledger")) });
+    const review = createChangeReviewRuntime({
+      capture,
+      resolveWorkspacePath: async () => workspace,
+      recovery: {
+        async restoreExact(input) {
+          await writeFile(input.temporaryPath, "partial-undo\n");
+          throw Object.assign(new Error("ENOENT: no such file or directory, rename '/secret/note.txt'"), {
+            code: "ENOENT",
+            path: "/secret/note.txt",
+            recoverable: true,
+          });
+        },
+      },
+      removal,
+      trashContext: { agentDir: path.join(root, "agent") },
+      randomId: () => "redact-token",
+    });
+    const redactScope = { workspaceId: workspace, sessionId: "s1", runId: "undo-redact" };
+    const identity = { ...redactScope, workspacePath: workspace, toolName: "edit" as const, toolCallId: "edit-redact" };
+    await capture.begin({ ...identity, args: { path: "note.txt" } });
+    await writeFile(filePath, "after\n");
+    await capture.settle({ ...identity, args: { path: "note.txt" }, isError: false });
+    const pending = await review.getReviewSet(redactScope);
+    const preview = await review.prepareUndo({
+      ...redactScope,
+      relativePath: "note.txt",
+      expectedRevision: pending.revision,
+    });
+    let thrown: unknown;
+    try {
+      await review.applyUndo({ ...redactScope, previewToken: preview.previewToken });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
+      code: HARNESS_ERROR_CODES.changeUndoFailed,
+      message: "Undo failed.",
+    });
+    const serialized = JSON.stringify(thrown);
+    expect(serialized).not.toContain("/secret/note.txt");
+    expect(serialized).not.toContain("ENOENT");
+    expect((await readFile(filePath, "utf8"))).toBe("after\n");
+    expect((await capture.loadManifest(redactScope))?.files[0]?.undoTempName).toBeUndefined();
+    expect((await capture.loadManifest(redactScope))?.files[0]?.status).toBe("pending");
+    expect(readdirSync(workspace).filter((name) => name.startsWith(".pho-code-undo-"))).toEqual([]);
+    expect(readdirSync(path.join(root, "trash")).filter((name) => name.startsWith(".pho-code-undo-"))).toHaveLength(1);
   });
 
   test("refuses an expired preview and a token whose kind or workspace identity changed", async () => {

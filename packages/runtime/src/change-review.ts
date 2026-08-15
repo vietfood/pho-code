@@ -1,12 +1,15 @@
 import {
   randomUUID,
 } from "node:crypto";
+import { lstat } from "node:fs/promises";
+import path from "node:path";
 import {
   createHarnessError,
   HARNESS_ERROR_CODES,
   MAX_CHANGE_FILES_ON_SUMMARY,
   MAX_CHANGE_RELATIVE_PATH_CHARS,
   isChangeFileVersion,
+  isHarnessError,
   type ApproveChangesInput,
   type ApplyUndoChangesInput,
   type ChangeDiffPage,
@@ -16,6 +19,7 @@ import {
   type ChangeScope,
   type GetChangeDiffInput,
   type GetChangeFileViewInput,
+  type HarnessError,
   type PrepareUndoChangesInput,
   type UndoAction,
   type UndoPreview,
@@ -26,6 +30,15 @@ import { type ChangeCaptureService } from "./change-capture";
 import { classifyBytes } from "./change-text";
 import { hashBytes } from "./change-hash";
 import { resolveCapturePath } from "./change-path";
+import {
+  assertPathHoldsIdentity,
+  createUndoTempName,
+  inspectDirectoryIdentity,
+  inspectRegularFile,
+  isUndoTempName,
+  sameFilesystemIdentity,
+  type FilesystemIdentity,
+} from "./change-identity";
 import { validateTrashTarget, TrashTargetError, type TrashTargetContext } from "./trash-target";
 import type { RecoverableRemovalService } from "./recoverable-removal";
 import {
@@ -34,6 +47,7 @@ import {
 } from "./change-recovery";
 
 const UNDO_PREVIEW_TTL_MS = 5 * 60 * 1000;
+const KNOWN_HARNESS_ERROR_CODES = new Set<string>(Object.values(HARNESS_ERROR_CODES));
 
 interface StoredUndoPreview {
   scope: ChangeScope;
@@ -43,6 +57,9 @@ interface StoredUndoPreview {
   expectedRevision: number;
   expectedCurrentHash: string;
   workspacePath: string;
+  workspaceIdentity: FilesystemIdentity;
+  fileIdentity: FilesystemIdentity;
+  undoTempName?: string;
   beforeBlobId?: string;
   beforeHash?: string;
   expiresAtMs: number;
@@ -133,6 +150,18 @@ export function createChangeReviewRuntime(input: {
         async (manifest) => {
           let changed = false;
           for (const file of manifest.files) {
+            if (file.undoTempName) {
+              const removed = await trashJournaledUndoTemp(
+                input.removal,
+                { ...input.trashContext, workspacePath },
+                file.relativePath,
+                file.undoTempName,
+              );
+              if (removed) {
+                delete file.undoTempName;
+                changed = true;
+              }
+            }
             if (file.status === "undoing") {
               const probe = await input.capture.probeWorkspaceFile(workspacePath, file.relativePath);
               const status = reconcileUndoingStatus(file, probe);
@@ -141,7 +170,7 @@ export function createChangeReviewRuntime(input: {
               changed = true;
               continue;
             }
-            if (file.status !== "pending") {
+            if (file.status !== "pending" && file.status !== "conflict") {
               continue;
             }
             const probe = await input.capture.probeWorkspaceFile(workspacePath, file.relativePath);
@@ -305,7 +334,9 @@ export function createChangeReviewRuntime(input: {
           }
           const selected =
             command.relativePaths?.map((path) => path.trim()).filter((path) => path !== "") ??
-            manifest.files.filter((file) => file.status === "pending").map((file) => file.relativePath);
+            manifest.files
+              .filter((file) => file.status === "pending" || file.status === "conflict")
+              .map((file) => file.relativePath);
           for (const relativePath of selected) {
             const record = manifest.files.find((file) => file.relativePath === relativePath);
             if (!record) {
@@ -368,6 +399,28 @@ export function createChangeReviewRuntime(input: {
             conflict = true;
             return manifest;
           }
+          const resolved = await resolveCapturePath(relativePath, workspacePath);
+          if (resolved.kind !== "regular-file" || resolved.limitation) {
+            throw undoUnavailable("The tracked path is no longer a safe regular file.", "prepareUndoChanges");
+          }
+          let file;
+          try {
+            file = await inspectRegularFile(resolved.canonicalPath);
+          } catch (error) {
+            if (error instanceof ChangeRecoveryConflictError) {
+              record.status = "conflict";
+              record.updatedAt = now().toISOString();
+              conflict = true;
+              return manifest;
+            }
+            throw error;
+          }
+          if (file.hash !== record.afterHash) {
+            record.status = "conflict";
+            record.updatedAt = now().toISOString();
+            conflict = true;
+            return manifest;
+          }
           const action: UndoAction = record.kind === "created" ? "move-to-trash" : "restore";
           prepared = {
             scope: { workspaceId: command.workspaceId, sessionId: command.sessionId, runId: command.runId },
@@ -375,8 +428,10 @@ export function createChangeReviewRuntime(input: {
             kind: record.kind,
             action,
             expectedRevision: manifest.revision,
-            expectedCurrentHash: probe.hash,
+            expectedCurrentHash: file.hash,
             workspacePath,
+            workspaceIdentity: await inspectDirectoryIdentity(workspacePath),
+            fileIdentity: file.identity,
             ...(record.beforeBlobId ? { beforeBlobId: record.beforeBlobId } : {}),
             ...(record.beforeHash ? { beforeHash: record.beforeHash } : {}),
             expiresAtMs: now().getTime() + UNDO_PREVIEW_TTL_MS,
@@ -420,148 +475,162 @@ export function createChangeReviewRuntime(input: {
         });
       }
       return input.capture.runExclusive(command, async () => {
-      const workspacePath = await input.resolveWorkspacePath(command.workspaceId);
-      if (workspacePath !== preview.workspacePath) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewConflict,
-          message: "The workspace identity changed after the Undo preview.",
-          operation: "applyUndoChanges",
-          recoverable: true,
-        });
-      }
-      const undoing = await input.capture.transact(
-        command,
-        async (manifest) => {
-          const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
-          if (
-            !record ||
-            record.status !== "pending" ||
-            record.kind !== preview.kind ||
-            record.afterHash !== preview.expectedCurrentHash
-          ) {
-            throw undoUnavailable("The pending change no longer matches the Undo preview.", "applyUndoChanges");
-          }
-          const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
-          if (probe.state !== "hashed" || probe.hash !== preview.expectedCurrentHash) {
-            record.status = probe.state === "limited" ? "unavailable" : "conflict";
-            if (probe.state === "limited") {
-              record.limitation = probe.limitation;
-            }
-            record.updatedAt = now().toISOString();
-            return manifest;
-          }
-          record.status = "undoing";
-          record.updatedAt = now().toISOString();
-          return manifest;
-        },
-        { expectedRevision: preview.expectedRevision, createIfMissing: false, operation: "applyUndoChanges" },
-      );
-      const undoingRecord = undoing.files.find((file) => file.relativePath === preview.relativePath);
-      if (undoingRecord?.status !== "undoing") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewConflict,
-          message: "The file changed after the Undo preview.",
-          operation: "applyUndoChanges",
-          recoverable: true,
-        });
-      }
-
-      const abort = new AbortController();
-      try {
-        if (preview.action === "restore") {
-          if (!preview.beforeBlobId || !preview.beforeHash) {
-            throw undoUnavailable("The before-image required for Undo is unavailable.", "applyUndoChanges");
-          }
-          const bytes = await input.capture.getBlob(preview.beforeBlobId);
-          if (!bytes || hashBytes(bytes) !== preview.beforeHash) {
-            throw undoUnavailable("The before-image required for Undo is missing.", "applyUndoChanges");
-          }
-          const resolved = await resolveCapturePath(preview.relativePath, workspacePath);
-          if (resolved.kind !== "regular-file" || resolved.limitation) {
-            throw new ChangeRecoveryConflictError("The tracked path is no longer a safe regular file.");
-          }
-          await input.recovery.restoreExact({
-            canonicalPath: resolved.canonicalPath,
-            workspacePath,
-            expectedCurrentHash: preview.expectedCurrentHash,
-            bytes,
-            signal: abort.signal,
-          });
-        } else {
-          const target = await validateTrashTarget(preview.relativePath, {
-            ...input.trashContext,
-            workspacePath,
-          });
-          const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
-          if (probe.state !== "hashed" || probe.hash !== preview.expectedCurrentHash) {
-            throw new ChangeRecoveryConflictError("The created file changed after the Undo preview.");
-          }
-          const resolved = await resolveCapturePath(preview.relativePath, workspacePath);
-          if (resolved.kind !== "regular-file" || resolved.canonicalPath !== target.canonicalPath || resolved.limitation) {
-            throw new ChangeRecoveryConflictError("The tracked path is no longer a safe regular file.");
-          }
-          await input.removal.moveToTrash({
-            canonicalPath: target.canonicalPath,
-            workspacePath,
-            signal: abort.signal,
-          });
-          await waitForCreatedFileAbsence(input.capture, workspacePath, preview.relativePath, abort.signal);
+        const workspacePath = await input.resolveWorkspacePath(command.workspaceId);
+        let workspaceIdentity: FilesystemIdentity;
+        try {
+          workspaceIdentity = await inspectDirectoryIdentity(workspacePath);
+        } catch (error) {
+          throw normalizeUndoError(error);
         }
-      } catch (error) {
-        await reconcileFailedUndo(input.capture, command, preview, workspacePath, undoing.revision, now);
-        if (error instanceof ChangeRecoveryConflictError) {
+        if (
+          workspacePath !== preview.workspacePath ||
+          !sameFilesystemIdentity(workspaceIdentity, preview.workspaceIdentity)
+        ) {
           throw createHarnessError({
             code: HARNESS_ERROR_CODES.changeReviewConflict,
-            message: error.message,
+            message: "The workspace identity changed after the Undo preview.",
             operation: "applyUndoChanges",
             recoverable: true,
           });
         }
-        if (error instanceof TrashTargetError) {
+        const undoTempName = preview.action === "restore" ? createUndoTempName() : undefined;
+        const undoing = await input.capture.transact(
+          command,
+          async (manifest) => {
+            const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
+            if (
+              !record ||
+              record.status !== "pending" ||
+              record.kind !== preview.kind ||
+              record.afterHash !== preview.expectedCurrentHash
+            ) {
+              throw undoUnavailable("The pending change no longer matches the Undo preview.", "applyUndoChanges");
+            }
+            const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
+            if (probe.state !== "hashed" || probe.hash !== preview.expectedCurrentHash) {
+              record.status = probe.state === "limited" ? "unavailable" : "conflict";
+              if (probe.state === "limited") {
+                record.limitation = probe.limitation;
+              }
+              record.updatedAt = now().toISOString();
+              return manifest;
+            }
+            record.status = "undoing";
+            record.updatedAt = now().toISOString();
+            if (undoTempName) {
+              record.undoTempName = undoTempName;
+            }
+            return manifest;
+          },
+          { expectedRevision: preview.expectedRevision, createIfMissing: false, operation: "applyUndoChanges" },
+        );
+        const undoingRecord = undoing.files.find((file) => file.relativePath === preview.relativePath);
+        if (undoingRecord?.status !== "undoing") {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.changeReviewConflict,
+            message: "The file changed after the Undo preview.",
+            operation: "applyUndoChanges",
+            recoverable: true,
+          });
+        }
+
+        const abort = new AbortController();
+        try {
+          if (preview.action === "restore") {
+            if (!preview.beforeBlobId || !preview.beforeHash || !undoTempName) {
+              throw undoUnavailable("The before-image required for Undo is unavailable.", "applyUndoChanges");
+            }
+            const bytes = await input.capture.getBlob(preview.beforeBlobId);
+            if (!bytes || hashBytes(bytes) !== preview.beforeHash) {
+              throw undoUnavailable("The before-image required for Undo is missing.", "applyUndoChanges");
+            }
+            const resolved = await resolveCapturePath(preview.relativePath, workspacePath);
+            if (resolved.kind !== "regular-file" || resolved.limitation) {
+              throw new ChangeRecoveryConflictError("The tracked path is no longer a safe regular file.");
+            }
+            if (resolved.canonicalPath !== preview.fileIdentity.canonicalPath) {
+              throw new ChangeRecoveryConflictError("The tracked path is no longer the same file.");
+            }
+            await input.recovery.restoreExact({
+              canonicalPath: resolved.canonicalPath,
+              workspacePath,
+              expectedCurrentHash: preview.expectedCurrentHash,
+              expectedIdentity: preview.fileIdentity,
+              temporaryPath: path.join(path.dirname(resolved.canonicalPath), undoTempName),
+              bytes,
+              signal: abort.signal,
+            });
+          } else {
+            const target = await validateTrashTarget(preview.relativePath, {
+              ...input.trashContext,
+              workspacePath,
+            });
+            const inspected = await inspectRegularFile(target.canonicalPath);
+            if (
+              inspected.hash !== preview.expectedCurrentHash ||
+              !sameFilesystemIdentity(inspected.identity, preview.fileIdentity)
+            ) {
+              throw new ChangeRecoveryConflictError("The created file changed after the Undo preview.");
+            }
+            await assertPathHoldsIdentity(target.canonicalPath, preview.fileIdentity);
+            await input.removal.moveToTrash({
+              canonicalPath: target.canonicalPath,
+              workspacePath,
+              signal: abort.signal,
+            });
+            await waitForCreatedFileAbsence(input.capture, workspacePath, preview.relativePath, abort.signal);
+          }
+        } catch (error) {
+          await reconcileFailedUndo(
+            input.capture,
+            input.removal,
+            { ...input.trashContext, workspacePath },
+            command,
+            preview,
+            workspacePath,
+            undoing.revision,
+            now,
+          );
+          throw normalizeUndoError(error);
+        }
+
+        let finalized = false;
+        const finalSnapshot = await input.capture.transact(
+          command,
+          async (manifest) => {
+            const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
+            if (!record || record.status !== "undoing") {
+              throw undoUnavailable("Undo state changed before it could be finalized.", "applyUndoChanges");
+            }
+            if (record.undoTempName) {
+              const removed = await trashJournaledUndoTemp(
+                input.removal,
+                { ...input.trashContext, workspacePath },
+                record.relativePath,
+                record.undoTempName,
+              );
+              if (removed) {
+                delete record.undoTempName;
+              }
+            }
+            const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
+            const status = reconcileUndoingStatus(record, probe);
+            record.status = status;
+            record.updatedAt = now().toISOString();
+            finalized = status === "undone";
+            return manifest;
+          },
+          { expectedRevision: undoing.revision, createIfMissing: false, operation: "applyUndoChanges" },
+        );
+        if (!finalized) {
           throw createHarnessError({
             code: HARNESS_ERROR_CODES.changeUndoFailed,
-            message: error.message,
+            message: "Undo completed with an unexpected filesystem state.",
             operation: "applyUndoChanges",
             recoverable: true,
           });
         }
-        if (typeof error === "object" && error !== null && "code" in error) {
-          throw error;
-        }
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeUndoFailed,
-          message: error instanceof Error ? error.message : "Undo failed.",
-          operation: "applyUndoChanges",
-          recoverable: true,
-        });
-      }
-
-      let finalized = false;
-      const finalSnapshot = await input.capture.transact(
-        command,
-        async (manifest) => {
-          const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
-          if (!record || record.status !== "undoing") {
-            throw undoUnavailable("Undo state changed before it could be finalized.", "applyUndoChanges");
-          }
-          const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
-          const status = reconcileUndoingStatus(record, probe);
-          record.status = status;
-          record.updatedAt = now().toISOString();
-          finalized = status === "undone";
-          return manifest;
-        },
-        { expectedRevision: undoing.revision, createIfMissing: false, operation: "applyUndoChanges" },
-      );
-      if (!finalized) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeUndoFailed,
-          message: "Undo completed with an unexpected filesystem state.",
-          operation: "applyUndoChanges",
-          recoverable: true,
-        });
-      }
-      return finalSnapshot;
+        return finalSnapshot;
       });
     },
   };
@@ -588,6 +657,8 @@ function reconcileUndoingStatus(
 
 async function reconcileFailedUndo(
   capture: ChangeCaptureService,
+  removal: RecoverableRemovalService,
+  trashContext: TrashTargetContext,
   scope: ChangeScope,
   preview: StoredUndoPreview,
   workspacePath: string,
@@ -601,6 +672,17 @@ async function reconcileFailedUndo(
         const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
         if (!record || record.status !== "undoing") {
           return null;
+        }
+        if (record.undoTempName) {
+          const removed = await trashJournaledUndoTemp(
+            removal,
+            trashContext,
+            record.relativePath,
+            record.undoTempName,
+          );
+          if (removed) {
+            delete record.undoTempName;
+          }
         }
         const probe = await capture.probeWorkspaceFile(workspacePath, preview.relativePath);
         record.status = reconcileUndoingStatus(record, probe);
@@ -627,6 +709,68 @@ function expireUndoPreviews(previews: Map<string, StoredUndoPreview>, timestamp:
   for (const [token, preview] of previews) {
     if (preview.expiresAtMs <= timestamp) {
       previews.delete(token);
+    }
+  }
+}
+
+function normalizeUndoError(error: unknown) {
+  if (error instanceof ChangeRecoveryConflictError) {
+    return createHarnessError({
+      code: HARNESS_ERROR_CODES.changeReviewConflict,
+      message: error.message,
+      operation: "applyUndoChanges",
+      recoverable: true,
+    });
+  }
+  if (error instanceof TrashTargetError) {
+    return createHarnessError({
+      code: HARNESS_ERROR_CODES.changeUndoFailed,
+      message: error.message,
+      operation: "applyUndoChanges",
+      recoverable: true,
+    });
+  }
+  if (isValidatedHarnessError(error)) {
+    return error;
+  }
+  return createHarnessError({
+    code: HARNESS_ERROR_CODES.changeUndoFailed,
+    message: "Undo failed.",
+    operation: "applyUndoChanges",
+    recoverable: true,
+  });
+}
+
+function isValidatedHarnessError(error: unknown): error is HarnessError {
+  return isHarnessError(error) && KNOWN_HARNESS_ERROR_CODES.has(error.code);
+}
+
+async function trashJournaledUndoTemp(
+  removal: RecoverableRemovalService,
+  trashContext: TrashTargetContext,
+  relativePath: string,
+  undoTempName: string,
+): Promise<boolean> {
+  if (!isUndoTempName(undoTempName)) {
+    return true;
+  }
+  const directory = path.dirname(relativePath);
+  const relativeTemp = directory === "." ? undoTempName : `${directory}/${undoTempName}`;
+  const candidatePath = path.resolve(trashContext.workspacePath, relativeTemp);
+  try {
+    const target = await validateTrashTarget(relativeTemp, trashContext);
+    await removal.moveToTrash({
+      canonicalPath: target.canonicalPath,
+      workspacePath: trashContext.workspacePath,
+      signal: new AbortController().signal,
+    });
+    return true;
+  } catch {
+    try {
+      await lstat(candidatePath);
+      return false;
+    } catch {
+      return true;
     }
   }
 }

@@ -25,7 +25,7 @@ The labels are owner-facing workflow states, not filesystem durability controls.
 - **Approve** means “I accept the currently reviewed change.” It does not write the file again, create a Git commit, stage the file, or make an otherwise temporary edit persistent. The file was already changed on disk.
 - **Undo** means “preview and restore the recorded pre-change content if that restoration is still safe.” It is never a force overwrite.
 - **Pending review** means Pho Code has a complete attributed before/after record that the owner has neither approved nor undone.
-- **Conflict** means the current file no longer matches the recorded agent result. Pho Code keeps the record visible but disables automatic undo until the owner resolves the overlap.
+- **Conflict** means the current file no longer matches the recorded agent result. Automatic undo stays disabled. If the file later matches the recorded after-image again, the item returns to pending. **Approve** on a conflict records that the owner accepts the current disk state (including later edits) so the chat can be removed; it does not write the file.
 
 Approving closes the pending-review item. A bounded recovery record may remain until normal retention cleanup so an interrupted approval write cannot corrupt the ledger, but v3 does not promise a long-lived local-history browser after approval.
 
@@ -46,7 +46,7 @@ The change ledger is a recovery mechanism, not a sandbox or security boundary. I
 
 1. **Live workspace truth.** A successful Pi `write` or `edit` changes the real selected workspace immediately. Pho Code does not maintain a shadow checkout or virtual filesystem in v3.
 2. **Exact attribution before recovery.** Pho Code offers automatic undo only for a path whose before-image and after-image were captured around a positively identified Pi `write` or `edit` call.
-3. **No overwrite of newer work.** Automatic undo is available only when the current content hash equals the recorded after-image hash. A mismatch is a conflict, even if the text looks similar.
+3. **No overwrite of newer work.** Automatic undo is available only when the current file still has the recorded after-image bytes and the same filesystem identity (device, inode, kind, and canonical path). A hash or identity mismatch is a conflict, even if the text looks similar. Ordinary filesystems still have a residual race between the last identity check and path-based rename/Trash; Pho Code does not claim a kernel compare-and-swap.
 4. **Approval is not Git.** Approve neither stages nor commits changes and does not alter Git history.
 5. **Pi remains transcript authority.** Filesystem review state is application-owned data keyed to a Pi session and run; it is not stored as transcript text or inferred from Pi JSONL.
 6. **Selection is not ownership.** Review state belongs to `{workspaceId, sessionId, runId}` and survives switching to another chat. Background runs append only to their own review sets.
@@ -109,11 +109,13 @@ Automatic undo requires all of the following:
 - its content hash equals the recorded after-image hash;
 - no recovery operation for the item is already running.
 
-Pho Code writes the pre-image through a runtime-owned atomic replacement adapter, preserving the documented mode and line-ending behavior where supported. If any check fails, no write occurs.
+Pho Code writes the pre-image through a runtime-owned atomic replacement adapter after re-reading the file through an open descriptor and confirming device, inode, kind, canonical path, and content hash. The directory entry is re-checked immediately before `rename`. Ordinary filesystems still have a residual TOCTOU between that last identity check and the rename itself; Pho Code does not claim a kernel compare-and-swap. If any check fails, no write occurs.
 
 ### Newly created file
 
-If the pre-image records absence and the unchanged agent-created file still exists, Undo moves the exact validated file to operating-system Trash. If it changed, became a directory/symlink, or no longer resolves safely, Undo stops with a conflict. There is no permanent-deletion fallback.
+If the pre-image records absence and the unchanged agent-created file still exists, Undo moves the exact validated file to operating-system Trash after the same device/inode/kind/hash recheck. If it changed, was replaced at the same path, became a directory/symlink, or no longer resolves safely, Undo stops with a conflict. There is no permanent-deletion fallback. The same residual TOCTOU exists between the last identity check and the Trash executable, which can only be given a path.
+
+Sibling Undo temporary files are journaled in the app-data ledger. If the process exits before `rename`, the next review open moves any leftover temp to OS Trash.
 
 ### Failed or interrupted tool
 

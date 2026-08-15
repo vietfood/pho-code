@@ -646,7 +646,7 @@ export function App() {
             }}
             onApproveAll={() => {
               const paths = changeReview.review?.files
-                .filter((file) => file.status === "pending")
+                .filter((file) => file.status === "pending" || file.status === "conflict")
                 .map((file) => file.relativePath);
               void changeReview.approve(paths);
             }}
