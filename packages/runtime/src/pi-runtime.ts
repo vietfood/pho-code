@@ -87,6 +87,17 @@ import {
   type SessionUsageSummary,
   type WorkspaceSnapshot,
   type WorkspaceSummary,
+  type ApproveChangesInput,
+  type ApplyUndoChangesInput,
+  type ChangeDiffPage,
+  type ChangeFileViewPage,
+  type ChangeReviewSetSnapshot,
+  type ChangeScope,
+  type GetChangeDiffInput,
+  type GetChangeFileViewInput,
+  type PrepareUndoChangesInput,
+  type UndoPreview,
+  MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -145,6 +156,11 @@ import {
   createSessionRegistry,
 } from "./session-registry";
 import { createDeterministicTestProvider, createHarnessMarkTool, TEST_TOOL_NAME } from "./test-model";
+import { createChangeCaptureFeature, type ChangeCaptureHost } from "./change-feature";
+import { createChangeCaptureService, type ChangeCaptureService } from "./change-capture";
+import { createFileChangeLedgerStore } from "./change-ledger-store";
+import { createChangeReviewRuntime, type ChangeReviewRuntime } from "./change-review";
+import { createAtomicChangeRecoveryService } from "./change-recovery";
 import { firstUserPreview, projectMessages } from "./transcript";
 import {
   applyRewriteOverlays,
@@ -275,6 +291,11 @@ export async function createPhoCodeRuntime(
     compiledFor: (keyId) => compiledContextPromptByKey.get(keyId),
     bindingKeyId: () => (bindingKey ? sessionKeyId(bindingKey) : undefined),
   });
+  const changeCaptureHost: ChangeCaptureHost = {
+    capture: undefined,
+    resolveScope: () => undefined,
+  };
+  const changeCaptureFeature = createChangeCaptureFeature(changeCaptureHost);
   const featureManifest = {
     features: [
       ...(options.deterministicTestModel
@@ -290,6 +311,7 @@ export async function createPhoCodeRuntime(
             createGitHubMcpFeature(githubMcp),
           ]),
       contextPromptFeature,
+      changeCaptureFeature,
     ],
   };
   const compositionDiagnostics = [
@@ -392,6 +414,48 @@ export async function createPhoCodeRuntime(
       sessionId: event.sessionId ?? session.key.sessionId,
     });
   }
+
+  const changeStore = createFileChangeLedgerStore(path.join(options.applicationDataDir ?? agentDir, "change-ledger", "v1"));
+  const changeCapture: ChangeCaptureService = createChangeCaptureService({
+    store: changeStore,
+    onUpdated: (summary) => {
+      emit({
+        type: RUNTIME_EVENT_TYPES.changeReviewUpdated,
+        workspaceId: summary.workspaceId,
+        sessionId: summary.sessionId,
+        runId: summary.runId,
+        payload: summary,
+      });
+    },
+  });
+  changeCaptureHost.capture = changeCapture;
+  changeCaptureHost.resolveScope = (cwd, sessionId) => {
+    const live = registry.list().find(
+      (session) =>
+        session.key.sessionId === sessionId &&
+        (session.workspace.path === cwd || session.key.workspaceId === cwd),
+    );
+    if (!live?.activeRun) {
+      return undefined;
+    }
+    return {
+      workspaceId: live.key.workspaceId,
+      sessionId: live.key.sessionId,
+      runId: live.activeRun.runId,
+      workspacePath: live.workspace.path,
+    };
+  };
+  const changeReview: ChangeReviewRuntime = createChangeReviewRuntime({
+    capture: changeCapture,
+    resolveWorkspacePath: (workspaceId) => canonicalizeWorkspaceDirectory(workspaceId, "getChangeReviewSet"),
+    recovery: createAtomicChangeRecoveryService(removalService),
+    removal: removalService,
+    trashContext: {
+      agentDir,
+      ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
+      ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
+    },
+  });
 
   function liveHasQueuedWork(session: LiveSession): boolean {
     if (session.disposing) {
@@ -813,6 +877,9 @@ export async function createPhoCodeRuntime(
       usage,
       queue: projectQueue(session),
       contextPrompt: projectContextPrompt(live),
+      changeReviews: (await changeCapture.listSessionReviews(workspace.id, session.sessionId)).slice(
+        -MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
+      ),
       ...(contextUsage ? { contextUsage } : {}),
     };
     if (model) {
@@ -1100,6 +1167,15 @@ export async function createPhoCodeRuntime(
     }
     run.settled = true;
     live.activeRun = undefined;
+    try {
+      await changeCapture.reconcileInterrupted({
+        workspaceId: live.key.workspaceId,
+        sessionId: live.key.sessionId,
+        runId: run.runId,
+      });
+    } catch (reconcileError) {
+      console.error("Change-ledger reconciliation failed:", reconcileError);
+    }
     const failedMessage = live.runtime.session.agent.state.errorMessage;
     try {
       await refreshGitHubBinding(live);
@@ -1343,6 +1419,14 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(key.workspaceId, "prepareRemoveSession");
       refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: key.sessionId }), "prepareRemoveSession");
+      if (await changeCapture.hasBlockingReview(cwd, key.sessionId)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionRemovalRefused,
+          message: "This chat still has pending write/edit review. Approve those changes first.",
+          operation: "prepareRemoveSession",
+          recoverable: true,
+        });
+      }
       const info = await resolveListedSession(cwd, key.sessionId, "prepareRemoveSession");
       const artifact = await validateListedArtifact(cwd, info);
       const summary = sessionSummaryFromInfo(cwd, info);
@@ -1353,6 +1437,14 @@ export async function createPhoCodeRuntime(
       const cwd = await canonicalizeWorkspaceDirectory(input.workspaceId, "removeSession");
       return registry.runLocked({ workspaceId: cwd, sessionId: input.sessionId }, async () => {
         refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: input.sessionId }), "removeSession");
+        if (await changeCapture.hasBlockingReview(cwd, input.sessionId)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.sessionRemovalRefused,
+          message: "This chat still has pending write/edit review. Approve those changes first.",
+          operation: "removeSession",
+            recoverable: true,
+          });
+        }
         const info = await resolveListedSession(cwd, input.sessionId, "removeSession");
         const artifact = await validateListedArtifact(cwd, info);
         if (artifact.fingerprint !== input.fingerprint) {
@@ -2018,6 +2110,63 @@ export async function createPhoCodeRuntime(
       assertJsonSafe(snapshot, "removeGitHubPat");
       return snapshot;
     },
+    async getChangeReviewSet(scope: ChangeScope): Promise<ChangeReviewSetSnapshot> {
+      assertNotDisposed();
+      const snapshot = await changeReview.getReviewSet(await canonicalizeChangeScope(scope, "getChangeReviewSet"));
+      assertJsonSafe(snapshot, "getChangeReviewSet");
+      return snapshot;
+    },
+    async getChangeDiff(command: GetChangeDiffInput): Promise<ChangeDiffPage> {
+      assertNotDisposed();
+      const page = await changeReview.getDiff({
+        ...(await canonicalizeChangeScope(command, "getChangeDiff")),
+        relativePath: command.relativePath,
+        ...(command.cursor ? { cursor: command.cursor } : {}),
+        ...(command.contextLines !== undefined ? { contextLines: command.contextLines } : {}),
+      });
+      assertJsonSafe(page, "getChangeDiff");
+      return page;
+    },
+    async getChangeFileView(command: GetChangeFileViewInput): Promise<ChangeFileViewPage> {
+      assertNotDisposed();
+      const page = await changeReview.getFileView({
+        ...(await canonicalizeChangeScope(command, "getChangeFileView")),
+        relativePath: command.relativePath,
+        version: command.version,
+        ...(command.cursor ? { cursor: command.cursor } : {}),
+      });
+      assertJsonSafe(page, "getChangeFileView");
+      return page;
+    },
+    async approveChanges(command: ApproveChangesInput): Promise<ChangeReviewSetSnapshot> {
+      assertNotDisposed();
+      const snapshot = await changeReview.approve({
+        ...(await canonicalizeChangeScope(command, "approveChanges")),
+        expectedRevision: command.expectedRevision,
+        ...(command.relativePaths ? { relativePaths: command.relativePaths } : {}),
+      });
+      assertJsonSafe(snapshot, "approveChanges");
+      return snapshot;
+    },
+    async prepareUndoChanges(command: PrepareUndoChangesInput): Promise<UndoPreview> {
+      assertNotDisposed();
+      const preview = await changeReview.prepareUndo({
+        ...(await canonicalizeChangeScope(command, "prepareUndoChanges")),
+        relativePath: command.relativePath,
+        expectedRevision: command.expectedRevision,
+      });
+      assertJsonSafe(preview, "prepareUndoChanges");
+      return preview;
+    },
+    async applyUndoChanges(command: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot> {
+      assertNotDisposed();
+      const snapshot = await changeReview.applyUndo({
+        ...(await canonicalizeChangeScope(command, "applyUndoChanges")),
+        previewToken: command.previewToken,
+      });
+      assertJsonSafe(snapshot, "applyUndoChanges");
+      return snapshot;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -2067,6 +2216,15 @@ export async function createPhoCodeRuntime(
         operation: "runtime",
       });
     }
+  }
+
+  async function canonicalizeChangeScope(scope: ChangeScope, operation: string): Promise<ChangeScope> {
+    const cwd = await canonicalizeWorkspaceDirectory(scope.workspaceId, operation);
+    return {
+      workspaceId: cwd,
+      sessionId: scope.sessionId.trim(),
+      runId: scope.runId.trim(),
+    };
   }
 
   async function resolvePromptText(

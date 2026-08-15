@@ -44,6 +44,16 @@ import {
   type ImportGitHubPatInput,
   type UpdateGitHubMcpSettingsInput,
   type WorkspaceSnapshot,
+  type ApproveChangesInput,
+  type ApplyUndoChangesInput,
+  type ChangeDiffPage,
+  type ChangeFileViewPage,
+  type ChangeReviewSetSnapshot,
+  type ChangeScope,
+  type GetChangeDiffInput,
+  type GetChangeFileViewInput,
+  type PrepareUndoChangesInput,
+  type UndoPreview,
 } from "@pho-code/protocol";
 
 export interface RuntimeCapabilities {
@@ -108,6 +118,12 @@ export interface HarnessRuntime {
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<GitHubMcpSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<GitHubMcpSettingsSnapshot>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
+  getChangeReviewSet(scope: ChangeScope): Promise<ChangeReviewSetSnapshot>;
+  getChangeDiff(input: GetChangeDiffInput): Promise<ChangeDiffPage>;
+  getChangeFileView(input: GetChangeFileViewInput): Promise<ChangeFileViewPage>;
+  approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
+  prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
+  applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   dispose(): Promise<void>;
 }
@@ -253,6 +269,24 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     removeGitHubPat() {
       return Promise.resolve(emptySettingsSnapshot().githubMcp);
+    },
+    getChangeReviewSet() {
+      return Promise.reject(unavailable("getChangeReviewSet"));
+    },
+    getChangeDiff() {
+      return Promise.reject(unavailable("getChangeDiff"));
+    },
+    getChangeFileView() {
+      return Promise.reject(unavailable("getChangeFileView"));
+    },
+    approveChanges() {
+      return Promise.reject(unavailable("approveChanges"));
+    },
+    prepareUndoChanges() {
+      return Promise.reject(unavailable("prepareUndoChanges"));
+    },
+    applyUndoChanges() {
+      return Promise.reject(unavailable("applyUndoChanges"));
     },
     subscribe() {
       return () => undefined;

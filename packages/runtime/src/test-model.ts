@@ -22,6 +22,9 @@ export const TEST_PROMPT = {
   useCompoundDangerous: "USE_COMPOUND_DANGEROUS",
   useWrapper: "USE_WRAPPER",
   useTrash: "USE_TRASH",
+  useWrite: "USE_WRITE",
+  useEdit: "USE_EDIT",
+  useWriteFail: "USE_WRITE_FAIL",
   failAfter: "FAIL_AFTER",
   abortMe: "ABORT_ME",
 } as const;
@@ -138,6 +141,38 @@ function buildTestResponse(context: Context) {
       [
         fauxThinking("Moving the fixture to Trash."),
         fauxToolCall("move_to_trash", { path: "disposable-fixture.txt" }, { id: "call_move_to_trash" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+
+  if (prompt.includes(TEST_PROMPT.useWriteFail)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing over a directory."),
+        fauxToolCall("write", { path: "blocked-dir", content: "should fail\n" }, { id: "call_write_fail" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useWrite)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Creating a tracked file."),
+        fauxToolCall("write", { path: "agent-note.txt", content: "hello from agent\n" }, { id: "call_write" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useEdit)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Editing the tracked file."),
+        fauxToolCall(
+          "edit",
+          { path: "tracked.txt", edits: [{ oldText: "before\n", newText: "after from agent\n" }] },
+          { id: "call_edit" },
+        ),
       ],
       { stopReason: "toolUse" },
     );
