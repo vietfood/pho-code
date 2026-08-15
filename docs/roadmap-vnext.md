@@ -21,7 +21,11 @@ Each phase below is optional and independently promotable. Promotion must name t
 
 Do not group phases merely to label a major release complete. Prefer the smallest vertical slice that is useful in normal work and can fail or be disabled without destabilizing conversation, sessions, credentials, or accepted baked features.
 
-## Phase A: change review and recovery
+## Phase A: change review and recovery — promoted as v3
+
+The owner promoted this phase on 2026-08-15 as **V3 — Change Control and Recovery**. The selected product model applies Pi `write` and `edit` immediately, then presents exact tracked changes in a read-only workbench with Approve and conflict-safe Undo. Approve closes review state; it is not Git persistence. The first release tracks attributable `write`/`edit` changes and does not promise recovery for arbitrary shell or external mutations.
+
+The active proposal is defined in [`product-v3.md`](./product-v3.md) and [`implementation-plan-v3.md`](./implementation-plan-v3.md). Those documents are implementation contracts, not acceptance evidence; v3 remains incomplete until its milestone gates pass.
 
 Build the owner-facing control layer before adding more autonomous execution surfaces:
 
