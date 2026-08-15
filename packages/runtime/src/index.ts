@@ -88,6 +88,14 @@ export {
   readPermissionSettings,
 } from "./permission-settings";
 export { TEST_MODEL_ID, TEST_PROMPT, TEST_PROVIDER_ID, TEST_TOOL_NAME } from "./test-model";
+export { CHANGE_CAPTURE_FEATURE_ID, CHANGE_CAPTURE_FEATURE_VERSION } from "./change-feature";
+export { hashBytes, hashUtf8 } from "./change-hash";
+export { createFileChangeLedgerStore } from "./change-ledger-store";
+export { createChangeCaptureService, projectSummary, projectSnapshot } from "./change-capture";
+export { createChangeReviewRuntime } from "./change-review";
+export { createAtomicChangeRecoveryService, ChangeRecoveryConflictError } from "./change-recovery";
+export type { ChangeRecoveryService } from "./change-recovery";
+export { parseUnifiedDiff, buildUnifiedDiffPage, pageFileText } from "./change-diff";
 export {
   TEST_OAUTH_ACCESS_CANARY,
   TEST_OAUTH_AUTH_URL,
