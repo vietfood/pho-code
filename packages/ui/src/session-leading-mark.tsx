@@ -12,7 +12,11 @@ export function SessionLeadingMark({
   const visible = sessionRowActivity(activity);
   if (visible?.phase === "working") {
     return (
-      <span data-testid="session-activity" data-activity="working">
+      <span
+        className="flex size-3.5 shrink-0 items-center justify-center"
+        data-testid="session-activity"
+        data-activity="working"
+      >
         <LoadingDots label={visible.label} />
       </span>
     );

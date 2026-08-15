@@ -10,9 +10,9 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  ChevronDownIcon,
   EllipsisVerticalIcon,
   FolderIcon,
+  FolderOpenIcon,
   FolderPlusIcon,
   InfoIcon,
   SettingsIcon,
@@ -74,7 +74,9 @@ export function AppSidebar({
   busy: boolean;
 }) {
   const { width, resizing, handle: resizeHandle } = useSidebarResize();
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    activeWorkspaceId ? { [activeWorkspaceId]: true } : {},
+  );
   const [menu, setMenu] = useState<
     | { kind: "session"; workspaceId: string; sessionId: string; x: number; y: number }
     | { kind: "project"; workspaceId: string; x: number; y: number }
@@ -168,13 +170,13 @@ export function AppSidebar({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        <div className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-sidebar-muted-foreground">
+        <div className="mb-1.5 pl-8 pr-2 text-[11px] font-medium text-sidebar-muted-foreground">
           Projects
         </div>
         {projects.length > 0 ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={projectIds} strategy={verticalListSortingStrategy}>
-              <ul className="m-0 grid list-none gap-0.5 p-0" data-testid="project-list">
+              <ul className="m-0 grid list-none gap-1 p-0" data-testid="project-list">
                 {projects.map((project) => {
                   const open = expanded[project.id] === true;
                   const sessions = sessionsByWorkspace[project.id] ?? [];
@@ -292,7 +294,7 @@ function SortableProjectRow({
     >
       <div
         className={cn(
-          "grid h-7 w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-0.5 rounded-md px-1 hover:bg-sidebar-row-hover",
+          "grid h-8 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-md px-2 hover:bg-sidebar-row-hover",
           active ? "text-sidebar-foreground" : "text-sidebar-foreground/80",
         )}
         onContextMenu={(event) => {
@@ -311,48 +313,35 @@ function SortableProjectRow({
       >
         <button
           type="button"
-          className="flex size-4 items-center justify-center rounded-sm text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-          data-testid="project-collapse"
-          aria-label={open ? `Collapse ${project.displayName}` : `Expand ${project.displayName}`}
-          aria-expanded={open}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onToggle();
-          }}
-        >
-          <ChevronDownIcon
-            className={cn(
-              "size-3 transition-transform motion-reduce:transition-none",
-              !open && "-rotate-90",
-            )}
-            aria-hidden="true"
-          />
-        </button>
-        <button
-          type="button"
           className={cn(
-            "flex min-w-0 items-center gap-1.5 text-left text-[13px] leading-5",
+            "flex min-w-0 items-center gap-2 text-left text-sm leading-5",
             active ? "font-medium" : "font-normal",
           )}
           data-testid="project-item"
+          aria-label={open ? `Collapse ${project.displayName}` : `Expand ${project.displayName}`}
           aria-expanded={open}
           title={project.displayName}
           onClick={onToggle}
           {...attributes}
           {...listeners}
         >
-          <FolderIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
+          <span data-testid="project-collapse" className="flex size-4 shrink-0 items-center justify-center">
+            {open ? (
+              <FolderOpenIcon className="size-4 text-sidebar-muted-foreground" aria-hidden="true" />
+            ) : (
+              <FolderIcon className="size-4 text-sidebar-muted-foreground" aria-hidden="true" />
+            )}
+          </span>
           <span className="min-w-0 truncate" title={project.displayName}>
             {project.displayName}
           </span>
         </button>
-        <span className="px-1 text-[11px] tabular-nums text-sidebar-muted-foreground">
+        <span className="px-1 text-xs tabular-nums text-sidebar-muted-foreground">
           {ordinary.length}
         </span>
       </div>
       {open ? (
-        <div className="project-sessions-enter mt-px min-w-0 overflow-hidden pl-[1.125rem]">
+        <div className="project-sessions-enter mt-px min-w-0 overflow-hidden pl-[1.875rem]">
           {ordinary.length > 0 ? (
             <ul className="m-0 grid min-w-0 list-none p-0">
               {ordinary.map((session) => (

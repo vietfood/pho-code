@@ -1,8 +1,9 @@
 import { cn } from "./lib/cn";
 
-// Compact Dots mark adapted from Beautiful UI Loading State
-// (MIT, Shane Levine, https://www.beautifului.dev/ retrieved 2026-08-14).
-// Pixel-grid, Drive, Orbit, shimmer label, and elapsed timer omitted.
+// Compact 3×3 running mark inspired by Cursor's agent-list indicator
+// (screenshot reference only; original CSS). Beautiful UI Dots omitted.
+
+const MARK_COUNT = 9;
 
 export function LoadingDots({
   label,
@@ -18,9 +19,9 @@ export function LoadingDots({
       role="img"
       aria-label={label}
     >
-      <span className="loading-dots__mark" aria-hidden="true" />
-      <span className="loading-dots__mark" aria-hidden="true" />
-      <span className="loading-dots__mark" aria-hidden="true" />
+      {Array.from({ length: MARK_COUNT }, (_, index) => (
+        <span key={index} className="loading-dots__mark" aria-hidden="true" />
+      ))}
     </span>
   );
 }

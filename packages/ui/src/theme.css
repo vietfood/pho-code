@@ -20,6 +20,8 @@
   --composer-glass-opacity: 100%;
   --glass-saturation: 1.12;
   --app-scrollbar-width: 6px;
+  --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
+  --code-foreground: var(--foreground);
 }
 
 @theme inline {
@@ -56,6 +58,8 @@
   --color-error-foreground: var(--error-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-code-background: var(--code-background);
+  --color-code-foreground: var(--code-foreground);
   --color-secondary-label: var(--secondary-label);
   --color-icon-muted: var(--icon-muted);
   --radius-lg: var(--radius);
@@ -812,12 +816,22 @@ html[data-appearance="dark"] .approval-card {
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
-  right: 0;
   z-index: 4;
   width: 8px;
   height: 100%;
   cursor: col-resize;
   touch-action: none;
+}
+
+.sidebar-resize-handle[data-edge="end"],
+.sidebar-resize-handle:not([data-edge]) {
+  right: 0;
+  left: auto;
+}
+
+.sidebar-resize-handle[data-edge="start"] {
+  left: 0;
+  right: auto;
 }
 
 .sidebar-resize-handle:focus-visible {
@@ -1732,14 +1746,15 @@ html[data-glass="on"] .glass-field {
 }
 
 .loading-dots {
-  display: inline-flex;
-  width: 0.875rem;
-  height: 0.875rem;
+  display: grid;
+  width: 0.8125rem;
+  height: 0.8125rem;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
+  grid-template-columns: repeat(3, 0.1875rem);
+  grid-template-rows: repeat(3, 0.1875rem);
+  place-content: center;
   gap: 0.125rem;
-  color: var(--primary);
+  color: currentColor;
 }
 
 .loading-dots__mark {
@@ -1747,66 +1762,117 @@ html[data-glass="on"] .glass-field {
   height: 0.1875rem;
   border-radius: 9999px;
   background: currentColor;
-  animation: loading-dots 1.05s ease-in-out infinite;
+  animation: loading-dots 1.35s linear infinite;
+}
+
+/* Clockwise around the 3×3 cell, then center: TL → TC → TR → MR → BR → BC → BL → ML → C */
+.loading-dots__mark:nth-child(1) {
+  animation-delay: 0s;
 }
 
 .loading-dots__mark:nth-child(2) {
-  animation-delay: 0.16s;
+  animation-delay: -1.2s;
 }
 
 .loading-dots__mark:nth-child(3) {
-  animation-delay: 0.32s;
+  animation-delay: -1.05s;
+}
+
+.loading-dots__mark:nth-child(6) {
+  animation-delay: -0.9s;
+}
+
+.loading-dots__mark:nth-child(9) {
+  animation-delay: -0.75s;
+}
+
+.loading-dots__mark:nth-child(8) {
+  animation-delay: -0.6s;
+}
+
+.loading-dots__mark:nth-child(7) {
+  animation-delay: -0.45s;
+}
+
+.loading-dots__mark:nth-child(4) {
+  animation-delay: -0.3s;
+}
+
+.loading-dots__mark:nth-child(5) {
+  animation-delay: -0.15s;
 }
 
 @keyframes loading-dots {
   0%,
-  80%,
-  100% {
-    opacity: 0.28;
-    transform: translateY(0);
+  11% {
+    opacity: 0.15;
   }
-  40% {
+  22%,
+  100% {
     opacity: 1;
-    transform: translateY(-1px);
   }
 }
 
 .session-context-menu {
   position: fixed;
   z-index: 40;
-  min-width: 11.5rem;
+  min-width: 12.5rem;
   overflow: hidden;
   -webkit-app-region: no-drag;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
   border-radius: 0.5rem;
-  background: var(--popover);
-  color: var(--popover-foreground);
-  padding: 0.25rem;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 12%, transparent);
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  padding: 0.2rem 0;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 28%);
+}
+
+html[data-appearance="dark"] .session-context-menu {
+  border-color: rgb(255 255 255 / 10%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
 }
 
 .session-context-menu__item {
   display: flex;
   width: 100%;
   align-items: center;
+  gap: 0.5rem;
   border: 0;
-  border-radius: 0.375rem;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
   font-size: 0.8125rem;
   line-height: 1.25rem;
-  padding: 0.375rem 0.5rem;
+  padding: 0.45rem 0.7rem;
   text-align: left;
+}
+
+.session-context-menu__item + .session-context-menu__item {
+  border-top: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
 }
 
 .session-context-menu__item:hover,
 .session-context-menu__item:focus-visible {
-  background: var(--accent);
+  background: var(--sidebar-row-hover);
   outline: none;
 }
 
+.session-context-menu__item-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
 .session-context-menu__item--stacked {
+  align-items: flex-start;
+}
+
+.session-context-menu__item-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.1rem;
@@ -1818,7 +1884,7 @@ html[data-glass="on"] .glass-field {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted-foreground);
+  color: var(--sidebar-muted-foreground);
   font-size: 0.6875rem;
   line-height: 1.2;
 }
@@ -1955,6 +2021,104 @@ html[data-glass="on"] .glass-field {
   letter-spacing: -0.01em;
 }
 
+/* Change-review unified diff: T3-inspired code chrome without Pierre Diffs.
+   Background and gutters follow --code-background so the surface matches the palette. */
+.change-review-diff-card {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius);
+  background: var(--code-background);
+  color: var(--code-foreground);
+}
+
+.change-review-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 0.4rem 0.75rem;
+  background: var(--code-background);
+  font-family: var(--font-sans);
+}
+
+.change-review-diff {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  padding-bottom: 0.5rem;
+}
+
+.change-review-hunk-gap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.75rem;
+  color: color-mix(in srgb, var(--code-foreground) 52%, var(--code-background));
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.change-review-hunk-gap::before,
+.change-review-hunk-gap::after {
+  height: 1px;
+  flex: 1 1 auto;
+  background: color-mix(in srgb, var(--code-background) 88%, var(--code-foreground));
+  content: "";
+}
+
+.change-review-hunk-pill {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--code-foreground) 8%, var(--code-background));
+  padding: 0.2rem 0.55rem;
+  color: color-mix(in srgb, var(--code-foreground) 62%, var(--code-background));
+  white-space: nowrap;
+}
+
+.change-review-diff-line {
+  display: grid;
+  grid-template-columns: 2.75rem 1rem minmax(0, 1fr);
+  align-items: start;
+  min-height: 1.55em;
+  padding-inline-end: 0.75rem;
+}
+
+.change-review-diff-line[data-kind="added"] {
+  background: color-mix(in srgb, var(--success) 12%, var(--code-background));
+}
+
+.change-review-diff-line[data-kind="removed"] {
+  background: color-mix(in srgb, var(--destructive) 12%, var(--code-background));
+}
+
+.change-review-diff-gutter {
+  color: color-mix(in srgb, var(--code-foreground) 38%, var(--code-background));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  user-select: none;
+}
+
+.change-review-diff-marker {
+  text-align: center;
+  user-select: none;
+}
+
+.change-review-diff-line[data-kind="added"] .change-review-diff-marker {
+  color: var(--success);
+}
+
+.change-review-diff-line[data-kind="removed"] .change-review-diff-marker {
+  color: var(--destructive);
+}
+
+.change-review-diff-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1989,6 +2153,5 @@ html[data-glass="on"] .glass-field {
   .loading-dots__mark {
     animation: none;
     opacity: 0.7;
-    transform: none;
   }
 }

@@ -1,3 +1,4 @@
+import { ArchiveIcon, ArchiveRestoreIcon, Trash2Icon } from "lucide-react";
 import { FloatingMenu } from "./floating-menu";
 
 // Right-click session actions adapted from refs/pi-gui ThreadSessionRow
@@ -36,6 +37,7 @@ export function SessionContextMenu({
             onClose();
           }}
         >
+          <ArchiveRestoreIcon className="session-context-menu__item-icon" aria-hidden="true" />
           Restore chat
         </button>
       ) : (
@@ -51,6 +53,7 @@ export function SessionContextMenu({
             onClose();
           }}
         >
+          <ArchiveIcon className="session-context-menu__item-icon" aria-hidden="true" />
           Archive chat
         </button>
       )}
@@ -66,6 +69,7 @@ export function SessionContextMenu({
           onClose();
         }}
       >
+        <Trash2Icon className="session-context-menu__item-icon" aria-hidden="true" />
         Move chat to Trash
       </button>
     </FloatingMenu>

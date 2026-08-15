@@ -24,13 +24,16 @@ describe("project context menu", () => {
     expect(markup).toContain("Copy pathname");
     expect(markup).toContain("Remove project");
     expect(markup).toContain("Garden");
+    expect(markup).toContain("lucide-square-pen");
+    expect(markup).toContain("lucide-copy");
+    expect(markup).toContain("lucide-trash-2");
     expect(markup).not.toContain("Archive chat");
     expect(markup).not.toContain("Move chat to Trash");
   });
 });
 
 describe("session leading mark", () => {
-  test("uses Beautiful UI dots while the agent is working", () => {
+  test("uses the 3×3 running mark while the agent is working", () => {
     const activity: SessionActivitySummary = {
       workspaceId: "/tmp/ws",
       sessionId: "s1",
@@ -55,10 +58,10 @@ describe("session leading mark", () => {
 });
 
 describe("loading dots", () => {
-  test("renders three marks with an accessible label", () => {
+  test("renders nine marks with an accessible label", () => {
     const markup = renderToStaticMarkup(createElement(LoadingDots, { label: "Working" }));
     expect(markup).toContain("loading-dots");
-    expect(markup.split("loading-dots__mark").length - 1).toBe(3);
+    expect(markup.split("loading-dots__mark").length - 1).toBe(9);
     expect(markup).toContain("Working");
   });
 });

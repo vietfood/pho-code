@@ -1,3 +1,4 @@
+import { CopyIcon, SquarePenIcon, Trash2Icon } from "lucide-react";
 import { compactPath } from "./lib/compact-path";
 import { copyText } from "./lib/clipboard";
 import { FloatingMenu } from "./floating-menu";
@@ -34,6 +35,7 @@ export function ProjectContextMenu({
           onClose();
         }}
       >
+        <SquarePenIcon className="session-context-menu__item-icon" aria-hidden="true" />
         New session
       </button>
       <button
@@ -49,8 +51,11 @@ export function ProjectContextMenu({
           onClose();
         }}
       >
-        <span>Copy pathname</span>
-        <span className="session-context-menu__item-meta">{compactPath(path, 36)}</span>
+        <CopyIcon className="session-context-menu__item-icon" aria-hidden="true" />
+        <span className="session-context-menu__item-copy">
+          <span>Copy pathname</span>
+          <span className="session-context-menu__item-meta">{compactPath(path, 36)}</span>
+        </span>
       </button>
       <button
         type="button"
@@ -64,6 +69,7 @@ export function ProjectContextMenu({
           onClose();
         }}
       >
+        <Trash2Icon className="session-context-menu__item-icon" aria-hidden="true" />
         Remove project
       </button>
     </FloatingMenu>

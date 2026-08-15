@@ -18,6 +18,8 @@ describe("session context menu", () => {
     expect(markup).toContain('data-testid="session-context-menu"');
     expect(markup).toContain("Archive chat");
     expect(markup).toContain("Move chat to Trash");
+    expect(markup).toContain("lucide-archive");
+    expect(markup).toContain("lucide-trash-2");
     expect(markup).not.toContain("Restore chat");
   });
 
@@ -33,6 +35,8 @@ describe("session context menu", () => {
       }),
     );
     expect(markup).toContain("Restore chat");
+    expect(markup).toContain("lucide-archive-restore");
+    expect(markup).toContain("lucide-trash-2");
     expect(markup).not.toContain("Archive chat");
   });
 });

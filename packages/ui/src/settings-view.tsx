@@ -7,6 +7,7 @@ import {
   MIN_CHAT_FONT_SIZE,
   MIN_GLASS_STRENGTH,
   MIN_UI_FONT_SIZE,
+  CHANGE_LEDGER_DISCLOSURE,
   paletteSupportsMode,
   type AppearanceMode,
   type AppearancePalette,
@@ -592,7 +593,6 @@ function AppearanceSection({
       <h2 id="appearance-heading" className="text-sm font-medium">
         Appearance
       </h2>
-      <p className="text-xs text-muted-foreground">Applies to this application only.</p>
       <div className="grid gap-1.5">
         <p className="text-xs font-medium text-foreground">Palette</p>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Palette">
@@ -641,7 +641,7 @@ function AppearanceSection({
           <span>
             <span className="font-medium">Frosted glass</span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Soft blur over the desktop. Stronger on the sidebar, including the composer and settings fields.
+              Soft blur over the desktop.
             </span>
           </span>
           <input
@@ -744,6 +744,9 @@ function PermissionSection({
           Stored in Pho Code&apos;s private data directory. Other Pi installations do not use this permission config.
         </p>
       )}
+      <p className="text-xs text-muted-foreground" data-testid="change-ledger-disclosure">
+        {CHANGE_LEDGER_DISCLOSURE}
+      </p>
       {projectPermissionTrustPending(settings.permission) || settings.permission.projectOverridePresent ? (
         <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
           <p className="text-xs text-warning" role="status">
