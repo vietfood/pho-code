@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type {
+  ChangeScope,
   HostDialogRequest,
   ModelSummary,
   PreparedImageSummary,
@@ -9,9 +10,7 @@ import type {
   SkillSettingsSnapshot,
   ThinkingLevel,
 } from "@pho-code/protocol";
-import { emptySessionContextPrompt } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
-import { ContextPromptDialog } from "./context-prompt-dialog";
 import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
@@ -22,7 +21,6 @@ import { sameModel } from "./lib/model-identity";
 import { Transcript } from "./transcript";
 
 const CURSOR_PROVIDER_ID = "cursor";
-const fallbackContextPrompt = emptySessionContextPrompt();
 
 function isCursorModel(model: ModelSummary): boolean {
   return model.provider.trim().toLowerCase() === CURSOR_PROVIDER_ID;
@@ -49,7 +47,7 @@ export function Conversation({
   onPasteImages,
   onRemoveImage,
   onRewrite,
-  onUpdateContextPrompt,
+  onOpenChangeReview,
   notice,
   onTrustProject,
   skills,
@@ -74,29 +72,24 @@ export function Conversation({
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
-  onUpdateContextPrompt?: (input: { preamble: string; disabledSectionIds: string[]; reset?: boolean }) => void | Promise<void>;
+  onOpenChangeReview?: (scope: ChangeScope) => void;
   notice?: ReactNode;
   onTrustProject?: () => void;
   skills?: SkillSettingsSnapshot;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
-  const contextPrompt = snapshot.contextPrompt ?? fallbackContextPrompt;
   const [pendingModel, setPendingModel] = useState<ModelSummary | null>(null);
-  const [contextPromptOpen, setContextPromptOpen] = useState(false);
-  const [contextPromptBusy, setContextPromptBusy] = useState(false);
 
   useEffect(() => {
-    if (!empty || dialog || pendingModel || contextPromptOpen) {
+    if (!empty || dialog || pendingModel) {
       return;
     }
     document.getElementById("composer-input")?.focus();
-  }, [contextPromptOpen, dialog, empty, pendingModel]);
+  }, [dialog, empty, pendingModel]);
 
   useEffect(() => {
     setPendingModel(null);
-    setContextPromptOpen(false);
-    setContextPromptBusy(false);
   }, [snapshot.session.id, snapshot.workspace.id]);
 
   function requestModelChange(model: ModelSummary) {
@@ -174,41 +167,6 @@ export function Conversation({
         />
       )
     ) : null;
-  const contextPromptDialog = contextPromptOpen ? (
-    <ContextPromptDialog
-      contextPrompt={contextPrompt}
-      busy={contextPromptBusy}
-      onClose={() => {
-        if (!contextPromptBusy) {
-          setContextPromptOpen(false);
-        }
-      }}
-      {...(onUpdateContextPrompt
-        ? {
-            onSave: async (input: { preamble: string; disabledSectionIds: string[] }) => {
-              setContextPromptBusy(true);
-              try {
-                await onUpdateContextPrompt(input);
-              } finally {
-                setContextPromptBusy(false);
-              }
-            },
-            onReset: async () => {
-              setContextPromptBusy(true);
-              try {
-                await onUpdateContextPrompt({
-                  preamble: contextPrompt.defaultPreamble,
-                  disabledSectionIds: [],
-                  reset: true,
-                });
-              } finally {
-                setContextPromptBusy(false);
-              }
-            },
-          }
-        : {})}
-    />
-  ) : null;
 
   return (
     <section
@@ -222,8 +180,6 @@ export function Conversation({
           {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
           {...(onToggleSidebar ? { onToggleSidebar } : {})}
           {...(onTrustProject ? { onTrustProject } : {})}
-          onOpenContextPrompt={() => setContextPromptOpen(true)}
-          {...(contextPrompt.customized ? { contextPromptCustomized: true } : {})}
         />
         {notice}
         {empty ? (
@@ -237,6 +193,7 @@ export function Conversation({
               key={`${snapshot.workspace.id}:${snapshot.session.id}`}
               snapshot={snapshot}
               {...(onRewrite ? { onRewrite } : {})}
+              {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
             />
             <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1.5 pb-4 sm:pt-2 sm:pb-5">
               <div className="pointer-events-auto mx-auto w-full max-w-3xl">
@@ -248,7 +205,6 @@ export function Conversation({
         )}
       </div>
       {changeModelDialog}
-      {contextPromptDialog}
     </section>
   );
 }

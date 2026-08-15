@@ -8,16 +8,12 @@ export function ChatHeader({
   sidebarCollapsed,
   onToggleSidebar,
   onTrustProject,
-  onOpenContextPrompt,
-  contextPromptCustomized,
 }: {
   modelError?: string;
   yoloMode?: boolean;
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
   onTrustProject?: () => void;
-  onOpenContextPrompt?: () => void;
-  contextPromptCustomized?: boolean;
 }) {
   const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
 
@@ -31,18 +27,6 @@ export function ChatHeader({
         />
       ) : null}
       <div className="min-w-0 flex-1" aria-hidden="true" />
-      {onOpenContextPrompt ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="no-drag shrink-0"
-          data-testid="context-prompt-header"
-          onClick={onOpenContextPrompt}
-        >
-          Context prompt
-          {contextPromptCustomized ? <span className="text-muted-foreground">· Custom</span> : null}
-        </Button>
-      ) : null}
       {onTrustProject ? (
         <Button
           size="sm"

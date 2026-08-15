@@ -9,26 +9,68 @@ import {
   writeSidebarWidth,
 } from "./lib/sidebar-width";
 
-export function useSidebarResize(): {
+export type SidebarResizeEdge = "start" | "end";
+
+export interface SidebarResizeStorage {
+  read: () => number;
+  write: (widthPx: number) => void;
+  clamp: (widthPx: number) => number;
+  defaultWidth: number;
+  minWidth: number;
+  maxWidth: number;
+  step?: number;
+}
+
+const LEFT_SIDEBAR_STORAGE: SidebarResizeStorage = {
+  read: readSidebarWidth,
+  write: writeSidebarWidth,
+  clamp: clampSidebarWidth,
+  defaultWidth: DEFAULT_SIDEBAR_WIDTH_PX,
+  minWidth: MIN_SIDEBAR_WIDTH_PX,
+  maxWidth: MAX_SIDEBAR_WIDTH_PX,
+  step: SIDEBAR_RESIZE_STEP_PX,
+};
+
+export interface SidebarResizeHandleProps {
+  width: number;
+  edge?: SidebarResizeEdge;
+  minWidth?: number;
+  maxWidth?: number;
+  testId?: string;
+  label?: string;
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  onDoubleClick: () => void;
+}
+
+export function useSidebarResize(options?: {
+  edge?: SidebarResizeEdge;
+  storage?: SidebarResizeStorage;
+  testId?: string;
+  label?: string;
+}): {
   width: number;
   resizing: boolean;
-  handle: {
-    width: number;
-    onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
-    onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
-    onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-    onDoubleClick: () => void;
-  };
+  handle: SidebarResizeHandleProps;
 } {
-  const [width, setWidth] = useState(readSidebarWidth);
+  const edge = options?.edge ?? "end";
+  const storage = options?.storage ?? LEFT_SIDEBAR_STORAGE;
+  const step = storage.step ?? SIDEBAR_RESIZE_STEP_PX;
+  const direction = edge === "start" ? -1 : 1;
+  const [width, setWidth] = useState(storage.read);
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
 
   function commitWidth(next: number): void {
-    const clamped = clampSidebarWidth(next);
+    const clamped = storage.clamp(next);
     setWidth(clamped);
-    writeSidebarWidth(clamped);
+    storage.write(clamped);
+  }
+
+  function nextFromDelta(startWidth: number, clientX: number, startX: number): number {
+    return storage.clamp(startWidth + direction * (clientX - startX));
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>): void {
@@ -47,7 +89,7 @@ export function useSidebarResize(): {
     if (!drag || drag.pointerId !== event.pointerId) {
       return;
     }
-    setWidth(clampSidebarWidth(drag.startWidth + (event.clientX - drag.startX)));
+    setWidth(nextFromDelta(drag.startWidth, event.clientX, drag.startX));
   }
 
   function onPointerUp(event: PointerEvent<HTMLDivElement>): void {
@@ -60,26 +102,26 @@ export function useSidebarResize(): {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    commitWidth(drag.startWidth + (event.clientX - drag.startX));
+    commitWidth(nextFromDelta(drag.startWidth, event.clientX, drag.startX));
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     switch (event.key) {
       case "ArrowLeft":
         event.preventDefault();
-        commitWidth(width - SIDEBAR_RESIZE_STEP_PX);
+        commitWidth(width - direction * step);
         return;
       case "ArrowRight":
         event.preventDefault();
-        commitWidth(width + SIDEBAR_RESIZE_STEP_PX);
+        commitWidth(width + direction * step);
         return;
       case "Home":
         event.preventDefault();
-        commitWidth(MIN_SIDEBAR_WIDTH_PX);
+        commitWidth(storage.minWidth);
         return;
       case "End":
         event.preventDefault();
-        commitWidth(MAX_SIDEBAR_WIDTH_PX);
+        commitWidth(storage.maxWidth);
         return;
       default:
         return;
@@ -91,41 +133,45 @@ export function useSidebarResize(): {
     resizing,
     handle: {
       width,
+      edge,
+      minWidth: storage.minWidth,
+      maxWidth: storage.maxWidth,
+      testId: options?.testId,
+      label: options?.label,
       onPointerDown,
       onPointerMove,
       onPointerUp,
       onKeyDown,
-      onDoubleClick: () => commitWidth(DEFAULT_SIDEBAR_WIDTH_PX),
+      onDoubleClick: () => commitWidth(storage.defaultWidth),
     },
   };
 }
 
 export function SidebarResizeHandle({
   width,
+  edge = "end",
+  minWidth = MIN_SIDEBAR_WIDTH_PX,
+  maxWidth = MAX_SIDEBAR_WIDTH_PX,
+  testId = "sidebar-resize",
+  label = "Resize sidebar",
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onKeyDown,
   onDoubleClick,
-}: {
-  width: number;
-  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
-  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
-  onDoubleClick: () => void;
-}) {
+}: SidebarResizeHandleProps) {
   return (
     <div
       className="sidebar-resize-handle no-drag"
+      data-edge={edge}
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize sidebar"
-      aria-valuemin={MIN_SIDEBAR_WIDTH_PX}
-      aria-valuemax={MAX_SIDEBAR_WIDTH_PX}
+      aria-label={label}
+      aria-valuemin={minWidth}
+      aria-valuemax={maxWidth}
       aria-valuenow={width}
       tabIndex={0}
-      data-testid="sidebar-resize"
+      data-testid={testId}
       title="Drag to resize · double-click to reset"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

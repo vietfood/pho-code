@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import {
   CONTEXT_PROMPT_SECTION_KINDS,
@@ -13,12 +13,14 @@ import { Button } from "./ui/button";
 export function ContextPromptDialog({
   contextPrompt,
   busy = false,
+  embedded = false,
   onSave,
   onReset,
   onClose,
 }: {
   contextPrompt: SessionContextPrompt;
   busy?: boolean;
+  embedded?: boolean;
   onSave?: (input: { preamble: string; disabledSectionIds: string[] }) => void | Promise<void>;
   onReset?: () => void | Promise<void>;
   onClose: () => void;
@@ -38,8 +40,11 @@ export function ContextPromptDialog({
   }, [contextPrompt.preamble, contextPrompt.customized, contextPrompt.editable, sectionSync]);
 
   useEffect(() => {
+    if (embedded) {
+      return;
+    }
     closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         if (!busy) {
@@ -51,7 +56,7 @@ export function ContextPromptDialog({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [busy, onClose]);
+  }, [busy, embedded, onClose]);
 
   const sections = useMemo(
     () => contextPrompt.sections.map((section) => ({ ...section, enabled: !disabledIds.has(section.id) })),
@@ -93,28 +98,28 @@ export function ContextPromptDialog({
     });
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
-      data-testid="context-prompt-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) {
-          onClose();
-        }
-      }}
-    >
+  const panel = (
       <section
         ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
+        {...(embedded
+          ? {}
+          : {
+              role: "dialog" as const,
+              "aria-modal": true as const,
+              onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+                if (dialogRef.current) {
+                  handleDialogTab(event.nativeEvent, dialogRef.current);
+                }
+              },
+            })}
         aria-labelledby="context-prompt-heading"
         data-testid="context-prompt-dialog"
-        className="context-prompt-dialog flex w-[min(40rem,calc(100dvw-2rem))] max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg"
-        onKeyDown={(event) => {
-          if (dialogRef.current) {
-            handleDialogTab(event.nativeEvent, dialogRef.current);
-          }
-        }}
+        className={cn(
+          "context-prompt-dialog flex flex-col overflow-hidden bg-background",
+          embedded
+            ? "h-full min-h-0 min-w-0 flex-1"
+            : "w-[min(40rem,calc(100dvw-2rem))] max-h-[calc(100dvh-2rem)] rounded-xl border border-border shadow-lg",
+        )}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 px-3.5 pt-3.5">
           <div className="min-w-0">
@@ -210,6 +215,23 @@ export function ContextPromptDialog({
           ) : null}
         </div>
       </section>
+  );
+
+  if (embedded) {
+    return panel;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+      data-testid="context-prompt-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) {
+          onClose();
+        }
+      }}
+    >
+      {panel}
     </div>
   );
 }

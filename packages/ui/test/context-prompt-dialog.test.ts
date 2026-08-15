@@ -124,4 +124,21 @@ describe("ContextPromptDialog", () => {
     expect(markup).toContain('data-testid="context-prompt-chip-tool:bash"');
     expect(markup).toContain("disabled");
   });
+
+  test("embeds as a panel without a modal backdrop", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ContextPromptDialog, {
+        contextPrompt: prompt(),
+        embedded: true,
+        onSave: () => undefined,
+        onReset: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="context-prompt-dialog"');
+    expect(markup).not.toContain('data-testid="context-prompt-backdrop"');
+    expect(markup).not.toContain('aria-modal="true"');
+    expect(markup).toContain('data-testid="context-prompt-save"');
+    expect(markup).toContain("before the first message");
+  });
 });

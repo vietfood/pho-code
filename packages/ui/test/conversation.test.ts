@@ -78,10 +78,10 @@ describe("empty session hero", () => {
     expect(markup).not.toContain("Start this session");
   });
 
-  test("shows a Context prompt header control on empty and non-empty chats", () => {
+  test("does not put Context prompt or changes controls in the chat header", () => {
     const emptyMarkup = renderToStaticMarkup(createElement(Conversation, { snapshot: snapshot(), ...handlers }));
-    expect(emptyMarkup).toContain('data-testid="context-prompt-header"');
-    expect(emptyMarkup).toContain("Context prompt");
+    expect(emptyMarkup).not.toContain('data-testid="context-prompt-header"');
+    expect(emptyMarkup).not.toContain('data-testid="toggle-change-review"');
     expect(emptyMarkup).not.toContain('data-testid="context-prompt-dialog"');
 
     const filledMarkup = renderToStaticMarkup(
@@ -92,11 +92,11 @@ describe("empty session hero", () => {
         ...handlers,
       }),
     );
-    expect(filledMarkup).toContain('data-testid="context-prompt-header"');
+    expect(filledMarkup).not.toContain('data-testid="context-prompt-header"');
     expect(filledMarkup).not.toContain("· Custom");
   });
 
-  test("marks the header when this session’s context prompt is customized", () => {
+  test("does not mark the header when this session’s context prompt is customized", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
         snapshot: snapshot({
@@ -112,8 +112,57 @@ describe("empty session hero", () => {
         ...handlers,
       }),
     );
-    expect(markup).toContain('data-testid="context-prompt-header"');
-    expect(markup).toContain("· Custom");
+    expect(markup).not.toContain('data-testid="context-prompt-header"');
+    expect(markup).not.toContain("· Custom");
+  });
+
+  test("does not show a changes header toggle when a review set exists", () => {
+    const withoutReview = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot(),
+        ...handlers,
+        onOpenChangeReview: () => undefined,
+      }),
+    );
+    expect(withoutReview).not.toContain('data-testid="toggle-change-review"');
+
+    const withReview = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          changeReviews: [
+            {
+              workspaceId: "/tmp/ws",
+              sessionId: "s1",
+              runId: "r1",
+              revision: 1,
+              pendingCount: 1,
+              approvedCount: 0,
+              conflictCount: 0,
+              unavailableCount: 0,
+              fileCount: 1,
+              filesTruncated: false,
+              toolCallIds: ["call_edit"],
+              updatedAt: "2026-08-15T00:00:00.000Z",
+              files: [
+                {
+                  relativePath: "tracked.txt",
+                  kind: "modified",
+                  status: "pending",
+                  firstToolCallId: "call_edit",
+                  latestToolCallId: "call_edit",
+                  startedAt: "2026-08-15T00:00:00.000Z",
+                  updatedAt: "2026-08-15T00:00:00.000Z",
+                },
+              ],
+            },
+          ],
+        }),
+        ...handlers,
+        onOpenChangeReview: () => undefined,
+      }),
+    );
+    expect(withReview).not.toContain('data-testid="toggle-change-review"');
+    expect(withReview).not.toContain("Show changes");
   });
 
   test("docks the composer once the transcript has a message", () => {
