@@ -1,6 +1,6 @@
 # Pho Code: current state
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## What exists today
 
@@ -11,7 +11,8 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
 - multi-turn streaming chat with sanitized GFM live tokens, compositor-only caret/enter/pulse motion, thinking blocks, KaTeX/Shiki/Mermaid/SVG after settle (KaTeX only when the text looks like math; SVG as a data-URL image with lightbox), copy and owner rewrite for settled assistant output and copy for fenced code blocks, tool activity, Stop, and error states;
-- a T3-inspired conversation UI with a wider collapsible, mouse-resizable project/session sidebar (manual folder order, no MRU bump on session switch; collapse hides without unmounting; collapse control on the macOS traffic-light inset’s right and leading on Linux), a welcome launcher when no session is live, per-chat activity with a chat icon or Beautiful UI Dots while a run is live, archive/restore, Move chat to Trash, and a warned Remove project that trashes that folder’s chats, a centered empty-session composer, and an anchored composer after the first message; session switch updates sidebar selection and the chat pane only (cached chats paint immediately; uncached opens show chat-pane loading), and live tokens update a transcript tail rather than the settled turn list;
+- a T3-inspired conversation UI with a wider collapsible, mouse-resizable project/session sidebar (manual folder order, no MRU bump on session switch; collapse hides without unmounting; collapse control on the macOS traffic-light inset’s right and leading on Linux), a welcome launcher when no session is live, per-chat activity with a chat icon or 3×3 running mark while a run is live, archive/restore, Move chat to Trash, and a warned Remove project that trashes that folder’s chats, a centered empty-session composer, and an anchored composer after the first message; session switch updates sidebar selection and the chat pane only (cached chats paint immediately; uncached opens show chat-pane loading), and live tokens update a transcript tail rather than the settled turn list;
+- a persistent right sidebar that stays a compact overlay pill until expanded (Changes unified-diff review for tracked Pi `write`/`edit`, plus Context prompt); opened from a tool card or the FileDiff/BookOpen icons; Approve is ledger state only; conversation stays primary;
 - a source-controlled baked-feature manifest that ignores arbitrary global/project extensions, skills, prompts, and themes, plus three Pho Code-authored text-only skills available through `/` after the built-in source (always on) or an explicitly enabled Codex/Cursor/Claude/Pi user root;
 - `@gotgenes/pi-permission-system` `24.0.0` as the first baked feature;
 - `pi-cursor-sdk` `0.2.0` as a baked Cursor provider (local Cursor SDK agents only; ambient `~/.cursor` settings and Cursor Cloud are disabled by harness policy); selecting a Cursor model shows an honest warning dialog with the Cursor mark;
@@ -21,7 +22,7 @@ Pho Code is a personal macOS-first Electron application built directly on Pi SDK
 - image attachments (PNG/JPEG/GIF/WebP) picked or pasted, prepared without absolute paths, and admitted only when the selected model accepts images;
 - an application-owned `move_to_trash` tool that uses the operating-system Trash facility and never falls back to permanent deletion;
 - desktop confirm/select/input permission dialogs, approval-for-session, denial reasons, notifications, cancellation, and session rebind;
-- typed Settings in a floating Appearance / Accounts / GitHub / Skills / Archived / Permissions dialog for palette + light/dark/system mode (Default, Gruvbox, Catppuccin, Flexoki, GitHub, One Dark), optional frosted-glass blur with strength control, independent UI and chat font sizes, built-in and trusted instruction sources with Refresh, a Settings-controlled read-only GitHub MCP row (default off; PAT in the OS secret store), and the owner-facing baby (strict), okay, you got it, and with great power comes great responsibility permission modes, with Custom preservation, honest private/shared data-scope disclosure, and a project-permission trust dialog/banner when a workspace override is present;
+- typed Settings in a floating Appearance / Accounts / GitHub / Skills / Archived / Permissions dialog for palette + light/dark/system mode (Default, Gruvbox, Catppuccin, Flexoki, GitHub, One Dark), optional frosted-glass blur with strength control, independent UI and chat font sizes, built-in and trusted instruction sources with Refresh, a Settings-controlled read-only GitHub MCP row (default off; PAT in the OS secret store), and the owner-facing baby (strict), okay, you got it, and with great power comes great responsibility permission modes, with Custom preservation, honest private/shared data-scope disclosure, captured write/edit snapshots stored in app data (not encrypted at rest in personal v3), and a project-permission trust dialog/banner when a workspace override is present;
 - in-app provider account login (API key and OAuth) that never returns stored secrets or authorization URLs to the renderer, with compact Settings rows that keep API-key fields collapsed until explicitly opened;
 - an unsigned local macOS bundle that stages Pi and the permission feature under app-owned resources;
 - internal feature/version diagnostics without install, enable, disable, or marketplace controls;
@@ -71,7 +72,11 @@ The owner approved this current milestone order:
 
 Personal v2 is complete and archived under [`archive/v2`](./archive/v2/README.md), including the accepted [product boundary](./archive/v2/product-v2.md), [implementation plan](./archive/v2/implementation-plan-v2.md), and [Milestone 4 closure review](./archive/v2/reviews/milestone-4-code-review.md). No advanced-feature Milestone 5 blocks v2 completion.
 
-Browser automation, diff/checkpoint workflows, session fork/tree and compaction controls, terminal, multi-agent worktrees, public distribution, and isolation are separated into independently promotable future-release phases in the [roadmap](./roadmap-vnext.md). They are not unfinished v2 work. UI polish, defect fixes, and owner-reviewed skill additions that preserve the accepted boundaries may continue as v2.x maintenance after archival.
+The owner promoted change review and recovery as **V3 — Change Control and Recovery** on 2026-08-15. Its proposed [product boundary](./product-v3.md) and [implementation plan](./implementation-plan-v3.md) specify immediate Pi `write`/`edit` application followed by a read-only diff/file workbench, Approve as a review-state transition, and hash-guarded Undo that never overwrites newer work.
+
+Milestones 0 through 2 are **implemented in source** (attributed write/edit ledger, bounded `changeReviewUpdated` summaries, read-only review side sheet, per-file then Approve-all of visible pending paths, per-file hash-guarded Undo with OS Trash for unchanged created files, Settings ledger disclosure). Combined evidence: protocol/runtime/UI unit tests, real-Pi write/edit/failure/two-session capture plus Undo restore/Trash, Electron journeys for Approve, safe Undo, conflict refusal, and relaunch, and a packaged macOS created-file Undo through OS Trash without a Pi CLI. The full packaged Playwright file still has unrelated About/OAuth flakes. **V3 is not accepted.** Undo all remains unavailable. Owner proof with an external editor remains outstanding. Do not describe renderer sandboxing as a sandbox for Pi tools.
+
+Browser automation, broader shell-mutation recovery, session fork/tree and compaction controls, terminal, multi-agent worktrees, public distribution, and isolation remain independently promotable future-release phases in the [roadmap](./roadmap-vnext.md). They are not unfinished v2 work. UI polish, defect fixes, and owner-reviewed skill additions that preserve the accepted boundaries may continue as v2.x maintenance after archival.
 
 ## Run it
 
@@ -81,4 +86,4 @@ bun run stage:github-mcp
 bun run dev
 ```
 
-Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, [`features`](./features/README.md) for vertical feature designs, and [`roadmap-vnext.md`](./roadmap-vnext.md) for future work not yet promoted. Update this brief when the accepted product boundary changes.
+Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, [`product-v3.md`](./product-v3.md) and [`implementation-plan-v3.md`](./implementation-plan-v3.md) for the active v3 proposal, [`features`](./features/README.md) for vertical feature designs, and [`roadmap-vnext.md`](./roadmap-vnext.md) for unpromoted future work. Update this brief when the accepted product boundary changes.

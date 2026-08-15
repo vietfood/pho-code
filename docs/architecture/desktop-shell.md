@@ -6,7 +6,7 @@ Use Electron for the personal v1. Keep the renderer and runtime contract shell-n
 
 Status: shell decision and personal v1 are accepted. The Electron shell hosts the Pi `0.84.1` runtime behind the typed bridge. Milestones 1 through 4 added workspace/session/prompt, baked features, permission host UI, the revised conversation shell, and typed appearance/permission settings without changing the renderer sandbox, context isolation, or bounded quit controls. Milestone 5 packages that shell as an unsigned local macOS `.app` with app-owned feature resources and in-app API-key import. v2 Milestone 2 is accepted: provider-owned OAuth uses the same validated `http:`/`https:` system-browser path; the renderer never receives authorization URLs. v2 Milestone 3 is accepted: independently owned session controllers continue in the background; archive/restore and OS-Trash chat removal stay behind the typed bridge.
 
-The current shell pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1`. The original bootstrap milestone is accepted. See the archived [v1 Milestone 0 code review](../archive/v1/reviews/milestone-0-code-review.md).
+The current shell pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1`. The original bootstrap milestone is accepted. See the archived [v1 Milestone 0 code review](../archive/v1/reviews/milestone-0-code-review.md). V3 change-review commands (`getChangeReviewSet`, `getChangeDiff`, `getChangeFileView`, `approveChanges`, `prepareUndoChanges`, `applyUndoChanges`) use the same typed bridge; the renderer never receives absolute snapshot paths, blob ids, or replacement bytes. Ledger files live under Electron `userData/change-ledger/v1/`, not the workspace or Pi JSONL.
 
 ## Drivers
 

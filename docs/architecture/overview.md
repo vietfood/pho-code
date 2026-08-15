@@ -81,6 +81,7 @@ The renderer owns presentation and transient interaction state:
 - composer draft and attachment previews;
 - streaming indicators and a per-chat live-run projection;
 - tool cards;
+- a read-only change-review surface in the persistent right sidebar (not a second editor);
 - dialogs and settings views;
 - light/dark theme and accessible interaction.
 
@@ -180,6 +181,12 @@ interface DesktopBridge {
   cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
   logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
   searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
+  getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
+  getChangeDiff(input: GetChangeDiffInput): Promise<ChangeDiffPage>;
+  getChangeFileView(input: GetChangeFileViewInput): Promise<ChangeFileViewPage>;
+  approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
+  prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
+  applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): () => void;
 }
 ```
