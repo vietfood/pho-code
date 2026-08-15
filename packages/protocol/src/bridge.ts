@@ -65,6 +65,18 @@ import type {
   SessionCatalogEntry,
 } from "./session-lifecycle";
 import type { RecentWorkspaceRecord, SessionSummary, WorkspaceSnapshot } from "./workspace";
+import type {
+  ApproveChangesInput,
+  ApplyUndoChangesInput,
+  ChangeDiffPage,
+  ChangeFileViewPage,
+  ChangeReviewSetSnapshot,
+  GetChangeDiffInput,
+  GetChangeFileViewInput,
+  GetChangeReviewSetInput,
+  PrepareUndoChangesInput,
+  UndoPreview,
+} from "./change-review";
 
 export interface DesktopBridge {
   getBootstrapState(): Promise<BootstrapState>;
@@ -116,5 +128,11 @@ export interface DesktopBridge {
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
+  getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
+  getChangeDiff(input: GetChangeDiffInput): Promise<ChangeDiffPage>;
+  getChangeFileView(input: GetChangeFileViewInput): Promise<ChangeFileViewPage>;
+  approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
+  prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
+  applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
 }

@@ -1,5 +1,7 @@
 import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
 import { sessionKeyEquals, sessionKeyId } from "./session-lifecycle";
+import type { ChangeReviewSetSummary } from "./change-review";
+import { changeScopeEquals, MAX_CHANGE_REVIEWS_ON_SNAPSHOT } from "./change-review";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type { PromptAdmission, RunState, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
@@ -24,6 +26,7 @@ export const RUNTIME_EVENT_TYPES = {
   providerAuthFlow: "providerAuthFlow",
   sessionActivity: "sessionActivity",
   sessionRemoved: "sessionRemoved",
+  changeReviewUpdated: "changeReviewUpdated",
 } as const;
 
 export type RuntimeEventType = (typeof RUNTIME_EVENT_TYPES)[keyof typeof RUNTIME_EVENT_TYPES];
@@ -85,7 +88,8 @@ export type RuntimeEvent =
   | (RuntimeEventEnvelope<PermissionStatusPayload> & { type: typeof RUNTIME_EVENT_TYPES.permissionStatus })
   | (RuntimeEventEnvelope<ProviderAuthFlowSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.providerAuthFlow })
   | (RuntimeEventEnvelope<SessionActivitySummary[]> & { type: typeof RUNTIME_EVENT_TYPES.sessionActivity })
-  | (RuntimeEventEnvelope<SessionRemovedPayload> & { type: typeof RUNTIME_EVENT_TYPES.sessionRemoved });
+  | (RuntimeEventEnvelope<SessionRemovedPayload> & { type: typeof RUNTIME_EVENT_TYPES.sessionRemoved })
+  | (RuntimeEventEnvelope<ChangeReviewSetSummary> & { type: typeof RUNTIME_EVENT_TYPES.changeReviewUpdated });
 
 export type Unsubscribe = () => void;
 
@@ -329,7 +333,7 @@ export function applyRuntimeEvent(
 
   const currentRunId = state.snapshot?.run.runId;
   const runMismatch = Boolean(event.runId && currentRunId && event.runId !== currentRunId);
-  if (runMismatch) {
+  if (runMismatch && event.type !== RUNTIME_EVENT_TYPES.changeReviewUpdated) {
     const canReplace = isRunEstablishingEvent(event.type) && isTerminalRunStatus(state.snapshot?.run.status);
     if (!canReplace) {
       return { ...state, lastSequence: event.sequence };
@@ -545,9 +549,41 @@ export function applyRuntimeEvent(
     case RUNTIME_EVENT_TYPES.sessionActivity:
     case RUNTIME_EVENT_TYPES.sessionRemoved:
       return { ...state, lastSequence: event.sequence };
+    case RUNTIME_EVENT_TYPES.changeReviewUpdated: {
+      const snapshot = state.snapshot;
+      if (!snapshot) {
+        return { ...state, lastSequence: event.sequence };
+      }
+      const incoming = event.payload as ChangeReviewSetSummary;
+      return {
+        lastSequence: event.sequence,
+        snapshot: {
+          ...snapshot,
+          changeReviews: upsertChangeReview(snapshot.changeReviews, incoming),
+        },
+        dialog: state.dialog,
+        notification: state.notification,
+        settings: state.settings,
+        authFlow: state.authFlow,
+      };
+    }
     default:
       return { ...state, lastSequence: event.sequence };
   }
+}
+
+function upsertChangeReview(
+  current: readonly ChangeReviewSetSummary[] | undefined,
+  incoming: ChangeReviewSetSummary,
+): ChangeReviewSetSummary[] {
+  const existing = current ?? [];
+  const index = existing.findIndex((review) => changeScopeEquals(review, incoming));
+  if (index < 0) {
+    return [...existing, incoming].slice(-MAX_CHANGE_REVIEWS_ON_SNAPSHOT);
+  }
+  const next = [...existing];
+  next[index] = incoming;
+  return next;
 }
 
 function eventTargetsOtherSession(state: ConversationViewState, event: RuntimeEventEnvelope): boolean {

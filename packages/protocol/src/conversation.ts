@@ -1,4 +1,5 @@
 import type { ImageMimeType } from "./attachments";
+import type { ChangeReviewSetSummary } from "./change-review";
 import type { SessionContextPrompt } from "./context-prompt";
 import type { HarnessError } from "./errors";
 import type { FeatureSnapshot } from "./resources";
@@ -152,6 +153,8 @@ export interface SessionSnapshot {
   usage?: SessionUsageSummary;
   queue?: SessionQueueState;
   contextPrompt?: SessionContextPrompt;
+  /** Bounded per-run write/edit review summaries for this chat. Diff bodies are fetched on demand. */
+  changeReviews?: ChangeReviewSetSummary[];
 }
 
 export interface PromptAdmission {

@@ -50,6 +50,12 @@ export const PROTOCOL_COMMANDS = {
   updateGitHubMcpSettings: "updateGitHubMcpSettings",
   importGitHubPat: "importGitHubPat",
   removeGitHubPat: "removeGitHubPat",
+  getChangeReviewSet: "getChangeReviewSet",
+  getChangeDiff: "getChangeDiff",
+  getChangeFileView: "getChangeFileView",
+  approveChanges: "approveChanges",
+  prepareUndoChanges: "prepareUndoChanges",
+  applyUndoChanges: "applyUndoChanges",
 } as const;
 
 export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOCOL_COMMANDS];

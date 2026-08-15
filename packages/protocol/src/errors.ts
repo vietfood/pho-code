@@ -35,6 +35,13 @@ export const HARNESS_ERROR_CODES = {
   githubMcpFailed: "github_mcp_failed",
   githubMcpAuthRequired: "github_mcp_auth_required",
   secretStoreUnavailable: "secret_store_unavailable",
+  changeReviewNotFound: "change_review_not_found",
+  changeReviewConflict: "change_review_conflict",
+  changeReviewRevisionMismatch: "change_review_revision_mismatch",
+  changeReviewCorrupt: "change_review_corrupt",
+  changeUndoUnavailable: "change_undo_unavailable",
+  changeUndoTokenInvalid: "change_undo_token_invalid",
+  changeUndoFailed: "change_undo_failed",
 } as const;
 
 export function isHarnessError(value: unknown): value is HarnessError {
