@@ -1,14 +1,16 @@
-import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   applyLiveRunDelta,
   applyRuntimeEventToCache,
   emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
+  emptySessionContextPrompt,
   eventSessionKey,
   extractAtMentionPaths,
   idleProviderAccountsResult,
   isHarnessError,
+  latestChangeReview,
   RUNTIME_EVENT_TYPES,
   MAX_PREPARED_IMAGES,
   MAX_SOURCE_IMAGE_BYTES,
@@ -28,6 +30,7 @@ import {
   type ProviderAuthFlowSnapshot,
   type ResolveHostDialogInput,
   type SessionCatalogEntry,
+  type SessionSnapshot,
   type SessionSummary,
   type ThinkingLevel,
   type UpdateAppearanceSettingsInput,
@@ -41,7 +44,9 @@ import {
   applyAppearanceFonts,
   applyAppearanceTheme,
   ChatPaneLoading,
+  ChangeReviewSheet,
   Conversation,
+  ContextPromptDialog,
   NotificationToast,
   fileToBase64,
   looksLikeProjectTrustNotification,
@@ -50,18 +55,23 @@ import {
   ProjectTrustDialog,
   projectPermissionTrustPending,
   readSidebarCollapsed,
+  readRightSidebarCollapsed,
   RemoveArchivedSessionsDialog,
   RemoveProjectDialog,
   RemoveSessionDialog,
+  RightSidebar,
+  type RightSidebarSurface,
   SettingsView,
   WorkspacePicker,
   writeSidebarCollapsed,
+  writeRightSidebarCollapsed,
   dropLiveRun,
   getLiveRunForKey,
   replaceLiveRun,
   selectLiveRunKey,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
+import { useChangeReview } from "./use-change-review";
 import {
   mergeActivityIntoCatalog,
   removeCatalogSession,
@@ -87,10 +97,14 @@ export function App() {
   const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
+  const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
+  const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const composerAfterRun = useRef(false);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
   const conversation = selectedConversation(cache);
+  const changeReview = useChangeReview(cache);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((current) => {
@@ -99,6 +113,67 @@ export function App() {
       return next;
     });
   }, []);
+
+  const toggleRightSidebar = useCallback(() => {
+    setRightSidebarCollapsed((current) => {
+      const next = !current;
+      writeRightSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
+
+  const collapseRightSidebar = useCallback(() => {
+    setRightSidebarCollapsed(true);
+    writeRightSidebarCollapsed(true);
+  }, []);
+
+  const selectRightSurface = useCallback(
+    (next: RightSidebarSurface) => {
+      setRightSidebarSurface(next);
+      setRightSidebarCollapsed(false);
+      writeRightSidebarCollapsed(false);
+      if (next !== "changes") {
+        return;
+      }
+      const selectedKey = cacheRef.current.selectedKey;
+      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+      const latest = snap ? latestChangeReview(snap.changeReviews) : undefined;
+      if (!latest || changeReview.scope) {
+        return;
+      }
+      changeReview.open({
+        workspaceId: latest.workspaceId,
+        sessionId: latest.sessionId,
+        runId: latest.runId,
+      });
+    },
+    [changeReview.open, changeReview.scope],
+  );
+
+  const openChangeReview = useCallback(
+    (scope: Parameters<typeof changeReview.open>[0]) => {
+      changeReview.open(scope);
+      setRightSidebarSurface("changes");
+      setRightSidebarCollapsed(false);
+      writeRightSidebarCollapsed(false);
+    },
+    [changeReview.open],
+  );
+
+  useEffect(() => {
+    const scope = changeReview.scope;
+    if (!scope) {
+      return;
+    }
+    const snap = conversation.snapshot;
+    if (!snap || snap.session.id !== scope.sessionId || snap.workspace.id !== scope.workspaceId) {
+      changeReview.close();
+    }
+  }, [changeReview.close, changeReview.scope, conversation.snapshot]);
+
+  useEffect(() => {
+    setContextPromptBusy(false);
+  }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
 
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
@@ -200,9 +275,8 @@ export function App() {
     const bridge = getDesktopBridge();
     const stop = bridge.subscribe((event) => {
       const eventKey = eventSessionKey(event);
-      const selectedId = cacheRef.current.selectedKey;
       const eventId = eventKey ? sessionKeyId(eventKey) : undefined;
-      const liveKey = eventId ?? selectedId ?? undefined;
+      const liveKey = eventId ?? cacheRef.current.selectedKey ?? undefined;
       if (isLiveRunDeltaType(event.type) && liveKey) {
         const previous =
           getLiveRunForKey(liveKey) ??
@@ -210,15 +284,18 @@ export function App() {
           idleRunState();
         replaceLiveRun(applyLiveRunDelta(previous, event), { key: liveKey });
       }
-      const next = applyRuntimeEventToCache(cacheRef.current, event);
-      cacheRef.current = next;
+      setCache((current) => {
+        const next = applyRuntimeEventToCache(current, event);
+        cacheRef.current = next;
+        return next;
+      });
       if (isLiveRunDeltaType(event.type)) {
         return;
       }
       if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved && eventId) {
         dropLiveRun(eventId);
       } else if (liveKey) {
-        const owner = next.byKey[liveKey]?.snapshot?.run;
+        const owner = cacheRef.current.byKey[liveKey]?.snapshot?.run;
         if (owner) {
           replaceLiveRun(mergeLiveRun(getLiveRunForKey(liveKey), owner), {
             immediate: true,
@@ -227,7 +304,9 @@ export function App() {
         }
       }
       if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {
-        setSessionsByWorkspace((current) => mergeActivityIntoCatalog(current, next.activity));
+        setSessionsByWorkspace((current) =>
+          mergeActivityIntoCatalog(current, event.payload as ConversationCacheState["activity"]),
+        );
       } else if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved && eventKey) {
         setSessionsByWorkspace((current) =>
           removeCatalogSession(current, eventKey.workspaceId, eventKey.sessionId),
@@ -236,12 +315,9 @@ export function App() {
         (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
         eventKey
       ) {
-        const snap = next.byKey[sessionKeyId(eventKey)]?.snapshot;
-        if (snap) {
-          setSessionsByWorkspace((current) => upsertCatalogSession(current, snap.session));
-        }
+        const snap = event.payload as SessionSnapshot;
+        setSessionsByWorkspace((current) => upsertCatalogSession(current, snap.session));
       }
-      setCache(next);
       if (event.type === RUNTIME_EVENT_TYPES.providerAuthFlow) {
         const phase = (event.payload as { phase?: string }).phase;
         if (phase === "completed" || phase === "failed" || phase === "cancelled") {
@@ -514,6 +590,88 @@ export function App() {
       />
     ) : null;
 
+  const contextPrompt = snapshot?.contextPrompt ?? emptySessionContextPrompt();
+  let rightSidebarPanel: ReactNode = null;
+  if (!rightSidebarCollapsed) {
+    switch (rightSidebarSurface) {
+      case "context-prompt":
+        rightSidebarPanel = snapshot ? (
+          <ContextPromptDialog
+            embedded
+            contextPrompt={contextPrompt}
+            busy={contextPromptBusy}
+            onClose={() => {
+              if (!contextPromptBusy) {
+                collapseRightSidebar();
+              }
+            }}
+            onSave={async (input) => {
+              setContextPromptBusy(true);
+              try {
+                await onUpdateContextPrompt(input);
+              } finally {
+                setContextPromptBusy(false);
+              }
+            }}
+            onReset={async () => {
+              setContextPromptBusy(true);
+              try {
+                await onUpdateContextPrompt({
+                  preamble: contextPrompt.defaultPreamble,
+                  disabledSectionIds: [],
+                  reset: true,
+                });
+              } finally {
+                setContextPromptBusy(false);
+              }
+            }}
+          />
+        ) : (
+          <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
+        );
+        break;
+      case "changes":
+        rightSidebarPanel = changeReview.scope ? (
+          <ChangeReviewSheet
+            review={changeReview.review}
+            selectedPath={changeReview.selectedPath}
+            diff={changeReview.diff}
+            loading={changeReview.loading}
+            error={changeReview.error}
+            busy={changeReview.busy}
+            undoPreview={changeReview.undoPreview}
+            onSelectPath={changeReview.selectPath}
+            onApprove={(relativePath) => {
+              void changeReview.approve([relativePath]);
+            }}
+            onApproveAll={() => {
+              const paths = changeReview.review?.files
+                .filter((file) => file.status === "pending")
+                .map((file) => file.relativePath);
+              void changeReview.approve(paths);
+            }}
+            onPrepareUndo={(relativePath) => {
+              void changeReview.prepareUndo(relativePath);
+            }}
+            onApplyUndo={() => {
+              void changeReview.applyUndo();
+            }}
+            onCancelUndo={changeReview.cancelUndo}
+            onLoadMore={changeReview.loadMore}
+          />
+        ) : (
+          <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
+            No tracked write/edit files to review yet.
+          </p>
+        );
+        break;
+      default: {
+        const exhaustive: never = rightSidebarSurface;
+        rightSidebarPanel = exhaustive;
+      }
+    }
+  }
+
   function leaveSessionIfCurrent(workspaceId: string, sessionId: string, entries: readonly SessionCatalogEntry[]): void {
     if (snapshot?.workspace.id !== workspaceId || snapshot.session.id !== sessionId) {
       return;
@@ -689,7 +847,8 @@ export function App() {
       }
     >
       {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {chatLoading ? (
           <ChatPaneLoading sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
         ) : snapshot ? (
@@ -770,8 +929,8 @@ export function App() {
                   });
                 }}
                 {...(conversation.settings?.skills ? { skills: conversation.settings.skills } : {})}
+                onOpenChangeReview={openChangeReview}
                 onRewrite={onRewrite}
-                onUpdateContextPrompt={onUpdateContextPrompt}
                 onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
                 onStop={() => {
                   const runId = snapshot.run.runId;
@@ -878,6 +1037,18 @@ export function App() {
             }}
           />
         )}
+      </div>
+      {snapshot || chatLoading ? (
+        <RightSidebar
+          collapsed={rightSidebarCollapsed}
+          surface={rightSidebarSurface}
+          contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
+          onToggleCollapsed={toggleRightSidebar}
+          onSelectSurface={selectRightSurface}
+        >
+          {rightSidebarPanel}
+        </RightSidebar>
+      ) : null}
       </div>
       {settingsVisible && conversation.settings ? (
         <SettingsView
