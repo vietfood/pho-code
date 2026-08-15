@@ -175,3 +175,12 @@ describe("application shutdown", () => {
     expect(runtime.disposeCount).toBe(1);
   });
 });
+
+describe("application change review", () => {
+  test("rejects incomplete review scopes", async () => {
+    const application = createTestApplication();
+    await expect(application.getChangeReviewSet({ workspaceId: "/tmp/ws", sessionId: "s1" } as never)).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
+});

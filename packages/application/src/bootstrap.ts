@@ -97,8 +97,20 @@ import {
   type GitHubMcpSettingsSnapshot,
   type WorkspaceReferenceToken,
   type WorkspaceSnapshot,
+  type ApproveChangesInput,
+  type ApplyUndoChangesInput,
+  type ChangeDiffPage,
+  type ChangeFileViewPage,
+  type ChangeReviewSetSnapshot,
+  type GetChangeDiffInput,
+  type GetChangeFileViewInput,
+  type GetChangeReviewSetInput,
+  type PrepareUndoChangesInput,
+  type UndoPreview,
   RUNTIME_EVENT_TYPES,
   eventSessionKey,
+  requireChangeScope,
+  isChangeFileVersion,
   sessionKeyEquals,
   sessionKeyId,
 } from "@pho-code/protocol";
@@ -191,6 +203,12 @@ export interface ApplicationService {
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
+  getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
+  getChangeDiff(input: GetChangeDiffInput): Promise<ChangeDiffPage>;
+  getChangeFileView(input: GetChangeFileViewInput): Promise<ChangeFileViewPage>;
+  approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
+  prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
+  applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
   subscribe(listener: (event: RuntimeEvent) => void): Unsubscribe;
   shutdown(): Promise<void>;
 }
@@ -1285,6 +1303,94 @@ export function createApplicationService(input: {
       await persistGitHubMetadata(githubMcp);
       assertJsonSafe(githubMcp, "removeGitHubPat");
       return githubMcp;
+    },
+    async getChangeReviewSet(command: GetChangeReviewSetInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "getChangeReviewSet");
+      const snapshot = await input.runtime.getChangeReviewSet(scope);
+      assertJsonSafe(snapshot, "getChangeReviewSet");
+      return snapshot;
+    },
+    async getChangeDiff(command: GetChangeDiffInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "getChangeDiff");
+      const relativePath = requireNonEmptyString(command.relativePath, "relativePath", "getChangeDiff");
+      const page = await input.runtime.getChangeDiff({
+        ...scope,
+        relativePath,
+        ...(typeof command.cursor === "string" ? { cursor: command.cursor } : {}),
+        ...(typeof command.contextLines === "number" ? { contextLines: command.contextLines } : {}),
+      });
+      assertJsonSafe(page, "getChangeDiff");
+      return page;
+    },
+    async getChangeFileView(command: GetChangeFileViewInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "getChangeFileView");
+      if (!isChangeFileVersion(command.version)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "File version must be before, agent, or current.",
+          operation: "getChangeFileView",
+          recoverable: true,
+        });
+      }
+      const page = await input.runtime.getChangeFileView({
+        ...scope,
+        relativePath: requireNonEmptyString(command.relativePath, "relativePath", "getChangeFileView"),
+        version: command.version,
+        ...(typeof command.cursor === "string" ? { cursor: command.cursor } : {}),
+      });
+      assertJsonSafe(page, "getChangeFileView");
+      return page;
+    },
+    async approveChanges(command: ApproveChangesInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "approveChanges");
+      if (typeof command.expectedRevision !== "number" || !Number.isInteger(command.expectedRevision) || command.expectedRevision < 0) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "expectedRevision is required.",
+          operation: "approveChanges",
+          recoverable: true,
+        });
+      }
+      const snapshot = await input.runtime.approveChanges({
+        ...scope,
+        expectedRevision: command.expectedRevision,
+        ...(Array.isArray(command.relativePaths) ? { relativePaths: command.relativePaths } : {}),
+      });
+      assertJsonSafe(snapshot, "approveChanges");
+      return snapshot;
+    },
+    async prepareUndoChanges(command: PrepareUndoChangesInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "prepareUndoChanges");
+      if (typeof command.expectedRevision !== "number" || !Number.isInteger(command.expectedRevision) || command.expectedRevision < 0) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "expectedRevision is required.",
+          operation: "prepareUndoChanges",
+          recoverable: true,
+        });
+      }
+      const preview = await input.runtime.prepareUndoChanges({
+        ...scope,
+        relativePath: requireNonEmptyString(command.relativePath, "relativePath", "prepareUndoChanges"),
+        expectedRevision: command.expectedRevision,
+      });
+      assertJsonSafe(preview, "prepareUndoChanges");
+      return preview;
+    },
+    async applyUndoChanges(command: ApplyUndoChangesInput) {
+      assertActive();
+      const scope = requireChangeScope(command, "applyUndoChanges");
+      const snapshot = await input.runtime.applyUndoChanges({
+        ...scope,
+        previewToken: requireNonEmptyString(command.previewToken, "previewToken", "applyUndoChanges"),
+      });
+      assertJsonSafe(snapshot, "applyUndoChanges");
+      return snapshot;
     },
     subscribe(listener) {
       return input.runtime.subscribe((event) => {
