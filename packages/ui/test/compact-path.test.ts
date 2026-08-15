@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compactPath } from "../src/lib/compact-path";
+import { compactPath, splitRelativePath } from "../src/lib/compact-path";
 
 describe("compactPath", () => {
   test("returns short paths unchanged", () => {
@@ -13,5 +13,18 @@ describe("compactPath", () => {
     expect(compacted.startsWith("/Users")).toBe(true);
     expect(compacted.endsWith("piui")).toBe(true);
     expect(compacted.includes("...")).toBe(true);
+  });
+});
+
+describe("splitRelativePath", () => {
+  test("splits nested paths into directory and basename", () => {
+    expect(splitRelativePath("src/lru_cache/cache.py")).toEqual({
+      directory: "src/lru_cache",
+      name: "cache.py",
+    });
+  });
+
+  test("keeps a root file name without a directory", () => {
+    expect(splitRelativePath("tracked.txt")).toEqual({ directory: "", name: "tracked.txt" });
   });
 });

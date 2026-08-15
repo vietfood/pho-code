@@ -1,13 +1,16 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { PencilIcon, RotateCcwIcon } from "lucide-react";
 import type {
+  ChangeReviewSetSummary,
+  ChangeScope,
   RunState,
   RunWorkEntry,
   SessionSnapshot,
   TranscriptBlock,
   TranscriptMessage,
+  TranscriptToolBlock,
 } from "@pho-code/protocol";
-import { stripExpandedSkillBodies } from "@pho-code/protocol";
+import { reviewFileCount, reviewSummaryForToolCall, stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
 import { inferMentionKind } from "./lib/at-mention";
 import { parseComposerSegments } from "./lib/composer-tokens";
@@ -44,9 +47,11 @@ import { Button } from "./ui/button";
 export function Transcript({
   snapshot,
   onRewrite,
+  onOpenChangeReview,
 }: {
   snapshot: SessionSnapshot;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
+  onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -83,12 +88,19 @@ export function Transcript({
       data-testid="transcript"
       aria-live="polite"
     >
-      <SettledTurns messages={snapshot.messages} {...(onRewrite ? { onRewrite } : {})} />
+      <SettledTurns
+        messages={snapshot.messages}
+        changeReviews={snapshot.changeReviews}
+        {...(onRewrite ? { onRewrite } : {})}
+        {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+      />
       <LiveRunTail
         runId={snapshot.run.runId}
         snapshotRun={snapshot.run}
+        changeReviews={snapshot.changeReviews}
         scrollerRef={scrollerRef}
         stickToBottomRef={stickToBottomRef}
+        {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
       />
     </div>
   );
@@ -96,10 +108,14 @@ export function Transcript({
 
 const SettledTurns = memo(function SettledTurns({
   messages,
+  changeReviews,
   onRewrite,
+  onOpenChangeReview,
 }: {
   messages: readonly TranscriptMessage[];
+  changeReviews?: readonly ChangeReviewSetSummary[];
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
+  onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
   const segments = useMemo(() => groupTranscriptSegments(messages), [messages]);
   return (
@@ -113,7 +129,9 @@ const SettledTurns = memo(function SettledTurns({
               <AssistantTurn
                 key={segment.key}
                 messages={segment.messages}
+                changeReviews={changeReviews}
                 {...(onRewrite ? { onRewrite } : {})}
+                {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
               />
             );
           }
@@ -130,13 +148,17 @@ const SettledTurns = memo(function SettledTurns({
 function LiveRunTail({
   runId,
   snapshotRun,
+  changeReviews,
   scrollerRef,
   stickToBottomRef,
+  onOpenChangeReview,
 }: {
   runId?: string;
   snapshotRun: RunState;
+  changeReviews?: readonly ChangeReviewSetSummary[];
   scrollerRef: RefObject<HTMLDivElement | null>;
   stickToBottomRef: RefObject<boolean>;
+  onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
   const live = useLiveRun();
   const run = live.runId && live.runId === runId ? live : snapshotRun;
@@ -181,7 +203,9 @@ function LiveRunTail({
                   <WorkEntryView
                     key={liveWorkKey(entry, index)}
                     entry={entry}
+                    changeReviews={changeReviews}
                     live={running && index === run.work.length - 1 && entry.type === "thinking"}
+                    {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
                   />
                 ))
               : null}
@@ -224,20 +248,53 @@ function liveWorkKey(entry: RunWorkEntry, index: number): string {
 function WorkEntryView({
   entry,
   live = false,
+  changeReviews,
+  onOpenChangeReview,
 }: {
   entry: Extract<TranscriptBlock, { type: "thinking" | "tool" }> | RunWorkEntry;
   live?: boolean;
+  changeReviews?: readonly ChangeReviewSetSummary[];
+  onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
   switch (entry.type) {
     case "thinking":
       return <ThinkingBlock text={entry.text} open={live} live={live} />;
     case "tool":
-      return <ToolRow block={entry} />;
+      return (
+        <ToolRow
+          block={entry}
+          {...toolReviewProps(entry, changeReviews, onOpenChangeReview)}
+        />
+      );
     default: {
       const exhaustive: never = entry;
       return exhaustive;
     }
   }
+}
+
+function toolReviewProps(
+  block: TranscriptToolBlock,
+  changeReviews: readonly ChangeReviewSetSummary[] | undefined,
+  onOpenChangeReview: ((scope: ChangeScope) => void) | undefined,
+): { reviewCount?: number; onOpenReview?: () => void } {
+  const summary = reviewSummaryForToolCall(changeReviews, block.callId);
+  if (!summary) {
+    return {};
+  }
+  return {
+    reviewCount: reviewFileCount(summary),
+    ...(onOpenChangeReview
+      ? {
+          onOpenReview: () =>
+            onOpenChangeReview({
+              workspaceId: summary.workspaceId,
+              sessionId: summary.sessionId,
+              runId: summary.runId,
+            }),
+        }
+      : {}),
+  };
 }
 
 function WorkNarration({ text }: { text: string }) {
@@ -339,10 +396,14 @@ function UserTextWithMentions({ text }: { text: string }) {
 
 const AssistantTurn = memo(function AssistantTurn({
   messages,
+  changeReviews,
   onRewrite,
+  onOpenChangeReview,
 }: {
   messages: TranscriptMessage[];
+  changeReviews?: readonly ChangeReviewSetSummary[];
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
+  onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
   const blocks = collectTurnBlocks(messages);
   const workCounts = countWorkBlocks(blocks);
@@ -409,6 +470,8 @@ const AssistantTurn = memo(function AssistantTurn({
                       <WorkEntryView
                         key={`${messages[0]?.id ?? "turn"}:work:${index}`}
                         entry={block}
+                        changeReviews={changeReviews}
+                        {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
                       />
                     );
                   case "text":

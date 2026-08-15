@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
-import type { TranscriptToolBlock } from "@pho-code/protocol";
+import { formatChangedFileCount, type TranscriptToolBlock } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import {
   buildToolExpandedSections,
@@ -16,7 +16,17 @@ import { WorkEntryIcon } from "./work-entry-icon";
 // Demo autoplay, fake diffs, and ice-cream copy omitted. Expanded body remains
 // harness-owned labeled Input/Output panels. T3 work-entry headings/icons retained.
 
-export function ToolRow({ block, open = false }: { block: TranscriptToolBlock; open?: boolean }) {
+export function ToolRow({
+  block,
+  open = false,
+  reviewCount,
+  onOpenReview,
+}: {
+  block: TranscriptToolBlock;
+  open?: boolean;
+  reviewCount?: number;
+  onOpenReview?: () => void;
+}) {
   const [expanded, setExpanded] = useState(open);
   const heading = toolWorkEntryHeading(block.name, block.status);
   const preview = toolWorkEntryPreview(block.name, block.inputPreview, block.outputPreview);
@@ -94,6 +104,27 @@ export function ToolRow({ block, open = false }: { block: TranscriptToolBlock; o
         ) : (
           <span className="min-w-0 flex-1" />
         )}
+        {reviewCount !== undefined && reviewCount > 0 ? (
+          onOpenReview ? (
+            <button
+              type="button"
+              className="tool-change-count shrink-0 rounded-sm px-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="tool-open-review"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenReview();
+              }}
+              onPointerDown={stopRowToggle}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              {formatChangedFileCount(reviewCount)}
+            </button>
+          ) : (
+            <span className="shrink-0 px-1 text-[11px] text-muted-foreground" data-testid="tool-change-count">
+              {formatChangedFileCount(reviewCount)}
+            </span>
+          )
+        ) : null}
         <span className="flex size-4 shrink-0 items-center justify-center">
           {failed ? (
             <XIcon className="block size-3 shrink-0 text-destructive" aria-label="Failed" />
@@ -149,6 +180,6 @@ function formatShellBody(command: string): string {
   return `$ ${trimmed}`;
 }
 
-function stopRowToggle(event: MouseEvent<HTMLDivElement>): void {
+function stopRowToggle(event: MouseEvent<HTMLElement>): void {
   event.stopPropagation();
 }
