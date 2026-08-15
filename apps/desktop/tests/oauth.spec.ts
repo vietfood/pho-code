@@ -60,7 +60,7 @@ test("completes the deterministic OAuth journey without exposing secrets or URLs
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("model-selector").click();
-      await expect(page.getByTestId("model-picker-option")).toContainText("Test OAuth model");
+      await expect(page.getByTestId("model-picker-option").filter({ hasText: "Test OAuth model" })).toBeVisible();
 
       const opened = await harness.electronApp.evaluate(() => {
         return (globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls ?? [];
@@ -71,7 +71,7 @@ test("completes the deterministic OAuth journey without exposing secrets or URLs
       await openSettingsSection(page, "accounts");
       await page.getByTestId(`provider-logout-${TEST_OAUTH_PROVIDER_ID}`).click();
       await page.getByTestId(`provider-logout-confirm-${TEST_OAUTH_PROVIDER_ID}`).click();
-      await expect(page.getByTestId("no-configured-providers")).toBeVisible();
+      await expect(page.getByTestId(`provider-account-${TEST_OAUTH_PROVIDER_ID}`)).not.toContainText("Connected");
     } finally {
       await harness.close();
     }

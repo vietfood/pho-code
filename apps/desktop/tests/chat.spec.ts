@@ -75,7 +75,7 @@ test("opens an empty-session context prompt for edit, then inspects it after sen
       await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
-      await page.getByTestId("context-prompt-header").click();
+      await page.getByTestId("right-sidebar-surface-context").click();
       const dialog = page.getByTestId("context-prompt-dialog");
       await expect(dialog).toBeVisible();
       const preamble = page.getByTestId("context-prompt-preamble");
@@ -83,15 +83,15 @@ test("opens an empty-session context prompt for edit, then inspects it after sen
       await preamble.fill("Custom session preamble for tests.");
       await page.getByTestId("context-prompt-save").click();
       await expect(page.getByTestId("context-prompt-customized")).toBeVisible();
-      await expect(page.getByTestId("context-prompt-header")).toContainText("Custom");
+      await expect(page.getByTestId("right-sidebar-surface-context")).toHaveAttribute("data-customized", "true");
       await page.getByTestId("context-prompt-close").click();
-      await expect(dialog).toBeHidden();
+      await expect(dialog).toHaveCount(0);
 
       await page.getByTestId("composer").fill("hello");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("transcript")).toContainText("Hello from the test model.", { timeout: 20_000 });
 
-      await page.getByTestId("context-prompt-header").click();
+      await page.getByTestId("right-sidebar-surface-context").click();
       await expect(dialog).toBeVisible();
       await expect(page.getByTestId("context-prompt-preamble")).toHaveValue("Custom session preamble for tests.");
       await expect(page.getByTestId("context-prompt-preamble")).not.toBeEditable();

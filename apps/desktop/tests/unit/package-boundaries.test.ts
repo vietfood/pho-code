@@ -66,7 +66,7 @@ describe("workspace package dependency graph", () => {
       "shiki",
       "tailwind-merge",
     ]);
-    expect(manifest.peerDependencies).toEqual({ react: "19.1.1" });
+    expect(manifest.peerDependencies).toEqual({ react: "19.1.1", "react-dom": "19.1.1" });
   });
 
   test("desktop may depend on application and runtime only outside the renderer package graph", async () => {

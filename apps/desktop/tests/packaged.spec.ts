@@ -216,3 +216,44 @@ test("packaged app keeps a background run, archive metadata, and Trash removal",
     await removeTestDirectory(workspaceDir);
   }
 });
+
+test("packaged macOS app undoes a created file through OS Trash without Pi CLI", async () => {
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const createdPath = join(workspaceDir, "agent-note.txt");
+
+  try {
+    const harness = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await harness.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("composer").fill("USE_WRITE");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("transcript")).toContainText("Tool completed.", { timeout: 20_000 });
+      expect(existsSync(createdPath)).toBe(true);
+      await expandSettledWorkLog(page);
+      await page.getByTestId("tool-open-review").click();
+      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await page.getByTestId("change-review-undo").click();
+      await expect(page.getByTestId("change-review-undo-preview")).toBeVisible();
+      await expect(page.getByTestId("change-review-undo-confirm")).toContainText("Move to Trash");
+      await page.getByTestId("change-review-undo-confirm").click();
+      await expect(page.getByTestId("change-review-status")).toContainText("Undone");
+      expect(existsSync(createdPath)).toBe(false);
+      expect(existsSync(join(userDataDir, "change-ledger", "v1"))).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});

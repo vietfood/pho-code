@@ -79,7 +79,10 @@ export async function removeTestDirectory(directory: string): Promise<void> {
 
 export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Promise<void> {
   const toggle = page.getByTestId("work-log-toggle").nth(priorToggleCount);
-  await expect(toggle).toContainText(/Worked(?: for)?/u, { timeout: 20_000 });
+  await expect(toggle).toContainText(
+    /Behind the scenes|Had a quick think|Thought it through|Took a peek|Looked around a bit|Thought, then peeked|Did a little digging|Went exploring/u,
+    { timeout: 20_000 },
+  );
   if ((await toggle.getAttribute("aria-expanded")) !== "true") {
     await toggle.click();
   }

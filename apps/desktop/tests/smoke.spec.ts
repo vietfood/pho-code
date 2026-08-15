@@ -91,10 +91,15 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
     expect(isolation.getBootstrapState).toBe("function");
     expect(isolation.bridgeKeys).toEqual([
       "abortRun",
+      "applyUndoChanges",
+      "approveChanges",
       "archiveSession",
       "cancelProviderLogin",
       "createSession",
       "getBootstrapState",
+      "getChangeDiff",
+      "getChangeFileView",
+      "getChangeReviewSet",
       "getSessionSnapshot",
       "getSettings",
       "importGitHubPat",
@@ -113,6 +118,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "prepareRemoveArchivedSessions",
       "prepareRemoveProject",
       "prepareRemoveSession",
+      "prepareUndoChanges",
       "queueFollowUp",
       "refreshSkills",
       "removeArchivedSessions",

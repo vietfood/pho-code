@@ -30,6 +30,7 @@ test("baked permission feature prompts through select host UI", async () => {
       await page.getByTestId("bootstrap-state").click();
       await expect(page.getByTestId("feature-diagnostics")).toContainText("permission-system");
       await expect(page.getByTestId("feature-diagnostics")).not.toContainText("harness-note");
+      await page.getByTestId("about-close").click();
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });

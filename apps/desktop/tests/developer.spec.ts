@@ -51,6 +51,7 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("bootstrap-state").click();
       await expect(page.getByTestId("feature-diagnostics")).toContainText("recoverable-trash");
+      await page.getByTestId("about-close").click();
 
       await page.getByTestId("composer").fill("USE_SAFE_SHELL");
       await page.getByRole("button", { name: "Send" }).click();

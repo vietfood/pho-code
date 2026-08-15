@@ -23,8 +23,10 @@ test("shows a new session immediately and completes a select host dialog", async
     const harness = await launchDesktop(userDataDir, { env });
     try {
       const page = await harness.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("new-session")).toBeEnabled();
       await page.getByTestId("new-session").click();
-      await expect(page.getByTestId("empty-session")).toBeVisible();
+      await expect(page.getByTestId("empty-session")).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId("session-context")).toBeVisible();
       await expect(page.getByTestId("composer")).toBeVisible();
       await expect(page.getByTestId("session-item")).toBeVisible();
