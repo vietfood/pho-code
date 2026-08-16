@@ -2,7 +2,7 @@
 // RightPanelTabs (MIT, T3 Tools Inc., 6bc6cb6). Globe, terminal, files, and
 // extra launcher surfaces are omitted; Context prompt is a Pho Code surface.
 import { useEffect, type ReactNode } from "react";
-import { BookOpenIcon, FileDiffIcon, PanelRightIcon } from "lucide-react";
+import { BookOpenIcon, FileDiffIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import {
   clampReviewSidebarWidth,
@@ -18,6 +18,16 @@ import { Button } from "./ui/button";
 import { SidebarResizeHandle, useSidebarResize } from "./sidebar-resize-handle";
 
 export type RightSidebarSurface = "changes" | "context-prompt";
+
+export type RightSidebarSurfaceAction = "collapse" | "select";
+
+export function rightSidebarSurfaceAction(
+  collapsed: boolean,
+  current: RightSidebarSurface,
+  clicked: RightSidebarSurface,
+): RightSidebarSurfaceAction {
+  return !collapsed && current === clicked ? "collapse" : "select";
+}
 
 const REVIEW_SIDEBAR_STORAGE = {
   read: readReviewSidebarWidth,
@@ -98,7 +108,7 @@ export function RightSidebar({
   return (
     <aside
       className={cn(
-        "relative flex h-full min-h-0 shrink-0 overflow-hidden border-s border-border bg-background motion-reduce:transition-none",
+        "right-sidebar-host relative flex h-full min-h-0 shrink-0 overflow-hidden bg-background motion-reduce:transition-none",
         resizing && "select-none",
       )}
       style={{ width: `${REVIEW_SIDEBAR_RAIL_WIDTH_PX + width}px` }}
@@ -131,19 +141,24 @@ function RightSidebarIcons({
   onToggleCollapsed: () => void;
   onSelectSurface: (surface: RightSidebarSurface) => void;
 }) {
+  function activate(next: RightSidebarSurface): void {
+    const action = rightSidebarSurfaceAction(collapsed, surface, next);
+    switch (action) {
+      case "collapse":
+        onToggleCollapsed();
+        return;
+      case "select":
+        onSelectSurface(next);
+        return;
+      default: {
+        const exhaustive: never = action;
+        return exhaustive;
+      }
+    }
+  }
+
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={collapsed ? "Show sidebar" : "Hide sidebar"}
-        aria-expanded={!collapsed}
-        data-testid="right-sidebar-collapse"
-        className="no-drag size-6 text-sidebar-muted-foreground hover:text-sidebar-foreground"
-        onClick={onToggleCollapsed}
-      >
-        <PanelRightIcon className="size-3.5" aria-hidden="true" />
-      </Button>
       <Button
         variant="ghost"
         size="icon-sm"
@@ -156,7 +171,7 @@ function RightSidebarIcons({
             ? "bg-accent text-foreground"
             : "text-sidebar-muted-foreground hover:text-sidebar-foreground",
         )}
-        onClick={() => onSelectSurface("changes")}
+        onClick={() => activate("changes")}
       >
         <FileDiffIcon className="size-3.5" aria-hidden="true" />
       </Button>
@@ -173,7 +188,7 @@ function RightSidebarIcons({
             ? "bg-accent text-foreground"
             : "text-sidebar-muted-foreground hover:text-sidebar-foreground",
         )}
-        onClick={() => onSelectSurface("context-prompt")}
+        onClick={() => activate("context-prompt")}
       >
         <BookOpenIcon className="size-3.5" aria-hidden="true" />
         {contextPromptCustomized ? (

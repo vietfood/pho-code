@@ -84,7 +84,7 @@ export function Transcript({
   return (
     <div
       ref={scrollerRef}
-      className="scrollbar-gutter-both flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 py-3 sm:px-5 sm:py-4"
+      className="transcript-scroller flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 py-3 sm:px-5 sm:py-4"
       data-testid="transcript"
       aria-live="polite"
     >

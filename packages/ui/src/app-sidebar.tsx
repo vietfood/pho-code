@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -14,6 +14,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
+  HouseIcon,
   InfoIcon,
   SettingsIcon,
   SquarePenIcon,
@@ -33,8 +34,10 @@ import { Button } from "./ui/button";
 
 // Desktop sidebar chrome adapted from refs/t3code sidebar layout and denser
 // project rows inspired by refs/pi-gui/apps/desktop/src/sidebar.tsx (MIT).
-// Multi-project collapse, single-line Cursor-inspired density, and folder DnD
-// are harness-owned. Skills, Extensions, worktrees, and branding omitted.
+// Collapsed overlay pill reuses the right-sidebar pill chrome from
+// refs/t3code RightPanelTabs. Multi-project collapse, single-line
+// Cursor-inspired density, and folder DnD are harness-owned. Skills,
+// Extensions, worktrees, and branding omitted.
 
 export function AppSidebar({
   projects,
@@ -52,6 +55,8 @@ export function AppSidebar({
   onExpandProject,
   onReorderProjects,
   onOpenSettings,
+  onGoHome,
+  homeActive = false,
   onToggleCollapsed,
   busy,
 }: {
@@ -70,6 +75,8 @@ export function AppSidebar({
   onExpandProject: (workspaceId: string) => void;
   onReorderProjects: (workspaceIds: string[]) => void;
   onOpenSettings: () => void;
+  onGoHome: () => void;
+  homeActive?: boolean;
   onToggleCollapsed: () => void;
   busy: boolean;
 }) {
@@ -94,6 +101,12 @@ export function AppSidebar({
     setExpanded((current) => (current[activeWorkspaceId] ? current : { ...current, [activeWorkspaceId]: true }));
   }, [activeWorkspaceId]);
 
+  useEffect(() => {
+    if (collapsed) {
+      setMenu(null);
+    }
+  }, [collapsed]);
+
   function toggleProject(workspaceId: string): void {
     setExpanded((current) => {
       const nextOpen = !current[workspaceId];
@@ -117,19 +130,68 @@ export function AppSidebar({
     onReorderProjects(arrayMove(projectIds, oldIndex, newIndex));
   }
 
+  function handleNewSession(): void {
+    if (activeWorkspaceId) {
+      onNewSession(activeWorkspaceId);
+    }
+  }
+
+  const aboutLabel = `About · ${bootstrap.appVersion}`;
+  const aboutDialog = aboutOpen ? <AboutDialog state={bootstrap} onClose={() => setAboutOpen(false)} /> : null;
+
+  if (collapsed) {
+    return (
+      <>
+        <div className="pointer-events-none absolute inset-0 z-20" data-testid="app-sidebar" data-collapsed="true">
+          <nav
+            className="pointer-events-auto absolute start-2 top-14 flex flex-col items-center gap-0.5 rounded-2xl border border-border bg-sidebar p-1 shadow-sm"
+            aria-label="Projects"
+            data-testid="app-sidebar-pill"
+          >
+            <SidebarGlyphButton
+              label="Home"
+              testId="go-home"
+              current={homeActive}
+              onClick={onGoHome}
+            >
+              <HouseIcon className="size-3.5" aria-hidden="true" />
+            </SidebarGlyphButton>
+            <SidebarGlyphButton
+              label="Open folder"
+              testId="add-project"
+              disabled={busy}
+              onClick={onAddProject}
+            >
+              <FolderPlusIcon className="size-3.5" aria-hidden="true" />
+            </SidebarGlyphButton>
+            <SidebarGlyphButton
+              label="New session"
+              testId="new-session"
+              disabled={busy || !canNewSession}
+              onClick={handleNewSession}
+            >
+              <SquarePenIcon className="size-3.5" aria-hidden="true" />
+            </SidebarGlyphButton>
+            <SidebarGlyphButton label="Settings" testId="open-settings" onClick={onOpenSettings}>
+              <SettingsIcon className="size-3.5" aria-hidden="true" />
+            </SidebarGlyphButton>
+          </nav>
+        </div>
+        {aboutDialog}
+      </>
+    );
+  }
+
   return (
     <aside
       className={cn(
         "app-sidebar-panel relative flex h-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground",
         resizing && "select-none",
-        collapsed && "hidden",
       )}
       style={{ width: `${width}px` }}
-      hidden={collapsed}
-      inert={collapsed}
-      aria-hidden={collapsed}
       aria-label="Projects"
       data-testid="app-sidebar"
+      data-collapsed="false"
     >
       <header
         className={workspaceTopbarClass({
@@ -145,14 +207,23 @@ export function AppSidebar({
       <div className="min-w-0 space-y-0.5 overflow-hidden px-2 pb-2">
         <button
           type="button"
+          className={cn(
+            "flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover",
+            homeActive && "bg-sidebar-row-selected",
+          )}
+          data-testid="go-home"
+          aria-current={homeActive ? "page" : undefined}
+          onClick={onGoHome}
+        >
+          <HouseIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 truncate">Home</span>
+        </button>
+        <button
+          type="button"
           className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover disabled:opacity-40"
           data-testid="new-session"
           disabled={busy || !canNewSession}
-          onClick={() => {
-            if (activeWorkspaceId) {
-              onNewSession(activeWorkspaceId);
-            }
-          }}
+          onClick={handleNewSession}
         >
           <SquarePenIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
           <span className="min-w-0 truncate">New session</span>
@@ -170,9 +241,12 @@ export function AppSidebar({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        <div className="mb-1.5 pl-8 pr-2 text-[11px] font-medium text-sidebar-muted-foreground">
+        <h2
+          className="mb-1 flex h-8 items-center px-2 text-sm font-medium leading-5 text-sidebar-muted-foreground"
+          data-testid="projects-heading"
+        >
           Projects
-        </div>
+        </h2>
         {projects.length > 0 ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={projectIds} strategy={verticalListSortingStrategy}>
@@ -208,28 +282,16 @@ export function AppSidebar({
           <p className="px-2 text-[0.6875rem] text-muted-foreground">Add a project to start.</p>
         )}
       </div>
-      <div className="min-w-0 overflow-hidden px-2 py-2">
-        <button
-          type="button"
-          className="mb-1 flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover"
-          data-testid="open-settings"
-          onClick={onOpenSettings}
-        >
-          <SettingsIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 truncate">Settings</span>
-        </button>
-        <button
-          type="button"
-          className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] leading-5 text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-          data-testid="bootstrap-state"
-          onClick={() => setAboutOpen(true)}
-        >
-          <InfoIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-          <span className="min-w-0 truncate">About · {bootstrap.appVersion}</span>
-        </button>
+      <div className="flex min-w-0 justify-start gap-1 overflow-hidden px-2 py-2">
+        <SidebarGlyphButton size="md" label="Settings" testId="open-settings" onClick={onOpenSettings}>
+          <SettingsIcon className="size-4" aria-hidden="true" />
+        </SidebarGlyphButton>
+        <SidebarGlyphButton size="md" label={aboutLabel} testId="bootstrap-state" onClick={() => setAboutOpen(true)}>
+          <InfoIcon className="size-4" aria-hidden="true" />
+        </SidebarGlyphButton>
       </div>
       <SidebarResizeHandle {...resizeHandle} />
-      {aboutOpen ? <AboutDialog state={bootstrap} onClose={() => setAboutOpen(false)} /> : null}
+      {aboutDialog}
       {menu?.kind === "session" ? (
         <SessionContextMenu
           x={menu.x}
@@ -252,6 +314,45 @@ export function AppSidebar({
         />
       ) : null}
     </aside>
+  );
+}
+
+function SidebarGlyphButton({
+  label,
+  testId,
+  disabled,
+  current = false,
+  size = "sm",
+  onClick,
+  children,
+}: {
+  label: string;
+  testId: string;
+  disabled?: boolean;
+  current?: boolean;
+  size?: "sm" | "md";
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      aria-current={current ? "page" : undefined}
+      title={label}
+      data-testid={testId}
+      disabled={disabled}
+      className={cn(
+        "no-drag text-sidebar-muted-foreground hover:text-sidebar-foreground disabled:opacity-40",
+        size === "md" ? "size-7" : "size-6",
+        current && "bg-accent text-foreground",
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
   );
 }
 

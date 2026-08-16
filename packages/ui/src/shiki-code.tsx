@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { preferredShikiTheme, highlightCode, type ShikiThemeName } from "./shiki-highlight";
-import { useResolvedAppearance } from "./lib/use-resolved-appearance";
+import { useDocumentAppearance } from "./lib/use-resolved-appearance";
 import { cn } from "./lib/cn";
 
 // Streaming-skip highlight pattern adapted from refs/t3code ChatMarkdown.tsx
 // (MIT, T3 Tools Inc., 6bc6cb6). Suspense/use() omitted for a settled-only effect.
 
 function useShikiTheme(): ShikiThemeName {
-  const appearance = useResolvedAppearance();
-  return preferredShikiTheme(appearance === "dark");
+  const { appearance, palette } = useDocumentAppearance();
+  return preferredShikiTheme(appearance === "dark", palette);
 }
 
 export function ShikiCodeBlock({
@@ -25,7 +25,7 @@ export function ShikiCodeBlock({
   const theme = useShikiTheme();
   const [html, setHtml] = useState<string | null>(null);
   const [renderedKey, setRenderedKey] = useState<string | null>(null);
-  const contentKey = `${language}\0${code}`;
+  const contentKey = `${theme}\0${language}\0${code}`;
   const showPlain = html === null || renderedKey !== contentKey;
 
   useEffect(() => {

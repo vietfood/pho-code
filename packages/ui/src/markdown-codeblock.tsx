@@ -17,22 +17,16 @@ export function MarkdownCodeBlock({
   "data-testid"?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "chat-markdown-codeblock border border-border/70 bg-secondary leading-snug dark:border-transparent dark:bg-input/32",
-        className,
-      )}
-      data-testid={testId}
-    >
+    <div className={cn("chat-markdown-codeblock", className)} data-testid={testId}>
       <div className="chat-markdown-codeblock-header select-none">
         <span className="chat-markdown-codeblock-title">{language || "code"}</span>
         <CopyButton
           text={text}
           label="Copy"
           copiedLabel="Copied"
-          showLabel
+          variant="ghost"
           data-testid="copy-code-block"
-          className="chat-markdown-codeblock-copy -my-0.5 h-6 px-2"
+          className="chat-markdown-codeblock-copy size-5"
         />
       </div>
       {children}

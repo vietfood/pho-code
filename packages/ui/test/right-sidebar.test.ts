@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RightSidebar } from "../src/right-sidebar";
+import { RightSidebar, rightSidebarSurfaceAction } from "../src/right-sidebar";
 import { readRightSidebarCollapsed, writeRightSidebarCollapsed } from "../src/lib/right-sidebar-collapsed";
 
 describe("RightSidebar", () => {
@@ -19,11 +19,11 @@ describe("RightSidebar", () => {
     expect(markup).toContain('data-collapsed="true"');
     expect(markup).toContain('data-testid="right-sidebar-pill"');
     expect(markup).toContain("rounded-2xl");
-    expect(markup).toContain('data-testid="right-sidebar-collapse"');
     expect(markup).toContain('data-testid="right-sidebar-surface-diff"');
     expect(markup).toContain('data-testid="right-sidebar-surface-context"');
-    expect(markup).toContain("Show sidebar");
     expect(markup).toContain("Context prompt");
+    expect(markup).not.toContain('data-testid="right-sidebar-collapse"');
+    expect(markup).not.toContain("Show sidebar");
     expect(markup).not.toContain(">panel<");
     expect(markup).not.toContain('data-testid="right-sidebar-resize"');
     expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
@@ -42,14 +42,31 @@ describe("RightSidebar", () => {
     );
     expect(markup).toContain('data-collapsed="false"');
     expect(markup).not.toContain('data-testid="right-sidebar-pill"');
+    expect(markup).toContain("right-sidebar-host");
+    expect(markup).not.toContain("border-s");
     expect(markup).toContain('data-testid="right-sidebar-resize"');
     expect(markup).toContain("Resize right sidebar");
-    expect(markup).toContain("Hide sidebar");
+    expect(markup).not.toContain("Hide sidebar");
+    expect(markup).not.toContain('data-testid="right-sidebar-collapse"');
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain('data-customized="true"');
     expect(markup).toContain('data-testid="right-sidebar-context-custom"');
     expect(markup).toContain('data-testid="embedded-panel"');
     expect(markup).toContain("context");
+  });
+});
+
+describe("right sidebar surface activation", () => {
+  test("collapses when the open surface is clicked again", () => {
+    expect(rightSidebarSurfaceAction(false, "changes", "changes")).toBe("collapse");
+    expect(rightSidebarSurfaceAction(false, "context-prompt", "context-prompt")).toBe("collapse");
+  });
+
+  test("selects when collapsed or when switching surfaces", () => {
+    expect(rightSidebarSurfaceAction(true, "changes", "changes")).toBe("select");
+    expect(rightSidebarSurfaceAction(true, "changes", "context-prompt")).toBe("select");
+    expect(rightSidebarSurfaceAction(false, "changes", "context-prompt")).toBe("select");
+    expect(rightSidebarSurfaceAction(false, "context-prompt", "changes")).toBe("select");
   });
 });
 

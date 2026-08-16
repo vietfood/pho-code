@@ -15,8 +15,13 @@ describe("sanitized markdown", () => {
     expect(html).toContain("const ok = true;");
     expect(html).toContain("<strong>");
     expect(html).toContain('href="https://example.com/');
+    expect(html).toContain("chat-markdown-codeblock");
+    expect(html).toContain("chat-markdown-codeblock-title");
     expect(html).toContain('data-testid="copy-code-block"');
     expect(html).toContain('aria-label="Copy"');
+    expect(html).not.toContain("bg-secondary");
+    expect(html).not.toContain("dark:border-transparent");
+    expect(html).not.toContain(">Copy</span>");
     expect(html).not.toContain("<script");
     expect(html).not.toContain("javascript:");
     expect(html).not.toContain("alert(1)");
@@ -136,8 +141,18 @@ describe("sanitized markdown", () => {
 });
 
 describe("shiki theme helper", () => {
-  test("maps prefers-color-scheme to github themes", () => {
+  test("maps palettes to bundled Shiki themes", () => {
     expect(preferredShikiTheme(true)).toBe("github-dark");
     expect(preferredShikiTheme(false)).toBe("github-light");
+    expect(preferredShikiTheme(true, "github")).toBe("github-dark");
+    expect(preferredShikiTheme(false, "github")).toBe("github-light");
+    expect(preferredShikiTheme(true, "gruvbox")).toBe("gruvbox-dark-medium");
+    expect(preferredShikiTheme(false, "gruvbox")).toBe("gruvbox-light-medium");
+    expect(preferredShikiTheme(true, "catppuccin")).toBe("catppuccin-mocha");
+    expect(preferredShikiTheme(false, "catppuccin")).toBe("catppuccin-latte");
+    expect(preferredShikiTheme(true, "flexoki")).toBe("solarized-dark");
+    expect(preferredShikiTheme(false, "flexoki")).toBe("solarized-light");
+    expect(preferredShikiTheme(true, "one-dark")).toBe("one-dark-pro");
+    expect(preferredShikiTheme(false, "one-dark")).toBe("one-dark-pro");
   });
 });

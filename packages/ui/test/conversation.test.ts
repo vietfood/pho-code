@@ -179,6 +179,8 @@ describe("empty session hero", () => {
     expect(markup).toContain("hello");
     expect(markup).toContain("Send follow-up");
     expect(markup).toContain("overflow-y-auto");
+    expect(markup).toContain("transcript-scroller");
+    expect(markup).not.toContain("scrollbar-gutter-both");
   });
 
   test("shows usage strip and model selector chrome", () => {
