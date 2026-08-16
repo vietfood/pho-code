@@ -36,10 +36,11 @@ A document may contain both current and planned sections. Each claim must make t
 | --- | --- | --- | --- |
 | Integrated terminal | In implementation; owner-approved 2026-08-16 | Owner-visible login shell in the selected workspace, ghostty-web in the right sidebar, PTY in Electron main | [`terminal/product.md`](./terminal/product.md), [`terminal/implementation-plan.md`](./terminal/implementation-plan.md) |
 | Compaction | Proposed; Pi-native automatic behavior exists today | Long conversations retain useful continuity, expose when context is summarized, and remain portable across supported providers | [`compaction.md`](./compaction.md) |
+| Agent-tool sandbox | Owner-approved 2026-08-16; implementation not started | OS-enforced agent `bash` plus matching in-process file-tool policy; Settings-owned network; no Phase F wait | [`sandbox/product.md`](./sandbox/product.md), [`sandbox/implementation-plan.md`](./sandbox/implementation-plan.md) |
 
 ## What does not belong here
 
-Session tree/fork, Plan and Agent modes, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md).
+Session tree/fork, Plan and Agent modes, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md). Extracting the Pi Node runtime into another process remains Phase F. OS-level wrapping of agent `bash` plus in-process file-tool policy is the [`sandbox`](./sandbox/README.md) add-on; it is not Phase F.
 
 Do not use this directory as a general competitor research catalog. A capability belongs here only when it can be specified, implemented, accepted, degraded, and retired independently of the active numbered version.
 

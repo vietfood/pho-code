@@ -50,9 +50,10 @@ Milestones 0 through 5 are accepted, and the personal v1 is complete. The owner 
 - **V2:** accepted and archived. Daily-driver autonomy, retrieval, provider accounts, independent sessions, interoperable text-only skills, and the fixed read-only GitHub MCP record live under [`archive/v2`](./archive/v2/README.md).
 - **V3 — Change Control and Recovery:** accepted and archived. Tracked Pi `write`/`edit` changes have bounded unified-diff review, Approve, conflict-safe per-file Undo, restart persistence, corrupt-ledger fail-closed behavior, and real macOS Trash recovery. Undo all and shell/MCP mutation recovery remain unavailable. See the [V3 acceptance review](./archive/v3/logs/2026-08-16-v3-acceptance-review.md).
 - **Integrated terminal add-on:** promoted and in implementation; no PTY or Terminal rail exists in source. Product, plan, and handoff live under [`features/terminal`](./features/terminal/README.md).
+- **Agent-tool sandbox add-on:** owner-approved 2026-08-16; implementation not started. Product and plan live under [`features/sandbox`](./features/sandbox/README.md). No OS sandbox exists in source. Distinct from Phase F runtime extraction.
 - **Conversation UI:** active independent track for transcript, composer, project/session chrome, and shared right-sidebar host behavior under [`ui`](./ui/README.md).
 
-Browser automation, broader shell-mutation recovery, session tree/compaction controls, multi-agent worktrees, public distribution, and isolation remain unpromoted core research in the [`version` roadmap](./version/roadmap-vnext.md).
+Browser automation, broader shell-mutation recovery, session tree/compaction controls, multi-agent worktrees, public distribution, and Pi-process isolation remain unpromoted core research in the [`version` roadmap](./version/roadmap-vnext.md).
 
 ## Related records
 
