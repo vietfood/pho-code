@@ -9,7 +9,14 @@ import {
   formatChangedFileCount,
   isChangeScope,
   isJsonSafeValue,
+  isPersistableRelativePath,
+  isUntrackedChangePath,
   jsonRoundTrip,
+  parseChangeDiffCursor,
+  parseChangeFileViewCursor,
+  requireChangeContextLines,
+  requireChangeRelativePath,
+  requireChangeRelativePaths,
   requireChangeScope,
   reviewSummaryForToolCall,
   latestChangeReview,
@@ -50,6 +57,32 @@ function sampleReview(runId = "run-1"): ChangeReviewSetSummary {
 }
 
 describe("change-review protocol", () => {
+  test("rejects malformed cursors, arrays, and relativePaths before runtime work", () => {
+    expect(() => parseChangeDiffCursor("nope", "getChangeDiff")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => parseChangeFileViewCursor("hunk:0", "getChangeFileView")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => requireChangeRelativePaths([1, 2] as never, "approveChanges")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => requireChangeRelativePaths(["a.txt", "a.txt"], "approveChanges")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => requireChangeRelativePath("../escape.txt", "getChangeDiff")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => requireChangeContextLines(99, "getChangeDiff")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(isPersistableRelativePath(".pho-code-untracked/outside-abcd")).toBe(true);
+    expect(isUntrackedChangePath(".pho-code-untracked/outside-abcd")).toBe(true);
+    expect(CHANGE_REVIEW_COPY.captureCapped).toContain("tracked-file limit");
+    expect(CHANGE_REVIEW_COPY.ledgerUnreadable).toContain("unreadable");
+    expect(CHANGE_REVIEW_COPY.undoMetadata).toContain("POSIX permission bits");
+  });
+
   test("accepts a complete scope and rejects incomplete identities", () => {
     expect(isChangeScope({ workspaceId: "/tmp/ws", sessionId: "s1", runId: "r1" })).toBe(true);
     expect(isChangeScope({ workspaceId: "/tmp/ws", sessionId: "s1" })).toBe(false);
