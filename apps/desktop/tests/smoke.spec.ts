@@ -19,14 +19,18 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
 
   try {
     const page = await harness.firstWindow();
-    await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+    await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
     await expect(page.getByTestId("add-project")).toBeVisible();
     await expect(page.getByTestId("toggle-sidebar")).toBeVisible();
     await page.getByRole("button", { name: "Hide sidebar" }).click();
-    await expect(page.getByTestId("app-sidebar")).toBeHidden();
+    await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-collapsed", "true");
+    await expect(page.getByTestId("app-sidebar-pill")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-pill").getByTestId("add-project")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-pill").getByTestId("new-session")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar-pill").getByTestId("open-settings")).toBeVisible();
     await expect(page.getByRole("button", { name: "Show sidebar" })).toBeVisible();
     await page.getByRole("button", { name: "Show sidebar" }).click();
-    await expect(page.getByTestId("app-sidebar")).toBeVisible();
+    await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-collapsed", "false");
     await expect(page.getByTestId("add-project")).toBeVisible();
 
     const security = await harness.electronApp.evaluate(async ({ app, BrowserWindow }) => {

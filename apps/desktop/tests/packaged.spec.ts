@@ -55,6 +55,7 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
       await expect(page.getByTestId("feature-diagnostics")).toContainText("permission-system 24.0.0 · loaded");
       await expect(page.getByTestId("feature-diagnostics")).toContainText("recoverable-trash");
       await expect(page.getByTestId("feature-diagnostics")).not.toContainText("harness-note");
+      await page.getByTestId("about-close").click();
 
       const packaged = await harness.electronApp.evaluate(async ({ app }) => ({
         packaged: app.isPackaged,
@@ -107,7 +108,7 @@ test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", 
     });
     try {
       const page = await harness.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await openSettingsSection(page, "accounts");
       await expect(page.getByTestId("credential-settings")).toBeVisible();
       await page.getByTestId("provider-account-filter").fill("Test OAuth");
@@ -126,7 +127,7 @@ test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", 
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("model-selector").click();
-      await expect(page.getByTestId("model-picker-option")).toContainText("Test OAuth model");
+      await expect(page.getByRole("option", { name: /Test OAuth model/ })).toBeVisible();
 
       const opened = await harness.electronApp.evaluate(() => {
         return (globalThis as { __phoCodeOpenedAuthUrls?: string[] }).__phoCodeOpenedAuthUrls ?? [];
@@ -137,7 +138,7 @@ test("packaged macOS app completes fake OAuth without Pi CLI or renderer URLs", 
       await openSettingsSection(page, "accounts");
       await page.getByTestId(`provider-logout-${testProviderId}`).click();
       await page.getByTestId(`provider-logout-confirm-${testProviderId}`).click();
-      await expect(page.getByTestId("no-configured-providers")).toBeVisible();
+      await expect(page.getByTestId(`provider-account-${testProviderId}`)).not.toContainText("Connected");
     } finally {
       await harness.close();
     }
@@ -161,7 +162,7 @@ test("packaged app keeps a background run, archive metadata, and Trash removal",
     });
     try {
       const page = await first.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("ABORT_ME");
@@ -232,7 +233,7 @@ test("packaged macOS app undoes a created file through OS Trash without Pi CLI",
     });
     try {
       const page = await harness.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("USE_WRITE");

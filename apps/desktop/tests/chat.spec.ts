@@ -22,7 +22,7 @@ test("streams a tool run in an isolated workspace and restores the transcript af
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await expect(page.getByTestId("session-item")).toBeVisible();
@@ -72,7 +72,7 @@ test("opens an empty-session context prompt for edit, then inspects it after sen
     const app = await launchDesktop(userDataDir, { env });
     try {
       const page = await app.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("right-sidebar-surface-context").click();
@@ -122,7 +122,7 @@ test("closes composer @ mentions on Escape and Enter without reopening space-les
     const app = await launchDesktop(userDataDir, { env });
     try {
       const page = await app.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       const composer = page.getByTestId("composer");
       await expect(composer).toBeVisible();

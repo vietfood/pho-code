@@ -71,6 +71,7 @@ import {
   selectLiveRunKey,
 } from "@pho-code/ui";
 import { getDesktopBridge } from "./bridge";
+import { keepWelcomeSelection } from "./session-home";
 import { useChangeReview } from "./use-change-review";
 import {
   mergeActivityIntoCatalog,
@@ -196,6 +197,7 @@ export function App() {
     preparedImages,
     setPreparedImages,
     switchSession,
+    clearSelectedSession,
     resetConversationChrome,
   } = useSessionSwitch({
     cache,
@@ -233,7 +235,11 @@ export function App() {
         workspaceId: next.activeSession.workspace.id,
         sessionId: next.activeSession.session.id,
       });
-      if (cacheRef.current.selectedKey !== key) {
+      const stayHome = keepWelcomeSelection(
+        cacheRef.current.selectedKey,
+        Object.keys(cacheRef.current.byKey).length,
+      );
+      if (!stayHome && cacheRef.current.selectedKey !== key) {
         replaceLiveRun(mergeLiveRun(getLiveRunForKey(key), next.activeSession.run), {
           immediate: true,
           key,
@@ -244,6 +250,9 @@ export function App() {
     setCache((current) => {
       const active = next.activeSession;
       if (!active) {
+        return { ...current, settings };
+      }
+      if (keepWelcomeSelection(current.selectedKey, Object.keys(current.byKey).length)) {
         return { ...current, settings };
       }
       const key = sessionKeyId({ workspaceId: active.workspace.id, sessionId: active.session.id });
@@ -658,6 +667,8 @@ export function App() {
             }}
             onCancelUndo={changeReview.cancelUndo}
             onLoadMore={changeReview.loadMore}
+            contextLines={changeReview.contextLines}
+            onContextLinesChange={changeReview.setContextLines}
           />
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
@@ -772,6 +783,7 @@ export function App() {
   return (
     <AppShell
       onToggleSidebar={toggleSidebar}
+      onToggleRightSidebar={toggleRightSidebar}
       sidebar={
         <AppSidebar
           collapsed={sidebarCollapsed}
@@ -780,6 +792,8 @@ export function App() {
           bootstrap={sidebarBootstrap}
           busy={busy}
           onToggleCollapsed={toggleSidebar}
+            onGoHome={clearSelectedSession}
+            homeActive={!snapshot && !chatLoading}
             onAddProject={() => {
               void runCommand(async () => {
                 const picked = await getDesktopBridge().pickWorkspace();

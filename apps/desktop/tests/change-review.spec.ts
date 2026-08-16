@@ -25,7 +25,7 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await expect(page.getByTestId("new-session")).toBeEnabled();
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible({ timeout: 15_000 });
@@ -42,7 +42,15 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("right-sidebar-surface-diff")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toContainText("before");
       await expect(page.getByTestId("change-review-diff")).toContainText("after from agent");
-      await page.getByTestId("right-sidebar-collapse").click();
+      await expect(page.getByTestId("change-review-search")).toBeVisible();
+      await expect(page.getByTestId("change-review-whitespace")).toBeVisible();
+      await expect(page.getByTestId("change-review-context")).toBeVisible();
+      await page.getByTestId("change-review-search").fill("after");
+      await expect(page.getByTestId("change-review-search-hit")).toContainText("after");
+      await page.getByTestId("change-review-whitespace").click();
+      await expect(page.getByTestId("change-review-whitespace")).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("change-review-context").selectOption("8");
+      await page.getByTestId("right-sidebar-surface-diff").click();
       await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
       await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toHaveCount(0);
@@ -93,7 +101,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
     const first = await launchDesktop(userDataDir, { env });
     try {
       const page = await first.firstWindow();
-      await expect(page.getByTestId("bootstrap-state")).toContainText("About · 0.0.0");
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible({ timeout: 15_000 });
       await page.getByTestId("composer").fill("USE_EDIT");
@@ -124,7 +132,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       await expect(page.getByTestId("change-review-status")).toContainText("Undone");
       await expect(page.getByTestId("change-review-undo")).toHaveCount(0);
 
-      await page.getByTestId("right-sidebar-collapse").click();
+      await page.getByTestId("right-sidebar-surface-diff").click();
       await expect(page.getByTestId("change-review-sheet")).toHaveCount(0);
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();

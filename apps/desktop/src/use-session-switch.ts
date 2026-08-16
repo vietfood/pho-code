@@ -40,6 +40,7 @@ export function useSessionSwitch(options: {
     sessionId: string | null,
     action: () => Promise<SessionSnapshot>,
   ) => Promise<void>;
+  clearSelectedSession: () => void;
   resetConversationChrome: () => void;
 } {
   const {
@@ -134,6 +135,20 @@ export function useSessionSwitch(options: {
       authFlow: current.authFlow,
     }));
   }, [setCache]);
+
+  const clearSelectedSession = useCallback((): void => {
+    const currentKey = cacheRef.current.selectedKey;
+    if (!currentKey && pendingRef.current === null) {
+      return;
+    }
+    saveComposer(currentKey);
+    switchGen.current += 1;
+    setPendingSession(null);
+    setError(null);
+    selectLiveRunKey(undefined);
+    setCache((current) => ({ ...current, selectedKey: null }));
+    restoreComposer(null);
+  }, [restoreComposer, saveComposer, setCache, setError]);
 
   const switchSession = useCallback(
     async (
@@ -232,6 +247,7 @@ export function useSessionSwitch(options: {
     preparedImages,
     setPreparedImages,
     switchSession,
+    clearSelectedSession,
     resetConversationChrome,
   };
 }

@@ -119,6 +119,7 @@ export async function openSessionActions(sessionItem: Locator): Promise<void> {
 function desktopLaunchEnv(userDataDir: string, extraEnv: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  delete env.PHO_CODE_AGENT_DIR;
   env.PHO_CODE_USER_DATA_DIR = userDataDir;
   env.PHO_CODE_TEST_MODE = "background";
   Object.assign(env, extraEnv);

@@ -4,6 +4,7 @@ import Module from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, session, shell } from "electron";
+import { installApplicationMenu } from "./application-menu";
 import { createApplicationService, type ApplicationService } from "@pho-code/application";
 import {
   type CancelProviderLoginInput,
@@ -843,6 +844,7 @@ app.setName(APP_NAME);
 applyUserDataOverride();
 
 app.whenReady().then(async () => {
+  installApplicationMenu();
   configureSession();
   registerPackagedNodeModulePath();
   const agentDirOverride = process.env.PHO_CODE_AGENT_DIR?.trim();

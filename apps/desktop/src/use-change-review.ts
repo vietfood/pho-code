@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   changeScopeEquals,
+  DEFAULT_CHANGE_CONTEXT_LINES,
   isHarnessError,
   type ChangeDiffPage,
   type ChangeReviewSetSnapshot,
@@ -20,6 +21,7 @@ export function useChangeReview(cache: ConversationCacheState) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [undoPreview, setUndoPreview] = useState<UndoPreview | null>(null);
+  const [contextLines, setContextLines] = useState(DEFAULT_CHANGE_CONTEXT_LINES);
   const generationRef = useRef(0);
   const scopeRef = useRef<ChangeScope | null>(null);
   const selectedPathRef = useRef<string | null>(null);
@@ -36,18 +38,19 @@ export function useChangeReview(cache: ConversationCacheState) {
   }, []);
 
   const loadDiff = useCallback(
-    async (generation: number, nextScope: ChangeScope, relativePath: string, cursor?: string) => {
+    async (generation: number, nextScope: ChangeScope, relativePath: string, cursor?: string, nextContext = contextLines) => {
       const page = await getDesktopBridge().getChangeDiff({
         ...nextScope,
         relativePath,
         ...(cursor ? { cursor } : {}),
+        contextLines: nextContext,
       });
       if (!isCurrent(generation, nextScope) || selectedPathRef.current !== relativePath) {
         return;
       }
-      setDiff((current) => mergeDiffPage(current, page, cursor));
+      setDiff((current) => (cursor ? mergeDiffPage(current, page, cursor) : page));
     },
-    [isCurrent],
+    [contextLines, isCurrent],
   );
 
   const open = useCallback(
@@ -189,6 +192,33 @@ export function useChangeReview(cache: ConversationCacheState) {
     void loadDiff(generationRef.current, scope, selectedPath, diff.nextCursor);
   }, [diff?.nextCursor, loadDiff, scope, selectedPath]);
 
+  const changeContextLines = useCallback(
+    (value: number) => {
+      setContextLines(value);
+      if (!scope || !selectedPath) {
+        return;
+      }
+      const generation = generationRef.current;
+      const nextScope = scope;
+      const path = selectedPath;
+      setLoading(true);
+      void (async () => {
+        try {
+          await loadDiff(generation, nextScope, path, undefined, value);
+        } catch (cause) {
+          if (isCurrent(generation, nextScope)) {
+            setError(isHarnessError(cause) ? cause.message : "Unable to load that file.");
+          }
+        } finally {
+          if (isCurrent(generation, nextScope) && selectedPathRef.current === path) {
+            setLoading(false);
+          }
+        }
+      })();
+    },
+    [isCurrent, loadDiff, scope, selectedPath],
+  );
+
   const prepareUndo = useCallback(
     async (relativePath: string) => {
       if (!scope || !review) {
@@ -326,6 +356,7 @@ export function useChangeReview(cache: ConversationCacheState) {
     busy,
     error,
     undoPreview,
+    contextLines,
     open,
     close,
     selectPath,
@@ -334,6 +365,7 @@ export function useChangeReview(cache: ConversationCacheState) {
     applyUndo,
     cancelUndo,
     loadMore,
+    setContextLines: changeContextLines,
   };
 }
 
@@ -341,10 +373,39 @@ function mergeDiffPage(current: ChangeDiffPage | null, page: ChangeDiffPage, cur
   if (!cursor || !current) {
     return page;
   }
-  if (/^hunk:\d+:line:/u.test(cursor) && current.hunks.length > 0 && page.hunks.length > 0) {
-    const continued = page.hunks[0];
-    const last = current.hunks[current.hunks.length - 1];
-    if (continued && last && last.header === continued.header) {
+  if (current.hunks.length === 0 || page.hunks.length === 0) {
+    return { ...page, hunks: [...current.hunks, ...page.hunks] };
+  }
+  const continued = page.hunks[0];
+  const last = current.hunks[current.hunks.length - 1];
+  if (continued && last && last.header === continued.header) {
+    const lastLine = last.lines[last.lines.length - 1];
+    const firstLine = continued.lines[0];
+    if (
+      lastLine &&
+      firstLine &&
+      /:char:\d+$/u.test(cursor) &&
+      lastLine.kind === firstLine.kind &&
+      lastLine.beforeLine === firstLine.beforeLine &&
+      lastLine.afterLine === firstLine.afterLine
+    ) {
+      return {
+        ...page,
+        hunks: [
+          ...current.hunks.slice(0, -1),
+          {
+            ...last,
+            lines: [
+              ...last.lines.slice(0, -1),
+              { ...lastLine, text: `${lastLine.text}${firstLine.text}` },
+              ...continued.lines.slice(1),
+            ],
+          },
+          ...page.hunks.slice(1),
+        ],
+      };
+    }
+    if (/^hunk:\d+:line:/u.test(cursor)) {
       return {
         ...page,
         hunks: [
