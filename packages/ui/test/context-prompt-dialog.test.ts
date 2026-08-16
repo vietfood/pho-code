@@ -67,7 +67,7 @@ describe("ContextPromptDialog", () => {
     expect(markup).toContain("Tools");
     expect(markup).toContain("Optional");
     expect(markup).toContain("context-prompt-section is-off");
-    expect(markup).toContain("before the first message");
+    expect(markup).not.toContain("This chat starts with the default system prompt");
   });
 
   test("keeps AGENTS.md with other context files, separate from tools", () => {
@@ -120,7 +120,7 @@ describe("ContextPromptDialog", () => {
     expect(markup).not.toContain('data-testid="context-prompt-reset"');
     expect(markup).toContain('data-testid="context-prompt-close"');
     expect(markup).toContain('data-testid="context-prompt-customized"');
-    expect(markup).toContain("cannot be changed after the first message");
+    expect(markup).not.toContain("cannot be changed after the first message");
     expect(markup).toContain('data-testid="context-prompt-chip-tool:bash"');
     expect(markup).toContain("disabled");
   });
@@ -139,6 +139,6 @@ describe("ContextPromptDialog", () => {
     expect(markup).not.toContain('data-testid="context-prompt-backdrop"');
     expect(markup).not.toContain('aria-modal="true"');
     expect(markup).toContain('data-testid="context-prompt-save"');
-    expect(markup).toContain("before the first message");
+    expect(markup).not.toContain("before the first message");
   });
 });

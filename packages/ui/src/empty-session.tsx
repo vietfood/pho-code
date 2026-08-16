@@ -18,9 +18,6 @@ export function EmptySessionStage({
           {children}
         </div>
       </div>
-      <p className="shrink-0 px-4 pb-3 text-center text-[11px] text-muted-foreground/70">
-        Send a message to start chatting in this workspace.
-      </p>
     </div>
   );
 }

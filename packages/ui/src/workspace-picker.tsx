@@ -67,9 +67,6 @@ export function WorkspacePicker({
           >
             {timeOfDayGreeting()}
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Open a local folder to start or resume a session.
-          </p>
           <div className="mt-6 flex flex-col gap-2">
             <Button className="w-full gap-2" onClick={onPick} disabled={busy} data-testid="welcome-open-project">
               <FolderIcon className="size-3.5" aria-hidden="true" />

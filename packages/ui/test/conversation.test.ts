@@ -72,7 +72,6 @@ describe("empty session hero", () => {
     expect(markup).toContain("piui");
     expect(markup).toContain(localMachineLabel(isMacDesktop()));
     expect(markup).toContain("Ask anything");
-    expect(markup).toContain("Send a message to start chatting in this workspace.");
     expect(markup).toContain('data-testid="composer"');
     expect(markup).not.toContain('data-testid="transcript"');
     expect(markup).not.toContain("Start this session");

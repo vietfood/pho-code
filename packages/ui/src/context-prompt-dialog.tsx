@@ -121,17 +121,10 @@ export function ContextPromptDialog({
             : "w-[min(40rem,calc(100dvw-2rem))] max-h-[calc(100dvh-2rem)] rounded-xl border border-border shadow-lg",
         )}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 px-3.5 pt-3.5">
-          <div className="min-w-0">
-            <h2 id="context-prompt-heading" className="text-[13px] font-medium tracking-tight">
-              Context prompt
-            </h2>
-            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-              {editable
-                ? "This chat starts with the default system prompt. Edit the preamble and turn sections off before the first message. That compiled prompt is what this session sends."
-                : "This session’s system prompt is frozen. You can inspect it, but it cannot be changed after the first message."}
-            </p>
-          </div>
+        <div className="flex shrink-0 items-center justify-between gap-3 px-3.5 pt-3.5">
+          <h2 id="context-prompt-heading" className="min-w-0 text-[13px] font-medium tracking-tight">
+            Context prompt
+          </h2>
           {contextPrompt.customized ? (
             <span
               className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-medium tracking-wide"

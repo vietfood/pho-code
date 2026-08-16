@@ -638,12 +638,7 @@ function AppearanceSection({
       </div>
       <div className="glass-panel grid gap-2 rounded-lg border border-border/70 px-3 py-2.5">
         <label className="flex items-center justify-between gap-3 text-sm" htmlFor="appearance-glass-enabled">
-          <span>
-            <span className="font-medium">Frosted glass</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Soft blur over the desktop.
-            </span>
-          </span>
+          <span className="font-medium">Frosted glass</span>
           <input
             id="appearance-glass-enabled"
             type="checkbox"
@@ -676,7 +671,6 @@ function AppearanceSection({
         <FontSizeStepper
           id="ui-font-size"
           label="UI font size"
-          description="Sidebar, settings, and chrome."
           value={settings.appearance.uiFontSize}
           min={MIN_UI_FONT_SIZE}
           max={MAX_UI_FONT_SIZE}
@@ -687,7 +681,6 @@ function AppearanceSection({
         <FontSizeStepper
           id="chat-font-size"
           label="Chat font size"
-          description="Transcript messages and composer."
           value={settings.appearance.chatFontSize}
           min={MIN_CHAT_FONT_SIZE}
           max={MAX_CHAT_FONT_SIZE}
@@ -840,7 +833,6 @@ function PermissionSection({
 function FontSizeStepper({
   id,
   label,
-  description,
   value,
   min,
   max,
@@ -850,7 +842,6 @@ function FontSizeStepper({
 }: {
   id: string;
   label: string;
-  description: string;
   value: number;
   min: number;
   max: number;
@@ -861,12 +852,9 @@ function FontSizeStepper({
   return (
     <div className="grid gap-1.5" data-testid={testId}>
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <label htmlFor={id} className="text-sm font-medium">
-            {label}
-          </label>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
+        <label htmlFor={id} className="min-w-0 text-sm font-medium">
+          {label}
+        </label>
         <div className="flex shrink-0 items-center gap-1.5">
           <Button
             type="button"

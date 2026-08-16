@@ -29,10 +29,6 @@ export function ArchivedChatsSection({
       <h2 id="archived-heading" className="text-sm font-medium">
         Archived chats
       </h2>
-      <p className="text-xs text-muted-foreground">
-        Archived chats leave the project list until you restore them. Moving a chat to Trash uses the operating system
-        Trash.
-      </p>
       {groups.length === 0 ? (
         <p className="text-xs text-muted-foreground">No archived chats.</p>
       ) : (
