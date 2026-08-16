@@ -4,7 +4,7 @@
 
 Proposed implementation plan for **V3 — Change Control and Recovery**. The owner selected live apply with later Approve/Undo, precise Pi `write`/`edit` tracking first, and a read-only file/diff workbench on 2026-08-15. No v3 implementation milestone is accepted until its stated evidence exists.
 
-Read the product contract in [`product-v3.md`](./product-v3.md), the accepted architecture in [`architecture/overview.md`](./architecture/overview.md), and the archived v2 implementation record in [`archive/v2/implementation-plan-v2.md`](./archive/v2/implementation-plan-v2.md) before implementation.
+Read the product contract in [`product.md`](./product.md), the accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), and the archived v2 implementation record in [`../../archive/v2/implementation-plan-v2.md`](../../archive/v2/implementation-plan-v2.md) before implementation.
 
 ## Global acceptance rules
 
@@ -317,7 +317,7 @@ Prove one complete runtime slice around Pi `write` and `edit`: pre-image, tool e
 
 ### Implementation record (2026-08-15)
 
-Implemented in source; **not owner-accepted**. Pi `0.84.1` `beforeToolCall` / `tool_call` is awaited before built-in `write`/`edit` mutation. Evidence: `packages/runtime/test/change-ledger.test.ts`, `packages/runtime/test/change-capture-runtime.test.ts` (write, edit, failure, two sessions; edit `beforeHash` is the original bytes). Ledger lives under `userData/change-ledger/v1/`. Chat Trash refuses blocking review. Compact tool-card counts are in the conversation UI. Ledger mutations (capture, reconcile, conflict refresh, Approve, Undo) serialize per review scope with `expectedRevision` checked inside the lock.
+Implemented in source; **not owner-accepted**. Evidence, corrections, and handoff are recorded in [`logs/2026-08-15-m0-m2-implementation.md`](./logs/2026-08-15-m0-m2-implementation.md).
 
 ## Milestone 1: read-only review workbench
 
@@ -354,7 +354,7 @@ Open a bounded workbench from a run's changed-files summary and inspect exact at
 
 ### Implementation record (2026-08-15)
 
-Implemented in source; **not owner-accepted**. Privileged unified diffs use Pi's public `generateUnifiedPatch` from the pinned SDK (no extra jsdiff pin). Read-only Changes surface presents a T3-style unified diff card only (`getChangeFileView` remains on the stable bridge). The right sidebar is persistent: a compact overlay pill when collapsed, a mouse-resizable panel when expanded. Open from a write/edit tool card or the FileDiff icon. Context prompt lives on the same rail (BookOpen). Diff syntax highlighting is deferred (plain add/remove tints only). Per-file Approve, then Approve all bound to the visible pending paths, conflict refresh. Electron journey: `apps/desktop/tests/change-review.spec.ts`. Packaged Undo/Trash proof is the Milestone 2 packaged journey.
+Implemented in source; **not owner-accepted**. Evidence and corrections are recorded in [`logs/2026-08-15-m0-m2-implementation.md`](./logs/2026-08-15-m0-m2-implementation.md); shared right-sidebar ownership is recorded in the [UI log](../../ui/logs/2026-08-15-change-v3-right-sidebar.md).
 
 ## Milestone 2: safe undo and recovery
 
@@ -394,7 +394,7 @@ Undo an unchanged attributed modification without overwriting later owner work, 
 
 ### Implementation record (2026-08-15)
 
-Implemented in source; **not owner-accepted**. Codex review wrap-up (2026-08-15): preview tokens bind workspace and file device/inode identity in addition to canonical path, kind, revision, and after-hash. Apply holds the review-scope lock across preview consume, restore/Trash, and finalize. Restore hashes through a held file descriptor and rechecks directory-entry identity immediately before `rename`; created-file Undo does the same immediately before OS Trash. A residual TOCTOU remains between that last identity check and the path-based rename/Trash syscall; it is documented rather than claimed closed. Sibling Undo temps are journaled in the ledger; failed restores Trash leftovers before dropping the journal, and the next review open recovers crash orphans. Conflicts refresh back to pending when the after-image returns, and Approve on a conflict acknowledges current disk so Move chat to Trash is not permanently blocked. Unknown filesystem errors become `change_undo_failed` with message `Undo failed.` and do not carry raw codes or absolute paths. Undo all remains unavailable. Evidence remains the M2 unit, Electron, and packaged Undo journeys. Owner proof with an external editor remains outstanding.
+Implemented in source; **not owner-accepted**. Review corrections, the residual TOCTOU, verification boundaries, and outstanding owner proof are recorded in [`logs/2026-08-15-m0-m2-implementation.md`](./logs/2026-08-15-m0-m2-implementation.md).
 
 ## Deferred extension: broader workspace mutation observation
 

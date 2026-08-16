@@ -189,7 +189,7 @@ bun run test:desktop
 bun run build
 ```
 
-Then record the real Electron result here and mark Milestone 0 accepted in `docs/implementation-plan.md`.
+Then record the real Electron result here and mark Milestone 0 accepted in `docs/archive/v1/implementation-plan.md`.
 
 ## Hardening pass (2026-08-13)
 

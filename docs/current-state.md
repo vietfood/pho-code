@@ -1,6 +1,6 @@
 # Pho Code: current state
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## What exists today
 
@@ -44,46 +44,16 @@ Pho Code now owns its Pi operational data by default under Electron `userData/pi
 
 Milestones 0 through 5 are accepted, and the personal v1 is complete. The owner has also exercised real-provider chat. Signed/notarized public installers and Linux desktop remain outside the verified v1 surface.
 
-## Accepted v1 boundary
+## Workstream status
 
-The typed Settings contract is accepted. Settings configure supported behavior of baked features; they do not install, remove, enable, disable, or discover feature code.
+- **V1:** accepted and archived. Its standalone shell, settings, identity, packaging, credential, and permission evidence lives under [`archive/v1`](./archive/v1/README.md).
+- **V2:** accepted and archived. Daily-driver autonomy, retrieval, provider accounts, independent sessions, interoperable text-only skills, and the fixed read-only GitHub MCP record live under [`archive/v2`](./archive/v2/README.md).
+- **V3 — Change Control and Recovery:** Milestones 0–2 are implemented in source but not owner-accepted. Undo all remains unavailable; the residual filesystem TOCTOU and outstanding external-editor owner proof are recorded in the [V3 work log](./version/v3/logs/2026-08-15-m0-m2-implementation.md).
+- **Integrated terminal add-on:** promoted and in implementation; no PTY or Terminal rail exists in source. Product, plan, and handoff live under [`features/terminal`](./features/terminal/README.md).
+- **Conversation UI:** active independent track for transcript, composer, project/session chrome, and shared right-sidebar host behavior under [`ui`](./ui/README.md).
 
-Milestone 5 completed the standalone boundary:
+Browser automation, broader shell-mutation recovery, session tree/compaction controls, multi-agent worktrees, public distribution, and isolation remain unpromoted core research in the [`version` roadmap](./version/roadmap-vnext.md).
 
-- product identity is `Pho Code`, with slug `pho-code`, workspace scope `@pho-code/*`, bridge `window.phoCode`, IPC namespace `pho-code:v1:*`, and environment prefix `PHO_CODE_*`;
-- the bundle identifier is `dev.vietfood.phocode`;
-- the default Pi data directory is application-owned at `userData/pi-agent`; an explicit `PHO_CODE_AGENT_DIR` override is treated as externally shared;
-- production `ResourceLocator` resolves baked features from app-owned `Resources/features`; development/tests keep the workspace `node_modules` locator;
-- `@gotgenes/pi-permission-system` `24.0.0` is staged with its declared extension source, nested runtime dependencies, and license;
-- Settings offers in-app provider API-key import through Pi `ModelRuntime.login`; stored secrets never reach the renderer;
-- `bun run package:mac` produces an unsigned local macOS `.app`; `bun run test:packaged` smokes that artifact with isolated data and a PATH that does not contain `pi`.
+## Related records
 
-The acceptance review additionally made packaged resource overrides development-only and added pinned-version validation for the permission feature. See the archived [Milestone 5 code review](./archive/v1/reviews/milestone-5-code-review.md).
-
-## Accepted personal v2 boundary
-
-The owner approved this current milestone order:
-
-- **Milestone 0 — autonomy foundation:** accepted with three owner-facing permission modes over stable internal policy keys, reviewed safe command families, clearer permission context, and an application-owned recoverable Trash tool.
-- **Milestone 1 — retrieval and richer input:** accepted with local additive FFF tools and `@` references, bounded public web research, Pi-native steer/follow-up, and image attachments.
-- **Milestone 2 — accounts and subscription login:** accepted as provider-owned OAuth through Pi `ModelRuntime`, with a Provider accounts Settings surface, opaque system-browser handles, cancellation, logout, and model-list synchronization. The deterministic fake-provider journey is in the Electron and packaged lanes. The owner completed a live `openai-codex` login and confirmed it works.
-- **Milestone 3 — session continuity and lifecycle:** accepted. Independently owned session controllers, keyed catalog/cache, a per-chat live-run store, sidebar activity, archive/restore, recoverable OS-Trash chat removal, and per-workspace FFF indexes are in source. Desktop verified: background-run switching, archive/restore, busy-state Trash refusal, and settled Trash. Packaged verified: background-run switching, archive persist across relaunch, restore, and settled Trash from isolated app-owned data without a Pi CLI. The owner accepted the real-provider background-switch, live thinking across chat switches, archive/restore, and Trash workflow on 2026-08-14. A later correction keyed image prepare and dialog resolve to the composite session and compared event identity as `{workspaceId, sessionId}`.
-- **Milestone 4 — interoperable skills and GitHub MCP:** accepted on 2026-08-14. Three Pho Code skills, fixed owner-enabled Codex/Cursor/Claude/Pi sources, provenance inventory, Refresh, and on-demand `/`/named loading are in source without baking skill paths into Pi. The Settings-controlled GitHub capability uses pinned `github/github-mcp-server` `v1.9.0`, MCP client `1.30.0`, OS-secret-store PAT authentication, and one fixed `mcp` dispatcher restricted to qualified `github:<read-tool>` targets. External sources stay disabled until trusted. Arbitrary/project skill discovery, executable skill assets, generic MCP configuration, GitHub OAuth, and GitHub mutations remain rejected.
-
-Personal v2 is complete and archived under [`archive/v2`](./archive/v2/README.md), including the accepted [product boundary](./archive/v2/product-v2.md), [implementation plan](./archive/v2/implementation-plan-v2.md), and [Milestone 4 closure review](./archive/v2/reviews/milestone-4-code-review.md). No advanced-feature Milestone 5 blocks v2 completion.
-
-The owner promoted change review and recovery as **V3 — Change Control and Recovery** on 2026-08-15. Its proposed [product boundary](./product-v3.md) and [implementation plan](./implementation-plan-v3.md) specify immediate Pi `write`/`edit` application followed by a read-only diff/file workbench, Approve as a review-state transition, and hash-guarded Undo that never overwrites newer work.
-
-Milestones 0 through 2 are **implemented in source** (attributed write/edit ledger, bounded `changeReviewUpdated` summaries, read-only review side sheet, per-file then Approve-all of visible pending or conflict paths, per-file identity-and-hash-guarded Undo with OS Trash for unchanged created files, Settings ledger disclosure). Combined evidence: protocol/runtime/UI unit tests, real-Pi write/edit/failure/two-session capture plus Undo restore/Trash, Electron journeys for Approve, safe Undo, conflict refusal with Approve-to-acknowledge, and relaunch, and a packaged macOS created-file Undo through OS Trash without a Pi CLI. The full packaged Playwright file still has unrelated About/OAuth flakes. **V3 is not accepted.** Undo all remains unavailable. A residual filesystem TOCTOU between the last identity check and path-based rename/Trash is documented. Owner proof with an external editor remains outstanding. Do not describe renderer sandboxing as a sandbox for Pi tools.
-
-Browser automation, broader shell-mutation recovery, session fork/tree and compaction controls, terminal, multi-agent worktrees, public distribution, and isolation remain independently promotable future-release phases in the [roadmap](./roadmap-vnext.md). They are not unfinished v2 work. UI polish, defect fixes, and owner-reviewed skill additions that preserve the accepted boundaries may continue as v2.x maintenance after archival.
-
-## Run it
-
-```bash
-bun install --frozen-lockfile
-bun run stage:github-mcp
-bun run dev
-```
-
-Use [`archive/v2`](./archive/v2/README.md) for the accepted v2 record, [`archive/v1`](./archive/v1/README.md) for v1, [`product-v3.md`](./product-v3.md) and [`implementation-plan-v3.md`](./implementation-plan-v3.md) for the active v3 proposal, [`features`](./features/README.md) for vertical feature designs, and [`roadmap-vnext.md`](./roadmap-vnext.md) for unpromoted future work. Update this brief when the accepted product boundary changes.
+Use [`archive`](./archive/README.md) for immutable history, [`version`](./version/README.md) for the current numbered core product, [`features`](./features/README.md) for current add-ons, [`ui`](./ui/README.md) for conversation chrome, [`architecture`](./architecture/README.md) for accepted boundaries, and [`development.md`](./development.md) for commands and verification. Update this brief when implemented behavior or workstream status changes.

@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-Personal v1 and v2 are accepted and archived. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. V2 Milestone 4 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, ships three Pho Code-authored skills, and adds one Settings-controlled adapter for pinned read-only `github/github-mcp-server` `v1.9.0`. Enabling a skill source makes its skills available in `/`; it does not bake them into Pi session context. GitHub uses an explicitly supplied PAT retained in the OS secret store and a fixed `mcp` dispatcher restricted to qualified allowlisted reads; OAuth is intentionally absent. Typed settings do not admit arbitrary paths, packages, or server definitions. See the [v2 closure review](./archive/v2/reviews/milestone-4-code-review.md).
+Personal v1 and v2 are accepted and archived. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. V2 Milestone 4 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, ships three Pho Code-authored skills, and adds one Settings-controlled adapter for pinned read-only `github/github-mcp-server` `v1.9.0`. Enabling a skill source makes its skills available in `/`; it does not bake them into Pi session context. GitHub uses an explicitly supplied PAT retained in the OS secret store and a fixed `mcp` dispatcher restricted to qualified allowlisted reads; OAuth is intentionally absent. Typed settings do not admit arbitrary paths, packages, or server definitions. See the [v2 closure review](../archive/v2/reviews/milestone-4-code-review.md).
 
 ## Purpose
 
@@ -125,6 +125,19 @@ const cursorSdkFeature: HarnessFeature = {
   extensionPaths: [resolvedBundledCursorSdkPackage],
 };
 ```
+
+### Two-stage runtime composition
+
+`createDefaultFeatureManifest` supplies the stable base features: permission system, Cursor SDK provider, recoverable Trash, pho-web, curated Pho Code skill resources, and local retrieval when its workspace service is available.
+
+`createPhoCodeRuntime` then appends application-wired inline features whose factories need live runtime services:
+
+- `skill-invoke` registers `read_skill` over `SkillSourceRegistry`; `/` inserts a source-qualified token and runtime expands/loads the selected text skill on demand;
+- `github-read` binds the fixed allowlisted GitHub MCP tools only while the packaged server and credential state are ready;
+- `context-prompt` re-injects the compiled per-session prompt and active-tool selection before each run;
+- `change-capture` observes Pi `write`/`edit` for the implemented-but-unaccepted V3 ledger.
+
+These are still immutable source-selected capabilities. They are assembled in two stages because they depend on runtime-owned services, not because users or projects can install them. Ambient Pi extension/skill/MCP discovery remains disabled. The V3 feature's acceptance and recovery limits remain in [`../version/v3/`](../version/v3/README.md).
 
 `@gotgenes/pi-permission-system` must be an exact application dependency and must be staged with its package manifest, `src`, runtime dependencies, schema/config assets, and license. The Pi loader should load that staged package/path explicitly. Do not rely on `npm:@gotgenes/pi-permission-system` in `~/.pi/agent/settings.json`, global npm lookup, or runtime installation.
 

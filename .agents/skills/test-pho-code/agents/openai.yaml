@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Pho Code"
+  short_description: "Run isolated Pho Code verification"
+  default_prompt: "Use $test-pho-code to select and run the smallest isolated verification for this change, then record the evidence in its owning workstream log."

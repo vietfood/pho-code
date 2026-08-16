@@ -6,7 +6,7 @@
 
 Last evaluated: 2026-08-14 against Pho Code's pinned Pi SDK `0.84.1` and upstream `pi-openai-server-compaction` `main`, whose package manifest currently reports version `0.1.0` and Pi peer range `>=0.80.9 <0.81.0`.
 
-**OMP research note.** The next compaction pass will learn from Oh My Pi's compaction surface: visible start/end lifecycle, a display transcript that does not restart at the cut, manual `/compact` with optional focus, mechanical shake/pruning before summarization, snapcompact bitmap archives, handoff into a new session, branch summaries during `/tree`, and provider-native Responses compaction with a portable text fallback. OMP is a Pi fork, so those ideas will be adapted through Pi's public compaction APIs and baked features rather than by reproducing OMP's agent loop. This document's strategy choices will be updated after that pass; see [`refs/oh-my-pi/docs/compaction.md`](../../refs/oh-my-pi/docs/compaction.md) and [`refs/oh-my-pi/packages/snapcompact/README.md`](../../refs/oh-my-pi/packages/snapcompact/README.md).
+**OMP research note.** The next compaction pass will learn from Oh My Pi's compaction surface: visible start/end lifecycle, a display transcript that does not restart at the cut, manual `/compact` with optional focus, mechanical shake/pruning before summarization, snapcompact bitmap archives, handoff into a new session, branch summaries during `/tree`, and provider-native Responses compaction with a portable text fallback. OMP is external research and is not a repository submodule. Its ideas must be adapted through Pi's public compaction APIs and baked features rather than by reproducing OMP's agent loop; record an exact upstream URL and revision when that research is promoted.
 
 ## Owner outcome
 
@@ -234,8 +234,8 @@ The upstream benchmark may inform the decision, but it does not replace Pho Code
 ## References
 
 - Pho Code [architecture overview](../architecture/overview.md)
-- Pho Code [extension model](../extension-model.md)
-- Pho Code [future-release roadmap](../roadmap-vnext.md)
+- Pho Code [extension model](../architecture/extension-model.md)
+- Pho Code [future-release roadmap](../version/roadmap-vnext.md)
 - Pinned Pi `0.84.1` compaction documentation in `packages/runtime/node_modules/@earendil-works/pi-coding-agent/docs/compaction.md`
 - [`pi-openai-server-compaction` README](https://github.com/algal/pi-openai-server-compaction#readme)
 - [`pi-openai-server-compaction` architecture](https://github.com/algal/pi-openai-server-compaction/blob/main/ARCHITECTURE.md)

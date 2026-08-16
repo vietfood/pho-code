@@ -2,7 +2,16 @@
 
 ## Status
 
-Accepted architecture for completed personal v1 and v2. Personal v1 established typed application settings, immutable baked-feature composition, packaged resource lookup, in-app API-key import, and an unsigned local macOS bundle. V2 Milestone 0 adds owner-facing permission modes and recoverable Trash; Milestone 1 adds bounded local/web retrieval, steering/follow-up, and image input; Milestone 2 adds provider-owned OAuth through Pi `ModelRuntime`; Milestone 3 adds a bounded multi-session registry, archive/restore, recoverable chat Trash, keyed conversation state, and background-run continuity; Milestone 4 adds fixed owner-enabled skill sources, three Pho Code skills, and one PAT-authenticated read-only GitHub MCP adapter on the permission system's `mcp` surface. See the [v2 archive](../archive/v2/README.md).
+Accepted architecture for completed personal v1 and v2. V3 change review is implemented in source but remains unaccepted; its ledger and recovery contract stays in the [`version/v3`](../version/v3/README.md) workstream. The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture.
+
+Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
+
+- [`codebase-map.md`](./codebase-map.md) — current packages, module clusters, composition roots, and test ownership;
+- [`protocol-and-ipc.md`](./protocol-and-ipc.md) — named JSON-safe bridge, validation, event ordering, and errors;
+- [`runtime-and-data.md`](./runtime-and-data.md) — application/runtime ownership, sessions, storage, credentials, and recovery;
+- [`renderer-and-ui.md`](./renderer-and-ui.md) — renderer cache/event flow, conversation UI, right sidebar, accessibility, and performance;
+- [`desktop-shell.md`](./desktop-shell.md) — Electron, CSP, native modules, and the shell migration seam;
+- [`extension-model.md`](./extension-model.md) — curated baked features and typed settings.
 
 ## Context
 
@@ -21,7 +30,7 @@ The architecture optimizes for:
 
 It does not optimize v1 for smallest binary size, hostile third-party plugins, remote multi-user service, or unattended sandboxed execution.
 
-## Implemented Milestone 1 view
+## Current system view
 
 ```mermaid
 flowchart LR
@@ -36,21 +45,23 @@ flowchart LR
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
-The implemented command surface is workspace/session/prompt, `searchWorkspaceReferences` for composer inline `@` mentions, `steerRun` / `queueFollowUp` for Pi-native queues, `pickImages` / `pasteImages` / `removePreparedImage` for prepared attachments, `rewriteAssistantOutput` for owner-edited assistant markdown (display overlay persisted as Pi custom session entries; JSONL messages stay unchanged), `resolveHostDialog` for confirm/select/input settlement, `prepareRemoveProject` / `removeProject` for forgetting a recent folder after moving its chats to OS Trash, explicit `getSettings` / `updateAppearanceSettings` / `updatePermissionSettings` / `updateSkillSourceSettings` / `refreshSkills` / `updateGitHubMcpSettings` / `importGitHubPat` / `removeGitHubPat`, `listCredentialProviders` / `importProviderApiKey`, and additive provider-account commands `listProviderAccounts` / `startProviderLogin` / `respondProviderAuthPrompt` / `openProviderAuthLink` / `cancelProviderLogin` / `logoutProvider`. `subscribe` publishes JSON-safe runtime/host-UI events, including `providerAuthFlow`. Personal runs use Pho Code's app-owned Pi data directory for auth, models, permission operational data, and sessions; executable feature composition comes only from the harness manifest. Packaged builds resolve baked features through `createPackagedResourceLocator(process.resourcesPath)`; development and tests keep the workspace `node_modules` locator. GitHub MCP tokens stay in the OS secret store and never appear in settings snapshots.
+The implemented command surface covers bootstrap/workspaces, recent ordering, session catalog/snapshots/lifecycle, prompts and Pi queues, prepared images, model/thinking, assistant rewrite, context prompt, host dialogs, typed settings/trust/skills, provider credentials/OAuth, fixed GitHub MCP, workspace references, and implemented V3 review/Approve/per-file Undo. The implemented event surface covers session/feature/settings snapshots, streaming and tool lifecycle, host interactions, provider auth, session activity/removal, and V3 review updates. See [`protocol-and-ipc.md`](./protocol-and-ipc.md) for groups and source-of-truth files.
+
+Personal runs keep Pi auth, models, permission operational data, and sessions under the app-owned Pi root. Application metadata, retrieval indexes, and the implemented V3 ledger live under separate application-data paths. Executable feature composition comes only from runtime-owned manifest assembly. GitHub MCP tokens remain in the OS secret store and never appear in settings snapshots.
 
 Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 commands, events, session/workspace/run projections, composite session keys, catalog/activity/archive commands, settings snapshots including skill provenance and GitHub MCP status, credential-import and provider-account commands, redacted OAuth flow snapshots, queue state, prepared image summaries, JSON safety |
-| Runtime | `packages/runtime/src` | `AgentSessionRuntime` host with a bounded session-controller registry, per-controller activity, feature manifest composition, packaged/dev `ResourceLocator`s, permission host UI, stable `guarded`/`balanced`/`developer` policy adapter, recoverable Trash tool and chat removal, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, API-key import, `SkillSourceRegistry`, application-owned GitHub MCP runtime with allowlisted `github_` tools, transcript projection |
-| Application | `packages/application/src` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, and GitHub MCP enabled metadata |
-| UI | `packages/ui/src` | Shell, conversation, composer, tool cards, host dialogs, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions) with deferred API-key fields, GitHub PAT, and provider OAuth, sanitized markdown (KaTeX, Shiki, Mermaid, fenced SVG) |
+| Protocol | `packages/protocol/src` | Version 1 named commands/events, JSON safety, workspace/session/run and catalog lifecycle, typed settings/accounts/skills/MCP/input, reducers, and implemented V3 review contracts |
+| Runtime | `packages/runtime/src` | Pi host; bounded registry (8 resident/4 concurrent); transcript, queues, host UI, two-stage feature composition, resources/settings/accounts, retrieval/web/skills/GitHub MCP/context prompt, and implemented V3 capture/ledger/recovery |
+| Application | `packages/application/src` | Input/identity validation, runtime delegation, metadata v6, catalog joins, archive/restore/removal tokens, typed settings/accounts, and V3 review-scope validation |
+| UI | `packages/ui/src` | Shell, keyed conversation presentation, rich untrusted content, composer/tools/dialogs/settings, right-sidebar host, context prompt, and implemented V3 review sheet |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
-| Renderer | `apps/desktop/src` | Viewport-owning React shell |
-| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, credentials, OAuth, developer, and packaged Electron specs |
+| Renderer | `apps/desktop/src` | Stateful React composition, keyed conversation cache, live-run store updates, session switching/catalog projection, and V3 review hook |
+| Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, session lifecycle, host UI, permissions, settings, credentials, OAuth, developer mode, project trust, change review, unit boundaries, and packaged Electron |
 
-## Target v1 system view
+## Core ownership flow
 
 ```mermaid
 flowchart TB
@@ -72,6 +83,8 @@ flowchart TB
 
 ## Layer ownership
 
+This section is the quick layer map. The detailed bridge contract lives in [`protocol-and-ipc.md`](./protocol-and-ipc.md); runtime lifecycle and data ownership live in [`runtime-and-data.md`](./runtime-and-data.md).
+
 ### Renderer
 
 The renderer owns presentation and transient interaction state:
@@ -81,7 +94,7 @@ The renderer owns presentation and transient interaction state:
 - composer draft and attachment previews;
 - streaming indicators and a per-chat live-run projection;
 - tool cards;
-- a read-only change-review surface in the persistent right sidebar (not a second editor);
+- an implemented-but-unaccepted V3 read-only change-review surface in the persistent right sidebar (not a second editor);
 - dialogs and settings views;
 - light/dark theme and accessible interaction.
 
@@ -142,56 +155,9 @@ Preload owns the narrow renderer facade. Main owns:
 - locating app data and packaged resources;
 - flushing and disposing the runtime before quit.
 
-The implemented Milestone 1 facade is:
+The authoritative facade is `packages/protocol/src/bridge.ts`, with its command registry in `version.ts`, channel names in `apps/desktop/electron/ipc.ts`, and one-to-one preload implementation. Do not copy the full interface into architecture prose; [`protocol-and-ipc.md`](./protocol-and-ipc.md) groups the current command/event catalog and explains its enforcement.
 
-```ts
-interface DesktopBridge {
-  getBootstrapState(): Promise<BootstrapState>;
-  pickWorkspace(): Promise<WorkspaceSnapshot | null>;
-  openRecentWorkspace(input: OpenRecentWorkspaceInput): Promise<WorkspaceSnapshot>;
-  listWorkspaceSessions(input: ListWorkspaceSessionsInput): Promise<SessionSummary[]>;
-  createSession(input?: CreateSessionInput): Promise<SessionSnapshot>;
-  openSession(input: OpenSessionInput): Promise<SessionSnapshot>;
-  sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
-  steerRun(input: SteerRunInput): Promise<QueueAdmission>;
-  queueFollowUp(input: QueueFollowUpInput): Promise<QueueAdmission>;
-  pickImages(): Promise<PickImagesResult>;
-  pasteImages(input?: PasteImagesInput): Promise<PickImagesResult>;
-  removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
-  abortRun(input: AbortRunInput): Promise<void>;
-  setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
-  setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
-  rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
-  resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
-  getSettings(): Promise<HarnessSettingsSnapshot>;
-  updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
-  updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
-  trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
-  updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
-  refreshSkills(): Promise<SkillSettingsSnapshot>;
-  updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
-  importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
-  removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
-  listCredentialProviders(): Promise<CredentialProviderSummary[]>;
-  importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
-  listProviderAccounts(): Promise<ProviderAccountsResult>;
-  startProviderLogin(input: StartProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
-  respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot>;
-  openProviderAuthLink(input: OpenProviderAuthLinkInput): Promise<void>;
-  cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot>;
-  logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult>;
-  searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult>;
-  getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
-  getChangeDiff(input: GetChangeDiffInput): Promise<ChangeDiffPage>;
-  getChangeFileView(input: GetChangeFileViewInput): Promise<ChangeFileViewPage>;
-  approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
-  prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
-  applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
-  subscribe(listener: (event: RuntimeEventEnvelope) => void): () => void;
-}
-```
-
-This facade is implemented. Do not collapse the explicit settings methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, OAuth tokens, or GitHub PATs from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles.
+Do not collapse explicit settings, account, lifecycle, or review methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, OAuth tokens, or GitHub PATs from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles. Change-review methods are implemented under unaccepted V3 and use the same seam.
 
 Do not expose `invoke(channel, payload)` to the renderer. Each method must have a fixed privileged operation and validate untrusted arguments again in main/application code.
 
@@ -434,7 +400,7 @@ Electron's renderer sandbox protects the web UI process. It does not restrict th
 - Treat filesystem paths as opaque data in the renderer.
 - Resolve the application resources directory through a `ResourceLocator`.
 - Construct an explicit child-process environment; GUI launches may not inherit interactive shell startup files.
-- Put native PTY integration behind `ProcessLauncher`/`TerminalService` when it is added.
+- Put native PTY integration behind `ProcessLauncher`/`TerminalHost` when it is added. The owner-approved terminal add-on specifies that seam in [`features/terminal/implementation-plan.md`](../features/terminal/implementation-plan.md): ghostty-web in the renderer, `node-pty` only in the Electron adapter. Until those milestones land, this remains a reserved boundary rather than shipped behavior.
 - Keep mutable Pi sessions, auth/model settings, permission operational data, and application metadata outside ASAR. Keep baked feature code/assets immutable in application resources and resolve them through `ResourceLocator`.
 - Test macOS first. Add Linux CI for pure packages early, then real Linux desktop validation before claiming Linux support.
 
@@ -449,6 +415,8 @@ Electron's renderer sandbox protects the web UI process. It does not restrict th
 
 ## Primary references
 
+- [Extension model](./extension-model.md)
+- [Desktop shell](./desktop-shell.md)
 - [Pi SDK](https://pi.dev/docs/latest/sdk)
 - [Pi extensions](https://pi.dev/docs/latest/extensions)
 - [Pi packages](https://pi.dev/docs/latest/packages)

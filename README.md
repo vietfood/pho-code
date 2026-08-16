@@ -18,39 +18,29 @@ No plan, no paywall, no "open core." The source is the product.
 
 This is for people who rice their editor, keep a dotfiles repo, and would rather change a file than wait on a plugin marketplace. If you want a signed store app, a generic MCP manager, or someone else's feature catalog, this is the wrong bowl.
 
-## For agents
+## What it does
 
-If a human asked you to run, change, or fork Pho Code, read this section, then `[AGENTS.md](./AGENTS.md)`.
-
-Pho Code is a **desktop harness**, not a Pi fork and not a plugin platform. Pi (`@earendil-works/pi-coding-agent` `0.84.1`) owns the agent loop, sessions, models, and JSONL transcripts. This repository owns the window, permissions, and the pinned feature bundle.
-
-| Change                  | Path                                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Conversation UI         | `[packages/ui](./packages/ui)`                                                                                                                                            |
-| System / context prompt | empty-chat **Context prompt** panel; workspace `AGENTS.md`; prompt templates on the feature manifest                                                                      |
-| Skills                  | `[packages/runtime/features/@pho-code/curated-coding-skills](./packages/runtime/features/@pho-code/curated-coding-skills)` — insert with `/`, do not bake into every turn |
-| Built-in tools          | `[packages/runtime/src/features.ts](./packages/runtime/src/features.ts)` — `createDefaultFeatureManifest`                                                                 |
-
-Do not import `electron`, `node:*`, or Pi from the renderer. Do not add a marketplace, generic MCP manager, or ambient extension discovery. Pin Pi to an exact version. Settings change documented behavior of features already in the manifest; they do not install code.
+- Runs local coding conversations in a native-feeling Electron window.
+- Keeps Pi JSONL sessions, model selection, thinking, streaming, tools, and compaction behavior.
+- Works across multiple projects and chats while background runs continue.
+- Shows thinking and tool activity in a dense, readable timeline.
+- Renders Markdown, syntax highlighting, math, Mermaid, SVG, and images safely.
+- Adds local repository search, bounded public web research, image input, steering, and follow-up queues.
+- Supports provider API keys and provider-owned OAuth login without exposing stored secrets to the UI.
+- Includes recoverable Trash, explicit permission modes, archived chats, and tracked write/edit review with safe per-file Undo.
+- Ships a curated capability bundle from source instead of a plugin marketplace.
 
 ## Make it yours
 
-Ownership means the capability set lives in source you can fork and rebuild. Settings do not install plugins, accept an extension path, or inherit another Pi install.
-
-```text
-renderer -> ui -> protocol
-renderer -> protocol
-Electron main -> application -> runtime -> Pi SDK
-Electron main/preload -> protocol
-```
-
-The renderer is a view. The runtime owns the agent. Fork the layer you care about; leave the rest alone.
+The source is the product. Fork it, change the conversation, adjust the prompt, curate the skills and tools, and rebuild the app you want. Pho Code does not depend on a separate Pi CLI installation or a marketplace to supply its core capabilities.
 
 macOS is the verified desktop. Linux-compatible path and process behavior is required in the code. Windows is out of scope.
 
 ## Run it
 
 Pho Code is built from this repository. There is no public installer yet.
+
+You need macOS, Git, and [Bun](https://bun.sh) `1.3.14` or newer. Node `22.19.0` or newer is required by supporting tools.
 
 ```bash
 git submodule update --init --recursive
@@ -66,8 +56,6 @@ Then:
 3. Start a session and send a prompt.
 
 A normal run keeps Pi-compatible auth, models, sessions, and permission state under the app's own data directory. `PHO_CODE_AGENT_DIR` is an explicit override for sharing that directory with another Pi process; Settings labels it as shared.
-
-Prerequisites, isolation env vars, and the optional real-provider recipe live in the [development runbook](./docs/development.md).
 
 ## Package a local macOS app
 
@@ -92,39 +80,9 @@ This is early, personal software. Expect bugs. The first usable release exists; 
 
 There is no plugin marketplace, no generic MCP manager, and no "paste an extension path" screen. Capabilities enter the app as source-controlled, pinned features.
 
-## Documentation
-
-Start here if you want to use or fork the app:
-
-- [Current state](./docs/current-state.md) — what exists today
-- [Architecture](./docs/architecture/overview.md) — ownership and dependency direction
-- [Extension model](./docs/extension-model.md) — baked features, not a plugin platform
-- [Development runbook](./docs/development.md) — commands, isolation, and verification
-- [Conversation UI](./docs/plans/conversation-ui.md) — transcript, sidebar, and chrome
-- [Attribution log](./docs/references-and-attribution.md) — what was read vs adapted
-
-Records and later work:
-
-- [Archived product v2](./docs/archive/v2/product-v2.md) — the accepted daily-driver boundary
-- [V2 archive](./docs/archive/v2/README.md) — accepted Milestones 0 through 4
-- [Later roadmap](./docs/roadmap-vnext.md) — work not yet promoted
-- [Personal v1 archive](./docs/archive/v1/README.md) — the closed first release
-
-## Development
-
-```bash
-bun run typecheck
-bun run lint
-bun test
-bun run test:desktop
-bun run build
-```
-
-`bun run build` produces Electron main, preload, and renderer bundles under `apps/desktop/out`. It does not create an installer.
-
 ## Acknowledgements
 
-Pho Code is new code. It would not exist in this shape without the projects below. Reading them for architecture required no copying. Where code, CSS, or component structure was adapted, the exact source, revision, and extent are recorded in [the attribution log](./docs/references-and-attribution.md).
+Pho Code is new code. It would not exist in this shape without the projects below.
 
 ### Agent runtime
 
@@ -152,10 +110,10 @@ Pho Code is new code. It would not exist in this shape without the projects belo
 
 ### Baked capabilities
 
-- `[@gotgenes/pi-permission-system](https://www.npmjs.com/package/@gotgenes/pi-permission-system)` by Chris Lasher — the first baked feature: policy, confirm/select/input host UI, and the permission modes Settings exposes.
-- `[@ff-labs/fff-node](https://www.npmjs.com/package/@ff-labs/fff-node)` by Dmitry Kovalenko, with tool names informed by `[@ff-labs/pi-fff](https://www.npmjs.com/package/@ff-labs/pi-fff)` — workspace-scoped local retrieval and `@` suggestions. Pho Code owns the adapter and index location; it does not load the Pi TUI extension.
-- `[pi-web-access](https://www.npmjs.com/package/pi-web-access)` by Nico Bailon — policy, DuckDuckGo parsing, and YouTube URL detection that informed the application-owned `pho-web` tools. Pho Code does not load that extension.
-- **[Jina Reader / Search](https://github.com/jina-ai/reader)** — keyless HTTP search/extraction used by `pho-web` alongside HTML search engines and for thin JS pages. Queries and target URLs on that path are disclosed to jina.ai.
-- **[Readability](https://github.com/mozilla/readability)**, **[linkedom](https://github.com/WebReflection/linkedom)**, and **[Turndown](https://github.com/mixmark-io/turndown)** — public-page extraction behind `fetch_content`.
+- [@gotgenes/pi-permission-system](https://www.npmjs.com/package/@gotgenes/pi-permission-system) by Chris Lasher — the first baked feature: policy, confirm/select/input host UI, and the permission modes Settings exposes.
+- [@ff-labs/fff-node](https://www.npmjs.com/package/@ff-labs/fff-node) by Dmitry Kovalenko, with tool names informed by [@ff-labs/pi-fff](https://www.npmjs.com/package/@ff-labs/pi-fff) — workspace-scoped local retrieval and `@` suggestions. Pho Code owns the adapter and index location; it does not load the Pi TUI extension.
+- [pi-web-access](https://www.npmjs.com/package/pi-web-access) by Nico Bailon — policy, DuckDuckGo parsing, and YouTube URL detection that informed the application-owned `pho-web` tools. Pho Code does not load that extension.
+- [Jina Reader / Search](https://github.com/jina-ai/reader) — keyless HTTP search/extraction used by `pho-web` alongside HTML search engines and for thin JS pages. Queries and target URLs on that path are disclosed to jina.ai.
+- [Readability](https://github.com/mozilla/readability), [linkedom](https://github.com/WebReflection/linkedom), and [Turndown](https://github.com/mixmark-io/turndown) — public-page extraction behind `fetch_content`.
 
-Local checkouts of T3 Code, pi-gui, and pi-web live under `[refs/](./refs)` as read-only references. They are not the application base.
+T3 Code, pi-gui, and pi-web are design and product references. They are not the application base.

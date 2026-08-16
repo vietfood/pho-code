@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain Pho Code Docs"
+  short_description: "Route and update internal Pho Code documentation"
+  default_prompt: "Use $maintain-pho-docs to route this change to the correct workstream, update current architecture or status when required, and record durable evidence without creating shared-file conflicts."

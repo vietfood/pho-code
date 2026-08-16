@@ -78,13 +78,13 @@ describe("tool presentation", () => {
   });
 
   test("uses a path label for single-field read input", () => {
-    const sections = buildToolExpandedSections("read", '{"path":"docs/plans/conversation-ui.md"}', "");
+    const sections = buildToolExpandedSections("read", '{"path":"docs/ui/implementation/conversation-ui.md"}', "");
     expect(sections).toEqual([
       {
         id: "input",
         label: "Path",
         language: "text",
-        text: "docs/plans/conversation-ui.md",
+        text: "docs/ui/implementation/conversation-ui.md",
       },
     ]);
   });

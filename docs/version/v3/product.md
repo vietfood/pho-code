@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed v3 product boundary, approved in direction by the owner on 2026-08-15. Milestones 0 through 2 are implemented in source with protocol, runtime, and Electron evidence; they are not owner-accepted. Personal v1 and v2 remain accepted and archived under [`archive/v1`](./archive/v1/README.md) and [`archive/v2`](./archive/v2/README.md).
+Proposed v3 product boundary, approved in direction by the owner on 2026-08-15. Milestones 0 through 2 are implemented in source with protocol, runtime, and Electron evidence; they are not owner-accepted. Personal v1 and v2 remain accepted and archived under [`archive/v1`](../../archive/v1/README.md) and [`archive/v2`](../../archive/v2/README.md).
 
 ## Outcome
 

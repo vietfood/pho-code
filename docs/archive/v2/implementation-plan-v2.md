@@ -1345,6 +1345,6 @@ Milestones 0 through 4 are the complete accepted v2 plan. No Milestone 5 is requ
 2. Add an archive index that records the accepted Pi, Electron, FFF, GitHub MCP, permission, and packaged-feature versions plus the verified macOS/Linux scope.
 3. Update `current-state.md`, `development.md`, the root instruction record, and repository navigation to point at the archived v2 boundary and identify the next active plan.
 4. Leave `current-state.md` and `development.md` live; do not archive operational commands or the current architecture entry points.
-5. Promote no deferred advanced feature during archival. Future work starts from [`roadmap-vnext.md`](../../roadmap-vnext.md) as an independently reviewed phase.
+5. Promote no deferred advanced feature during archival. Future work starts from [`roadmap-vnext.md`](../../version/roadmap-vnext.md) as an independently reviewed phase.
 
 V2.x maintenance may include UI polish, accessibility and performance improvements, defect fixes, and owner-reviewed additions or refinements to the Pho Code skill bundle that preserve this accepted architecture. New MCP servers, browser automation, terminal execution, multi-agent orchestration, or isolation changes require a future-release phase because they change capability, trust, or lifecycle boundaries.

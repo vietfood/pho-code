@@ -9,7 +9,7 @@ Personal v2 was accepted and archived on 2026-08-14. Its coherent outcome is a d
 - [`reviews/milestone-4-code-review.md`](./reviews/milestone-4-code-review.md) — final Milestone 4 and v2 closure review;
 - [`../v1/README.md`](../v1/README.md) — preceding personal-v1 archive.
 
-Milestone 5 is not part of v2. The former advanced-feature umbrella is split into independently promotable phases in the live [`roadmap-vnext.md`](../../roadmap-vnext.md).
+Milestone 5 is not part of v2. The former advanced-feature umbrella is split into independently promotable phases in the live [`roadmap-vnext.md`](../../version/roadmap-vnext.md).
 
 ## Durable versions at closure
 

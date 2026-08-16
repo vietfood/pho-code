@@ -1,0 +1,26 @@
+# UI work and feedback logs
+
+Record UI changes, defects, regressions, owner feedback, agent mistakes, and durable design decisions that should outlive a chat. Use one dated file per coherent item so parallel agents do not append to the same document.
+
+Filename:
+
+```text
+YYYY-MM-DD-<kind>-<short-slug>.md
+```
+
+Kinds are `change`, `bug`, `regression`, `feedback`, `mistake`, or `decision`.
+
+Every record states:
+
+- status, surface, owner, and owning plan;
+- related version/feature/UI logs;
+- expected and actual behavior or intended change;
+- reproduction/evidence when applicable;
+- changes and decisions;
+- verification actually run;
+- mistakes/corrections and owner feedback;
+- fix or handoff.
+
+Link the owning contract: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md), a feature plan, or a numbered-version plan. A Terminal-panel defect can live here while remaining owned by `features/terminal`; an Approve/Undo defect can live here while remaining owned by `version/v3`.
+
+When changing the shared right-sidebar host, scan active logs under `../../version/*/logs/` and `../../features/*/logs/` and add reciprocal links.

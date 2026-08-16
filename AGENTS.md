@@ -2,25 +2,35 @@
 
 These instructions apply to the entire repository. Nested `AGENTS.md` files may add path-specific rules but may not weaken the architecture, verification, deletion, or attribution requirements here.
 
+This is the sole agent entry point. The root `README.md` is user-facing and is not an implementation guide. Follow the pre-read and routing rules below into the internal `docs/` tree.
+
 ## Mission and current maturity
 
 Build a macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 and v2 are accepted and archived. The next product decision is whether to promote a bounded public-release phase; Pho Code is not yet publicly distributed or adversarially hardened.
 
-Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/plans/conversation-ui.md`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
+Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/ui/implementation/conversation-ui.md`. Add-on features live under `docs/features`. The current numbered product version lives under `docs/version`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 
 Read these files before nontrivial implementation:
 
 1. `docs/current-state.md`
 2. `docs/archive/v2/product-v2.md`
-3. `docs/architecture/overview.md`
-4. `docs/architecture/desktop-shell.md`
-5. `docs/extension-model.md`
-6. `docs/archive/v2/implementation-plan-v2.md`
-7. `docs/plans/conversation-ui.md` when changing conversation chrome
-8. `docs/development.md`
-9. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
-10. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
-11. the earlier record under `docs/archive/v1` only when changing a boundary it established
+3. `docs/architecture/README.md`, `docs/architecture/overview.md`, and `docs/architecture/codebase-map.md`
+4. the relevant architecture detail: `protocol-and-ipc.md`, `runtime-and-data.md`, `renderer-and-ui.md`, `desktop-shell.md`, or `extension-model.md`
+5. `docs/archive/v2/implementation-plan-v2.md`
+6. `docs/ui/implementation/conversation-ui.md` when changing conversation chrome
+7. `docs/development.md`
+8. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
+9. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
+10. `docs/features/README.md` when adding or promoting an add-on capability; `docs/features/terminal/product.md` and `docs/features/terminal/implementation-plan.md` when changing the integrated terminal, PTY, ghostty-web, or the right-sidebar Terminal surface
+11. `docs/version/v3/product.md` and `docs/version/v3/implementation-plan.md` when changing change review, Approve, or Undo
+12. the earlier record under `docs/archive/v1` only when changing a boundary it established
+
+Project workflows live under `.agents/skills/`:
+
+- use `test-pho-code` to select isolated unit, integration, Electron, interactive, and packaged verification and record the result;
+- use `maintain-pho-docs` when routing documentation, updating architecture/current state, logging UI feedback or mistakes, accepting work, or archiving a version/feature.
+
+Read a skill when its trigger applies instead of expanding this file with procedural detail.
 
 ## Product constraints
 
@@ -153,9 +163,15 @@ Use the narrower package command during iteration, followed by the exit checks i
 
 ## Documentation rules
 
+- Docs layout is mapped in `docs/README.md`: `architecture/` (accepted boundaries), `archive/` (closed versions), `assets/capture/` (demo GIFs only), `features/` (standalone add-ons), `ui/` (conversation chrome, ideas, bug logs), `version/` (current numbered product version and later roadmap).
+- Active numbered versions and promoted add-ons own a local README, product contract, implementation plan, and `logs/` directory. Plans are read-mostly contracts; dated logs carry execution evidence, changes, mistakes, corrections, owner feedback, blockers, and handoffs.
+- Create one new log file per bounded slice, issue, or feedback thread. Do not make parallel agents append to one shared journal.
+- Before changing shared protocol, Electron adapters, accepted architecture, or right-sidebar host behavior, scan active `docs/version/*/logs/`, `docs/features/*/logs/`, and `docs/ui/logs/`. Cross-link related records instead of duplicating their contracts.
+- `docs/ui/logs/` accepts UI changes, bugs, regressions, feedback, mistakes, and decisions. Product ownership still belongs to the linked version, feature, or UI implementation plan.
+- At acceptance, one integrator updates shared current-state/development/architecture summaries and writes an immutable review. Do not rewrite old logs or archives to hide earlier mistakes.
 - Commands in `README.md` and `docs/development.md` must match root scripts.
 - Mark future commands as contracts until implemented.
-- Architecture documents describe current accepted decisions; proposals belong in the implementation plan or a new decision record.
+- Architecture documents describe current accepted decisions; proposals belong in a `version/` or `features/` implementation plan.
 - When a decision changes, update the decision status and every downstream document in the same change.
 - Use links to primary Pi, Electron, Tauri, and upstream repository documentation where API or security behavior matters.
 

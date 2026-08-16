@@ -6,13 +6,13 @@ Active / partially implemented. Personal-v1 Milestone 3 is accepted; this indepe
 
 Implemented slices: docs split, sanitized dense markdown, T3-faithful work-entry tool/thinking timeline (including ordered live `run.work` segments so think → tool → think stays interleaved while streaming), Codex-inspired turn-level “Worked for …” collapse (one disclosure for thinking, tools, and pre-tool narration across consecutive assistant messages in a user→assistant turn; text after the last tool stays outside), Cursor-inspired shell chrome (sidebar actions, soft panels, composer footer model/thinking selectors, user message chip, empty-session hero composer, inline `@` reference chips in composer and user messages), wider collapsible shell sidebar with mouse-resizable width, platform-ordered collapse control, a no-session welcome launcher, and single-line compact project/session rows (open/closed folder glyph; project right-click: New session, Copy pathname, Remove project; flat context menus), stable manual project order with project-folder DnD (`reorderRecentWorkspaces`; session switch does not bump folders), `listWorkspaceSessions`, Pi model/thinking selectors, KaTeX math, Shiki code highlighting, Mermaid diagrams, fenced SVG previews, dense sanitized markdown in expanded thinking rows, polished tool expand panels (parsed command/path input, labeled Input/Output, no raw JSON dump for simple shell calls), composer usage chrome (linear reddening context bar, ↑↓ tokens, cache R/W, session $, custom model picker with provider icons, provider groups, filter, and $/M rates from Pi), clipboard copy for settled assistant output plus fenced code blocks, owner rewrite of settled assistant markdown as a display overlay, per-session context prompt editor (empty chats customize preamble + on/off chips; after the first message the same panel is inspect-only; the runtime re-injects compiled string A each turn), static working chrome while the agent is waiting, compositor-only caret/enter/pulse motion, tool-chip collapsed tool rows, prompt-bar highlight rings for max thinking, `@` mentions, and a `/` skill stub, and a compact Beautiful UI approval card for permission select/confirm/input docks. Permission prompts summarize the tool and target in plain language, with the raw agent request behind View request. Permission select/confirm dock dialogs confirm with Enter. Live assistant output streams as sanitized GFM markdown (no KaTeX/Shiki/Mermaid/SVG on the token path); live thinking stays plaintext; KaTeX/Shiki/Mermaid/SVG run after a turn settles, with KaTeX only when the settled text looks like math. Streaming deltas update a per-chat live-run store; the live transcript tail is the only transcript subscriber, so sidebar, composer, and settled turns do not re-render per token. Switching away from a live run keeps thinking/text/tool deltas until you return. Collapse hides the sidebar without unmounting it. Session open/create patches the sidebar catalog from the snapshot instead of listing on every settle.
 
-Visual split: shell/sidebar chrome is harness-owned Cursor-inspired language, including the compact 3×3 running mark while a session is live; composer highlight, tool-chip density, and permission-dock approval cards are Beautiful UI–adapted; assistant tool rows remain T3-adapted headings with Beautiful UI chips; turn collapse is Codex-inspired; the persistent right sidebar is a T3-style overlay pill when collapsed (PanelRight, FileDiff, Context prompt) and a mouse-resizable panel when expanded (`pho-code.reviewSidebarWidth`, clamp 360–720px, `pho-code.rightSidebarCollapsed` default collapsed; write/edit tool-card opener expands Changes; no Shiki on diff lines yet, no before/agent/current tabs, no Pierre Diffs).
+Visual split: shell/sidebar chrome is harness-owned Cursor-inspired language, including the compact 3×3 running mark while a session is live; composer highlight, tool-chip density, and permission-dock approval cards are Beautiful UI–adapted; assistant tool rows remain T3-adapted headings with Beautiful UI chips; turn collapse is Codex-inspired. This track owns the persistent right-sidebar host: collapsed pill, expanded/resizable panel, focus, and exhaustive surface selection. V3 owns Changes, Approve, and Undo semantics ([`version/v3`](../../version/v3/README.md)); the terminal add-on owns Terminal product and PTY behavior ([`features/terminal`](../../features/terminal/README.md)). See the shared [right-sidebar work log](../logs/2026-08-15-change-v3-right-sidebar.md).
 
 ## Relationship to the core harness
 
 | Track | Owns |
 | --- | --- |
-| Accepted v1 Milestone 3 ([archived implementation plan](../archive/v1/implementation-plan.md)) | Baked feature manifest, permission `select`/`input`, dialog focus, no resource catalog, active session list correctness |
+| Accepted v1 Milestone 3 ([archived implementation plan](../../archive/v1/implementation-plan.md)) | Baked feature manifest, permission `select`/`input`, dialog focus, no resource catalog, active session list correctness |
 | Accepted v1 Milestone 4 | Appearance and permission behavior settings; immutable feature composition |
 | Accepted v2 Milestone 3 | Independent background session controllers, scoped activity/attention, archive/restore, recoverable chat removal |
 | This plan | Project/session sidebar, markdown/thinking/motion, Pi model and thinking selectors, KaTeX, Shiki, Mermaid, SVG |
@@ -57,13 +57,13 @@ In scope:
 Out of scope:
 
 - T3 branding, Clerk/Connect, git commit/push;
-- codebase-overview dashboard or changed-files as the main surface (a read-only Changes surface lives in the persistent right sidebar, opened from a write/edit tool card or the FileDiff pill icon; the conversation stays primary);
+- codebase-overview dashboard or changed-files as the main surface (a read-only Changes surface lives in the persistent right sidebar, opened from a write/edit tool card or the FileDiff pill icon; the conversation stays primary; Terminal on that rail is the [terminal add-on](../../features/terminal/README.md), not this track’s exit gate);
 - attachments, marketplace, session-row drag reorder, Plan/Multitask, git branch switching;
 - Skills/Extensions sidebar nav, worktrees, pinned sessions;
 - copying `refs/t3code` ChatMarkdown wholesale (`rehype-raw`, file-link graph);
 - MDX, Expressive Code, or arbitrary extension renderers.
 
-References stay read-only. Record material adaptations in [references-and-attribution.md](../references-and-attribution.md). No runtime dependency on `refs/t3code`.
+References stay read-only. Record material adaptations in [references-and-attribution.md](../../references-and-attribution.md). No runtime dependency on `refs/t3code`.
 
 ## Architecture constraints
 
@@ -129,6 +129,12 @@ Settled assistant markdown can be edited in place from the turn action row (Edit
 ### 12. Per-session context prompt
 
 Empty chats can customize the composed system prompt from the right-sidebar **Context prompt** surface: preamble plus grouped on/off checkboxes for context files (`AGENTS.md` and other loaded markdown), tools, and the optional Pi docs block. Save compiles one string **A** and persists a Pi custom session entry (`pho-code.context-prompt`). Tool checkboxes that are off call `setActiveToolsByName` so those schemas are not sent; context-file checkboxes that are off omit that file from A only (the file on disk is unchanged). After the first message the same panel stays open for inspection; Save/Reset are refused. Pi clears its system-prompt override after each run, so the harness re-injects A on `before_agent_start`. Uncustomized sessions keep Pi’s live default and write no JSONL entry. Reset while still empty nulls the custom entry.
+
+### 13. Terminal rail (owned by the terminal add-on)
+
+The right sidebar may gain a Terminal icon and panel. Product, PTY ownership, ghostty-web, CSP, and packaging are specified in [`features/terminal`](../../features/terminal/README.md), not here. This track only keeps the rail host consistent (pill, resize, exhaustive surface switch, conversation-primary). Do not treat Terminal as a conversation-UI exit gate.
+
+Changes follows the same ownership rule: this track owns its rail host behavior, while diff, Approve, conflict, and Undo contracts live in [`version/v3`](../../version/v3/README.md).
 
 ## Verification
 

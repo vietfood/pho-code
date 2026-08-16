@@ -2,9 +2,9 @@
 
 This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs.
 
-V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](./archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
+V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](../archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
-UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan.
+UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan. Promoted add-ons that are not a numbered product version live under [`features`](../features/README.md).
 
 ## Rules carried forward
 
@@ -25,7 +25,7 @@ Do not group phases merely to label a major release complete. Prefer the smalles
 
 The owner promoted this phase on 2026-08-15 as **V3 — Change Control and Recovery**. The selected product model applies Pi `write` and `edit` immediately, then presents exact tracked changes in a read-only workbench with Approve and conflict-safe Undo. Approve closes review state; it is not Git persistence. The first release tracks attributable `write`/`edit` changes and does not promise recovery for arbitrary shell or external mutations.
 
-The active proposal is defined in [`product-v3.md`](./product-v3.md) and [`implementation-plan-v3.md`](./implementation-plan-v3.md). Those documents are implementation contracts, not acceptance evidence; v3 remains incomplete until its milestone gates pass.
+The active proposal is defined in [`v3/product.md`](./v3/product.md) and [`v3/implementation-plan.md`](./v3/implementation-plan.md). Those documents are implementation contracts, not acceptance evidence; v3 remains incomplete until its milestone gates pass.
 
 Build the owner-facing control layer before adding more autonomous execution surfaces:
 
@@ -43,7 +43,7 @@ This phase should build on Milestone 3's composite session ownership. It must di
 Extend the accepted session lifecycle without introducing multi-agent execution:
 
 - fork and tree navigation while leaving Pi JSONL authoritative;
-- visible automatic compaction events, manual compact, and an explanation of context composition and token impact, developed from the proposed [compaction feature design](./features/compaction.md);
+- visible automatic compaction events, manual compact, and an explanation of context composition and token impact, developed from the proposed [compaction feature design](../features/compaction.md);
 - richer selected-file, text, image, and bounded document attachments with explicit type/size controls;
 - per-run/provider usage and optional soft budget warnings;
 - integrated diagnostics and redacted log export for auth, baked features, indexes, MCP state, and interrupted runs.
@@ -62,14 +62,17 @@ Add browser control only through an app-owned Pho Code profile first. Separate o
 
 Read operations may support scoped approval; mutation, upload, and submission require explicit contextual approval. The first slice must not attach to the owner's everyday Chrome profile, reuse unrelated browser cookies, or expose a generic renderer-to-browser command channel. Downloads and profile cleanup use recoverable lifecycle rules and never fall back to permanent deletion.
 
-## Phase D: integrated terminal
+## Phase D: integrated terminal — promoted as a standalone add-on
 
-Introduce a PTY only after defining process and session ownership:
+The owner promoted this phase on 2026-08-16 as an **add-on**, not as v3. Product and plan live under [`features/terminal`](../features/terminal/README.md). Those documents are implementation contracts, not acceptance evidence; the add-on remains incomplete until its milestone gates pass.
 
-- one bounded terminal lifecycle per selected workspace or chat, with an explicit choice recorded in the promoted plan;
-- shell command permission policy consistent with agent tool execution;
-- clear working directory, environment, exit, reconnect, and shutdown state;
-- output backpressure, size limits, terminal escape handling, and secret redaction boundaries;
+Selected contract:
+
+- one PTY per selected workspace; chat switch keeps the shell;
+- host chrome on the existing right sidebar (Terminal surface beside Changes and Context prompt);
+- renderer VT via pinned `ghostty-web`, not xterm.js; privileged PTY via pinned `node-pty` in Electron main behind `TerminalHost`;
+- owner-typed commands are owner authority; agent `bash` stays a separate gated tool;
+- hide/collapse does not SIGTERM; Restart and Close are explicit;
 - no raw PTY, process handle, arbitrary IPC channel, or Node primitive in the renderer.
 
 Closing a panel must not silently terminate a running process. Application quit must bound graceful shutdown and report what could not be preserved.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted and archived personal-v2 product boundary. Personal v1 is preserved under [`archive/v1`](../v1/README.md). This document records the v2 outcome; future implementation work begins from the live [`roadmap-vnext.md`](../../roadmap-vnext.md), not by reopening this contract.
+Accepted and archived personal-v2 product boundary. Personal v1 is preserved under [`archive/v1`](../v1/README.md). This document records the v2 outcome; future implementation work begins from the live [`roadmap-vnext.md`](../../version/roadmap-vnext.md), not by reopening this contract.
 
 ## Outcome
 
@@ -125,7 +125,7 @@ V2.x releases may polish the UI, improve accessibility and performance, fix defe
 - signing, notarization, update channels, public distribution, and production threat response;
 - arbitrary user-managed extensions, skills, packages, or MCP servers.
 
-Deferral means these capabilities did not shape or block v2 completion. [`roadmap-vnext.md`](../../roadmap-vnext.md) separates the former advanced-feature milestone into independently promotable future-release phases.
+Deferral means these capabilities did not shape or block v2 completion. [`roadmap-vnext.md`](../../version/roadmap-vnext.md) separates the former advanced-feature milestone into independently promotable future-release phases.
 
 ## Success criteria for the first v2 slice
 

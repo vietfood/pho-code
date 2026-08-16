@@ -1,6 +1,6 @@
-# README captures
+# Demo captures
 
-Drop GIFs here using the filenames in the root [README](../../README.md). This page is the recording sheet: window setup, prompts, and what must be visible.
+Drop publishable demo GIFs here. This internal page is the recording sheet for window setup, privacy, prompts, and visible behavior.
 
 ## Window
 
@@ -13,7 +13,7 @@ Drop GIFs here using the filenames in the root [README](../../README.md). This p
 
 ```bash
 # after a .mov from CleanShot / Kap / QuickTime
-ffmpeg -i shot.mov -vf "fps=12,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 docs/captures/01-conversation.gif
+ffmpeg -i shot.mov -vf "fps=12,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 docs/assets/capture/01.gif
 ```
 
 ## Privacy
@@ -22,6 +22,9 @@ Use this repository as the workspace for read-only shots. For Trash, use a throw
 
 Do not record API keys, PATs, `PHO_CODE_AGENT_DIR`, home-directory paths you would not publish, or other people's code. Prefer **Stop** over waiting out a long answer.
 
-## Shot list
+## Current files
 
-Filenames, start state, prompt, and must-see UI are under each feature in the root README. Record in that order so the clips match the numbered sections.
+- `01.gif`
+- `02.gif`
+
+Before replacing one, record its intended start state, prompt, and must-see UI in this file. The user-facing root README does not own an internal shot list.
