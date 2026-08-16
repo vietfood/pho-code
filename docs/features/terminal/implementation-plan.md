@@ -6,7 +6,7 @@ Owner-approved implementation plan for the **integrated terminal** add-on (2026-
 
 Read the product contract in [`product.md`](./product.md), the accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), and the desktop-shell decision in [`../../architecture/desktop-shell.md`](../../architecture/desktop-shell.md) before implementation.
 
-This add-on is independent of v3. Do not put terminal work in `version/v3/`. Do not delay v3 on this plan, and do not delay this plan on v3 Undo/packaged flakes.
+This add-on is independent of archived V3. Do not put terminal work in `archive/v3/` or extend the accepted V3 recovery contract implicitly.
 
 ## Global acceptance rules
 

@@ -10,9 +10,9 @@ The promotion queue and release grouping live in [`roadmap-vnext.md`](./roadmap-
 2. Plan and Agent modes with structured questions and optional session todo state.
 3. Scoped tasks and subagents with cancellation, ownership, and review.
 4. TypeScript-first language-server integration.
-5. Edit reliability after the v3 change-review boundary is accepted.
+5. Edit reliability beyond the accepted V3 change-review boundary.
 
-Change review and recovery are already promoted as [`v3`](./v3/product.md); they are not feature backlog items.
+Change review and recovery are accepted and archived as [`v3`](../archive/v3/product.md); they are not feature backlog items.
 
 ## Coding depth
 

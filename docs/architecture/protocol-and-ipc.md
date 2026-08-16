@@ -109,11 +109,11 @@ Preload bundles the protocol facade and exposes no generic channel access. The r
 Typecheck and lint complement runtime payload validation; they do not replace it.
 `apps/desktop/tests/unit/package-boundaries.test.ts` and `bridge-commands.test.ts` encode the package and facade invariants.
 
-## Workstream-owned additions
+## Workstream-owned additions and history
 
-Active contracts live with their owner until acceptance:
+Accepted additions are promoted here; active proposals remain with their owner:
 
-- change-review/Approve/per-file Undo are implemented and registered, but product acceptance remains under [`../version/v3/`](../version/v3/README.md);
+- change-review/Approve/per-file Undo are accepted named commands; their closed contract lives under [`../archive/v3/`](../archive/v3/README.md);
 - terminal commands and dedicated events are proposed under [`../features/terminal/`](../features/terminal/README.md) and do not exist in source.
 
 Those plans must preserve named methods, JSON safety, bounded results, composite identity, and renderer non-authority.

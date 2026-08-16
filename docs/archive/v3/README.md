@@ -1,6 +1,6 @@
 # V3 — Change Control and Recovery
 
-Current numbered core version. Direction approved; Milestones 0–2 are implemented in source but not owner-accepted.
+Accepted and archived numbered core version. Milestones 0–3 closed on 2026-08-16.
 
 | Document | Role |
 | --- | --- |
@@ -9,3 +9,5 @@ Current numbered core version. Direction approved; Milestones 0–2 are implemen
 | [`logs/`](./logs/README.md) | Dated implementation evidence, corrections, feedback, and handoffs |
 
 V3 owns change-review and recovery behavior. The conversation UI owns shared right-sidebar host chrome; standalone add-ons such as Terminal remain under [`../../features/`](../../features/README.md).
+
+Closure: [`logs/2026-08-16-v3-acceptance-review.md`](./logs/2026-08-16-v3-acceptance-review.md). Implementation evidence remains in the Milestone 3 [`hardening`](./logs/2026-08-16-m3-hardening.md) and [`ledger fail-closed`](./logs/2026-08-16-m3-ledger-fail-closed.md) records.

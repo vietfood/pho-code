@@ -22,7 +22,7 @@ Read these files before nontrivial implementation:
 8. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
 9. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
 10. `docs/features/README.md` when adding or promoting an add-on capability; `docs/features/terminal/product.md` and `docs/features/terminal/implementation-plan.md` when changing the integrated terminal, PTY, ghostty-web, or the right-sidebar Terminal surface
-11. `docs/version/v3/product.md` and `docs/version/v3/implementation-plan.md` when changing change review, Approve, or Undo
+11. `docs/archive/v3/product.md` and `docs/archive/v3/implementation-plan.md` when changing accepted change review, Approve, or Undo behavior
 12. the earlier record under `docs/archive/v1` only when changing a boundary it established
 
 Project workflows live under `.agents/skills/`:

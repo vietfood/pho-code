@@ -78,13 +78,14 @@ This add-on will not:
 
 ## User-visible contract
 
-- The collapsed overlay pill and expanded icon rail gain a Terminal control (`SquareTerminal` or equivalent lucide icon) after Collapse / Changes / Context prompt.
+- The collapsed overlay pill and expanded icon rail gain a Terminal control (`SquareTerminal` or equivalent lucide icon) after Changes / Context prompt. There is no dedicated Collapse control; clicking the active surface icon hides the panel.
 - Selecting it expands the same mouse-resizable panel (`pho-code.reviewSidebarWidth`, clamp 360–720px) and shows the emulator.
 - No selected workspace: the icon is disabled with a short reason (“Open a project to use the terminal”).
 - Empty/error states: spawn failure, WASM load failure, exited shell with Restart.
 - Status chrome: running / exited / error, plus an optional short OSC title (truncated).
 - Restart recreates the PTY for that workspace. Close disposes it; the next ensure creates a new one.
 - Escape collapses the right sidebar only when the terminal view is not focused. Focused keystrokes, including Escape, go to the PTY.
+- ⌘R / Ctrl+R toggles the right sidebar as host chrome (same modifier as ⌘B / Ctrl+B). ⌘⇧R / Ctrl+Shift+R reloads the window. Linux Ctrl+R reverse-search inside a focused PTY is deferred to Terminal implementation.
 - http(s) hyperlinks in output open through the existing main-process URL gate. The renderer never `window.open`s.
 - Appearance theme and `prefers-reduced-motion` apply: cursor blink off when reduced motion is requested.
 - Composer and terminal must not both consume the same printable keystrokes while the terminal is focused.

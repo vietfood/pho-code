@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for personal v1 and v2. Implemented-but-unaccepted V3 recovery details remain in [`../version/v3/`](../version/v3/README.md) until acceptance changes this boundary.
+Accepted architecture for personal v1, v2, and v3. The immutable V3 recovery contract and evidence live in [`../archive/v3/`](../archive/v3/README.md).
 
 ## Service ownership
 
@@ -27,7 +27,7 @@ The application coordinates use cases. The runtime is the only product layer tha
 - permission host-UI binding and feature-specific settings adapters;
 - prepared images, local retrieval, public web tools, text-only skill sources, and the fixed GitHub MCP adapter;
 - context-prompt compilation/reinjection and assistant display overlays through Pi custom entries;
-- implemented V3 write/edit capture, ledger, diff, Approve, and per-file recovery behind the unaccepted V3 contract;
+- accepted V3 write/edit capture, ledger, diff, Approve, and per-file recovery;
 - normalized protocol projections.
 
 Application code does not know Electron APIs. Runtime code does not know Electron or React.
@@ -104,7 +104,7 @@ userData/
 
 Do not store mutable sessions, credentials, indexes, or settings in packaged resources. Do not use another Pi installation as a feature-composition source.
 
-The V3 ledger is implemented under application data at `userData/change-ledger/v1/`, separate from `pi-agent/` and the workspace. Its product acceptance, retention, and recovery limits remain owned by the V3 plan until acceptance promotes them into shared architecture.
+The V3 ledger lives under application data at `userData/change-ledger/v1/`, separate from `pi-agent/` and the workspace. Its accepted retention and recovery limits are recorded in the archived [`V3 product contract`](../archive/v3/product.md).
 
 ## Credentials and external services
 

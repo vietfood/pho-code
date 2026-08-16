@@ -6,6 +6,7 @@ Immutable records for closed numbered versions and retired standalone features.
 
 - [`v1/`](./v1/README.md) — accepted personal v1 product, implementation plan, and milestone reviews.
 - [`v2/`](./v2/README.md) — accepted personal v2 product, implementation plan, and closure review.
+- [`v3/`](./v3/README.md) — accepted change-control and recovery product, implementation plan, execution logs, and closure review.
 
 The current numbered version lives under [`../version/`](../version/README.md). Do not edit an archived record to describe newer behavior; update current state, active plans, or accepted architecture instead.
 

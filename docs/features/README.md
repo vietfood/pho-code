@@ -4,7 +4,7 @@
 
 This directory tracks **add-on capabilities**: owner-approved product work that is not a numbered product version (v1 / v2 / v3) and is not merely a conversation-chrome slice.
 
-V3 stays in [`version/v3`](../version/v3/product.md). Conversation chrome stays in [`ui/`](../ui/README.md). Unpromoted later-version work stays in [`version/roadmap-vnext.md`](../version/roadmap-vnext.md). Canonical layer boundaries stay in [`architecture/`](../architecture/README.md).
+Closed V3 stays in [`archive/v3`](../archive/v3/product.md). Conversation chrome stays in [`ui/`](../ui/README.md). Unpromoted later-version work stays in [`version/roadmap-vnext.md`](../version/roadmap-vnext.md). Canonical layer boundaries stay in [`architecture/`](../architecture/README.md).
 
 An add-on may still change protocol, Electron, or UI, but it must be able to ship or fail without blocking v3, and v3 must be able to ship or fail without blocking the add-on.
 
@@ -39,7 +39,7 @@ A document may contain both current and planned sections. Each claim must make t
 
 ## What does not belong here
 
-Session tree/fork, Plan and Agent modes, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Change review and recovery are already promoted as [`v3`](../version/v3/product.md).
+Session tree/fork, Plan and Agent modes, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md).
 
 Do not use this directory as a general competitor research catalog. A capability belongs here only when it can be specified, implemented, accepted, degraded, and retired independently of the active numbered version.
 

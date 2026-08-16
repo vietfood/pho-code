@@ -41,7 +41,7 @@ Electron main is the composition root and may import application/runtime package
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
 - `resources.ts` — baked feature diagnostics.
-- `change-review.ts` — implemented V3 review/Approve/Undo contracts; V3 remains unaccepted.
+- `change-review.ts` — accepted V3 review/Approve/per-file Undo contracts.
 
 `index.ts` is the public package surface. Runtime validation accompanies types; TypeScript alone is not an IPC boundary.
 
@@ -96,13 +96,14 @@ The implemented V3 subsystem is grouped under:
 - record/store/recovery: `change-record.ts`, `change-ledger-store.ts`, `change-recovery.ts`;
 - runtime/tool integration: `change-feature.ts`, `change-review.ts`.
 
-This source exists today, but product acceptance and unresolved recovery limits remain owned by [`../version/v3/`](../version/v3/README.md).
+This accepted subsystem's product contract, evidence, and residual recovery limits are archived under [`../archive/v3/`](../archive/v3/README.md).
 
 ## Electron adapter
 
 `apps/desktop/electron` owns:
 
 - `main.ts` — app lifecycle, composition, BrowserWindow, native dialogs/clipboard/theme, resource roots, command registration, bounded quit.
+- `application-menu.ts`, `application-menu-spec.ts` — application menu; Reload is CommandOrControl+Shift+R so CommandOrControl+R can toggle the right sidebar.
 - `preload.ts`, `ipc.ts` — explicit `window.phoCode` facade and fixed channel names.
 - `security.ts`, `security-policy.ts`, `trusted-renderer.ts` — CSP, sender/origin, navigation, permission, and external-URL policy.
 - `metadata-store.ts` — atomic application metadata persistence.

@@ -14,4 +14,4 @@ Accepted current-codebase decisions, ordered from overview to depth. Proposals b
 
 `eslint.config.js` is the executable dependency-boundary enforcement. Architecture explains the invariant; lint prevents forbidden imports from silently changing it.
 
-Implemented but unaccepted V3 ledger behavior remains under [`../version/v3/`](../version/v3/README.md). Proposed terminal/PTY behavior remains under [`../features/terminal/`](../features/terminal/README.md).
+Accepted V3 ledger and recovery behavior is part of the architecture below; its immutable product and evidence live under [`../archive/v3/`](../archive/v3/README.md). Proposed terminal/PTY behavior remains under [`../features/terminal/`](../features/terminal/README.md).

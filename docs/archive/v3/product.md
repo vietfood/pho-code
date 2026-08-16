@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed v3 product boundary, approved in direction by the owner on 2026-08-15. Milestones 0 through 2 are implemented in source with protocol, runtime, and Electron evidence; they are not owner-accepted. Personal v1 and v2 remain accepted and archived under [`archive/v1`](../../archive/v1/README.md) and [`archive/v2`](../../archive/v2/README.md).
+Accepted personal V3 product boundary. The owner accepted Milestones 0 through 3 on 2026-08-16 after protocol, runtime, Electron, packaged, and independent-review evidence. See the immutable [`V3 acceptance review`](./logs/2026-08-16-v3-acceptance-review.md).
 
 ## Outcome
 
@@ -23,7 +23,7 @@ This is **live apply with review**, not a patch-proposal system. The workspace o
 The labels are owner-facing workflow states, not filesystem durability controls.
 
 - **Approve** means “I accept the currently reviewed change.” It does not write the file again, create a Git commit, stage the file, or make an otherwise temporary edit persistent. The file was already changed on disk.
-- **Undo** means “preview and restore the recorded pre-change content if that restoration is still safe.” It is never a force overwrite.
+- **Undo** means “preview and restore the recorded pre-change content if that restoration is still safe.” It is never a force overwrite. Restored files keep POSIX permission bits; ownership, extended attributes, and inode identity are not preserved.
 - **Pending review** means Pho Code has a complete attributed before/after record that the owner has neither approved nor undone.
 - **Conflict** means the current file no longer matches the recorded agent result. Automatic undo stays disabled. If the file later matches the recorded after-image again, the item returns to pending. **Approve** on a conflict records that the owner accepts the current disk state (including later edits) so the chat can be removed; it does not write the file.
 
@@ -109,7 +109,7 @@ Automatic undo requires all of the following:
 - its content hash equals the recorded after-image hash;
 - no recovery operation for the item is already running.
 
-Pho Code writes the pre-image through a runtime-owned atomic replacement adapter after re-reading the file through an open descriptor and confirming device, inode, kind, canonical path, and content hash. The directory entry is re-checked immediately before `rename`. Ordinary filesystems still have a residual TOCTOU between that last identity check and the rename itself; Pho Code does not claim a kernel compare-and-swap. If any check fails, no write occurs.
+Pho Code writes the pre-image through a runtime-owned atomic replacement adapter after re-reading the file through an open descriptor and confirming device, inode, kind, canonical path, and content hash. The replacement file is given the previous POSIX permission bits (`chmod` after create, so umask cannot drop them) and is `fsync`ed; the parent directory is `fsync`ed after `rename`. Ownership, extended attributes, resource forks, and the previous inode are not preserved. The directory entry is re-checked immediately before `rename`. Ordinary filesystems still have a residual TOCTOU between that last identity check and the rename itself; Pho Code does not claim a kernel compare-and-swap. If any check fails, no write occurs.
 
 ### Newly created file
 
@@ -127,6 +127,10 @@ A failed `write` or `edit` may still have changed the file. Pho Code captures th
 - indeterminate because the process ended before the post-state was captured.
 
 On restart, an indeterminate item is reconciled against the stored pre-image and current workspace state. Pho Code never labels it safely undoable without enough evidence.
+
+If a stored review manifest is unreadable, chat continues. Approve, Undo, and moving the chat to Trash stay unavailable until the record is repaired. A file that cannot be attributed to a session fails closed for every chat's removal so a pending review cannot disappear.
+
+When a run would exceed the tracked-file, operation, or encoded-manifest budget, Pho Code sets a run-level capture-cap diagnostic and stops recording further write/edit recovery instead of failing persist while the tool continues.
 
 ## Persistence and retention
 

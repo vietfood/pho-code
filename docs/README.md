@@ -13,7 +13,7 @@ Pho Code docs are grouped by ownership and kind of work, not by date.
 | [`assets/capture/`](./assets/capture/README.md) | Demo GIFs and the recording sheet only |
 | [`features/`](./features/README.md) | Standalone add-ons (not a numbered product version) |
 | [`ui/`](./ui/README.md) | Conversation chrome: design, implementation, ideas, changes, feedback, and defect logs |
-| [`version/`](./version/README.md) | The current numbered product version (v3) and the later-release roadmap |
+| [`version/`](./version/README.md) | The next numbered product queue and later-release roadmap |
 
 Living entry points that stay at this root:
 
@@ -24,7 +24,7 @@ Living entry points that stay at this root:
 
 Do not mix these:
 
-- v3 product/plan → `version/v3/`, not `features/`
+- closed v3 product/plan/evidence → `archive/v3/`, not `version/` or `features/`
 - terminal, compaction, later add-ons → `features/`, not `version/`
 - conversation chrome and UI bugs → `ui/`, not `features/`
 - demo captures → `assets/capture/`, not `archive/`

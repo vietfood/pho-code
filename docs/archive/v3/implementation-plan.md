@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Proposed implementation plan for **V3 — Change Control and Recovery**. The owner selected live apply with later Approve/Undo, precise Pi `write`/`edit` tracking first, and a read-only file/diff workbench on 2026-08-15. No v3 implementation milestone is accepted until its stated evidence exists.
+Closed implementation plan for **V3 — Change Control and Recovery**. The owner selected live apply with later Approve/Undo, precise Pi `write`/`edit` tracking first, and a read-only file/diff workbench on 2026-08-15, then accepted Milestones 0–3 on 2026-08-16. Closure evidence lives in [`logs/2026-08-16-v3-acceptance-review.md`](./logs/2026-08-16-v3-acceptance-review.md).
 
 Read the product contract in [`product.md`](./product.md), the accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), and the archived v2 implementation record in [`../../archive/v2/implementation-plan-v2.md`](../../archive/v2/implementation-plan-v2.md) before implementation.
 
@@ -329,7 +329,7 @@ Open a bounded workbench from a run's changed-files summary and inspect exact at
 
 1. Add bounded diff and file-view protocol types and commands.
 2. Implement exact-byte hashing, conservative text classification, paged file views, and bounded unified diff.
-3. Build the workbench shell, file/status list, unified diff, before/agent/current tabs, loading/error/conflict states, and keyboard/focus behavior.
+3. Build the workbench shell, file/status list, unified diff, loading/error/conflict states, and keyboard/focus behavior. Keep the bounded before/agent/current file-view bridge available for privileged diagnostics; the product workbench remains unified-diff only.
 4. Add per-file Approve with expected-revision and current-hash validation.
 5. Add conflict refresh when another editor changes the file.
 6. Add review-set Approve all only after per-file transitions are reliable.
@@ -390,11 +390,85 @@ Undo an unchanged attributed modification without overwriting later owner work, 
 - runtime integration for modified-file restore, created-file Trash, stale preview, and interrupted state;
 - one Electron journey covering Approve, safe Undo, and conflict refusal;
 - one packaged macOS journey proving the real Trash path and app-data ledger work without a Pi CLI;
-- owner proof in a disposable workspace using an external editor to create a conflict.
+- owner-approved disposable-workspace proof that a post-agent overwrite creates a conflict and remains untouched.
 
 ### Implementation record (2026-08-15)
 
-Implemented in source; **not owner-accepted**. Review corrections, the residual TOCTOU, verification boundaries, and outstanding owner proof are recorded in [`logs/2026-08-15-m0-m2-implementation.md`](./logs/2026-08-15-m0-m2-implementation.md).
+Implemented in source. Review corrections, the residual TOCTOU, and verification boundaries are recorded in [`logs/2026-08-15-m0-m2-implementation.md`](./logs/2026-08-15-m0-m2-implementation.md); final acceptance is recorded in [`logs/2026-08-16-v3-acceptance-review.md`](./logs/2026-08-16-v3-acceptance-review.md).
+
+## Milestone 3: hardening, product completeness, and acceptance
+
+### Outcome
+
+Close the concrete safety, correctness, boundedness, and product-contract gaps found in the independent Milestones 0–2 review. Milestone 3 does not add broader shell mutation tracking or Undo all. It makes the existing Pi `write`/`edit` slice trustworthy enough for owner acceptance, then runs the complete V3 gate.
+
+The review findings and file-level handoff are recorded in [`logs/2026-08-16-m3-review-handoff.md`](./logs/2026-08-16-m3-review-handoff.md). Treat that record and this milestone as the implementation contract; do not replace the listed cases with generic cleanup.
+
+### Required implementation order
+
+1. **Make every capture outcome persistable and honest.**
+   - Never place an absolute path, traversal path, or other unsafe raw tool argument in a field defined as workspace-relative.
+   - Represent outside-workspace, malformed, over-limit, and otherwise untrackable calls with a bounded redacted diagnostic or unavailable record that can be saved safely.
+   - When the 200-path or per-run byte cap is reached, disclose that subsequent write/edit recovery was not captured; do not silently return without a record or run-level diagnostic.
+   - Add real Pi characterization for an outside-workspace argument and a path-cap overflow.
+2. **Harden the ledger and blob trust boundary.**
+   - Bound manifest file bytes before JSON parsing; bound file and operation counts, every persisted string, numeric fields, timestamps, hashes, blob identifiers, and aggregate projected output.
+   - Reject duplicate file identities, duplicate/conflicting tool-call identities, non-finite or negative sizes, invalid state/field combinations, unknown schema versions, and unsafe operation paths.
+   - Verify a blob's bytes hash to its content-addressed blob id before using it for diff, file view, preview, or restoration. Corruption must become a bounded review diagnostic and must never display or restore bytes under a false identity.
+   - Keep ordinary chat available when one ledger record is corrupt. Do not silently reinterpret corruption as a missing clean record.
+3. **Validate every change-review command before privileged work.**
+   - Add source-owned bounds and runtime validation for scope ids, relative paths, cursor/token strings, `contextLines`, and `relativePaths`.
+   - Require `relativePaths` to contain bounded unique strings and cap the list to the review-set path limit. Reject malformed arrays with `invalid_command` instead of allowing a JavaScript `TypeError`.
+   - Parse paging cursors strictly; malformed, overflowing, or out-of-range cursors fail with a bounded normalized error rather than restarting at page zero.
+   - Preserve the named bridge and renderer non-authority; do not add generic file or recovery IPC.
+4. **Make bounded diff presentation exact.**
+   - Preserve every character of an oversized changed line across pages, or explicitly return a typed line-truncation limitation. Never advance to the next line while dropping the remainder.
+   - Bound diff input complexity before calling Pi's synchronous `generateUnifiedPatch`: file bytes alone are not a sufficient CPU bound. Define and test line-count and generated-patch limits, and degrade honestly instead of blocking Electron main on pathological input.
+   - Verify stored before/after blobs before generating a diff.
+5. **Finish the workbench contract or narrow it explicitly with owner approval.**
+   - Implement safe syntax highlighting where supported, in-sheet search, whitespace visibility, and bounded context expansion promised by [`product.md`](./product.md), while retaining unified diff as the only workbench view.
+   - Keep all diff text as React text nodes or another sanitizing renderer; no raw HTML or renderer filesystem access.
+   - Verify keyboard operation, visible focus, reduced motion, light/dark palettes, narrow sidebar widths, long paths/lines, loading/error/conflict states, and conversation usability while the sheet is open.
+   - If the owner rejects one of these product requirements, amend `product.md` and this plan in the same change before claiming completion; a silent deferral is not acceptance.
+6. **Reassess recovery durability and the residual race.**
+   - Preserve exact bytes and the existing no-overwrite identity/hash checks. Test file replacement, symlink/type changes, workspace replacement, preview expiry, concurrent review refresh, and owner edits during preparation.
+   - Decide and document metadata behavior for mode bits and other metadata affected by atomic replacement. Preserve required mode bits or state the accepted limitation in product/UI copy.
+   - Reassess directory durability around temporary-file creation and rename. Add the narrow fsync behavior required by the accepted crash contract, if any.
+   - Keep the residual path-based `rename`/Trash TOCTOU explicit. Do not claim kernel compare-and-swap safety and do not introduce permanent deletion or Git restoration.
+7. **Run review and acceptance as fresh evidence.**
+   - Add focused regression tests for every item above before running broad gates.
+   - Perform the external-editor conflict proof in an owned disposable workspace.
+   - Run an independent defect-first review of capture ordering, path handling, ledger decoding, blob integrity, IPC bounds, diff complexity/paging, preview-token binding, atomic restore, Trash, restart reconciliation, and concurrent session ownership.
+   - Run the complete V3 exit checks and record exact commands/results in a new dated acceptance log. Do not copy prior PASS counts.
+
+### Acceptance criteria
+
+- outside-workspace, malformed, capped, failed, and interrupted write/edit calls always produce a persistable bounded diagnostic without leaking an absolute tool path through protocol data;
+- corrupt, oversized, contradictory, or unsupported manifests and blobs fail closed for review/recovery while ordinary chat remains usable;
+- no renderer-supplied change-review payload can trigger an unbounded array/string operation, generic exception, arbitrary path read/write, or stale-token reuse;
+- diff/file pages are deterministic and lossless within their typed bounds, and pathological diff input cannot monopolize Electron main without a bounded fallback;
+- the workbench meets the product's syntax, search, whitespace, context, keyboard, focus, theme, and conversation-priority requirements, or the owner has explicitly narrowed the product contract;
+- modified-file Undo preserves the accepted byte and metadata contract, and every identity/hash/type/workspace/revision mismatch refuses without changing the target;
+- created-file Undo still uses only operating-system Trash, with no permanent fallback;
+- restart reconciliation and journaled temporary-file handling never label an ambiguous or partial result as safely undone;
+- the owner-approved disposable-workspace conflict proof passes;
+- no P0/P1 review finding remains open, every P2 is fixed or explicitly owner-accepted with rationale, and all V3 exit checks pass with fresh recorded evidence.
+
+### Proportional verification
+
+- protocol/application tests for malformed scopes, arrays, cursors, revisions, and tokens;
+- store/runtime tests for oversized and corrupt manifests, contradictory records, blob tampering, outside-workspace capture, cap overflow, long-line paging, pathological diff input, metadata behavior, and recovery races;
+- real Pi `0.84.1` integration for `write`, `edit`, failure, outside-workspace refusal/degradation, two sessions, and restart reconciliation;
+- Electron journeys for diff search/whitespace/context controls, Approve, Undo, conflict, keyboard/focus, reload, and chat switching;
+- packaged macOS journeys for app-data ledger integrity and real OS Trash without a Pi CLI;
+- owner-approved conflict verification in an owned disposable workspace;
+- the root and packaged commands listed under **V3 exit checks**.
+
+### Stop conditions and non-goals
+
+Stop and write a narrow decision record if fixing a finding would require replacing Pi's built-in tools, moving recovery authority into the renderer, claiming filesystem transactionality, or changing the live-apply product model.
+
+Milestone 3 does not implement Undo all, arbitrary shell/MCP mutation recovery, filesystem watching, Git operations, a manual editor, terminal behavior, public-distribution hardening, or a generic retention/settings engine.
 
 ## Deferred extension: broader workspace mutation observation
 

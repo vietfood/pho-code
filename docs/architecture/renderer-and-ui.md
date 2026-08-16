@@ -2,7 +2,7 @@
 
 ## Status
 
-Current renderer implementation and accepted presentation boundary. V3 review semantics remain unaccepted; Terminal is not implemented.
+Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted; Terminal is not implemented.
 
 ## Composition boundary
 
@@ -70,6 +70,8 @@ The shell preserves:
 
 - manual recent-project order;
 - project expansion and sidebar width across collapse;
+- left-sidebar collapsed overlay pill (Home, Open folder, New session, Settings);
+- Home returning to the welcome launcher without disposing background sessions;
 - per-chat drafts and live-run projections;
 - session catalog state for inactive workspaces;
 - right-sidebar collapsed state and width.
@@ -83,7 +85,10 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 - collapsed overlay pill;
 - expanded icon rail and resizable content area;
 - Escape-to-collapse when no modal owns Escape;
+- clicking the active Changes or Context prompt icon collapses the panel;
 - accessible surface buttons and focus behavior.
+
+`AppShell` owns ⌘B / Ctrl+B for the left sidebar and ⌘R / Ctrl+R for the right sidebar. The Electron application menu moves window Reload to ⌘⇧R / Ctrl+Shift+R so the default Chromium Reload chord does not steal ⌘R. The transcript scroller hides native scrollbar chrome while remaining scrollable.
 
 Current surfaces are:
 

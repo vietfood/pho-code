@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1 and v2. V3 change review is implemented in source but remains unaccepted; its ledger and recovery contract stays in the [`version/v3`](../version/v3/README.md) workstream. The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture.
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture.
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -94,7 +94,7 @@ The renderer owns presentation and transient interaction state:
 - composer draft and attachment previews;
 - streaming indicators and a per-chat live-run projection;
 - tool cards;
-- an implemented-but-unaccepted V3 read-only change-review surface in the persistent right sidebar (not a second editor);
+- the accepted V3 read-only change-review surface in the persistent right sidebar (not a second editor);
 - dialogs and settings views;
 - light/dark theme and accessible interaction.
 
@@ -157,7 +157,7 @@ Preload owns the narrow renderer facade. Main owns:
 
 The authoritative facade is `packages/protocol/src/bridge.ts`, with its command registry in `version.ts`, channel names in `apps/desktop/electron/ipc.ts`, and one-to-one preload implementation. Do not copy the full interface into architecture prose; [`protocol-and-ipc.md`](./protocol-and-ipc.md) groups the current command/event catalog and explains its enforcement.
 
-Do not collapse explicit settings, account, lifecycle, or review methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, OAuth tokens, or GitHub PATs from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles. Change-review methods are implemented under unaccepted V3 and use the same seam.
+Do not collapse explicit settings, account, lifecycle, or review methods into a generic channel or key/value mutation API. Do not return stored credential values, authorization URLs, OAuth tokens, or GitHub PATs from list, import, login, or flow results. The renderer opens provider pages only through opaque link handles. Accepted change-review methods use the same narrow seam.
 
 Do not expose `invoke(channel, payload)` to the renderer. Each method must have a fixed privileged operation and validate untrusted arguments again in main/application code.
 
