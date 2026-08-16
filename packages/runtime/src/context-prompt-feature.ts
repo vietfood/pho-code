@@ -1,4 +1,4 @@
-import type { BeforeAgentStartEventResult, ExtensionAPI, InlineExtension } from "@earendil-works/pi-coding-agent";
+import type { InlineExtension } from "@earendil-works/pi-coding-agent";
 import type { HarnessFeature } from "./features";
 
 export const CONTEXT_PROMPT_FEATURE_ID = "context-prompt";
@@ -20,10 +20,8 @@ function createContextPromptExtension(options: {
 }): InlineExtension {
   return {
     name: CONTEXT_PROMPT_FEATURE_ID,
-    factory(pi: ExtensionAPI) {
-      // Pi invokes factories when the resource loader reloads, before bindExtensions.
-      // Look up compiled A from the live session at run start, not at load time.
-      pi.on("before_agent_start", async (_event, ctx): Promise<BeforeAgentStartEventResult | undefined> => {
+    factory(pi) {
+      pi.on("before_agent_start", async (_event, ctx) => {
         const compiled = options.compiledFor({
           cwd: ctx.cwd,
           sessionId: ctx.sessionManager.getSessionId(),
