@@ -14,7 +14,16 @@ Reading an implementation for architectural understanding does not require a row
 - Documentation: [pi.dev](https://pi.dev/docs/latest)
 - Role: runtime and public SDK dependency; primary behavioral authority
 - License: MIT in the current upstream project; verify and preserve the exact pinned package's license during bootstrap
-- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API. The agent-tool sandbox add-on reads the official example [`packages/coding-agent/examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) for the `createBashTool` / `user_bash` wrap; the pinned `0.84.1` copy is the API source of truth. Reading it does not require a copy row. If that example is later copied or closely adapted into Pho Code, add a copy row here with the pin revision.
+- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API. The agent-tool sandbox add-on reads the official example [`packages/coding-agent/examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) for the `createBashTool` / `user_bash` wrap; the pinned `0.84.1` copy is the API source of truth. Plan/Agent reads the official [`plan-mode`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/index.ts), [`questionnaire.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/questionnaire.ts), [`question.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/question.ts), and [`todo.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/todo.ts) examples the same way. Reading them does not require a copy row. If an example is later copied or closely adapted into Pho Code, add a copy row here with the pin revision.
+
+### juicesharp rpiv-ask-user-question
+
+- Upstream: [juicesharp/rpiv-mono `packages/rpiv-ask-user-question`](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-ask-user-question)
+- Evaluated version: npm `@juicesharp/rpiv-ask-user-question` `2.6.0`
+- Copyright: juicesharp
+- License: MIT
+- Role: research-only ask-user questionnaire for Pi; RPC `select`/`input` walker is the fallback pattern; schema/envelope/guidelines are the adaptation source
+- Relationship: not a product runtime dependency. Do not bake the package. The promoted [`features/plan-agent`](./features/plan-agent/README.md) add-on reimplements a Pho-owned tool. Copying schema, envelope, walker, or card structure later requires a copy row.
 
 ### pi-gui
 

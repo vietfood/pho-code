@@ -7,7 +7,7 @@ The promotion queue and release grouping live in [`roadmap-vnext.md`](./roadmap-
 ## Near-term candidates
 
 1. Session tree, fork, and clone over Pi-owned JSONL.
-2. Plan and Agent modes with structured questions and optional session todo state.
+2. Plan and Agent modes with structured questions and optional session todo state. **Promoted 2026-08-16** as the standalone [`plan-agent`](../features/plan-agent/README.md) add-on (end-to-end product, implementation not started). Keep this line only as the backlog pointer; do not re-research it as a numbered v4.
 3. Scoped tasks and subagents with cancellation, ownership, and review.
 4. TypeScript-first language-server integration.
 5. Edit reliability beyond the accepted V3 change-review boundary.

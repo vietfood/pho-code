@@ -8,6 +8,6 @@ Conversation chrome and related desktop UI. This is not the add-on tracker (`fea
 | [`ideas/`](./ideas/README.md) | UI ideas that are not yet an implementation slice |
 | [`logs/`](./logs/README.md) | UI changes, defects, regressions, feedback, mistakes, decisions, and handoffs |
 
-Keep the conversation primary. Right-rail Terminal product work lives in [`features/terminal`](../features/terminal/README.md); this folder only owns the rail host and transcript/composer chrome.
+Keep the conversation primary. Right-rail Terminal product work lives in [`features/terminal`](../features/terminal/README.md); Plan/Agent and the Plan document live in [`features/plan-agent`](../features/plan-agent/README.md); this folder only owns the rail host and transcript/composer chrome.
 
 Versioned and add-on work may write UI records here while retaining product ownership in their own plan. Cross-link both workstream logs whenever a shared surface changes.
