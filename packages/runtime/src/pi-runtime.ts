@@ -143,6 +143,7 @@ import {
   CONTEXT_PROMPT_CUSTOM_TYPE,
   enabledToolNames,
   liveContextPromptSections,
+  lookupCompiledContextPrompt,
   projectSessionContextPrompt,
   type ToolPromptSource,
 } from "./context-prompt";
@@ -253,7 +254,6 @@ export async function createPhoCodeRuntime(
   const approvedProjectPaths = new Set<string>();
   const listeners = new Set<(event: RuntimeEvent) => void>();
   const compiledContextPromptByKey = new Map<string, string>();
-  let bindingKey: SessionKey | undefined;
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
   const resolvedCursorSdk = resolveCursorSdkFeature(locator);
@@ -289,8 +289,7 @@ export async function createPhoCodeRuntime(
     options.testHostUi === true,
   );
   const contextPromptFeature = createContextPromptFeature({
-    compiledFor: (keyId) => compiledContextPromptByKey.get(keyId),
-    bindingKeyId: () => (bindingKey ? sessionKeyId(bindingKey) : undefined),
+    compiledFor: (input) => lookupCompiledContextPrompt(compiledContextPromptByKey, input),
   });
   const changeCaptureHost: ChangeCaptureHost = {
     capture: undefined,
@@ -1050,7 +1049,6 @@ export async function createPhoCodeRuntime(
       });
     }
     live.extensionHost.beginBinding();
-    bindingKey = live.key;
     try {
       await session.bindExtensions({
         uiContext: live.extensionHost.createUiContext(),
@@ -1061,7 +1059,6 @@ export async function createPhoCodeRuntime(
         },
       });
     } finally {
-      bindingKey = undefined;
       live.extensionHost.endBinding();
     }
     applyContextPromptState(live);

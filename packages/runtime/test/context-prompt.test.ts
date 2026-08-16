@@ -3,6 +3,7 @@ import {
   agentsSectionId,
   DEFAULT_CONTEXT_PROMPT_PREAMBLE,
   PI_DOCS_SECTION_ID,
+  sessionKeyId,
   toolSectionId,
 } from "@pho-code/protocol";
 import {
@@ -12,6 +13,7 @@ import {
   CONTEXT_PROMPT_CUSTOM_TYPE,
   enabledToolNames,
   liveContextPromptSections,
+  lookupCompiledContextPrompt,
   projectSessionContextPrompt,
   relativizeAgentsPath,
   toolSectionBody,
@@ -144,5 +146,20 @@ describe("context prompt compiler", () => {
     expect(relativizeAgentsPath("/elsewhere/AGENTS.md", "/tmp/ws")).toBe("AGENTS.md");
     expect(toolSectionBody(tools[0]!)).toContain("Read workspace files.");
     expect(toolSectionBody(tools[0]!)).toContain("- Prefer read over cat.");
+  });
+
+  test("looks up compiled A by session key and falls back to session id", () => {
+    const compiledByKey = new Map([
+      [sessionKeyId({ workspaceId: "/tmp/ws", sessionId: "session-1" }), "You are Bevy."],
+    ]);
+    expect(
+      lookupCompiledContextPrompt(compiledByKey, { cwd: "/tmp/ws", sessionId: "session-1" }),
+    ).toBe("You are Bevy.");
+    expect(
+      lookupCompiledContextPrompt(compiledByKey, { cwd: "/private/tmp/ws", sessionId: "session-1" }),
+    ).toBe("You are Bevy.");
+    expect(
+      lookupCompiledContextPrompt(compiledByKey, { cwd: "/tmp/ws", sessionId: "missing" }),
+    ).toBeUndefined();
   });
 });

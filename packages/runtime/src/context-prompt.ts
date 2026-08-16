@@ -2,8 +2,10 @@ import path from "node:path";
 import {
   agentsSectionId,
   DEFAULT_CONTEXT_PROMPT_PREAMBLE,
+  parseSessionKeyId,
   PI_DOCS_SECTION_BODY,
   PI_DOCS_SECTION_ID,
+  sessionKeyId,
   toolSectionId,
   type ContextPromptSection,
   type SessionContextPrompt,
@@ -182,6 +184,23 @@ export function projectSessionContextPrompt(input: {
       cwd: input.cwd,
     }),
   };
+}
+
+export function lookupCompiledContextPrompt(
+  compiledByKey: ReadonlyMap<string, string>,
+  input: { cwd: string; sessionId: string },
+): string | undefined {
+  const exact = compiledByKey.get(sessionKeyId({ workspaceId: input.cwd, sessionId: input.sessionId }));
+  if (exact !== undefined) {
+    return exact;
+  }
+  for (const [key, value] of compiledByKey) {
+    const parsed = parseSessionKeyId(key);
+    if (parsed?.sessionId === input.sessionId) {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 export function collectContextPromptRecord(

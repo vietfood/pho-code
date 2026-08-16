@@ -1,12 +1,11 @@
-import type { InlineExtension } from "@earendil-works/pi-coding-agent";
+import type { BeforeAgentStartEventResult, ExtensionAPI, InlineExtension } from "@earendil-works/pi-coding-agent";
 import type { HarnessFeature } from "./features";
 
 export const CONTEXT_PROMPT_FEATURE_ID = "context-prompt";
 export const CONTEXT_PROMPT_FEATURE_VERSION = "1.0.0";
 
 export function createContextPromptFeature(options: {
-  compiledFor: (keyId: string) => string | undefined;
-  bindingKeyId: () => string | undefined;
+  compiledFor: (input: { cwd: string; sessionId: string }) => string | undefined;
 }): HarnessFeature {
   return {
     id: CONTEXT_PROMPT_FEATURE_ID,
@@ -17,18 +16,18 @@ export function createContextPromptFeature(options: {
 }
 
 function createContextPromptExtension(options: {
-  compiledFor: (keyId: string) => string | undefined;
-  bindingKeyId: () => string | undefined;
+  compiledFor: (input: { cwd: string; sessionId: string }) => string | undefined;
 }): InlineExtension {
   return {
     name: CONTEXT_PROMPT_FEATURE_ID,
-    factory(pi) {
-      const keyId = options.bindingKeyId();
-      if (!keyId) {
-        return;
-      }
-      pi.on("before_agent_start", async () => {
-        const compiled = options.compiledFor(keyId);
+    factory(pi: ExtensionAPI) {
+      // Pi invokes factories when the resource loader reloads, before bindExtensions.
+      // Look up compiled A from the live session at run start, not at load time.
+      pi.on("before_agent_start", async (_event, ctx): Promise<BeforeAgentStartEventResult | undefined> => {
+        const compiled = options.compiledFor({
+          cwd: ctx.cwd,
+          sessionId: ctx.sessionManager.getSessionId(),
+        });
         if (!compiled) {
           return undefined;
         }

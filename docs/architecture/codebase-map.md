@@ -65,7 +65,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `session-registry.ts` owns composite identity and the bounded independent registry: eight resident controllers and four concurrent runs.
 - `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth.
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.
-- `context-prompt.ts`, `context-prompt-feature.ts`, `assistant-rewrite.ts` own Pi custom-entry/prompt integration.
+- `context-prompt.ts`, `context-prompt-feature.ts`, `assistant-rewrite.ts` own Pi custom-entry/prompt integration. Context-prompt injection looks up compiled A from the live session on `before_agent_start`; the factory does not capture a bind-time session key.
 
 ### Feature composition and resources
 

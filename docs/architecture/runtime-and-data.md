@@ -63,7 +63,7 @@ Application shutdown stops admission, aborts or settles active work according to
 - model/provider behavior and compatible credentials;
 - agent loop, built-in tools, extension execution, and final message state.
 
-Pi JSONL is not copied into application metadata. Assistant rewrites are explicit display overlays stored as Pi custom entries; context-prompt customization is another Pi custom entry whose compiled prompt is re-injected before each run. Neither mutates original assistant messages or workspace context files.
+Pi JSONL is not copied into application metadata. Assistant rewrites are explicit display overlays stored as Pi custom entries; context-prompt customization is another Pi custom entry whose compiled prompt is looked up from the live session and re-injected on `before_agent_start`. Neither mutates original assistant messages or workspace context files.
 
 ### Application-owned
 
