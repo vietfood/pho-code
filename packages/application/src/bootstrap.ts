@@ -109,6 +109,13 @@ import {
   type UndoPreview,
   RUNTIME_EVENT_TYPES,
   eventSessionKey,
+  parseChangeDiffCursor,
+  parseChangeFileViewCursor,
+  requireChangeContextLines,
+  requireChangePreviewToken,
+  requireChangeRelativePath,
+  requireChangeRelativePaths,
+  requireChangeRevision,
   requireChangeScope,
   isChangeFileVersion,
   sessionKeyEquals,
@@ -1314,12 +1321,14 @@ export function createApplicationService(input: {
     async getChangeDiff(command: GetChangeDiffInput) {
       assertActive();
       const scope = requireChangeScope(command, "getChangeDiff");
-      const relativePath = requireNonEmptyString(command.relativePath, "relativePath", "getChangeDiff");
+      const relativePath = requireChangeRelativePath(command.relativePath, "getChangeDiff");
+      const cursor = optionalDiffCursor(command.cursor, "getChangeDiff");
+      const contextLines = requireChangeContextLines(command.contextLines, "getChangeDiff");
       const page = await input.runtime.getChangeDiff({
         ...scope,
         relativePath,
-        ...(typeof command.cursor === "string" ? { cursor: command.cursor } : {}),
-        ...(typeof command.contextLines === "number" ? { contextLines: command.contextLines } : {}),
+        ...(cursor !== undefined ? { cursor } : {}),
+        ...(contextLines !== undefined ? { contextLines } : {}),
       });
       assertJsonSafe(page, "getChangeDiff");
       return page;
@@ -1335,11 +1344,12 @@ export function createApplicationService(input: {
           recoverable: true,
         });
       }
+      const cursor = optionalFileViewCursor(command.cursor, "getChangeFileView");
       const page = await input.runtime.getChangeFileView({
         ...scope,
-        relativePath: requireNonEmptyString(command.relativePath, "relativePath", "getChangeFileView"),
+        relativePath: requireChangeRelativePath(command.relativePath, "getChangeFileView"),
         version: command.version,
-        ...(typeof command.cursor === "string" ? { cursor: command.cursor } : {}),
+        ...(cursor !== undefined ? { cursor } : {}),
       });
       assertJsonSafe(page, "getChangeFileView");
       return page;
@@ -1347,18 +1357,12 @@ export function createApplicationService(input: {
     async approveChanges(command: ApproveChangesInput) {
       assertActive();
       const scope = requireChangeScope(command, "approveChanges");
-      if (typeof command.expectedRevision !== "number" || !Number.isInteger(command.expectedRevision) || command.expectedRevision < 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "expectedRevision is required.",
-          operation: "approveChanges",
-          recoverable: true,
-        });
-      }
       const snapshot = await input.runtime.approveChanges({
         ...scope,
-        expectedRevision: command.expectedRevision,
-        ...(Array.isArray(command.relativePaths) ? { relativePaths: command.relativePaths } : {}),
+        expectedRevision: requireChangeRevision(command.expectedRevision, "approveChanges"),
+        ...(command.relativePaths !== undefined
+          ? { relativePaths: requireChangeRelativePaths(command.relativePaths, "approveChanges") }
+          : {}),
       });
       assertJsonSafe(snapshot, "approveChanges");
       return snapshot;
@@ -1366,18 +1370,10 @@ export function createApplicationService(input: {
     async prepareUndoChanges(command: PrepareUndoChangesInput) {
       assertActive();
       const scope = requireChangeScope(command, "prepareUndoChanges");
-      if (typeof command.expectedRevision !== "number" || !Number.isInteger(command.expectedRevision) || command.expectedRevision < 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "expectedRevision is required.",
-          operation: "prepareUndoChanges",
-          recoverable: true,
-        });
-      }
       const preview = await input.runtime.prepareUndoChanges({
         ...scope,
-        relativePath: requireNonEmptyString(command.relativePath, "relativePath", "prepareUndoChanges"),
-        expectedRevision: command.expectedRevision,
+        relativePath: requireChangeRelativePath(command.relativePath, "prepareUndoChanges"),
+        expectedRevision: requireChangeRevision(command.expectedRevision, "prepareUndoChanges"),
       });
       assertJsonSafe(preview, "prepareUndoChanges");
       return preview;
@@ -1387,7 +1383,7 @@ export function createApplicationService(input: {
       const scope = requireChangeScope(command, "applyUndoChanges");
       const snapshot = await input.runtime.applyUndoChanges({
         ...scope,
-        previewToken: requireNonEmptyString(command.previewToken, "previewToken", "applyUndoChanges"),
+        previewToken: requireChangePreviewToken(command.previewToken, "applyUndoChanges"),
       });
       assertJsonSafe(snapshot, "applyUndoChanges");
       return snapshot;
@@ -1663,6 +1659,30 @@ function requireNonEmptyString(value: unknown, field: string, operation: string)
     });
   }
   return value.trim();
+}
+
+function optionalDiffCursor(value: unknown, operation: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    parseChangeDiffCursor("invalid", operation);
+    return undefined;
+  }
+  parseChangeDiffCursor(value, operation);
+  return value;
+}
+
+function optionalFileViewCursor(value: unknown, operation: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    parseChangeFileViewCursor("invalid", operation);
+    return undefined;
+  }
+  parseChangeFileViewCursor(value, operation);
+  return value;
 }
 
 function parseWorkspaceReferences(

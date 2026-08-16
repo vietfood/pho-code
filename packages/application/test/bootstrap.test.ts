@@ -183,4 +183,21 @@ describe("application change review", () => {
       code: HARNESS_ERROR_CODES.invalidCommand,
     });
   });
+
+  test("rejects malformed relativePaths, cursors, and contextLines with invalid_command", async () => {
+    const application = createTestApplication();
+    const scope = { workspaceId: "/tmp/ws", sessionId: "s1", runId: "r1" };
+    await expect(
+      application.approveChanges({ ...scope, expectedRevision: 1, relativePaths: [1, 2] as never }),
+    ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.invalidCommand });
+    await expect(application.getChangeDiff({ ...scope, relativePath: "note.txt", cursor: "nope" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    await expect(application.getChangeDiff({ ...scope, relativePath: "note.txt", contextLines: 99 })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    await expect(application.getChangeFileView({ ...scope, relativePath: "note.txt", version: "current", cursor: "hunk:0" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
 });
