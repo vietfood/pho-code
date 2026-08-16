@@ -27,6 +27,13 @@ describe("tool presentation", () => {
     expect(toolWorkEntryIcon("bash")).toBe("terminal");
     expect(toolWorkEntryIcon("read")).toBe("eye");
     expect(toolWorkEntryPreview("bash", '{"command":"ls -la docs"}', "")).toBe("ls -la docs");
+    expect(
+      toolWorkEntryPreview(
+        "ask user",
+        '{"questions":[{"question":"Which approach should we use?"}]}',
+        'User has answered your questions: "Which approach should we use?"="Patch".',
+      ),
+    ).toContain("Patch");
   });
 
   test("parses shell input into a command section without raw JSON", () => {

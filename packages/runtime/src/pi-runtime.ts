@@ -99,6 +99,7 @@ import {
   type PrepareUndoChangesInput,
   type UndoPreview,
   MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
+  ASK_USER_QUESTION_TOOL_NAME,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -1270,7 +1271,18 @@ export async function createPhoCodeRuntime(
         ...(testTool
           ? {
               customTools: [testTool],
-              tools: [TEST_TOOL_NAME, "bash", TRASH_TOOL_NAME, "read", "write", "edit", "ls", "grep", "find"],
+              tools: [
+                TEST_TOOL_NAME,
+                "bash",
+                TRASH_TOOL_NAME,
+                ASK_USER_QUESTION_TOOL_NAME,
+                "read",
+                "write",
+                "edit",
+                "ls",
+                "grep",
+                "find",
+              ],
             }
           : {}),
       })),

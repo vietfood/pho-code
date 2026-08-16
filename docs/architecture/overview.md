@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture.
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestone 0 ask-back is in source and not accepted.
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -365,6 +365,8 @@ Personal-v1 Milestone 3 implemented the baked permission transport. Personal-v1 
 - `select`, `confirm`, and `input` as typed dialog requests with one shared lifecycle;
 - `notify` as an application notification/toast;
 - `setStatus("pi-permission-system", "yolo")` as a `permissionStatus` event and settings `yoloMode` flag;
+
+The Plan/Agent add-on additionally implements `questionnaire` host dialogs in source (not accepted). See [`features/plan-agent`](../features/plan-agent/README.md).
 
 Editor/custom components, widgets, terminal input handlers, headers, footers, and TUI renderers are unsupported until a named baked feature requires a specific structured adapter. Record a clear compatibility diagnostic and throw a useful `Error`; do not emulate a terminal inside React or throw a plain record that becomes `[object Object]`.
 

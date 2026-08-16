@@ -17,6 +17,8 @@ export function hostDialogEnterResolution(
       return { confirmed: true };
     case "input":
       return null;
+    case "questionnaire":
+      return null;
     default: {
       const exhaustive: never = kind;
       return exhaustive;

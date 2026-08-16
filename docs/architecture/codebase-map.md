@@ -41,6 +41,7 @@ Electron main is the composition root and may import application/runtime package
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
 - `resources.ts` — baked feature diagnostics.
+- `plan-agent.ts` — ask-user questionnaire types/bounds for the Plan/Agent add-on (in source, not accepted).
 - `change-review.ts` — accepted V3 review/Approve/per-file Undo contracts.
 
 `index.ts` is the public package surface. Runtime validation accompanies types; TypeScript alone is not an IPC boundary.
@@ -72,6 +73,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `features.ts`, `resources.ts`, `resource-locator.ts` build the immutable manifest and resolve development vs packaged resources.
 - `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature.
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
+- `plan-agent-feature.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question` (Plan/Agent Milestone 0; in source, not accepted).
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
 
 `createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, and V3 change capture. Both stages are source-selected and immutable to the user.
@@ -132,7 +134,7 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 `packages/ui/src` is presentation plus pure interaction helpers:
 
 - shell/navigation: `app-shell.tsx`, `app-sidebar.tsx`, project/session menus, resize/toggle controls, welcome/empty/loading surfaces;
-- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components;
+- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card (Plan/Agent Milestone 0; in source, not accepted);
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
 - settings/accounts/skills/GitHub/archive/trust dialogs;
 - right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`;
@@ -144,7 +146,7 @@ UI imports React and protocol only. It renders remote/tool/model content as untr
 
 - Package tests live beside `packages/*/test` and cover reducers, validation, adapters, Pi integration, lifecycle, and recovery using owned temporary roots.
 - `apps/desktop/tests/unit` covers shell helpers and boundary invariants.
-- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, sessions, dialogs, settings, credentials, OAuth, permissions, project trust, V3 review, and shutdown.
+- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, sessions, dialogs, ask-user questionnaires, settings, credentials, OAuth, permissions, project trust, V3 review, and shutdown.
 - `apps/desktop/tests/packaged.spec.ts` verifies the unsigned macOS artifact with isolated data and no Pi CLI.
 - `eslint.config.js` enforces package dependency direction.
 

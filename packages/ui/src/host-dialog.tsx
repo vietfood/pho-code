@@ -4,6 +4,7 @@ import type { HostDialogRequest, ResolveHostDialogInput } from "@pho-code/protoc
 import { handleDialogTab } from "./lib/dialog-focus";
 import { hostDialogEnterResolution } from "./lib/host-dialog-keys";
 import { cn } from "./lib/cn";
+import { AskUserCard } from "./ask-user-card";
 import { presentPermissionMessage } from "./permission-prompt";
 
 // Compact composer-dock approval card. Visual density adapted from Beautiful UI
@@ -15,6 +16,19 @@ import { presentPermissionMessage } from "./permission-prompt";
 // Earlier T3 ComposerPendingApprovalPanel chrome (MIT) is retained as provenance.
 
 export function HostDialog({
+  request,
+  onResolve,
+}: {
+  request: HostDialogRequest;
+  onResolve: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
+}) {
+  if (request.kind === "questionnaire") {
+    return <AskUserCard request={request} onResolve={onResolve} />;
+  }
+  return <PermissionApprovalCard request={request} onResolve={onResolve} />;
+}
+
+function PermissionApprovalCard({
   request,
   onResolve,
 }: {
@@ -133,6 +147,8 @@ export function HostDialog({
               return;
             case "input":
               onResolve({ value: draft });
+              return;
+            case "questionnaire":
               return;
             default: {
               const exhaustive: never = request.kind;

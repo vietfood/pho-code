@@ -1,3 +1,5 @@
+import type { AskUserAnswer, AskUserQuestion } from "./plan-agent";
+
 export const FEATURE_TRUST_NOTICE =
   "Baked features run with this application's local permissions. Skills and later MCP features can cause tools or external actions to run. Renderer sandboxing does not sandbox feature code.";
 
@@ -24,7 +26,7 @@ export interface FeatureSnapshot {
   trustNotice: string;
 }
 
-export type HostDialogKind = "confirm" | "select" | "input";
+export type HostDialogKind = "confirm" | "select" | "input" | "questionnaire";
 
 export interface HostDialogRequest {
   requestId: string;
@@ -33,6 +35,7 @@ export interface HostDialogRequest {
   message?: string;
   options?: string[];
   placeholder?: string;
+  questions?: AskUserQuestion[];
   workspaceId?: string;
   sessionId?: string;
 }
@@ -51,6 +54,7 @@ export interface ResolveHostDialogInput {
   confirmed?: boolean;
   selected?: string;
   value?: string;
+  answers?: AskUserAnswer[];
 }
 
 export function emptyFeatureSnapshot(): FeatureSnapshot {

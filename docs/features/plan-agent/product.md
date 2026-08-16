@@ -4,7 +4,7 @@
 
 Owner-approved add-on product boundary, 2026-08-16. This is **not** v3, **not** the sandbox, **not** Cursor Ask mode, and **not** a numbered v4.
 
-Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Owner-approved plan; implementation not started** until Milestone 0 begins, then **In implementation** until that plan’s acceptance gate passes.
+Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation.** Milestone 0 ask-back is in source and not accepted. Plan/Agent toggle, todos, and the Plan document wait for later milestones.
 
 Earlier candidate research lives in [`research.md`](./research.md). This file is the product contract. The owner asked for the **end-to-end product**, not a toggle-only first slice.
 

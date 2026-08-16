@@ -88,6 +88,8 @@ export {
   readPermissionSettings,
 } from "./permission-settings";
 export { TEST_MODEL_ID, TEST_PROMPT, TEST_PROVIDER_ID, TEST_TOOL_NAME } from "./test-model";
+export { PLAN_AGENT_FEATURE_ID, PLAN_AGENT_FEATURE_VERSION, createPlanAgentFeature } from "./plan-agent-feature";
+export { ASK_USER_DECLINE_MESSAGE, ASK_USER_HOST_FAILURE_MESSAGE } from "./ask-user-question";
 export { CHANGE_CAPTURE_FEATURE_ID, CHANGE_CAPTURE_FEATURE_VERSION } from "./change-feature";
 export { hashBytes, hashUtf8 } from "./change-hash";
 export { createFileChangeLedgerStore } from "./change-ledger-store";

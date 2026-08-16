@@ -42,6 +42,7 @@ export const GUARDED_PERMISSION = {
     "*": "ask",
     ...PERMANENT_REMOVAL_BASH_RULES,
   },
+  ask_user_question: "allow",
 } as const;
 
 export const BALANCED_PERMISSION = {
@@ -66,6 +67,7 @@ export const BALANCED_PERMISSION = {
   skill: "ask",
   mcp: "ask",
   external_directory: "ask",
+  ask_user_question: "allow",
 } as const;
 
 /**
@@ -200,4 +202,5 @@ export const DEVELOPER_PERMISSION = {
     "git commit": "ask",
     "git commit *": "ask",
   },
+  ask_user_question: "allow",
 } as const;

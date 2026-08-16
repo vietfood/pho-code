@@ -78,6 +78,12 @@ export function toolWorkEntryIcon(name: string): WorkEntryIconName {
 }
 
 export function toolWorkEntryPreview(name: string, inputPreview: string, outputPreview: string): string | null {
+  if (normalizeToolName(name) === "ask user") {
+    const compactOutput = compactOneLine(outputPreview);
+    if (compactOutput) {
+      return compactOutput;
+    }
+  }
   const fromInput = extractPreviewFromPayload(name, inputPreview);
   if (fromInput) {
     return fromInput;

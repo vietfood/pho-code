@@ -22,6 +22,7 @@ export const TEST_PROMPT = {
   useCompoundDangerous: "USE_COMPOUND_DANGEROUS",
   useWrapper: "USE_WRAPPER",
   useTrash: "USE_TRASH",
+  useAskUser: "USE_ASK_USER",
   useWrite: "USE_WRITE",
   useEdit: "USE_EDIT",
   useWriteFail: "USE_WRITE_FAIL",
@@ -135,6 +136,39 @@ function buildTestResponse(context: Context) {
   if (prompt.includes(TEST_PROMPT.useWrapper)) {
     return fauxAssistantMessage(
       [fauxThinking("Hiding a command behind a wrapper."), fauxToolCall("bash", { command: "bash -c 'pwd'" }, { id: "call_wrapper" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useAskUser)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Asking the owner before guessing."),
+        fauxToolCall(
+          "ask_user_question",
+          {
+            questions: [
+              {
+                question: "Which approach should we use?",
+                header: "Approach",
+                options: [
+                  { label: "Rewrite", description: "Replace the module." },
+                  { label: "Patch", description: "Minimal surgical edits." },
+                  { label: "Defer", description: "Leave it for later." },
+                ],
+              },
+              {
+                question: "What should the commit message emphasize?",
+                header: "Commit",
+                options: [
+                  { label: "Fix", description: "Bugfix wording." },
+                  { label: "Refactor", description: "Structure-only wording." },
+                ],
+              },
+            ],
+          },
+          { id: "call_ask_user" },
+        ),
+      ],
       { stopReason: "toolUse" },
     );
   }

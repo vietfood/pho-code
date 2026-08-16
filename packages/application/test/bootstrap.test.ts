@@ -137,6 +137,29 @@ describe("application host dialogs", () => {
     await application.resolveHostDialog({ requestId: "dlg-1", selected: "Yes" });
     expect(forwarded).toEqual([{ requestId: "dlg-1", selected: "Yes" }]);
   });
+
+  test("forwards questionnaire answers without fabricating permission fields", async () => {
+    const forwarded: ResolveHostDialogInput[] = [];
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      resolveHostDialog(input) {
+        forwarded.push(input);
+        return Promise.resolve();
+      },
+    };
+    const application = createTestApplication(runtime);
+    const answers = [
+      {
+        questionIndex: 0,
+        question: "Which approach should we use?",
+        kind: "option" as const,
+        answer: "Patch",
+      },
+    ];
+
+    await application.resolveHostDialog({ requestId: "q-1", answers });
+    expect(forwarded).toEqual([{ requestId: "q-1", answers }]);
+  });
 });
 
 describe("application shutdown", () => {

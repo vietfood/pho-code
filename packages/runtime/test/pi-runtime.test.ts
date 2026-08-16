@@ -6,7 +6,9 @@ import { describe, expect, test } from "bun:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, PI_DOCS_SECTION_ID, toolSectionId, type RuntimeEvent } from "@pho-code/protocol";
 import {
+  ASK_USER_DECLINE_MESSAGE,
   PERMISSION_FEATURE_ID,
+  PLAN_AGENT_FEATURE_ID,
   TEST_PROMPT,
   TEST_TOOL_NAME,
   TRASH_FEATURE_ID,
@@ -637,6 +639,7 @@ describe("Pi harness runtime", () => {
       });
       expect(trusted.features.features.some((feature) => feature.id === PERMISSION_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === TRASH_FEATURE_ID)).toBe(true);
+      expect(trusted.features.features.some((feature) => feature.id === PLAN_AGENT_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === "harness-note")).toBe(false);
       const created = await runtime.createSession(trusted.workspace.id);
       const stop = runtime.subscribe((event) => {
@@ -1057,6 +1060,121 @@ describe("Pi harness runtime", () => {
       await reopened.dispose();
     }
   }, 30_000);
+
+  test("ask_user_question opens a questionnaire dialog and returns mixed answers", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      expect(trusted.features.features.some((feature) => feature.id === PLAN_AGENT_FEATURE_ID)).toBe(true);
+      const created = await runtime.createSession(trusted.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useAskUser,
+      });
+      const firstDialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      let questionnaire = firstDialog;
+      if ((firstDialog.payload as { kind?: string }).kind !== "questionnaire") {
+        await runtime.resolveHostDialog({
+          requestId: (firstDialog.payload as { requestId: string }).requestId,
+          selected: "Yes",
+        });
+        questionnaire = await waitForEvent(
+          events,
+          RUNTIME_EVENT_TYPES.extensionDialogRequest,
+          (event) => (event.payload as { kind?: string }).kind === "questionnaire",
+        );
+      }
+      const payload = questionnaire.payload as { requestId: string; questions?: Array<{ question: string }> };
+      expect(payload.questions).toHaveLength(2);
+      await runtime.resolveHostDialog({
+        requestId: payload.requestId,
+        answers: [
+          {
+            questionIndex: 0,
+            question: "Which approach should we use?",
+            kind: "option",
+            answer: "Patch",
+          },
+          {
+            questionIndex: 1,
+            question: "What should the commit message emphasize?",
+            kind: "custom",
+            answer: "Keep the permission boundary.",
+          },
+        ],
+      });
+      await prompt;
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      const after = await runtime.openSession(trusted.workspace.id, created.session.id);
+      const tool = after.messages
+        .flatMap((message) => message.blocks)
+        .find((block) => block.type === "tool" && block.name === "ask user");
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain("Patch");
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain("Keep the permission boundary.");
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").not.toContain(ASK_USER_DECLINE_MESSAGE);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 45_000);
+
+  test("ask_user_question cancel returns the decline envelope without host failure", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(trusted.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useAskUser,
+      });
+      const firstDialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      let questionnaire = firstDialog;
+      if ((firstDialog.payload as { kind?: string }).kind !== "questionnaire") {
+        await runtime.resolveHostDialog({
+          requestId: (firstDialog.payload as { requestId: string }).requestId,
+          selected: "Yes",
+        });
+        questionnaire = await waitForEvent(
+          events,
+          RUNTIME_EVENT_TYPES.extensionDialogRequest,
+          (event) => (event.payload as { kind?: string }).kind === "questionnaire",
+        );
+      }
+      await runtime.resolveHostDialog({
+        requestId: (questionnaire.payload as { requestId: string }).requestId,
+        cancelled: true,
+      });
+      await prompt;
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
+      const after = await runtime.openSession(trusted.workspace.id, created.session.id);
+      const tool = after.messages
+        .flatMap((message) => message.blocks)
+        .find((block) => block.type === "tool" && block.name === "ask user");
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain(ASK_USER_DECLINE_MESSAGE);
+      expect(tool && "outputPreview" in tool ? tool.outputPreview : "").not.toContain("never saw");
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 45_000);
 });
 
 async function waitForEvent(

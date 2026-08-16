@@ -36,7 +36,7 @@ A document may contain both current and planned sections. Each claim must make t
 | --- | --- | --- | --- |
 | Integrated terminal | In implementation; owner-approved 2026-08-16 | Owner-visible login shell in the selected workspace, ghostty-web in the right sidebar, PTY in Electron main | [`terminal/product.md`](./terminal/product.md), [`terminal/implementation-plan.md`](./terminal/implementation-plan.md) |
 | Compaction | Proposed; Pi-native automatic behavior exists today | Long conversations retain useful continuity, expose when context is summarized, and remain portable across supported providers | [`compaction.md`](./compaction.md) |
-| Plan / Agent and ask-user | Owner-approved 2026-08-16; implementation not started | Per-chat Plan vs Agent, juicesharp-style ask-back, session todos in both modes, Plan document on the right sidebar | [`plan-agent/product.md`](./plan-agent/product.md), [`plan-agent/implementation-plan.md`](./plan-agent/implementation-plan.md) |
+| Plan / Agent and ask-user | In implementation; owner-approved 2026-08-16. Milestone 0 ask-back is in source, not accepted | Per-chat Plan vs Agent, juicesharp-style ask-back, session todos in both modes, Plan document on the right sidebar | [`plan-agent/product.md`](./plan-agent/product.md), [`plan-agent/implementation-plan.md`](./plan-agent/implementation-plan.md) |
 | Agent-tool sandbox | Owner-approved 2026-08-16; implementation not started | OS-enforced agent `bash` plus matching in-process file-tool policy; Settings-owned network; no Phase F wait | [`sandbox/product.md`](./sandbox/product.md), [`sandbox/implementation-plan.md`](./sandbox/implementation-plan.md) |
 
 ## What does not belong here

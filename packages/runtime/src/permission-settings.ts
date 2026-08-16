@@ -98,21 +98,34 @@ export function detectPermissionProfile(permission: unknown): PermissionProfileI
     return "custom";
   }
   if (
-    permissionPoliciesEquivalent(permission, GUARDED_PERMISSION) ||
+    matchesManagedPermission(permission, GUARDED_PERMISSION) ||
     permissionPoliciesEquivalent(permission, LEGACY_V2_GUARDED_PERMISSION)
   ) {
     return "guarded";
   }
   if (
-    permissionPoliciesEquivalent(permission, BALANCED_PERMISSION) ||
+    matchesManagedPermission(permission, BALANCED_PERMISSION) ||
     permissionPoliciesEquivalent(permission, LEGACY_V2_BALANCED_PERMISSION)
   ) {
     return "balanced";
   }
-  if (permissionPoliciesEquivalent(permission, DEVELOPER_PERMISSION)) {
+  if (matchesManagedPermission(permission, DEVELOPER_PERMISSION)) {
     return "developer";
   }
   return "custom";
+}
+
+function matchesManagedPermission(permission: unknown, preset: unknown): boolean {
+  if (permissionPoliciesEquivalent(permission, preset)) {
+    return true;
+  }
+  if (!permission || typeof permission !== "object" || Array.isArray(permission)) {
+    return false;
+  }
+  if ("ask_user_question" in permission) {
+    return false;
+  }
+  return permissionPoliciesEquivalent({ ...(permission as Record<string, unknown>), ask_user_question: "allow" }, preset);
 }
 
 // Recognition-only snapshots preserve existing v2 files without rewriting their decisions.

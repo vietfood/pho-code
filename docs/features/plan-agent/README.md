@@ -9,4 +9,4 @@ Standalone add-on. Not v3. Not sandbox. Owner-approved product boundary 2026-08-
 | [`research.md`](./research.md) | Earlier candidate research; not the contract |
 | [`logs/`](./logs/README.md) | Dated implementation evidence, corrections, feedback, and handoffs |
 
-Status: **Owner-approved plan; implementation not started.** Milestone 0 is ask-back in the running app. Plan/Agent is Milestone 1. Todos are Milestone 2. Do not describe this add-on as accepted until `current-state.md` records the evidence.
+Status: **In implementation.** Milestone 0 ask-back is in source and not accepted. Plan/Agent is Milestone 1. Todos are Milestone 2. Do not describe this add-on as accepted until `current-state.md` records the evidence.

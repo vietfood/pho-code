@@ -9,6 +9,8 @@ import {
   createHarnessError,
   HARNESS_ERROR_CODES,
   RUNTIME_EVENT_TYPES,
+  type AskUserQuestion,
+  type AskUserQuestionnaireDetails,
   type HostDialogKind,
   type HostDialogRequest,
   type ExtensionNotification,
@@ -16,14 +18,17 @@ import {
   type ResolveHostDialogInput,
   type RuntimeEvent,
 } from "@pho-code/protocol";
+import { submittedAnswersMatchQuestions } from "./ask-user-question";
+import type { QuestionnaireHostUI } from "./ask-user-present";
 import { splitHostDialogPresentation } from "./host-dialog-presentation";
 import { displayToolNamesInText } from "./tool-display";
 
-type DialogResult = boolean | string | undefined;
+type DialogResult = boolean | string | AskUserQuestionnaireDetails | undefined;
 
 interface PendingDialog {
   kind: HostDialogKind;
   options?: readonly string[];
+  questions?: readonly AskUserQuestion[];
   resolve: (result: DialogResult) => void;
 }
 
@@ -151,7 +156,7 @@ export function createExtensionHost(input: {
     },
     cancelPending() {
       for (const [requestId, dialog] of pending) {
-        dialog.resolve(dialog.kind === "confirm" ? false : undefined);
+        dialog.resolve(cancelledDialogResult(dialog.kind));
         input.emit({
           type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
           payload: { requestId },
@@ -172,21 +177,37 @@ const INVALID_DIALOG_RESULT = Symbol("invalid-dialog-result");
 const PERMISSION_STATUS_KEY = "pi-permission-system";
 const PERMISSION_YOLO_STATUS = "yolo";
 
+function cancelledDialogResult(kind: HostDialogKind): DialogResult {
+  switch (kind) {
+    case "confirm":
+      return false;
+    case "questionnaire":
+      return { cancelled: true, answers: [] };
+    case "select":
+    case "input":
+      return undefined;
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
 function dialogResult(
   dialog: PendingDialog,
   resolution: ResolveHostDialogInput,
 ): DialogResult | typeof INVALID_DIALOG_RESULT {
   if (resolution.cancelled === true) {
-    return dialog.kind === "confirm" ? false : undefined;
+    return cancelledDialogResult(dialog.kind);
   }
   switch (dialog.kind) {
     case "confirm":
-      if (resolution.selected !== undefined || resolution.value !== undefined) {
+      if (resolution.selected !== undefined || resolution.value !== undefined || resolution.answers !== undefined) {
         return INVALID_DIALOG_RESULT;
       }
       return resolution.confirmed === true;
     case "select": {
-      if (resolution.confirmed !== undefined || resolution.value !== undefined) {
+      if (resolution.confirmed !== undefined || resolution.value !== undefined || resolution.answers !== undefined) {
         return INVALID_DIALOG_RESULT;
       }
       if (typeof resolution.selected !== "string" || !dialog.options?.includes(resolution.selected)) {
@@ -195,13 +216,25 @@ function dialogResult(
       return resolution.selected;
     }
     case "input":
-      if (resolution.confirmed !== undefined || resolution.selected !== undefined) {
+      if (resolution.confirmed !== undefined || resolution.selected !== undefined || resolution.answers !== undefined) {
         return INVALID_DIALOG_RESULT;
       }
       if (typeof resolution.value !== "string") {
         return INVALID_DIALOG_RESULT;
       }
       return resolution.value;
+    case "questionnaire": {
+      if (resolution.confirmed !== undefined || resolution.selected !== undefined || resolution.value !== undefined) {
+        return INVALID_DIALOG_RESULT;
+      }
+      if (!dialog.questions || !Array.isArray(resolution.answers)) {
+        return INVALID_DIALOG_RESULT;
+      }
+      if (!submittedAnswersMatchQuestions(dialog.questions, resolution.answers)) {
+        return INVALID_DIALOG_RESULT;
+      }
+      return { cancelled: false, answers: [...resolution.answers] };
+    }
     default: {
       const exhaustive: never = dialog.kind;
       return exhaustive;
@@ -216,7 +249,7 @@ function createUiContext(input: {
   pending: Map<string, PendingDialog>;
   setPermissionStatus: (active: boolean) => void;
   unsupported: (capability: string) => never;
-}): ExtensionUIContext {
+}): ExtensionUIContext & QuestionnaireHostUI {
   return {
     select: async (title, options, opts) => {
       const presentation = splitHostDialogPresentation(title);
@@ -277,6 +310,11 @@ function createUiContext(input: {
     setFooter: () => undefined,
     setHeader: () => undefined,
     setTitle: () => undefined,
+    questionnaire: (questions, opts) =>
+      requestQuestionnaire(input, {
+        questions,
+        ...(opts?.signal ? { signal: opts.signal } : {}),
+      }),
     custom: async () => input.unsupported("custom"),
     pasteToEditor: () => undefined,
     setEditorText: () => undefined,
@@ -372,6 +410,72 @@ function requestDialog<T extends DialogResult>(
       payload: request,
     });
   });
+}
+
+function requestQuestionnaire(
+  input: {
+    isBinding: () => boolean;
+    disposed: () => boolean;
+    emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
+    pending: Map<string, PendingDialog>;
+  },
+  options: {
+    questions: readonly AskUserQuestion[];
+    signal?: AbortSignal;
+  },
+): Promise<AskUserQuestionnaireDetails | undefined> {
+  const cancelledValue: AskUserQuestionnaireDetails = { cancelled: true, answers: [] };
+  if (input.disposed() || options.signal?.aborted) {
+    return Promise.resolve(cancelledValue);
+  }
+  if (input.isBinding()) {
+    return Promise.resolve(undefined);
+  }
+
+  const requestId = randomUUID();
+  const firstQuestion = options.questions[0]?.question ?? "The agent has a question";
+  const request: HostDialogRequest = {
+    requestId,
+    kind: "questionnaire",
+    title: firstQuestion,
+    questions: [...options.questions],
+  };
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      options.signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (result: DialogResult) => {
+      cleanup();
+      input.pending.delete(requestId);
+      input.emit({
+        type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
+        payload: { requestId },
+      });
+      resolve(asQuestionnaireResult(result));
+    };
+    const onAbort = () => finish(cancelledValue);
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    input.pending.set(requestId, {
+      kind: "questionnaire",
+      questions: [...options.questions],
+      resolve: (result) => {
+        cleanup();
+        resolve(asQuestionnaireResult(result));
+      },
+    });
+    input.emit({
+      type: RUNTIME_EVENT_TYPES.extensionDialogRequest,
+      payload: request,
+    });
+  });
+}
+
+function asQuestionnaireResult(result: DialogResult): AskUserQuestionnaireDetails | undefined {
+  if (result && typeof result === "object" && "cancelled" in result && Array.isArray(result.answers)) {
+    return result;
+  }
+  return undefined;
 }
 
 const extensionThemeStub = new Proxy(

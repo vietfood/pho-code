@@ -2,9 +2,7 @@
 
 ## Status
 
-**Superseded as the product contract** by [`product.md`](./product.md) and [`implementation-plan.md`](./implementation-plan.md) on 2026-08-16. Kept as candidate research. Do not implement from this note.
-
-Pho Code still has no Plan/Agent toggle, no structured ask-user tool, and no session todo surface in source.
+**Superseded as the product contract** by [`product.md`](./product.md) and [`implementation-plan.md`](./implementation-plan.md) on 2026-08-16. Kept as candidate research. Do not implement from this note. Milestone 0 ask-back later landed in source; this file is not current-state.
 
 Last evaluated: 2026-08-16 against:
 

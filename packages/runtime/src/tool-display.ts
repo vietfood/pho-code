@@ -6,6 +6,7 @@ const APP_TOOL_DISPLAY_NAMES = {
   fetch_content: "fetch",
   move_to_trash: "move to trash",
   read_skill: "read skill",
+  ask_user_question: "ask user",
 } as const satisfies Readonly<Record<string, string>>;
 
 export const APP_OWNED_TOOL_NAMES = Object.freeze(Object.keys(APP_TOOL_DISPLAY_NAMES));

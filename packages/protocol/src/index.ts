@@ -453,6 +453,37 @@ export type {
   ResourceDiagnosticType,
 } from "./resources";
 
+export {
+  ASK_USER_MAX_HEADER_CHARS,
+  ASK_USER_MAX_LABEL_CHARS,
+  ASK_USER_MAX_OPTIONS,
+  ASK_USER_MAX_QUESTIONS,
+  ASK_USER_MIN_OPTIONS,
+  ASK_USER_OPTION_LETTERS,
+  ASK_USER_QUESTION_TOOL_NAME,
+  ASK_USER_RESERVED_LABELS,
+  ASK_USER_TEXT_FIELD_MAX_BYTES,
+  askUserOptionLetter,
+  isAskUserAnswer,
+  isAskUserAnswerKind,
+  isAskUserErrorCode,
+  isAskUserOption,
+  isAskUserQuestion,
+  parseAskUserAnswers,
+  parseAskUserQuestions,
+  utf8ByteLength,
+} from "./plan-agent";
+export type {
+  AskUserAnswer,
+  AskUserAnswerKind,
+  AskUserErrorCode,
+  AskUserOption,
+  AskUserOptionLetter,
+  AskUserQuestion,
+  AskUserQuestionnaireDetails,
+  AskUserReservedLabel,
+} from "./plan-agent";
+
 export { isThinkingLevel, THINKING_LEVELS } from "./workspace";
 export type {
   ModelCostRatesSummary,

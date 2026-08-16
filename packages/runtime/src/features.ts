@@ -9,6 +9,7 @@ import type { LocalRetrievalRuntime } from "./local-retrieval";
 import { createWebFeature } from "./web-feature";
 import type { WebResearchRuntime } from "./web-client";
 import { createCuratedSkillsFeature, resolveCuratedSkillsRoot } from "./skills-feature";
+import { createPlanAgentFeature } from "./plan-agent-feature";
 
 export const PERMISSION_FEATURE_ID = "permission-system";
 export const PERMISSION_FEATURE_VERSION = "24.0.0";
@@ -128,6 +129,7 @@ export function createDefaultFeatureManifest(
     resolveCursorSdkFeature(locator).feature,
     createTrashFeature(options),
     createWebFeature(options.web),
+    createPlanAgentFeature(),
     createCuratedSkillsFeature(resolveCuratedSkillsRoot(options.resourcesRoot)),
   ];
   if (options.retrieval) {

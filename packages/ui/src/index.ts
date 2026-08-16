@@ -5,6 +5,7 @@ export { SidebarToggleButton } from "./sidebar-toggle-button";
 export { readSidebarCollapsed, writeSidebarCollapsed } from "./lib/sidebar-collapsed";
 export { compactPath, splitRelativePath } from "./lib/compact-path";
 export { HostDialog } from "./host-dialog";
+export { AskUserCard } from "./ask-user-card";
 export { Conversation } from "./conversation";
 export { ChatPaneLoading } from "./chat-pane-loading";
 export { Composer } from "./composer";

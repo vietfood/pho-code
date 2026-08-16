@@ -52,6 +52,36 @@ describe("inline host dialog", () => {
     expect(markup).not.toContain('data-testid="extension-dialog-raw-request"');
   });
 
+  test("questionnaire cards use question chrome instead of pending approval copy", () => {
+    const markup = renderToStaticMarkup(
+      createElement(HostDialog, {
+        request: {
+          requestId: "req-q",
+          kind: "questionnaire",
+          title: "Which approach should we use?",
+          questions: [
+            {
+              question: "Which approach should we use?",
+              header: "Approach",
+              options: [
+                { label: "Rewrite", description: "Replace the module." },
+                { label: "Patch", description: "Minimal surgical edits." },
+              ],
+            },
+          ],
+        },
+        onResolve: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-kind="questionnaire"');
+    expect(markup).toContain("Question");
+    expect(markup).toContain("A. ");
+    expect(markup).toContain("Patch");
+    expect(markup).toContain("Type something");
+    expect(markup).not.toContain("Pending approval");
+    expect(markup).not.toContain("Permission Required");
+  });
+
   test("confirm prompts keep Approve/Decline with a compact send control", () => {
     const markup = renderToStaticMarkup(
       createElement(HostDialog, {

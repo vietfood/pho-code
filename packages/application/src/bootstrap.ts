@@ -26,6 +26,7 @@ import {
   MAX_WORKSPACE_REFERENCES_PER_PROMPT,
   MAX_GITHUB_PAT_CHARS,
   nodeVersionMeetsMinimum,
+  parseAskUserAnswers,
   type AbortRunInput,
   type ArchiveSessionInput,
   type BootstrapState,
@@ -926,6 +927,15 @@ export function createApplicationService(input: {
     async resolveHostDialog(command: ResolveHostDialogInput) {
       assertActive();
       const requestId = requireNonEmptyString(command.requestId, "requestId", "resolveHostDialog");
+      const answers = command.answers !== undefined ? parseAskUserAnswers(command.answers) : undefined;
+      if (command.answers !== undefined && answers === null) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Questionnaire answers are invalid.",
+          operation: "resolveHostDialog",
+          recoverable: true,
+        });
+      }
       await input.runtime.resolveHostDialog({
         requestId,
         ...(typeof command.sessionId === "string" && command.sessionId.trim() !== ""
@@ -935,6 +945,7 @@ export function createApplicationService(input: {
         ...(command.confirmed === true ? { confirmed: true } : {}),
         ...(typeof command.selected === "string" ? { selected: command.selected } : {}),
         ...(typeof command.value === "string" ? { value: command.value } : {}),
+        ...(answers ? { answers } : {}),
       });
     },
     getSettings() {

@@ -14,6 +14,10 @@ describe("host dialog Enter resolution", () => {
     expect(hostDialogEnterResolution("input", "")).toBeNull();
   });
 
+  test("leaves questionnaire dialogs to the ask-user card", () => {
+    expect(hostDialogEnterResolution("questionnaire", "")).toBeNull();
+  });
+
   test("does not confirm an empty select", () => {
     expect(hostDialogEnterResolution("select", "")).toBeNull();
   });

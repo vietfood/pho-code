@@ -62,6 +62,7 @@ Prefer extending the existing focused spec for the affected journey:
 - `chat.spec.ts` — prompt, stream, settle, reopen;
 - `session-lifecycle.spec.ts` — background sessions, archive, restore, Trash;
 - `host-ui.spec.ts` / `permission.spec.ts` / `project-trust.spec.ts`;
+- `ask-user.spec.ts` — Plan/Agent Milestone 0 questionnaire card vs permission dock;
 - `settings.spec.ts` / `credentials.spec.ts` / `oauth.spec.ts`;
 - `change-review.spec.ts` — tracked changes, Approve, Undo, conflict, relaunch;
 - `shutdown.spec.ts` — bounded disposal;

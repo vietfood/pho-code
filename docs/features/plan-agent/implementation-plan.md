@@ -146,7 +146,7 @@ Bounds (validate twice):
 | options per question | 2–4 | reject |
 | header | 1–16 chars | reject |
 | option label | 1–60 chars | reject reserved labels |
-| preview / note / custom answer | 8 KiB each | truncate or reject — pick one in Milestone 0 and test it |
+| preview / note / custom answer | 8 KiB each | **reject** (`text_too_long`); do not truncate |
 | plan document | 256 KiB | reject above |
 | todos | 50 | reject above |
 | todo content | 200 chars | reject above |
