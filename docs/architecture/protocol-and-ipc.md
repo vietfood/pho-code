@@ -47,6 +47,8 @@ The authoritative command registry is `packages/protocol/src/version.ts`; method
 
 `apps/desktop/tests/unit/bridge-commands.test.ts` asserts that preload, main, and IPC stay aligned with the registry. Do not maintain a copied full interface in architecture prose.
 
+`resolveHostDialog` for `kind: "select"` may include `value` as an optional permission denial reason. The extension host applies that string to the permission package's follow-up `input()` without emitting a second dialog. A select without `value` still shows the follow-up input when the package asks for a reason.
+
 ## JSON-safe values
 
 Protocol values must survive JSON serialization. Reject:
@@ -115,6 +117,7 @@ Accepted additions are promoted here; active proposals remain with their owner:
 
 - change-review/Approve/per-file Undo are accepted named commands; their closed contract lives under [`../archive/v3/`](../archive/v3/README.md);
 - terminal commands and dedicated events are proposed under [`../features/terminal/`](../features/terminal/README.md) and do not exist in source;
-- `HostDialogKind` `"questionnaire"` and ask-user answer payloads are implemented in source for [`../features/plan-agent/`](../features/plan-agent/README.md) Milestone 0 and are not accepted.
+- `HostDialogKind` `"questionnaire"` and ask-user answer payloads are implemented in source for [`../features/plan-agent/`](../features/plan-agent/README.md) Milestone 0 and are not accepted;
+- `setSessionMode`, `updateSessionPlanDocument`, and `executeSessionPlan` plus snapshot `plan` (including `todos`) and Plan-only `execute_plan` are implemented in source for Plan/Agent Milestones 1–2 and are not accepted.
 
 Those plans must preserve named methods, JSON safety, bounded results, composite identity, and renderer non-authority.

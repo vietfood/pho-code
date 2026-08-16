@@ -4,6 +4,7 @@ import {
   createAskUserDrafts,
   draftsToAskUserAnswers,
   isAskUserDraftAnswered,
+  isAskUserTextEntryTarget,
   selectAskUserOption,
   setAskUserCustomText,
   shortcutOptionIndex,
@@ -37,6 +38,16 @@ describe("ask-user card state", () => {
     expect(shortcutOptionIndex("2", 3)).toBe(1);
     expect(shortcutOptionIndex("D", 3)).toBeNull();
     expect(shortcutOptionIndex("4", 4)).toBe(3);
+  });
+
+  test("does not treat typing in Type something as an A/B/C shortcut target", () => {
+    expect(isAskUserTextEntryTarget("INPUT", "text")).toBe(true);
+    expect(isAskUserTextEntryTarget("input", "search")).toBe(true);
+    expect(isAskUserTextEntryTarget("TEXTAREA")).toBe(true);
+    expect(isAskUserTextEntryTarget("INPUT", "radio")).toBe(false);
+    expect(isAskUserTextEntryTarget("INPUT", "checkbox")).toBe(false);
+    expect(isAskUserTextEntryTarget("BUTTON")).toBe(false);
+    expect(isAskUserTextEntryTarget("DIV", undefined, true)).toBe(true);
   });
 
   test("blocks submit until every question is answered and review is reached", () => {

@@ -18,6 +18,11 @@ import type {
   SteerRunInput,
 } from "./conversation";
 import type {
+  ExecuteSessionPlanInput,
+  SetSessionModeInput,
+  UpdateSessionPlanDocumentInput,
+} from "./plan-agent";
+import type {
   CancelProviderLoginInput,
   CredentialProviderSummary,
   ImportProviderApiKeyInput,
@@ -107,6 +112,9 @@ export interface DesktopBridge {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
+  executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;

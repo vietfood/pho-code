@@ -23,6 +23,8 @@ describe("inline host dialog", () => {
     expect(markup).toContain("Permission Required");
     expect(markup).toContain("Allow bash?");
     expect(markup).toContain("approval-radio");
+    expect(markup).toContain(">Yes<");
+    expect(markup).toContain(">No<");
     expect(markup).toContain('aria-label="Continue"');
     expect(markup).toContain('aria-label="Dismiss"');
     expect(markup).not.toContain("fixed inset-0");
@@ -44,9 +46,20 @@ describe("inline host dialog", () => {
         onResolve: () => undefined,
       }),
     );
-    expect(markup).toContain("The agent wants to fetch a file from GitHub.");
+    expect(markup).toContain("Fetch a file from GitHub");
     expect(markup).toContain("https://raw.githubusercontent.com/NVIDIA/cuEquivariance/SKILL.md");
     expect(markup).toContain("View request");
+    expect(markup).toContain("Allow once");
+    expect(markup).toContain("Allow for this session");
+    expect(markup).toContain("No, provide reason");
+    expect(markup).not.toContain("Pending approval");
+    expect(markup).not.toContain("Permission Required");
+    expect(markup).not.toContain("The agent wants");
+    expect(markup).not.toContain("approval-card-target-label");
+    expect(markup).not.toContain("approval-option-key");
+    expect(markup).not.toContain("approval-option-label\">Yes, allow");
+    expect(markup).not.toContain("approval-option-label\">No</span>");
+    expect(markup).not.toContain('data-testid="extension-dialog-reason"');
     expect(markup).toContain('data-testid="extension-dialog-view-request"');
     expect(markup).not.toContain("Current agent requested tool");
     expect(markup).not.toContain('data-testid="extension-dialog-raw-request"');

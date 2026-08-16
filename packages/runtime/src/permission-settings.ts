@@ -8,10 +8,22 @@ import {
   type PermissionSettings,
   type UpdatePermissionSettingsInput,
 } from "@pho-code/protocol";
-import { BALANCED_PERMISSION, DEVELOPER_PERMISSION, GUARDED_PERMISSION } from "./permission-presets";
+import {
+  BALANCED_PERMISSION,
+  DEVELOPER_PERMISSION,
+  GUARDED_PERMISSION,
+  HARNESS_ALWAYS_ALLOW_PERMISSION,
+  MANAGED_WEB_PERMISSION,
+} from "./permission-presets";
 
-export const PERMISSION_PRESET_VERSION = 3 as const;
-export { BALANCED_PERMISSION, DEVELOPER_PERMISSION, GUARDED_PERMISSION } from "./permission-presets";
+export const PERMISSION_PRESET_VERSION = 4 as const;
+export {
+  BALANCED_PERMISSION,
+  DEVELOPER_PERMISSION,
+  GUARDED_PERMISSION,
+  HARNESS_ALWAYS_ALLOW_PERMISSION,
+  MANAGED_WEB_PERMISSION,
+} from "./permission-presets";
 export const PERMISSION_CONFIG_RELATIVE_PATH = path.join(
   "extensions",
   "pi-permission-system",
@@ -93,6 +105,48 @@ export function applyPermissionSettingsPatch(input: {
   });
 }
 
+/** Write harness allow-list keys onto an existing permission file so the engine sees them. */
+export function syncHarnessPermissionPolicy(agentDir: string): void {
+  const filePath = globalPermissionConfigPath(agentDir);
+  if (!existsSync(filePath)) {
+    return;
+  }
+  let loaded: { config: Record<string, unknown> };
+  try {
+    loaded = loadPermissionConfigFile(filePath);
+  } catch {
+    return;
+  }
+  const existing = loaded.config.permission;
+  if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+    return;
+  }
+  const permission = existing as Record<string, unknown>;
+  const profile = detectPermissionProfile(permission);
+  const next = cloneJson(permission);
+  let changed = false;
+  for (const [name, action] of Object.entries(HARNESS_ALWAYS_ALLOW_PERMISSION)) {
+    if (next[name] !== action) {
+      delete next[name];
+      next[name] = action;
+      changed = true;
+    }
+  }
+  if (profile !== "custom") {
+    for (const [name, action] of Object.entries(MANAGED_WEB_PERMISSION)) {
+      if (next[name] !== action) {
+        delete next[name];
+        next[name] = action;
+        changed = true;
+      }
+    }
+  }
+  if (!changed) {
+    return;
+  }
+  atomicWriteJson(filePath, { ...loaded.config, permission: next });
+}
+
 export function detectPermissionProfile(permission: unknown): PermissionProfileId {
   if (permission === undefined) {
     return "custom";
@@ -116,16 +170,18 @@ export function detectPermissionProfile(permission: unknown): PermissionProfileI
 }
 
 function matchesManagedPermission(permission: unknown, preset: unknown): boolean {
-  if (permissionPoliciesEquivalent(permission, preset)) {
-    return true;
-  }
   if (!permission || typeof permission !== "object" || Array.isArray(permission)) {
-    return false;
+    return permissionPoliciesEquivalent(permission, preset);
   }
-  if ("ask_user_question" in permission) {
-    return false;
-  }
-  return permissionPoliciesEquivalent({ ...(permission as Record<string, unknown>), ask_user_question: "allow" }, preset);
+  return permissionPoliciesEquivalent(withManagedPermissionOverlays(permission as Record<string, unknown>), preset);
+}
+
+function withManagedPermissionOverlays(permission: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...permission,
+    ...HARNESS_ALWAYS_ALLOW_PERMISSION,
+    ...MANAGED_WEB_PERMISSION,
+  };
 }
 
 // Recognition-only snapshots preserve existing v2 files without rewriting their decisions.

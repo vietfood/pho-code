@@ -101,6 +101,10 @@ Start this phase only if measured risk or distribution goals justify it:
 - migrations, telemetry policy, public threat model, security-response process, and managed feature-update policy;
 - a Tauri proof of concept only if measured Electron costs justify the additional Node-sidecar boundary.
 
+**Window-first boot** (create the Electron window before `ModelRuntime.create`) is pulled forward into the urgent track [`urgent/window-first-pi-core`](../urgent/window-first-pi-core/README.md). It does not wait on notarization. The `utilityProcess` bullet may start from that same track; signing, Linux installers, and a public threat model stay in this phase.
+
+**Bounded Stop** of a stuck in-process run is pulled forward into [`urgent/agent-stop`](../urgent/agent-stop/README.md). It does not extract Pi and does not wait on this phase.
+
 Process separation is not called a sandbox unless its filesystem, network, credential, and child-process authority is actually constrained and tested.
 
 Wrapping agent `bash` children with `sandbox-exec` is a narrower job and is the owner-approved [`sandbox`](../features/sandbox/README.md) add-on. That plan does not wait on this phase: it does not extract the Pi Node process, sandbox extensions, or make a public-distribution claim. Do not implement both as one milestone.

@@ -34,9 +34,8 @@ test("baked permission feature prompts through select host UI", async () => {
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByTestId("extension-dialog")).toContainText("Permission Required");
       await expect(page.getByTestId("extension-dialog")).toContainText("harness_mark");
-      await page.getByRole("radio", { name: "Yes", exact: true }).check();
+      await page.getByRole("radio", { name: "Allow once", exact: true }).check();
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expandSettledWorkLog(page);

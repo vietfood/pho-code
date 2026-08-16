@@ -580,6 +580,44 @@ describe("Pi harness runtime", () => {
     }
   }, 30_000);
 
+  test("select denial reason skips the follow-up input dialog", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { testHostUi: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const trusted = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(trusted.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      const dialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      await runtime.resolveHostDialog({
+        requestId: (dialog.payload as { requestId: string }).requestId,
+        selected: "No, provide reason",
+        value: "not this time",
+      });
+      await prompt;
+      expect(
+        events.filter(
+          (event) =>
+            event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest &&
+            (event.payload as { kind?: string }).kind === "input",
+        ),
+      ).toHaveLength(0);
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
   test("unsupported host UI throws a useful Error instead of a stringified object", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     const runtime = await createPhoCodeRuntime({

@@ -7,11 +7,14 @@ import {
   BALANCED_PERMISSION,
   DEVELOPER_PERMISSION,
   GUARDED_PERMISSION,
+  HARNESS_ALWAYS_ALLOW_PERMISSION,
+  MANAGED_WEB_PERMISSION,
   applyPermissionSettingsPatch,
   detectPermissionProfile,
   patchPermissionConfig,
   permissionPolicyForProfile,
   readPermissionSettings,
+  syncHarnessPermissionPolicy,
   PERMISSION_PRESET_VERSION,
 } from "../src/permission-settings";
 
@@ -24,7 +27,7 @@ async function makeAgentDir() {
 
 describe("permission settings adapter", () => {
   test("keeps stable keys for the three v3 owner-facing modes", () => {
-    expect(PERMISSION_PRESET_VERSION).toBe(3);
+    expect(PERMISSION_PRESET_VERSION).toBe(4);
     expect(permissionPolicyForProfile("guarded")).toEqual(GUARDED_PERMISSION);
     expect(permissionPolicyForProfile("balanced")).toEqual(BALANCED_PERMISSION);
     expect(permissionPolicyForProfile("developer")).toEqual(DEVELOPER_PERMISSION);
@@ -33,6 +36,12 @@ describe("permission settings adapter", () => {
     expect(detectPermissionProfile(DEVELOPER_PERMISSION)).toBe("developer");
     expect(detectPermissionProfile({ "*": "allow" })).toBe("custom");
     expect(detectPermissionProfile(undefined)).toBe("custom");
+    for (const permission of [GUARDED_PERMISSION, BALANCED_PERMISSION, DEVELOPER_PERMISSION]) {
+      expect(permission).toMatchObject({
+        ...HARNESS_ALWAYS_ALLOW_PERMISSION,
+        ...MANAGED_WEB_PERMISSION,
+      });
+    }
   });
 
   test("treats string catch-alls as equivalent to a * map", () => {
@@ -133,6 +142,60 @@ describe("permission settings adapter", () => {
     expect(next.profile).toBe("developer");
     const written = JSON.parse(await readFile(configPath, "utf8")) as { permission: unknown };
     expect(detectPermissionProfile(written.permission)).toBe("developer");
+  });
+
+  test("still recognizes a v3 developer file after web_search/fetch_content flipped", () => {
+    const previousDeveloper = {
+      ...DEVELOPER_PERMISSION,
+      web_search: "ask",
+      fetch_content: "allow",
+    };
+    expect(detectPermissionProfile(previousDeveloper)).toBe("developer");
+  });
+
+  test("syncs ask_user_question onto an existing managed file so * ask cannot catch it", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    const stale = { ...BALANCED_PERMISSION } as Record<string, unknown>;
+    delete stale.ask_user_question;
+    delete stale.update_plan_document;
+    delete stale.todo;
+    delete stale.execute_plan;
+    delete stale.web_search;
+    delete stale.fetch_content;
+    await writeFile(configPath, `${JSON.stringify({ permission: stale }, null, 2)}\n`);
+    expect(readPermissionSettings({ agentDir }).profile).toBe("balanced");
+    const before = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
+    expect(before.permission.ask_user_question).toBeUndefined();
+    syncHarnessPermissionPolicy(agentDir);
+    const after = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
+    expect(after.permission.ask_user_question).toBe("allow");
+    expect(after.permission.update_plan_document).toBe("allow");
+    expect(after.permission.todo).toBe("allow");
+    expect(after.permission.execute_plan).toBe("allow");
+    expect(after.permission.web_search).toBe("allow");
+    expect(after.permission.fetch_content).toBe("ask");
+    expect(readPermissionSettings({ agentDir }).profile).toBe("balanced");
+  });
+
+  test("syncs harness allows onto Custom without changing web_search", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ permission: { "*": "ask", web_search: "ask" } }, null, 2)}\n`,
+    );
+    syncHarnessPermissionPolicy(agentDir);
+    const after = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
+    expect(after.permission.ask_user_question).toBe("allow");
+    expect(after.permission.todo).toBe("allow");
+    expect(after.permission.update_plan_document).toBe("allow");
+    expect(after.permission.execute_plan).toBe("allow");
+    expect(after.permission.web_search).toBe("ask");
+    expect(after.permission.fetch_content).toBeUndefined();
+    expect(readPermissionSettings({ agentDir }).profile).toBe("custom");
   });
 
   test("every v3 preset explicitly denies permanent removal", () => {

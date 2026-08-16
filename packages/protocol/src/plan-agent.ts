@@ -1,4 +1,176 @@
 export const ASK_USER_QUESTION_TOOL_NAME = "ask_user_question";
+export const UPDATE_PLAN_DOCUMENT_TOOL_NAME = "update_plan_document";
+export const TODO_TOOL_NAME = "todo";
+export const EXECUTE_PLAN_TOOL_NAME = "execute_plan";
+
+export const SESSION_AGENT_MODES = ["plan", "agent"] as const;
+export type SessionAgentMode = (typeof SESSION_AGENT_MODES)[number];
+
+export const PLAN_TODO_STATUSES = ["pending", "in_progress", "completed"] as const;
+export type PlanTodoStatus = (typeof PLAN_TODO_STATUSES)[number];
+
+export const PLAN_DOCUMENT_MAX_BYTES = 256 * 1024;
+export const PLAN_TODO_MAX_ITEMS = 50;
+export const PLAN_TODO_MAX_CONTENT_CHARS = 200;
+
+export interface PlanTodoItem {
+  id: string;
+  content: string;
+  status: PlanTodoStatus;
+}
+
+export interface SessionPlanSnapshot {
+  mode: SessionAgentMode;
+  executing: boolean;
+  documentMarkdown: string;
+  todos: PlanTodoItem[];
+  remainingCount: number;
+}
+
+export interface SetSessionModeInput {
+  sessionId: string;
+  workspaceId?: string;
+  mode: SessionAgentMode;
+}
+
+export interface UpdateSessionPlanDocumentInput {
+  sessionId: string;
+  workspaceId?: string;
+  documentMarkdown: string;
+}
+
+export interface ExecuteSessionPlanInput {
+  sessionId: string;
+  workspaceId?: string;
+}
+
+export function isSessionAgentMode(value: unknown): value is SessionAgentMode {
+  return value === "plan" || value === "agent";
+}
+
+export function isPlanTodoStatus(value: unknown): value is PlanTodoStatus {
+  switch (value) {
+    case "pending":
+    case "in_progress":
+    case "completed":
+      return true;
+    default:
+      return false;
+  }
+}
+
+export type PlanTodoErrorCode =
+  | "too_many_items"
+  | "content_too_long"
+  | "duplicate_id"
+  | "invalid_id"
+  | "invalid_content"
+  | "too_many_in_progress"
+  | "invalid_status"
+  | "invalid_list";
+
+export function isPlanTodoItem(value: unknown): value is PlanTodoItem {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string" && typeof record.content === "string" && isPlanTodoStatus(record.status);
+}
+
+export function remainingPlanTodoCount(todos: readonly PlanTodoItem[]): number {
+  let remaining = 0;
+  for (const item of todos) {
+    if (item.status === "pending" || item.status === "in_progress") {
+      remaining += 1;
+    }
+  }
+  return remaining;
+}
+
+export function completedPlanTodoCount(todos: readonly PlanTodoItem[]): number {
+  let completed = 0;
+  for (const item of todos) {
+    if (item.status === "completed") {
+      completed += 1;
+    }
+  }
+  return completed;
+}
+
+export function inProgressPlanTodo(todos: readonly PlanTodoItem[]): PlanTodoItem | undefined {
+  return todos.find((item) => item.status === "in_progress");
+}
+
+export function parsePlanTodoList(value: unknown):
+  | { ok: true; todos: PlanTodoItem[] }
+  | { ok: false; error: PlanTodoErrorCode; message: string } {
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "invalid_list", message: "todos must be an array. Use todos: [] to clear the list." };
+  }
+  if (value.length > PLAN_TODO_MAX_ITEMS) {
+    return {
+      ok: false,
+      error: "too_many_items",
+      message: `At most ${PLAN_TODO_MAX_ITEMS} todos are allowed.`,
+    };
+  }
+  const todos: PlanTodoItem[] = [];
+  const seenIds = new Set<string>();
+  let inProgress = 0;
+  for (const entry of value) {
+    if (!isPlanTodoItem(entry)) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry) && !isPlanTodoStatus((entry as { status?: unknown }).status)) {
+        return { ok: false, error: "invalid_status", message: 'Each todo status must be "pending", "in_progress", or "completed".' };
+      }
+      return {
+        ok: false,
+        error: "invalid_id",
+        message: "Each todo needs a string id, string content, and status.",
+      };
+    }
+    const id = entry.id.trim();
+    const content = entry.content.trim();
+    if (id.length === 0) {
+      return { ok: false, error: "invalid_id", message: "Each todo id must be a non-empty string." };
+    }
+    if (seenIds.has(id)) {
+      return { ok: false, error: "duplicate_id", message: `Duplicate todo id "${id}".` };
+    }
+    if (content.length === 0) {
+      return { ok: false, error: "invalid_content", message: "Each todo needs non-empty content." };
+    }
+    if (content.length > PLAN_TODO_MAX_CONTENT_CHARS) {
+      return {
+        ok: false,
+        error: "content_too_long",
+        message: `Todo content must be at most ${PLAN_TODO_MAX_CONTENT_CHARS} characters.`,
+      };
+    }
+    if (entry.status === "in_progress") {
+      inProgress += 1;
+      if (inProgress > 1) {
+        return { ok: false, error: "too_many_in_progress", message: "At most one todo can be in_progress." };
+      }
+    }
+    seenIds.add(id);
+    todos.push({ id, content, status: entry.status });
+  }
+  return { ok: true, todos };
+}
+
+export function emptySessionPlanSnapshot(): SessionPlanSnapshot {
+  return {
+    mode: "agent",
+    executing: false,
+    documentMarkdown: "",
+    todos: [],
+    remainingCount: 0,
+  };
+}
+
+export function planDocumentTooLarge(markdown: string): boolean {
+  return utf8ByteLength(markdown) > PLAN_DOCUMENT_MAX_BYTES;
+}
 
 export const ASK_USER_MAX_QUESTIONS = 4;
 export const ASK_USER_MIN_OPTIONS = 2;

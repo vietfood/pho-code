@@ -2,6 +2,7 @@ import type { ImageMimeType } from "./attachments";
 import type { ChangeReviewSetSummary } from "./change-review";
 import type { SessionContextPrompt } from "./context-prompt";
 import type { HarnessError } from "./errors";
+import type { SessionPlanSnapshot } from "./plan-agent";
 import type { FeatureSnapshot } from "./resources";
 import type { WorkspaceReferenceToken } from "./retrieval";
 import type { ModelSummary, SessionSummary, ThinkingLevel, WorkspaceSummary } from "./workspace";
@@ -153,6 +154,8 @@ export interface SessionSnapshot {
   usage?: SessionUsageSummary;
   queue?: SessionQueueState;
   contextPrompt?: SessionContextPrompt;
+  /** Plan/Agent add-on projection. Absent on snapshots from before the factory existed. */
+  plan?: SessionPlanSnapshot;
   /** Bounded per-run write/edit review summaries for this chat. Diff bodies are fetched on demand. */
   changeReviews?: ChangeReviewSetSummary[];
 }

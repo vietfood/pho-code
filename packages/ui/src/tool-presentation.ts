@@ -1,4 +1,5 @@
-import type { ToolStatus } from "@pho-code/protocol";
+import { parsePlanTodoList, type PlanTodoItem, type ToolStatus } from "@pho-code/protocol";
+import { sessionTodoChipLabel } from "./session-todo-list";
 
 export type WorkEntryIconName =
   | "terminal"
@@ -8,7 +9,8 @@ export type WorkEntryIconName =
   | "globe"
   | "folder"
   | "wrench"
-  | "bot";
+  | "bot"
+  | "list";
 
 export type ToolPayloadLanguage = "bash" | "json" | "text";
 
@@ -50,6 +52,9 @@ export function toolWorkEntryHeading(name: string, status: ToolStatus): string {
 
 export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   const key = normalizeToolName(name);
+  if (key === "execute" || key === "execute_plan") {
+    return "bot";
+  }
   if (key === "bash" || key === "shell" || key.includes("terminal") || key.includes("exec")) {
     return "terminal";
   }
@@ -74,10 +79,19 @@ export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   if (key.includes("ls") || key.includes("list") || key.includes("dir") || key.includes("trash")) {
     return "folder";
   }
+  if (key === "todo") {
+    return "list";
+  }
   return "wrench";
 }
 
 export function toolWorkEntryPreview(name: string, inputPreview: string, outputPreview: string): string | null {
+  if (normalizeToolName(name) === "todo") {
+    const todos = parseTodosFromInput(inputPreview);
+    if (todos) {
+      return sessionTodoChipLabel(todos);
+    }
+  }
   if (normalizeToolName(name) === "ask user") {
     const compactOutput = compactOneLine(outputPreview);
     if (compactOutput) {
@@ -177,6 +191,21 @@ function formatToolInput(
   const parsed = tryParseJson(trimmed);
   if (parsed && isPlainObject(parsed)) {
     const key = normalizeToolName(name);
+    if (key === "todo") {
+      const todos = parseTodosFromRecord(parsed);
+      if (todos) {
+        return {
+          label: "Todos",
+          language: "text",
+          text: todos
+            .map((item) => {
+              const mark = item.status === "completed" ? "x" : item.status === "in_progress" ? "/" : " ";
+              return `[${mark}] ${item.content}`;
+            })
+            .join("\n"),
+        };
+      }
+    }
     if (isShellTool(key)) {
       const command = firstString(parsed, ["command", "cmd"]);
       if (command) {
@@ -347,6 +376,19 @@ function tryParseJson(value: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+function parseTodosFromInput(inputPreview: string): PlanTodoItem[] | null {
+  const parsed = tryParseJson(inputPreview.trim());
+  if (!parsed || !isPlainObject(parsed)) {
+    return null;
+  }
+  return parseTodosFromRecord(parsed);
+}
+
+function parseTodosFromRecord(record: Record<string, unknown>): PlanTodoItem[] | null {
+  const parsed = parsePlanTodoList(record.todos);
+  return parsed.ok ? parsed.todos : null;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

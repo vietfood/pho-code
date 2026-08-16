@@ -2,16 +2,22 @@ import { describe, expect, test } from "bun:test";
 import {
   ASK_USER_RESERVED_LABELS,
   ASK_USER_TEXT_FIELD_MAX_BYTES,
+  PLAN_DOCUMENT_MAX_BYTES,
   askUserOptionLetter,
+  emptySessionPlanSnapshot,
   isAskUserAnswer,
   isAskUserQuestion,
+  isSessionAgentMode,
   jsonRoundTrip,
   parseAskUserAnswers,
   parseAskUserQuestions,
+  parsePlanTodoList,
+  planDocumentTooLarge,
   utf8ByteLength,
   type AskUserQuestion,
   type HostDialogRequest,
   type ResolveHostDialogInput,
+  type SessionPlanSnapshot,
 } from "../src/index";
 
 const sampleQuestions: AskUserQuestion[] = [
@@ -80,5 +86,39 @@ describe("ask-user protocol", () => {
     expect(askUserOptionLetter(0)).toBe("A");
     expect(askUserOptionLetter(3)).toBe("D");
     expect(askUserOptionLetter(4)).toBeNull();
+  });
+});
+
+describe("plan-agent session protocol", () => {
+  test("mode and snapshot stay JSON-safe with Agent as the default", () => {
+    expect(isSessionAgentMode("plan")).toBe(true);
+    expect(isSessionAgentMode("agent")).toBe(true);
+    expect(isSessionAgentMode("ask")).toBe(false);
+    const snapshot: SessionPlanSnapshot = emptySessionPlanSnapshot();
+    expect(snapshot.mode).toBe("agent");
+    expect(snapshot.executing).toBe(false);
+    expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
+  });
+
+  test("rejects plan documents over the 256 KiB bound", () => {
+    expect(planDocumentTooLarge("ok")).toBe(false);
+    expect(PLAN_DOCUMENT_MAX_BYTES).toBe(256 * 1024);
+    expect(planDocumentTooLarge("x".repeat(PLAN_DOCUMENT_MAX_BYTES + 1))).toBe(true);
+  });
+
+  test("rejects two in_progress todos and oversized content", () => {
+    expect(
+      parsePlanTodoList([
+        { id: "a", content: "One", status: "in_progress" },
+        { id: "b", content: "Two", status: "in_progress" },
+      ]).ok,
+    ).toBe(false);
+    expect(parsePlanTodoList([{ id: "a", content: "x".repeat(201), status: "pending" }]).ok).toBe(false);
+    expect(parsePlanTodoList([]).ok).toBe(true);
+    expect(parsePlanTodoList("nope")).toEqual({
+      ok: false,
+      error: "invalid_list",
+      message: "todos must be an array. Use todos: [] to clear the list.",
+    });
   });
 });

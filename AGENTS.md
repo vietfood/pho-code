@@ -8,7 +8,7 @@ This is the sole agent entry point. The root `README.md` is user-facing and is n
 
 Build a macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 and v2 are accepted and archived. The next product decision is whether to promote a bounded public-release phase; Pho Code is not yet publicly distributed or adversarially hardened.
 
-Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/ui/implementation/conversation-ui.md`. Add-on features live under `docs/features`. The current numbered product version lives under `docs/version`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
+Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/ui/implementation/conversation-ui.md`. Add-on features live under `docs/features`. Owner-priority defects, safety, and startup work live under `docs/urgent`. The current numbered product version lives under `docs/version`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 
 Read these files before nontrivial implementation:
 
@@ -23,7 +23,8 @@ Read these files before nontrivial implementation:
 9. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
 10. `docs/features/README.md` when adding or promoting an add-on capability; `docs/features/terminal/product.md` and `docs/features/terminal/implementation-plan.md` when changing the integrated terminal, PTY, ghostty-web, or the right-sidebar Terminal surface; `docs/features/plan-agent/product.md` and `docs/features/plan-agent/implementation-plan.md` when changing Plan/Agent, ask-user, or the Plan sidebar document
 11. `docs/archive/v3/product.md` and `docs/archive/v3/implementation-plan.md` when changing accepted change review, Approve, or Undo behavior
-12. the earlier record under `docs/archive/v1` only when changing a boundary it established
+12. `docs/urgent/README.md` when choosing what to do first; `docs/urgent/agent-stop/` when changing `abortRun`, composer Stop, or cancel of a live run; `docs/urgent/window-first-pi-core/` when changing app startup, window creation versus Pi boot, or extracting `HarnessRuntime` from Electron main
+13. the earlier record under `docs/archive/v1` only when changing a boundary it established
 
 Project workflows live under `.agents/skills/`:
 
@@ -163,15 +164,15 @@ Use the narrower package command during iteration, followed by the exit checks i
 
 ## Documentation rules
 
-- Docs layout is mapped in `docs/README.md`: `architecture/` (accepted boundaries), `archive/` (closed versions), `assets/capture/` (demo GIFs only), `features/` (standalone add-ons), `ui/` (conversation chrome, ideas, bug logs), `version/` (current numbered product version and later roadmap).
+- Docs layout is mapped in `docs/README.md`: `architecture/` (accepted boundaries), `archive/` (closed versions), `assets/capture/` (demo GIFs only), `features/` (standalone add-ons), `urgent/` (owner-priority defects, safety, and startup work to do first), `ui/` (conversation chrome, ideas, bug logs), `version/` (current numbered product version and later roadmap).
 - Active numbered versions and promoted add-ons own a local README, product contract, implementation plan, and `logs/` directory. Plans are read-mostly contracts; dated logs carry execution evidence, changes, mistakes, corrections, owner feedback, blockers, and handoffs.
 - Create one new log file per bounded slice, issue, or feedback thread. Do not make parallel agents append to one shared journal.
-- Before changing shared protocol, Electron adapters, accepted architecture, or right-sidebar host behavior, scan active `docs/version/*/logs/`, `docs/features/*/logs/`, and `docs/ui/logs/`. Cross-link related records instead of duplicating their contracts.
+- Before changing shared protocol, Electron adapters, accepted architecture, or right-sidebar host behavior, scan active `docs/version/*/logs/`, `docs/features/*/logs/`, `docs/urgent/*/logs/`, and `docs/ui/logs/`. Cross-link related records instead of duplicating their contracts.
 - `docs/ui/logs/` accepts UI changes, bugs, regressions, feedback, mistakes, and decisions. Product ownership still belongs to the linked version, feature, or UI implementation plan.
 - At acceptance, one integrator updates shared current-state/development/architecture summaries and writes an immutable review. Do not rewrite old logs or archives to hide earlier mistakes.
 - Commands in `README.md` and `docs/development.md` must match root scripts.
 - Mark future commands as contracts until implemented.
-- Architecture documents describe current accepted decisions; proposals belong in a `version/` or `features/` implementation plan.
+- Architecture documents describe current accepted decisions; proposals belong in a `version/` or `features/` implementation plan, or in `docs/urgent/` when the work is a defect/safety/startup prerequisite rather than an add-on or numbered version.
 - When a decision changes, update the decision status and every downstream document in the same change.
 - Use links to primary Pi, Electron, Tauri, and upstream repository documentation where API or security behavior matters.
 

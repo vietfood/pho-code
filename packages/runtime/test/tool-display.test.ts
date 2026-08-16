@@ -9,6 +9,10 @@ const EXPECTED = new Map([
   ["fetch_content", "fetch"],
   ["move_to_trash", "move to trash"],
   ["read_skill", "read skill"],
+  ["ask_user_question", "ask user"],
+  ["update_plan_document", "plan document"],
+  ["todo", "todo"],
+  ["execute_plan", "execute"],
 ]);
 
 describe("app-owned tool display names", () => {

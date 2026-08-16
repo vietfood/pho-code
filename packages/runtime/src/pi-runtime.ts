@@ -77,6 +77,9 @@ import {
   type SessionActivitySummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetSessionModeInput,
+  type UpdateSessionPlanDocumentInput,
+  type ExecuteSessionPlanInput,
   type StartProviderLoginInput,
   type SteerRunInput,
   type ThinkingLevel,
@@ -100,6 +103,11 @@ import {
   type UndoPreview,
   MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
   ASK_USER_QUESTION_TOOL_NAME,
+  UPDATE_PLAN_DOCUMENT_TOOL_NAME,
+  TODO_TOOL_NAME,
+  EXECUTE_PLAN_TOOL_NAME,
+  isSessionAgentMode,
+  planDocumentTooLarge,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -122,9 +130,14 @@ import type {
 import { validateSessionArtifact } from "./session-artifact";
 import { displayToolName } from "./tool-display";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
+import { reconstructPlanTodos } from "./todo-tool";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
-import { applyPermissionSettingsPatch, readPermissionSettings } from "./permission-settings";
+import {
+  applyPermissionSettingsPatch,
+  readPermissionSettings,
+  syncHarnessPermissionPolicy,
+} from "./permission-settings";
 import { importProviderApiKey as persistProviderApiKey, listProviderAccounts, listStoredApiKeyProviders, logoutProviderAccount } from "./credentials";
 import { assertNoCanaries, createProviderAuthFlow } from "./provider-auth-flow";
 import { createOsTrashRemovalService, type RecoverableRemovalService } from "./recoverable-removal";
@@ -149,6 +162,20 @@ import {
   type ToolPromptSource,
 } from "./context-prompt";
 import { CONTEXT_PROMPT_FEATURE_ID, createContextPromptFeature } from "./context-prompt-feature";
+import {
+  PLAN_AGENT_CUSTOM_TYPE,
+  PLAN_EXECUTE_CUSTOM_TYPE,
+  PLAN_EXECUTE_PROMPT,
+  beginPlanExecuteRecord,
+  collectPlanAgentRecord,
+  emptyPlanAgentRecord,
+  intersectPlanActiveTools,
+  planExecuteFinishedByTodos,
+  planExecuteRefusal,
+  planExecuteRefusalMessage,
+  projectSessionPlan,
+  type PlanAgentRecord,
+} from "./plan-agent-state";
 import { resolveCuratedSkillsRoot } from "./skills-feature";
 import { createGitHubMcpFeature } from "./github-mcp-feature";
 import { createGitHubMcpRuntime } from "./github-mcp-runtime";
@@ -251,6 +278,7 @@ export async function createPhoCodeRuntime(
     process.env.PI_CODING_AGENT_DIR = path.resolve(options.agentDir);
   }
   const agentDir = path.resolve(options.agentDir ?? getAgentDir());
+  syncHarnessPermissionPolicy(agentDir);
   const trustStore = new ProjectTrustStore(agentDir);
   const approvedProjectPaths = new Set<string>();
   const listeners = new Set<(event: RuntimeEvent) => void>();
@@ -878,6 +906,7 @@ export async function createPhoCodeRuntime(
       usage,
       queue: projectQueue(session),
       contextPrompt: projectContextPrompt(live),
+      plan: projectPlan(live),
       changeReviews: (await changeCapture.listSessionReviews(workspace.id, session.sessionId)).slice(
         -MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
       ),
@@ -1062,7 +1091,7 @@ export async function createPhoCodeRuntime(
     } finally {
       live.extensionHost.endBinding();
     }
-    applyContextPromptState(live);
+    applySessionToolPolicy(live);
   }
 
   async function handleAgentEvent(live: LiveSession, event: AgentSessionEvent): Promise<void> {
@@ -1145,6 +1174,25 @@ export async function createPhoCodeRuntime(
             outputPreview: previewToolResult(event.result),
           },
         });
+        if (event.toolName === TODO_TOOL_NAME) {
+          const record = readPlanAgent(live);
+          const todos = reconstructPlanTodos(live.runtime.session.sessionManager.getBranch());
+          if (planExecuteFinishedByTodos(record, todos)) {
+            persistPlanAgent(live, { executing: false });
+          }
+        }
+        if (
+          event.toolName === UPDATE_PLAN_DOCUMENT_TOOL_NAME ||
+          event.toolName === TODO_TOOL_NAME ||
+          event.toolName === EXECUTE_PLAN_TOOL_NAME
+        ) {
+          emitFor(live, {
+            type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+            sessionId,
+            runId,
+            payload: await buildSnapshot({ refreshCatalog: false, live }),
+          });
+        }
         return;
       case "queue_update": {
         emitFor(live, {
@@ -1174,6 +1222,11 @@ export async function createPhoCodeRuntime(
       });
     } catch (reconcileError) {
       console.error("Change-ledger reconciliation failed:", reconcileError);
+    }
+    const planRecord = readPlanAgent(live);
+    if (planRecord.executing) {
+      persistPlanAgent(live, { executing: false });
+      applySessionToolPolicy(live);
     }
     const failedMessage = live.runtime.session.agent.state.errorMessage;
     try {
@@ -1276,6 +1329,8 @@ export async function createPhoCodeRuntime(
                 "bash",
                 TRASH_TOOL_NAME,
                 ASK_USER_QUESTION_TOOL_NAME,
+                UPDATE_PLAN_DOCUMENT_TOOL_NAME,
+                TODO_TOOL_NAME,
                 "read",
                 "write",
                 "edit",
@@ -1325,16 +1380,134 @@ export async function createPhoCodeRuntime(
     });
   }
 
-  function applyContextPromptState(live: LiveSession): void {
+  function projectPlan(live: LiveSession) {
+    const sessionManager = live.runtime.session.sessionManager;
+    return projectSessionPlan(
+      collectPlanAgentRecord(sessionManager.getEntries()),
+      reconstructPlanTodos(sessionManager.getBranch()),
+    );
+  }
+
+  function readPlanAgent(live: LiveSession): PlanAgentRecord {
+    return collectPlanAgentRecord(live.runtime.session.sessionManager.getEntries()) ?? emptyPlanAgentRecord();
+  }
+
+  function persistPlanAgent(live: LiveSession, patch: Partial<PlanAgentRecord>): PlanAgentRecord {
+    const next: PlanAgentRecord = { ...readPlanAgent(live), ...patch };
+    live.runtime.session.sessionManager.appendCustomEntry(PLAN_AGENT_CUSTOM_TYPE, next);
+    return next;
+  }
+
+  function applySessionToolPolicy(live: LiveSession): void {
     const session = live.runtime.session;
     const keyId = sessionKeyId(live.key);
-    const record = collectContextPromptRecord(session.sessionManager.getEntries());
-    if (!record) {
+    const contextRecord = collectContextPromptRecord(session.sessionManager.getEntries());
+    if (contextRecord) {
+      compiledContextPromptByKey.set(keyId, contextRecord.compiled);
+    } else {
       compiledContextPromptByKey.delete(keyId);
-      return;
     }
-    compiledContextPromptByKey.set(keyId, record.compiled);
-    session.setActiveToolsByName(enabledToolNames(record.sections));
+    const planRecord = readPlanAgent(live);
+    session.setActiveToolsByName(
+      intersectPlanActiveTools({
+        registeredNames: session.getAllTools().map((tool) => tool.name),
+        contextEnabledNames: contextRecord ? enabledToolNames(contextRecord.sections) : undefined,
+        mode: planRecord.mode,
+        executing: planRecord.executing,
+      }),
+    );
+  }
+
+  function refuseIfBusy(live: LiveSession, operation: string, message: string): void {
+    if (live.activeRun && !live.activeRun.settled) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.sessionBusy,
+        message,
+        operation,
+        recoverable: true,
+      });
+    }
+  }
+
+  async function assertTurnAdmission(live: LiveSession, operation: string): Promise<void> {
+    registry.assertCanAdmitRun(operation);
+    const { models, modelError } = await listModels();
+    if (!live.runtime.session.model && models.length === 0) {
+      throw createHarnessError({
+        code: HARNESS_ERROR_CODES.noAuthenticatedModel,
+        message: modelError ?? "No authenticated model is available.",
+        operation,
+        recoverable: true,
+      });
+    }
+  }
+
+  function createActiveRun(live: LiveSession): ActiveRun {
+    const run: ActiveRun = {
+      runId: randomUUID(),
+      sessionId: live.runtime.session.sessionId,
+      promptDone: Promise.resolve(),
+      abortRequested: false,
+      settled: false,
+      startedAt: new Date().toISOString(),
+    };
+    live.activeRun = run;
+    return run;
+  }
+
+  function watchPromptDone(
+    live: LiveSession,
+    run: ActiveRun,
+    promptDone: Promise<unknown>,
+    ignoreError?: () => boolean,
+  ): void {
+    run.promptDone = promptDone.then(() => undefined);
+    void promptDone.then(
+      () => finishRun(live, run),
+      (error: unknown) => {
+        if (ignoreError?.()) {
+          return;
+        }
+        if (run.abortRequested) {
+          return finishRun(live, run);
+        }
+        return finishRun(live, run, error);
+      },
+    );
+  }
+
+  async function publishSnapshot(live: LiveSession): Promise<SessionSnapshot> {
+    const snapshot = await buildSnapshot({ refreshCatalog: false, live });
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      sessionId: snapshot.session.id,
+      payload: snapshot,
+    });
+    return snapshot;
+  }
+
+  async function publishAdmittedRun(live: LiveSession, run: ActiveRun): Promise<SessionSnapshot> {
+    const sessionId = live.runtime.session.sessionId;
+    const snapshot = await buildSnapshot({ live });
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      sessionId,
+      runId: run.runId,
+      payload: snapshot,
+    });
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.runAdmitted,
+      sessionId,
+      runId: run.runId,
+      payload: {
+        sessionId,
+        workspaceId: live.key.workspaceId,
+        runId: run.runId,
+        admitted: true,
+      },
+    });
+    emitActivity();
+    return snapshot;
   }
 
   const runtime: HarnessRuntime = {
@@ -1507,26 +1680,10 @@ export async function createPhoCodeRuntime(
     async sendPrompt(input: SendPromptInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "sendPrompt");
-      if (live.activeRun && !live.activeRun.settled) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "The session is already running a prompt.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
-      }
+      refuseIfBusy(live, "sendPrompt", "The session is already running a prompt.");
       await refreshGitHubBinding(live);
       const session = live.runtime.session;
-      registry.assertCanAdmitRun("sendPrompt");
-      const { models, modelError } = await listModels();
-      if (!session.model && models.length === 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.noAuthenticatedModel,
-          message: modelError ?? "No authenticated model is available.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
-      }
+      await assertTurnAdmission(live, "sendPrompt");
 
       const promptText = await resolvePromptText(input, "sendPrompt", live);
       const images = takePreparedImages(live, input.imageIds, "sendPrompt");
@@ -1547,22 +1704,13 @@ export async function createPhoCodeRuntime(
         });
       }
 
-      const runId = randomUUID();
+      const run = createActiveRun(live);
+      const runId = run.runId;
       let admitted = false;
       let resolvePreflight: (value: boolean) => void = () => undefined;
       const preflight = new Promise<boolean>((resolve) => {
         resolvePreflight = resolve;
       });
-
-      const run: ActiveRun = {
-        runId,
-        sessionId: session.sessionId,
-        promptDone: Promise.resolve(),
-        abortRequested: false,
-        settled: false,
-        startedAt: new Date().toISOString(),
-      };
-      live.activeRun = run;
 
       const promptDone = retrieval.runWithWorkspace(live.workspace.path, () =>
         session.prompt(promptText, {
@@ -1580,20 +1728,7 @@ export async function createPhoCodeRuntime(
           },
         }),
       );
-      run.promptDone = promptDone;
-
-      void promptDone.then(
-        () => finishRun(live, run),
-        (error: unknown) => {
-          if (run.settled && !admitted) {
-            return;
-          }
-          if (run.abortRequested) {
-            return finishRun(live, run);
-          }
-          return finishRun(live, run, error);
-        },
-      );
+      watchPromptDone(live, run, promptDone, () => run.settled && !admitted);
 
       admitted = await preflight;
       if (!admitted) {
@@ -1614,19 +1749,7 @@ export async function createPhoCodeRuntime(
         runId,
         admitted: true,
       };
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: session.sessionId,
-        runId,
-        payload: await buildSnapshot({ live }),
-      });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.runAdmitted,
-        sessionId: session.sessionId,
-        runId,
-        payload: admission,
-      });
-      emitActivity();
+      await publishAdmittedRun(live, run);
       return admission;
     },
     async steerRun(input: SteerRunInput) {
@@ -1738,13 +1861,102 @@ export async function createPhoCodeRuntime(
         });
       }
       session.setThinkingLevel(input.level);
-      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      return snapshot;
+      return publishSnapshot(live);
+    },
+    async setSessionMode(input: SetSessionModeInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "setSessionMode");
+      refuseIfBusy(live, "setSessionMode", "Wait for the current run to finish before changing Plan or Agent.");
+      if (!isSessionAgentMode(input.mode)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Unknown session mode.",
+          operation: "setSessionMode",
+          recoverable: true,
+        });
+      }
+      persistPlanAgent(live, { mode: input.mode, executing: false });
+      applySessionToolPolicy(live);
+      return publishSnapshot(live);
+    },
+    async updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "updateSessionPlanDocument");
+      refuseIfBusy(
+        live,
+        "updateSessionPlanDocument",
+        "Wait for the current run to finish before editing the Plan document.",
+      );
+      const current = readPlanAgent(live);
+      if (current.executing) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The Plan document is inspect-only while Execute is running.",
+          operation: "updateSessionPlanDocument",
+          recoverable: true,
+        });
+      }
+      if (typeof input.documentMarkdown !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Plan document markdown is required.",
+          operation: "updateSessionPlanDocument",
+          recoverable: true,
+        });
+      }
+      if (planDocumentTooLarge(input.documentMarkdown)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The Plan document is too large.",
+          operation: "updateSessionPlanDocument",
+          recoverable: true,
+        });
+      }
+      persistPlanAgent(live, { documentMarkdown: input.documentMarkdown });
+      return publishSnapshot(live);
+    },
+    async executeSessionPlan(input: ExecuteSessionPlanInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "executeSessionPlan");
+      refuseIfBusy(live, "executeSessionPlan", "Wait for the current run to finish before executing the plan.");
+      const current = readPlanAgent(live);
+      const refusal = planExecuteRefusal(current);
+      if (refusal) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: planExecuteRefusalMessage(refusal),
+          operation: "executeSessionPlan",
+          recoverable: true,
+        });
+      }
+      await assertTurnAdmission(live, "executeSessionPlan");
+      persistPlanAgent(live, beginPlanExecuteRecord(current));
+      applySessionToolPolicy(live);
+
+      const session = live.runtime.session;
+      let run: ActiveRun;
+      try {
+        run = createActiveRun(live);
+        watchPromptDone(
+          live,
+          run,
+          retrieval.runWithWorkspace(live.workspace.path, () =>
+            session.sendCustomMessage(
+              {
+                customType: PLAN_EXECUTE_CUSTOM_TYPE,
+                content: PLAN_EXECUTE_PROMPT,
+                display: false,
+              },
+              { triggerTurn: true },
+            ),
+          ),
+        );
+      } catch (error) {
+        persistPlanAgent(live, { mode: current.mode, executing: false });
+        applySessionToolPolicy(live);
+        throw error;
+      }
+      return publishAdmittedRun(live, run);
     },
     async rewriteAssistantOutput(input: RewriteAssistantOutputInput) {
       assertNotDisposed();
@@ -1825,7 +2037,7 @@ export async function createPhoCodeRuntime(
       if (input.reset === true) {
         session.sessionManager.appendCustomEntry(CONTEXT_PROMPT_CUSTOM_TYPE, { reset: true });
         compiledContextPromptByKey.delete(sessionKeyId(live.key));
-        session.setActiveToolsByName(session.getAllTools().map((tool) => tool.name));
+        applySessionToolPolicy(live);
       } else {
         const preamble = typeof input.preamble === "string" ? input.preamble : "";
         if (preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
@@ -1868,7 +2080,7 @@ export async function createPhoCodeRuntime(
           sections,
         });
         compiledContextPromptByKey.set(sessionKeyId(live.key), compiled);
-        session.setActiveToolsByName(enabledToolNames(sections));
+        applySessionToolPolicy(live);
       }
       const snapshot = await buildSnapshot({ refreshCatalog: false, live });
       emitFor(live, {

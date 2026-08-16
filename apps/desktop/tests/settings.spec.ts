@@ -100,8 +100,8 @@ test("settings persist palette mode glass and apply a managed permission profile
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByTestId("extension-dialog")).toContainText("Permission Required");
-      await page.getByRole("radio", { name: "Yes", exact: true }).check();
+      await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
+      await page.getByRole("radio", { name: "Allow once", exact: true }).check();
       await page.getByTestId("extension-dialog-confirm").click();
       await expandSettledWorkLog(page);
       await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");

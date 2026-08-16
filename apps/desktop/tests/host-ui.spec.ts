@@ -35,7 +35,7 @@ test("shows a new session immediately and completes a select host dialog", async
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
       await expect(page.getByTestId("extension-dialog")).toContainText("Allow harness_mark?");
-      await page.getByRole("radio", { name: "Yes", exact: true }).check();
+      await page.getByRole("radio", { name: "Allow once", exact: true }).check();
       await page.getByTestId("extension-dialog-confirm").click();
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expect(page.getByTestId("empty-session")).toHaveCount(0);

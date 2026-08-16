@@ -53,6 +53,7 @@ export interface ResolveHostDialogInput {
   cancelled?: boolean;
   confirmed?: boolean;
   selected?: string;
+  /** Input text, or an optional permission denial reason sent with `selected`. */
   value?: string;
   answers?: AskUserAnswer[];
 }

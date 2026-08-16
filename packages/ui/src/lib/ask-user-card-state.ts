@@ -36,6 +36,33 @@ export function shortcutOptionIndex(key: string, optionCount: number): number | 
   return null;
 }
 
+/** Letter/digit option shortcuts must not fire while the owner is typing a custom answer. */
+export function isAskUserTextEntryTarget(tagName: string, inputType?: string, contentEditable?: boolean): boolean {
+  if (contentEditable === true) {
+    return true;
+  }
+  const tag = tagName.toLowerCase();
+  if (tag === "textarea" || tag === "select") {
+    return true;
+  }
+  if (tag !== "input") {
+    return false;
+  }
+  const type = (inputType ?? "text").toLowerCase();
+  switch (type) {
+    case "checkbox":
+    case "radio":
+    case "button":
+    case "submit":
+    case "reset":
+    case "file":
+    case "hidden":
+      return false;
+    default:
+      return true;
+  }
+}
+
 export function isAskUserDraftAnswered(question: AskUserQuestion, draft: AskUserDraft): boolean {
   if (draft.customText.trim().length > 0) {
     return true;

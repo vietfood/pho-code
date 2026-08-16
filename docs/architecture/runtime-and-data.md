@@ -53,7 +53,7 @@ When Pi replaces the active session inside one controller:
 4. publish an authoritative snapshot;
 5. dispose resources whose ownership ended.
 
-Application shutdown stops admission, aborts or settles active work according to policy, disposes all controllers, then shared services, under one bounded deadline.
+Application shutdown stops admission, aborts or settles active work according to policy, disposes all controllers, then shared services, under one bounded deadline. Proposed bounded `abortRun` (Stop that does not wait forever on Pi idle) lives under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md) until accepted.
 
 ## Sources of truth
 

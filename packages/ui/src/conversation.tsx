@@ -9,6 +9,7 @@ import type {
   SessionSnapshot,
   SkillSettingsSnapshot,
   ThinkingLevel,
+  SessionAgentMode,
 } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
 import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
@@ -34,6 +35,7 @@ export function Conversation({
   onStop,
   onModelChange,
   onThinkingChange,
+  onSessionModeChange,
   dialog,
   onResolveDialog,
   yoloMode,
@@ -61,6 +63,7 @@ export function Conversation({
   onStop: () => void;
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
+  onSessionModeChange?: (mode: SessionAgentMode) => void;
   dialog?: HostDialogRequest | null;
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
   yoloMode?: boolean;
@@ -124,6 +127,9 @@ export function Conversation({
       selectorsDisabled={running}
       onModelChange={requestModelChange}
       onThinkingChange={onThinkingChange}
+      sessionMode={snapshot.plan?.mode ?? "agent"}
+      sessionTodos={snapshot.plan?.todos ?? []}
+      {...(onSessionModeChange ? { onSessionModeChange } : {})}
       variant={empty ? "hero" : "docked"}
       {...(empty ? {} : { metaHint: snapshot.workspace.displayName })}
       {...(snapshot.model ? { selectedModel: snapshot.model } : {})}

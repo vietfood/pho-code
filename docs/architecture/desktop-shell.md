@@ -134,6 +134,8 @@ Do not expose Electron objects or rely on Structured Clone-only values; doing so
 
 ## When to revisit
 
+Startup and crash isolation of in-process Pi are **not** a shell change. They are proposed under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md): show the window before `ModelRuntime.create`, then optionally extract `HarnessRuntime` into `utilityProcess`. Bounded Stop of a stuck run is a separate urgent track under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md); it does not extract Pi. Those tracks must not be described as current architecture until accepted.
+
 Reconsider Tauri only after the first usable Electron build and when at least one of these is measured:
 
 - Electron bundle size prevents the intended distribution;

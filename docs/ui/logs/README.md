@@ -23,4 +23,4 @@ Every record states:
 
 Link the owning contract: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md), a feature plan, or a numbered-version plan/archive. A Terminal-panel defect can live here while remaining owned by `features/terminal`; an Approve/Undo defect can live here while referring to the accepted `archive/v3` contract.
 
-When changing the shared right-sidebar host, scan active logs under `../../version/*/logs/` and `../../features/*/logs/` and add reciprocal links.
+When changing the shared right-sidebar host, scan active logs under `../../version/*/logs/`, `../../features/*/logs/`, and `../../urgent/*/logs/` and add reciprocal links.

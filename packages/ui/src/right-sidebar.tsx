@@ -2,7 +2,7 @@
 // RightPanelTabs (MIT, T3 Tools Inc., 6bc6cb6). Globe, terminal, files, and
 // extra launcher surfaces are omitted; Context prompt is a Pho Code surface.
 import { useEffect, type ReactNode } from "react";
-import { BookOpenIcon, FileDiffIcon } from "lucide-react";
+import { BookOpenIcon, FileDiffIcon, ScrollTextIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import {
   clampReviewSidebarWidth,
@@ -17,7 +17,7 @@ import {
 import { Button } from "./ui/button";
 import { SidebarResizeHandle, useSidebarResize } from "./sidebar-resize-handle";
 
-export type RightSidebarSurface = "changes" | "context-prompt";
+export type RightSidebarSurface = "changes" | "context-prompt" | "plan";
 
 export type RightSidebarSurfaceAction = "collapse" | "select";
 
@@ -43,6 +43,7 @@ export function RightSidebar({
   collapsed,
   surface,
   contextPromptCustomized = false,
+  planDocumentPresent = false,
   onToggleCollapsed,
   onSelectSurface,
   children,
@@ -50,6 +51,7 @@ export function RightSidebar({
   collapsed: boolean;
   surface: RightSidebarSurface;
   contextPromptCustomized?: boolean;
+  planDocumentPresent?: boolean;
   onToggleCollapsed: () => void;
   onSelectSurface: (surface: RightSidebarSurface) => void;
   children?: ReactNode;
@@ -86,6 +88,7 @@ export function RightSidebar({
       collapsed={collapsed}
       surface={surface}
       contextPromptCustomized={contextPromptCustomized}
+      planDocumentPresent={planDocumentPresent}
       onToggleCollapsed={onToggleCollapsed}
       onSelectSurface={onSelectSurface}
     />
@@ -132,12 +135,14 @@ function RightSidebarIcons({
   collapsed,
   surface,
   contextPromptCustomized,
+  planDocumentPresent,
   onToggleCollapsed,
   onSelectSurface,
 }: {
   collapsed: boolean;
   surface: RightSidebarSurface;
   contextPromptCustomized: boolean;
+  planDocumentPresent: boolean;
   onToggleCollapsed: () => void;
   onSelectSurface: (surface: RightSidebarSurface) => void;
 }) {
@@ -195,6 +200,29 @@ function RightSidebarIcons({
           <span
             className="absolute end-0.5 top-0.5 size-1.5 rounded-full bg-primary"
             data-testid="right-sidebar-context-custom"
+          />
+        ) : null}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Plan"
+        aria-pressed={!collapsed && surface === "plan"}
+        data-testid="right-sidebar-surface-plan"
+        data-document={planDocumentPresent ? "true" : "false"}
+        className={cn(
+          "no-drag size-6",
+          !collapsed && surface === "plan"
+            ? "bg-accent text-foreground"
+            : "text-sidebar-muted-foreground hover:text-sidebar-foreground",
+        )}
+        onClick={() => activate("plan")}
+      >
+        <ScrollTextIcon className="size-3.5" aria-hidden="true" />
+        {planDocumentPresent ? (
+          <span
+            className="absolute end-0.5 top-0.5 size-1.5 rounded-full bg-primary"
+            data-testid="right-sidebar-plan-document"
           />
         ) : null}
       </Button>

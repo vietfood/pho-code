@@ -4,13 +4,13 @@
 
 Owner-approved add-on product boundary, 2026-08-16. This is **not** v3, **not** the sandbox, **not** Cursor Ask mode, and **not** a numbered v4.
 
-Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation.** Milestone 0 ask-back is in source and not accepted. Plan/Agent toggle, todos, and the Plan document wait for later milestones.
+Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation.** Milestone 0 ask-back, Milestone 1 Plan/Agent, and Milestone 2 session todos are in source and not accepted. Packaged honesty waits for Milestone 3.
 
 Earlier candidate research lives in [`research.md`](./research.md). This file is the product contract. The owner asked for the **end-to-end product**, not a toggle-only first slice.
 
 ## Outcome
 
-The owner can choose, per chat, whether the agent is **planning** or **acting**. While it works, the model can **ask back** with structured choices — pick A, B, C (or D), or type an answer — instead of guessing. A Plan is a **document** the owner can read and edit, then Execute, Stay, or Refine.
+The owner can choose, per chat, whether the agent is **planning** or **acting**. While it works, the model can **ask back** with structured choices — pick A, B, C (or D), or type an answer — instead of guessing. A Plan is a **document** the owner can read, edit, comment on, and Execute.
 
 The conversation stays primary. This is mode + structured interruption + a plan document, not a second agent loop, not a TUI overlay, and not a sandbox.
 
@@ -76,7 +76,7 @@ Material adaptation of juicesharp schema, validation, envelope, and guidelines r
 | --- | --- |
 | Packaging | **One add-on**, one Pho-owned inline factory. Do not bake juicesharp or `pi-plan-mode`. |
 | Modes | **Agent** (default) and **Plan**. Execute is a transient Agent run of the current plan. No third Cursor Ask mode. |
-| Control | Composer footer **Plan / Agent** toggle, session-scoped, like thinking level. Not slash-only. |
+| Control | Composer footer **Plan / Agent** chip (icon + label, hover description). Session-scoped. Not slash-only. Not buried in a + menu. |
 | Ask-back | Tool `ask_user_question` in **both** modes. Plan prompt tells the model to use it when requirements are ambiguous. |
 | Ask-back UX | Dedicated questionnaire card: numbered **A/B/C/(D)** (or 1–4) with descriptions; always **Type something**; multi-select; 1–4 questions with tabs + Submit; optional preview. Claude/juicesharp, not permission copy. |
 | Ask-back fallback | If the card cannot render, walk `select`/`input` like juicesharp’s RPC path. Host failure is **not** a user decline. |
@@ -85,7 +85,7 @@ Material adaptation of juicesharp schema, validation, envelope, and guidelines r
 | YOLO | Does **not** restore write tools in Plan. |
 | Context prompt | **Intersect.** Plan must not re-enable a tool the owner turned off. |
 | Plan artifact | Right-sidebar **Plan** surface: sanitized markdown/mermaid document + todos. Not transcript regex alone. Not model-generated React. |
-| Execute | Explicit owner action: Execute / Stay / Refine on the Plan surface. Not every `agent_end`. Refine is a follow-up message. |
+| Execute | Explicit owner action: **Execute** on the Plan surface, **or** the model calling `execute_plan` after the owner asks in chat (go ahead / implement this). Not every `agent_end`. Switching the composer chip Plan → Agent does not start work. Injected execute context is hidden from the transcript. A comment box on the Plan surface sends a follow-up. Remaining in Plan needs no Stay button. |
 | Todos | **Same add-on, both modes** — not a second feature and not Plan-only. One `todo` tool (Cursor `TodoWrite` / Pi `todo.ts`). One session list. Plan document and Execute read that list; Agent shows it without opening Plan. |
 | Host UI | Never `ctx.ui.custom`. New `HostDialogKind` (or equivalent JSON-safe questionnaire request). One dialog at a time with permissions. |
 | Default | Agent. No Settings flag required to “enable the feature”; the baked factory is always loaded. |
@@ -113,8 +113,8 @@ This add-on will not:
 3. **Plan is a tool-set policy, not a sandbox.** Copy must say writes are off and shell is not boxed.
 4. **Ask-back is a tool, not a mode.** The owner always answers or declines; the model never treats a host failure as a decline.
 5. **Todos are a tool, not a mode.** Agent and Plan share one list. Do not keep a second Plan-only checklist.
-6. **One questionnaire, one permission dialog.** Shared request-id lifecycle. Distinct copy and chrome.
-7. **Intersect context prompt.** `activeTools = contextPromptEnabled ∩ modeAllowlist`, then always include `ask_user_question` and `todo` when the factory is healthy.
+6. **One questionnaire, one permission dialog.** Shared request-id lifecycle. Distinct copy and chrome. Ask-user, plan document, todo, and execute_plan never compete for the permission dock.
+7. **Intersect context prompt.** `activeTools = contextPromptEnabled ∩ modeAllowlist`, then always include `ask_user_question` and `todo` when the factory is healthy. `execute_plan` is Plan-only.
 8. **JSONL is authoritative.** Mode, plan document, and todos persist as Pi custom entries (and tool results where that keeps forks honest later). Resume restores them.
 9. **Fail closed without breaking chat.** A failed factory leaves Agent-only behavior. Conversation, credentials, V3, and permissions continue.
 10. **Packaged resources are app-owned.** No `pi install` step for the owner.
@@ -125,9 +125,9 @@ This add-on will not:
 | --- | --- | --- | --- | --- | --- |
 | **Agent** | Full enabled set (context prompt ∩ permissions) | Available | Available | Yes, then V3 | Today’s chat, with a live checklist |
 | **Plan** | Read/search/web/ask-user/todo; mutating file/trash/Cursor-SDK tools off | Available and encouraged | Same list; becomes the Execute steps | No | Explore, ask, write the Plan document |
-| **Execute** (transient) | Same as Agent | Available | Same list; in_progress / completed as work proceeds | Yes, then V3 | Owner confirmed Execute; return to Agent when complete or cancelled |
+| **Execute** (transient) | Same as Agent | Available | Same list; in_progress / completed as work proceeds | Yes, then V3 | Owner confirmed Execute (button or `execute_plan`); return to Agent when complete or cancelled |
 
-Switching Plan → Agent without Execute does not start work. Execute is the only path that injects “run these steps.”
+Switching Plan → Agent without Execute does not start work. Execute (the button or `execute_plan` after the owner asks in chat) is the only path that injects “run these steps.”
 
 ## Ask-user contract
 
@@ -152,8 +152,9 @@ ask_user_question({
 
 The owner sees a questionnaire card, not a permission prompt:
 
+- `ask_user_question` is allow-listed with `todo` and `update_plan_document`. It must not open a permission dock. Runtime start writes those allows onto existing configs so `"*": "ask"` cannot catch them.
 - options labeled **A. B. C.** (and **D.** when present) with the option description under the label;
-- a **Type something** row on every question so a custom answer is always possible;
+- a **Type something** row on every question so a custom answer is always possible; typing there must not fire A/B/C letter shortcuts;
 - multi-select as checkboxes; Type something remains available;
 - several questions: tabs (header chips) plus a Submit review that names unanswered items;
 - optional markdown `preview` beside the focused single-select option, sanitized like assistant markdown;
@@ -229,19 +230,21 @@ The right sidebar gains a **Plan** surface beside Changes, Context prompt, and (
 | Behavior | Contract |
 | --- | --- |
 | Host chrome | Existing right sidebar. Re-click of Plan hides the panel. No dedicated Collapse control. ⌘R / Ctrl+R still toggles the host. |
-| Content | Bounded markdown (GFM) plus optional mermaid, sanitized like assistant output. No `rehype-raw`, no React. |
-| Todos | Checklist bound to the **session todo list**. Completing a step during Execute updates that list. |
-| Edit | Owner may edit the document while the session is idle. Save writes the JSONL custom entry. A live Execute run is inspect-only. |
-| Execute / Stay / Refine | Controls on this surface. Execute switches to transient Agent, injects remaining steps, and starts a turn. Refine focuses the composer with the document still open. Stay leaves Plan mode on. |
-| Empty | When mode is Agent and no plan exists, the surface explains that switching to Plan will collect a document here. |
+| Content | Settled sanitized markdown, same pipeline as chat: GFM, KaTeX, mermaid, Shiki, fenced SVG. No `rehype-raw`, no React. |
+| Todos | Checklist bound to the **session todo list**, rendered **under** the document. Completing a step during Execute updates that list. |
+| Edit | Pen icon while idle. Opens the source markdown; check saves, X cancels. A live Execute run is inspect-only. |
+| Execute | **Execute** on this surface, or tell the agent in chat to execute (`execute_plan`). Switches to transient Agent, injects remaining steps, and starts a turn. The injected kickoff is not shown in the transcript. No Stay or Refine buttons. A comment box under the document (Enter or send) is the follow-up. |
+| Empty | Wait for the agent to write markdown. Do not show a blank editor. |
 | Size | Reject oversized documents (implementation plan names the byte bound). |
 
 The agent updates the document through a Pho-owned plan tool or custom entry — not by hoping a `Plan:` heading appears in chat. Transcript text may still show a summary; the sidebar document is source of truth for Execute.
 
 ## User-visible contract
 
-- Composer footer: Plan / Agent control next to model/thinking. Disabled while a run is live, matching those selectors.
-- Plan mode shows a compact “Plan” mark in composer chrome. A non-empty todo list shows `completed/total` in any mode.
+- Composer footer: Plan / Agent **chip** next to model/thinking (icon + label). Description is hover-only. Disabled while a run is live.
+- Plan mode does not show a standing “Writes off” line. Honesty lives on the Plan chip hover: writes off, shell not sandboxed.
+- A non-empty todo list shows `completed/total` in any mode.
+- The Plan document appears after the agent writes markdown and **renders like chat** (KaTeX, mermaid, Shiki). Empty Plan waits rather than showing a blank editor. A pen icon edits the source; a single comment box under the document (send / Enter) talks to the agent. Todos sit at the end. Execute stays on the footer; the owner can also say go ahead in chat.
 - Ask-user cards dock like permission cards but use questionnaire chrome (options A/B/C, Type something, Submit). Enter confirms the focused option on single-select; it does not submit an incomplete multi-question set.
 - Opening Plan from the rail expands the right sidebar. Clicking Plan again collapses it.
 - Switching chats restores that chat’s mode, document, and todos. A questionnaire pending on chat A does not appear on chat B.
@@ -255,7 +258,7 @@ The agent updates the document through a Pho-owned plan tool or custom entry —
 | Toggle Agent while idle, not executing | Persist Agent; restore tools ∩ context prompt. Do not auto-run. |
 | Ask-user tool call | Emit questionnaire request; block that tool until resolve/cancel/abort. |
 | Save Plan document | Custom JSONL entry; bounded. |
-| Execute | `executing=true`; Agent tools; inject remaining todos; start turn. |
+| Execute | `executing=true`; Agent tools; inject remaining todos; start a hidden turn (button) or continue this turn (`execute_plan`). |
 | Plan complete or owner cancel Execute | `executing=false`; mode Agent unless the owner stayed in Plan. |
 | Abort run | Cancel pending questionnaire; leave mode as persisted. |
 | Resume / reopen | Restore mode, document, todos from JSONL; re-intersect tools. |

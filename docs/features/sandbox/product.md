@@ -32,7 +32,7 @@ Honest disclosure is required in Settings where the feature is introduced:
 - Domain allowlists are not traffic inspection. Allowing `github.com` still allows push or exfil to any repo on that host.
 - The owner PTY is not sandboxed.
 - V3 Undo still covers tracked `write`/`edit` only. Sandboxed `bash` can mutate the workspace without a ledger entry.
-- Process separation (Phase F) is not this feature.
+- Process separation (Phase F) is not this feature. Window-first app launch (create the Electron window before Pi `ModelRuntime.create`) is also not this feature; it lives under [`urgent/window-first-pi-core`](../../urgent/window-first-pi-core/README.md).
 
 ## Why this does not wait on process extraction
 

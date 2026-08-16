@@ -5,7 +5,14 @@ import { handleDialogTab } from "./lib/dialog-focus";
 import { hostDialogEnterResolution } from "./lib/host-dialog-keys";
 import { cn } from "./lib/cn";
 import { AskUserCard } from "./ask-user-card";
-import { presentPermissionMessage } from "./permission-prompt";
+import {
+  isPermissionDecisionOptions,
+  PERMISSION_DENY_WITH_REASON,
+  permissionSelectResolution,
+  presentPermissionChoices,
+  presentPermissionMessage,
+  type PermissionChoice,
+} from "./permission-prompt";
 
 // Compact composer-dock approval card. Visual density adapted from Beautiful UI
 // ApprovalCard.tsx (MIT, Shane Levine, https://www.beautifului.dev/ retrieved 2026-08-13):
@@ -38,10 +45,19 @@ function PermissionApprovalCard({
   const panelRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLInputElement>(null);
   const onResolveRef = useRef(onResolve);
   const selectedRef = useRef(request.options?.[0] ?? "");
+  const draftRef = useRef("");
   const [draft, setDraft] = useState("");
   const [selected, setSelected] = useState(request.options?.[0] ?? "");
+  const choices = presentPermissionChoices(request.options ?? []);
+  const permissionDock = isPermissionDecisionOptions(request.options ?? []);
+  const presented = request.message ? presentPermissionMessage(request.message) : null;
+  const title =
+    permissionDock && presented?.showRaw && presented.summary
+      ? headingFromSummary(presented.summary)
+      : request.title;
 
   useEffect(() => {
     onResolveRef.current = onResolve;
@@ -57,6 +73,16 @@ function PermissionApprovalCard({
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    if (permissionDock && selected === PERMISSION_DENY_WITH_REASON) {
+      reasonRef.current?.focus();
+    }
+  }, [permissionDock, selected]);
 
   // Focus and key handlers bind once per request. Do not depend on `onResolve`
   // identity — parent re-renders on every stream tick and would steal focus /
@@ -79,7 +105,7 @@ function PermissionApprovalCard({
       if (request.kind === "select" && plain) {
         const digit = Number.parseInt(event.key, 10);
         if (!Number.isNaN(digit) && digit >= 1 && digit <= 9) {
-          const option = request.options?.[digit - 1];
+          const option = presentPermissionChoices(request.options ?? [])[digit - 1]?.value;
           if (option) {
             event.preventDefault();
             setSelected(option);
@@ -90,6 +116,14 @@ function PermissionApprovalCard({
       if (event.key === "Enter" && plain) {
         // Buttons already activate on Enter; avoid double-resolve.
         if (event.target instanceof HTMLElement && event.target.closest("button")) {
+          return;
+        }
+        if (request.kind === "select") {
+          const resolution = permissionSelectResolution(selectedRef.current, draftRef.current);
+          if (resolution.selected.length > 0) {
+            event.preventDefault();
+            onResolveRef.current(resolution);
+          }
           return;
         }
         const resolution = hostDialogEnterResolution(request.kind, selectedRef.current);
@@ -123,6 +157,13 @@ function PermissionApprovalCard({
   const confirmLabel = request.kind === "confirm" ? "Approve" : "Continue";
   const declineLabel = request.kind === "confirm" ? "Decline" : "Cancel";
   const canSubmit = request.kind !== "select" || selected.length > 0;
+  const showEyebrow = !permissionDock;
+  const showMessage =
+    Boolean(request.message) &&
+    (!permissionDock ||
+      Boolean(presented?.caution) ||
+      Boolean(presented?.target) ||
+      Boolean(presented?.showRaw));
 
   return (
     <div
@@ -143,7 +184,7 @@ function PermissionApprovalCard({
               if (selected.length === 0) {
                 return;
               }
-              onResolve({ selected });
+              onResolve(permissionSelectResolution(selected, draft));
               return;
             case "input":
               onResolve({ value: draft });
@@ -160,9 +201,9 @@ function PermissionApprovalCard({
         <div className="approval-card-body">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="approval-card-eyebrow m-0">{eyebrow}</p>
+              {showEyebrow ? <p className="approval-card-eyebrow m-0">{eyebrow}</p> : null}
               <h2 id="host-dialog-title" className="approval-card-title m-0">
-                {request.title}
+                {title}
               </h2>
             </div>
             <button
@@ -174,15 +215,25 @@ function PermissionApprovalCard({
               <XIcon className="size-3.5" aria-hidden="true" />
             </button>
           </div>
-          {request.message ? (
-            <HostDialogMessage key={request.requestId} message={request.message} />
+          {showMessage && request.message ? (
+            <HostDialogMessage
+              key={request.requestId}
+              message={request.message}
+              compact={permissionDock}
+            />
           ) : null}
           {request.kind === "select" ? (
             <SelectFields
               request={request}
+              choices={choices}
               selected={selected}
               onSelectedChange={setSelected}
               inputRef={inputRef}
+              showReason={permissionDock && selected === PERMISSION_DENY_WITH_REASON}
+              reason={draft}
+              onReasonChange={setDraft}
+              reasonRef={reasonRef}
+              showShortcuts={!permissionDock}
             />
           ) : null}
           {request.kind === "input" ? (
@@ -214,21 +265,33 @@ function PermissionApprovalCard({
   );
 }
 
-function HostDialogMessage({ message }: { message: string }) {
+function headingFromSummary(summary: string): string {
+  return summary.endsWith(".") ? summary.slice(0, -1) : summary;
+}
+
+function HostDialogMessage({
+  message,
+  compact = false,
+}: {
+  message: string;
+  compact?: boolean;
+}) {
   const presented = presentPermissionMessage(message);
   const [showRaw, setShowRaw] = useState(false);
 
   return (
     <div className="approval-card-explain">
-      {presented.summary ? (
+      {presented.summary && !compact ? (
         <p className="approval-card-summary" data-testid="extension-dialog-summary">
           {presented.summary}
         </p>
       ) : null}
       {presented.caution ? <p className="approval-card-caution">{presented.caution}</p> : null}
       {presented.target ? (
-        <div className="approval-card-target">
-          <span className="approval-card-target-label">{presented.target.label}</span>
+        <div className={cn("approval-card-target", compact && "is-bare")}>
+          {compact ? null : (
+            <span className="approval-card-target-label">{presented.target.label}</span>
+          )}
           <span className="approval-card-target-value">{presented.target.value}</span>
         </div>
       ) : null}
@@ -263,48 +326,75 @@ function HostDialogMessage({ message }: { message: string }) {
 
 function SelectFields({
   request,
+  choices,
   selected,
   onSelectedChange,
   inputRef,
+  showReason,
+  reason,
+  onReasonChange,
+  reasonRef,
+  showShortcuts,
 }: {
   request: HostDialogRequest;
+  choices: PermissionChoice[];
   selected: string;
   onSelectedChange: (value: string) => void;
   inputRef: RefObject<HTMLInputElement | null>;
+  showReason: boolean;
+  reason: string;
+  onReasonChange: (value: string) => void;
+  reasonRef: RefObject<HTMLInputElement | null>;
+  showShortcuts: boolean;
 }) {
-  const options = request.options ?? [];
   return (
-    <div role="radiogroup" aria-labelledby="host-dialog-title" className="approval-card-options">
-      {options.map((option, index) => {
-        const isSelected = selected === option;
-        const shortcut = index < 9 ? index + 1 : null;
-        return (
-          <label
-            key={option}
-            className={cn("approval-option", isSelected && "is-selected")}
-          >
-            <input
-              ref={index === 0 ? inputRef : undefined}
-              type="radio"
-              className="sr-only"
-              name={`host-dialog-${request.requestId}`}
-              value={option}
-              checked={isSelected}
-              onChange={() => onSelectedChange(option)}
-            />
-            <span className="approval-radio" aria-hidden="true">
-              <span className="approval-radio-dot" />
-            </span>
-            <span className="approval-option-label">{option}</span>
-            {shortcut !== null && !isSelected ? (
-              <kbd className="approval-option-key" aria-hidden="true">
-                {shortcut}
-              </kbd>
-            ) : null}
-          </label>
-        );
-      })}
-    </div>
+    <>
+      <div role="radiogroup" aria-labelledby="host-dialog-title" className="approval-card-options">
+        {choices.map((choice, index) => {
+          const isSelected = selected === choice.value;
+          const shortcut = index < 9 ? index + 1 : null;
+          return (
+            <label
+              key={choice.value}
+              className={cn("approval-option", isSelected && "is-selected")}
+            >
+              <input
+                ref={index === 0 ? inputRef : undefined}
+                type="radio"
+                className="sr-only"
+                name={`host-dialog-${request.requestId}`}
+                value={choice.value}
+                checked={isSelected}
+                onChange={() => onSelectedChange(choice.value)}
+              />
+              <span className="approval-radio" aria-hidden="true">
+                <span className="approval-radio-dot" />
+              </span>
+              <span className="approval-option-label">{choice.label}</span>
+              {showShortcuts && shortcut !== null && !isSelected ? (
+                <kbd className="approval-option-key" aria-hidden="true">
+                  {shortcut}
+                </kbd>
+              ) : null}
+            </label>
+          );
+        })}
+      </div>
+      {showReason ? (
+        <label className="approval-input-row">
+          <span aria-hidden="true" className="approval-radio is-spacer" />
+          <input
+            ref={reasonRef}
+            className="approval-input"
+            data-testid="extension-dialog-reason"
+            aria-label="Optional reason"
+            placeholder="Optional reason"
+            value={reason}
+            onChange={(event) => onReasonChange(event.target.value)}
+          />
+        </label>
+      ) : null}
+    </>
   );
 }
 

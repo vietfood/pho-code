@@ -2,6 +2,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { isImageMimeType, type TranscriptBlock, type TranscriptMessage } from "@pho-code/protocol";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { displayToolName } from "./tool-display";
+import { isHiddenPlanExecutePrompt } from "./plan-agent-state";
 import { stripWorkspaceReferenceAppendix } from "./workspace-reference";
 
 type SessionMessage = AgentSession["messages"][number];
@@ -24,6 +25,9 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
       case "user": {
         const createdAt = toCreatedAt(message.timestamp);
         const blocks = projectUserContentBlocks(message.content);
+        if (isHiddenPlanExecuteUserBlocks(blocks)) {
+          return;
+        }
         projected.push({
           id: `user:${message.timestamp}:${index}`,
           role: "user",
@@ -93,6 +97,10 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
   });
 
   return projected;
+}
+
+function isHiddenPlanExecuteUserBlocks(blocks: readonly TranscriptBlock[]): boolean {
+  return blocks.length === 1 && blocks[0]?.type === "text" && isHiddenPlanExecutePrompt(blocks[0].text);
 }
 
 function toCreatedAt(timestamp: unknown): string | undefined {
@@ -183,7 +191,11 @@ export function firstUserPreview(messages: readonly SessionMessage[]): string | 
     if (message.role !== "user") {
       continue;
     }
-    const text = previewText(userText(message.content).trim());
+    const raw = userText(message.content).trim();
+    if (isHiddenPlanExecutePrompt(raw)) {
+      continue;
+    }
+    const text = previewText(raw);
     if (text.length > 0) {
       return text;
     }

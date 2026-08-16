@@ -41,7 +41,7 @@ Electron main is the composition root and may import application/runtime package
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
 - `resources.ts` — baked feature diagnostics.
-- `plan-agent.ts` — ask-user questionnaire types/bounds for the Plan/Agent add-on (in source, not accepted).
+- `plan-agent.ts` — ask-user questionnaire types/bounds plus Plan/Agent mode, document, `todo` list, `execute_plan`, and commands (in source, not accepted).
 - `change-review.ts` — accepted V3 review/Approve/per-file Undo contracts.
 
 `index.ts` is the public package surface. Runtime validation accompanies types; TypeScript alone is not an IPC boundary.
@@ -71,9 +71,9 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 ### Feature composition and resources
 
 - `features.ts`, `resources.ts`, `resource-locator.ts` build the immutable manifest and resolve development vs packaged resources.
-- `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature.
+- `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature; runtime start syncs harness allow-list tools (`ask_user_question`, `update_plan_document`, `todo`, `execute_plan`) and the managed `web_search` / `fetch_content` pair onto existing configs.
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
-- `plan-agent-feature.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question` (Plan/Agent Milestone 0; in source, not accepted).
+- `plan-agent-feature.ts`, `plan-agent-state.ts`, `todo-tool.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` (Plan/Agent Milestones 0–2 in source, not accepted).
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
 
 `createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, and V3 change capture. Both stages are source-selected and immutable to the user.
@@ -134,10 +134,10 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 `packages/ui/src` is presentation plus pure interaction helpers:
 
 - shell/navigation: `app-shell.tsx`, `app-sidebar.tsx`, project/session menus, resize/toggle controls, welcome/empty/loading surfaces;
-- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card (Plan/Agent Milestone 0; in source, not accepted);
+- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (Plan/Agent add-on; in source, not accepted);
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
 - settings/accounts/skills/GitHub/archive/trust dialogs;
-- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`;
+- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
 - design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/`.
 
 UI imports React and protocol only. It renders remote/tool/model content as untrusted data.

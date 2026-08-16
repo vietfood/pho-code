@@ -5,7 +5,7 @@ Status: implemented (feature Milestone 0; add-on not accepted)
 Surface: composer-dock host dialog
 Owner: features/plan-agent (card semantics); ui/conversation chrome (dock host)
 Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`../../features/plan-agent/logs/2026-08-16-m0-ask-back.md`](../../features/plan-agent/logs/2026-08-16-m0-ask-back.md), [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md)
+Related logs: [`../../features/plan-agent/logs/2026-08-16-m0-ask-back.md`](../../features/plan-agent/logs/2026-08-16-m0-ask-back.md), [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md), [`2026-08-16-bug-ask-user-type-shortcut.md`](./2026-08-16-bug-ask-user-type-shortcut.md)
 
 ## Intended change
 

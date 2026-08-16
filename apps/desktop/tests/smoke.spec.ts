@@ -100,6 +100,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "archiveSession",
       "cancelProviderLogin",
       "createSession",
+      "executeSessionPlan",
       "getBootstrapState",
       "getChangeDiff",
       "getChangeFileView",
@@ -138,6 +139,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "searchWorkspaceReferences",
       "sendPrompt",
       "setSessionModel",
+      "setSessionMode",
       "setThinkingLevel",
       "startProviderLogin",
       "steerRun",
@@ -147,6 +149,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "updateGitHubMcpSettings",
       "updatePermissionSettings",
       "updateSessionContextPrompt",
+      "updateSessionPlanDocument",
       "updateSkillSourceSettings",
     ]);
   } finally {

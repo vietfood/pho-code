@@ -6,6 +6,7 @@ import {
   emptyConversationState,
   emptyFeatureSnapshot,
   emptySessionContextPrompt,
+  emptySessionPlanSnapshot,
   eventSessionKey,
   extractAtMentionPaths,
   idleProviderAccountsResult,
@@ -29,6 +30,7 @@ import {
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
   type ResolveHostDialogInput,
+  type SessionAgentMode,
   type SessionCatalogEntry,
   type SessionSnapshot,
   type SessionSummary,
@@ -48,6 +50,7 @@ import {
   ChangeReviewSheet,
   Conversation,
   ContextPromptDialog,
+  PlanDocumentPanel,
   NotificationToast,
   fileToBase64,
   looksLikeProjectTrustNotification,
@@ -102,6 +105,7 @@ export function App() {
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
   const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
+  const [planBusy, setPlanBusy] = useState(false);
   const composerAfterRun = useRef(false);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
@@ -175,7 +179,25 @@ export function App() {
 
   useEffect(() => {
     setContextPromptBusy(false);
+    setPlanBusy(false);
   }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
+
+  const planDocumentPresent = (conversation.snapshot?.plan?.documentMarkdown.trim().length ?? 0) > 0;
+  const planSessionKey = conversation.snapshot
+    ? `${conversation.snapshot.workspace.id}:${conversation.snapshot.session.id}`
+    : "";
+  const previousPlanDocumentRef = useRef({ key: "", present: false });
+  useEffect(() => {
+    const previous = previousPlanDocumentRef.current;
+    if (planSessionKey !== previous.key) {
+      previousPlanDocumentRef.current = { key: planSessionKey, present: planDocumentPresent };
+      return;
+    }
+    if (planDocumentPresent && !previous.present) {
+      selectRightSurface("plan");
+    }
+    previousPlanDocumentRef.current = { key: planSessionKey, present: planDocumentPresent };
+  }, [planDocumentPresent, planSessionKey, selectRightSurface]);
 
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
@@ -535,6 +557,103 @@ export function App() {
     [patchSnapshot],
   );
 
+  const onSetSessionMode = useCallback(
+    async (mode: SessionAgentMode) => {
+      const snap = selectedCachedSnapshot(cacheRef.current);
+      if (!snap) {
+        return;
+      }
+      const previous = snap.plan;
+      patchSnapshot((current) => ({
+        ...current,
+        plan: { ...(current.plan ?? emptySessionPlanSnapshot()), mode, executing: false },
+      }));
+      try {
+        setError(null);
+        const next = await getDesktopBridge().setSessionMode({
+          sessionId: snap.session.id,
+          workspaceId: snap.workspace.id,
+          mode,
+        });
+        patchSnapshot((current) => ({ ...current, ...(next.plan ? { plan: next.plan } : {}) }));
+      } catch (cause) {
+        patchSnapshot((current) => {
+          if (previous) {
+            return { ...current, plan: previous };
+          }
+          const next = { ...current };
+          delete next.plan;
+          return next;
+        });
+        setError(errorMessage(cause));
+      }
+    },
+    [patchSnapshot],
+  );
+
+  const withPlanBusy = useCallback(async (work: () => Promise<void>): Promise<void> => {
+    setPlanBusy(true);
+    try {
+      await work();
+    } finally {
+      setPlanBusy(false);
+    }
+  }, []);
+
+  const onSavePlanDocument = useCallback(
+    async (documentMarkdown: string) => {
+      const snap = selectedCachedSnapshot(cacheRef.current);
+      if (!snap) {
+        return;
+      }
+      await withPlanBusy(async () => {
+        const next = await getDesktopBridge().updateSessionPlanDocument({
+          sessionId: snap.session.id,
+          workspaceId: snap.workspace.id,
+          documentMarkdown,
+        });
+        patchSnapshot((current) => ({ ...current, ...(next.plan ? { plan: next.plan } : {}) }));
+      });
+    },
+    [patchSnapshot, withPlanBusy],
+  );
+
+  const onExecutePlan = useCallback(async () => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) {
+      return;
+    }
+    await withPlanBusy(async () => {
+      await getDesktopBridge().executeSessionPlan({
+        sessionId: snap.session.id,
+        workspaceId: snap.workspace.id,
+      });
+    });
+  }, [withPlanBusy]);
+
+  const onRefinePlan = useCallback(
+    async (comment: string) => {
+      const snap = selectedCachedSnapshot(cacheRef.current);
+      if (!snap) {
+        return;
+      }
+      setError(null);
+      await withPlanBusy(async () => {
+        try {
+          await getDesktopBridge().sendPrompt({
+            sessionId: snap.session.id,
+            workspaceId: snap.workspace.id,
+            text: comment,
+          });
+        } catch (cause) {
+          setError(errorMessage(cause));
+          throw cause;
+        }
+      });
+    },
+    [withPlanBusy],
+  );
+
   const sidebarBootstrap = useMemo(() => {
     if (!bootstrap) {
       return null;
@@ -708,6 +827,25 @@ export function App() {
           <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
             No tracked write/edit files to review yet.
           </p>
+        );
+        break;
+      case "plan":
+        rightSidebarPanel = snapshot ? (
+          <PlanDocumentPanel
+            plan={snapshot.plan}
+            idle={
+              snapshot.run.status === "idle" ||
+              snapshot.run.status === "settled" ||
+              snapshot.run.status === "failed" ||
+              snapshot.run.status === "cancelled"
+            }
+            busy={planBusy}
+            onSave={onSavePlanDocument}
+            onExecute={onExecutePlan}
+            onRefine={onRefinePlan}
+          />
+        ) : (
+          <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
         );
         break;
       default: {
@@ -1047,6 +1185,9 @@ export function App() {
                     { busy: false },
                   );
                 }}
+                onSessionModeChange={(mode) => {
+                  void onSetSessionMode(mode);
+                }}
               />
         ) : (
           <WorkspacePicker
@@ -1099,6 +1240,7 @@ export function App() {
           collapsed={rightSidebarCollapsed}
           surface={rightSidebarSurface}
           contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
+          planDocumentPresent={planDocumentPresent}
           onToggleCollapsed={toggleRightSidebar}
           onSelectSurface={selectRightSurface}
         >
@@ -1417,4 +1559,8 @@ function selectedConversation(cache: ConversationCacheState): ConversationViewSt
     settings: cache.settings ?? selected?.settings ?? null,
     authFlow: cache.authFlow ?? selected?.authFlow ?? null,
   };
+}
+
+function selectedCachedSnapshot(cache: ConversationCacheState): SessionSnapshot | undefined {
+  return cache.selectedKey ? (cache.byKey[cache.selectedKey]?.snapshot ?? undefined) : undefined;
 }

@@ -572,22 +572,20 @@ const AssistantTurn = memo(function AssistantTurn({
             text={outputText}
             label="Copy"
             copiedLabel="Copied"
-            showLabel
             data-testid="copy-assistant-output"
           />
           {onRewrite && target ? (
             <Button
               type="button"
-              size="sm"
+              size="icon-sm"
               variant="outline"
-              className="h-7 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+              className="size-6 shrink-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
               aria-label="Edit"
               title="Edit"
               data-testid="edit-assistant-output"
               onClick={startEditing}
             >
               <PencilIcon className="size-3.5" aria-hidden="true" />
-              <span>Edit</span>
             </Button>
           ) : null}
           {originalText !== undefined ? (

@@ -571,13 +571,12 @@ html[data-appearance="dark"] .approval-card {
   text-transform: uppercase;
 }
 
-.approval-card-target-value {
-  color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.approval-card-target.is-bare {
+  padding: 0.4rem 0.55rem;
+}
+
+.approval-card-target.is-bare .approval-card-target-value {
+  font-size: 12px;
 }
 
 .approval-card-raw {
@@ -1562,6 +1561,154 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 .composer-thinking-select.is-max {
   color: #7e22ce;
   font-weight: 600;
+}
+
+.composer-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 7.5rem;
+  padding: 0.25rem 0.55rem;
+  background-image: none;
+  font-weight: 500;
+}
+
+.composer-mode-chip.is-plan {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.composer-mode-menu {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  min-width: 8.5rem;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 0.75rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 4%),
+    0 12px 32px -16px rgb(0 0 0 / 28%);
+}
+
+.composer-mode-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.4rem 0.5rem;
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.composer-mode-option:hover,
+.composer-mode-option.is-selected {
+  background: var(--accent);
+}
+
+.composer-mode-option-label {
+  min-width: 0;
+}
+
+.composer-todo-chip {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.session-todo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.session-todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--foreground);
+}
+
+.session-todo-mark {
+  flex-shrink: 0;
+  width: 0.85rem;
+  color: var(--muted-foreground);
+}
+
+.session-todo-content.is-done {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
+
+.session-todo-list.is-compact .session-todo-item {
+  font-size: 0.6875rem;
+}
+
+.plan-document-preview .chat-markdown {
+  font-size: var(--font-size-chat);
+}
+
+.plan-document-comment-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.plan-document-comment-field {
+  min-width: 0;
+  flex: 1;
+}
+
+.plan-document-source,
+.plan-document-comment {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--muted) 28%, var(--background));
+  color: var(--foreground);
+  line-height: 1.45;
+  padding: 0.5rem 0.6rem;
+}
+
+.plan-document-source {
+  min-height: 16rem;
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.plan-document-comment {
+  min-height: 4.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+}
+
+.plan-document-source:focus-visible,
+.plan-document-comment:focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, transparent);
 }
 
 html[data-appearance="dark"] .composer-thinking-select.is-max {

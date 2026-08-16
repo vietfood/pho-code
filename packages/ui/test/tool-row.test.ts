@@ -26,6 +26,7 @@ describe("tool presentation", () => {
     expect(toolWorkEntryHeading("read", "failed")).toBe("Read failed");
     expect(toolWorkEntryIcon("bash")).toBe("terminal");
     expect(toolWorkEntryIcon("read")).toBe("eye");
+    expect(toolWorkEntryIcon("execute")).toBe("bot");
     expect(toolWorkEntryPreview("bash", '{"command":"ls -la docs"}', "")).toBe("ls -la docs");
     expect(
       toolWorkEntryPreview(

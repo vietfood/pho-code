@@ -53,6 +53,9 @@ import {
   type SendPromptInput,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetSessionModeInput,
+  type UpdateSessionPlanDocumentInput,
+  type ExecuteSessionPlanInput,
   type StartProviderLoginInput,
   type SteerRunInput,
   type UpdateAppearanceSettingsInput,
@@ -521,6 +524,29 @@ function registerIpc(): void {
     handleCommand("setThinkingLevel", async () => {
       assertTrustedSender(event, trustedRenderer);
       return requireApplication().setThinkingLevel(asRecord(payload) as unknown as SetThinkingLevelInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.setSessionMode, async (event, payload: unknown) =>
+    handleCommand("setSessionMode", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().setSessionMode(asRecord(payload) as unknown as SetSessionModeInput);
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.updateSessionPlanDocument, async (event, payload: unknown) =>
+    handleCommand("updateSessionPlanDocument", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().updateSessionPlanDocument(
+        asRecord(payload) as unknown as UpdateSessionPlanDocumentInput,
+      );
+    }),
+  );
+
+  ipcMain.handle(IPC_CHANNELS.executeSessionPlan, async (event, payload: unknown) =>
+    handleCommand("executeSessionPlan", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().executeSessionPlan(asRecord(payload) as unknown as ExecuteSessionPlanInput);
     }),
   );
 

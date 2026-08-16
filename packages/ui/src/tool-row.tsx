@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
-import { formatChangedFileCount, type TranscriptToolBlock } from "@pho-code/protocol";
+import { formatChangedFileCount, parsePlanTodoList, type TranscriptToolBlock } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import {
   buildToolExpandedSections,
@@ -9,6 +9,7 @@ import {
   toolWorkEntryIcon,
   toolWorkEntryPreview,
 } from "./tool-presentation";
+import { SessionTodoList } from "./session-todo-list";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 // Collapsed chrome adapted from Beautiful UI ToolChips.tsx (MIT, Shane Levine,
@@ -33,7 +34,9 @@ export function ToolRow({
   const displayPreview =
     preview && preview.toLowerCase() === heading.toLowerCase() ? null : preview;
   const sections = buildToolExpandedSections(block.name, block.inputPreview, block.outputPreview);
-  const canExpand = sections.length > 0;
+  const todos = parseTodosFromToolBlock(block);
+  const showTodoList = todos !== null && todos.length > 0;
+  const canExpand = sections.length > 0 && !showTodoList;
   const failed = block.status === "failed";
   const completed = block.status === "completed";
   const running = block.status === "running";
@@ -135,7 +138,12 @@ export function ToolRow({
           ) : null}
         </span>
       </div>
-      {expanded && canExpand ? (
+      {todos && todos.length > 0 ? (
+        <div className="ms-6 pb-1" data-testid="tool-todo-list" onClick={stopRowToggle} onPointerDown={stopRowToggle}>
+          <SessionTodoList todos={todos} compact />
+        </div>
+      ) : null}
+      {expanded && canExpand && !showTodoList ? (
         <div
           className="tool-detail mt-1 ms-6 cursor-default border-s border-border/45 ps-3 pt-0.5"
           data-testid="tool-detail"
@@ -182,4 +190,18 @@ function formatShellBody(command: string): string {
 
 function stopRowToggle(event: MouseEvent<HTMLElement>): void {
   event.stopPropagation();
+}
+
+function parseTodosFromToolBlock(block: TranscriptToolBlock) {
+  const trimmed = block.inputPreview.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as { todos?: unknown };
+    const result = parsePlanTodoList(parsed.todos);
+    return result.ok ? result.todos : null;
+  } catch {
+    return null;
+  }
 }

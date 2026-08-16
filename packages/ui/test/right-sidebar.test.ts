@@ -21,6 +21,7 @@ describe("RightSidebar", () => {
     expect(markup).toContain("rounded-2xl");
     expect(markup).toContain('data-testid="right-sidebar-surface-diff"');
     expect(markup).toContain('data-testid="right-sidebar-surface-context"');
+    expect(markup).toContain('data-testid="right-sidebar-surface-plan"');
     expect(markup).toContain("Context prompt");
     expect(markup).not.toContain('data-testid="right-sidebar-collapse"');
     expect(markup).not.toContain("Show sidebar");
@@ -60,6 +61,7 @@ describe("right sidebar surface activation", () => {
   test("collapses when the open surface is clicked again", () => {
     expect(rightSidebarSurfaceAction(false, "changes", "changes")).toBe("collapse");
     expect(rightSidebarSurfaceAction(false, "context-prompt", "context-prompt")).toBe("collapse");
+    expect(rightSidebarSurfaceAction(false, "plan", "plan")).toBe("collapse");
   });
 
   test("selects when collapsed or when switching surfaces", () => {
@@ -67,6 +69,8 @@ describe("right sidebar surface activation", () => {
     expect(rightSidebarSurfaceAction(true, "changes", "context-prompt")).toBe("select");
     expect(rightSidebarSurfaceAction(false, "changes", "context-prompt")).toBe("select");
     expect(rightSidebarSurfaceAction(false, "context-prompt", "changes")).toBe("select");
+    expect(rightSidebarSurfaceAction(false, "plan", "changes")).toBe("select");
+    expect(rightSidebarSurfaceAction(false, "changes", "plan")).toBe("select");
   });
 });
 

@@ -35,6 +35,9 @@ import {
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetSessionModeInput,
+  type UpdateSessionPlanDocumentInput,
+  type ExecuteSessionPlanInput,
   type StartProviderLoginInput,
   type SteerRunInput,
   type Unsubscribe,
@@ -95,6 +98,9 @@ export interface HarnessRuntime {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
+  executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
@@ -200,6 +206,15 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     setThinkingLevel() {
       return Promise.reject(unavailable("setThinkingLevel"));
+    },
+    setSessionMode() {
+      return Promise.reject(unavailable("setSessionMode"));
+    },
+    updateSessionPlanDocument() {
+      return Promise.reject(unavailable("updateSessionPlanDocument"));
+    },
+    executeSessionPlan() {
+      return Promise.reject(unavailable("executeSessionPlan"));
     },
     rewriteAssistantOutput() {
       return Promise.reject(unavailable("rewriteAssistantOutput"));

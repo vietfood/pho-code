@@ -28,8 +28,8 @@ test("ask-back card answers two questions without mixing permission chrome", asy
       await page.getByTestId("composer").fill("USE_ASK_USER");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
-      if (await page.getByText("Pending approval").isVisible()) {
-        await page.getByRole("radio", { name: "Yes", exact: true }).check();
+      if (await page.getByRole("radio", { name: "Allow once", exact: true }).isVisible()) {
+        await page.getByRole("radio", { name: "Allow once", exact: true }).check();
         await page.getByTestId("extension-dialog-confirm").click();
         await expect(page.locator('[data-kind="questionnaire"]')).toBeVisible({ timeout: 20_000 });
       }
@@ -53,9 +53,9 @@ test("ask-back card answers two questions without mixing permission chrome", asy
       await page.getByTestId("composer").fill("USE_SAFE_SHELL");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByTestId("extension-dialog")).toContainText("Pending approval");
+      await expect(page.getByTestId("extension-dialog")).toContainText("Allow once");
       await expect(page.locator('[data-kind="questionnaire"]')).toHaveCount(0);
-      await page.getByRole("radio", { name: "Yes", exact: true }).check();
+      await page.getByRole("radio", { name: "Allow once", exact: true }).check();
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
     } finally {

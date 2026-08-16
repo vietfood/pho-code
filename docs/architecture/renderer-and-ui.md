@@ -51,7 +51,7 @@ The conversation is primary:
 - collapsed work log for thinking, tools, and pre-tool narration;
 - anchored or empty-session composer;
 - model/thinking/usage controls and prepared images;
-- permission/host interaction docks;
+- permission/host interaction docks (Allow once, Allow for this session, No with optional reason);
 - static working and bounded error states.
 
 Live text uses conservative sanitized GFM. Expensive rich rendering waits until settle:
@@ -85,7 +85,7 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 - collapsed overlay pill;
 - expanded icon rail and resizable content area;
 - Escape-to-collapse when no modal owns Escape;
-- clicking the active Changes or Context prompt icon collapses the panel;
+- clicking the active Changes, Context prompt, or Plan icon collapses the panel;
 - accessible surface buttons and focus behavior.
 
 `AppShell` owns ⌘B / Ctrl+B for the left sidebar and ⌘R / Ctrl+R for the right sidebar. The Electron application menu moves window Reload to ⌘⇧R / Ctrl+Shift+R so the default Chromium Reload chord does not steal ⌘R. The transcript scroller hides native scrollbar chrome while remaining scrollable.
@@ -93,9 +93,10 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 Current surfaces are:
 
 - `changes` — implemented V3 review UI;
-- `context-prompt` — edit while the session is empty, inspect after first message.
+- `context-prompt` — edit while the session is empty, inspect after first message;
+- `plan` — Plan/Agent add-on document (in source, not accepted). Terminal remains a planned peer with no `terminal` variant yet.
 
-V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Terminal is only a planned peer surface; `RightSidebarSurface` currently has no `terminal` variant.
+V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. The plan-agent add-on owns Plan/Agent meaning and the Plan document.
 
 ## Settings and account surfaces
 

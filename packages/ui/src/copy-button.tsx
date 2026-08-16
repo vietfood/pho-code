@@ -20,7 +20,7 @@ export function CopyButton({
   label?: string;
   copiedLabel?: string;
   className?: string;
-  /** When true, show the label text beside the icon (clearer for message copy). */
+  /** When true, show the label text beside the icon. Message copy is icon-only. */
   showLabel?: boolean;
   variant?: "outline" | "ghost";
   "data-testid"?: string;

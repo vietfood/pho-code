@@ -28,6 +28,20 @@ const PERMANENT_REMOVAL_BASH_RULES = {
   "shred *": DENY_PERMANENT_REMOVAL,
 } as const;
 
+/** Harness tools that are themselves the owner prompt; they must never open a permission dock. */
+export const HARNESS_ALWAYS_ALLOW_PERMISSION = {
+  ask_user_question: "allow",
+  update_plan_document: "allow",
+  todo: "allow",
+  execute_plan: "allow",
+} as const;
+
+/** Managed profiles let search through; only fetch asks (public HTTP GET). */
+export const MANAGED_WEB_PERMISSION = {
+  web_search: "allow",
+  fetch_content: "ask",
+} as const;
+
 export const GUARDED_PERMISSION = {
   "*": "ask",
   path: {
@@ -42,7 +56,8 @@ export const GUARDED_PERMISSION = {
     "*": "ask",
     ...PERMANENT_REMOVAL_BASH_RULES,
   },
-  ask_user_question: "allow",
+  ...HARNESS_ALWAYS_ALLOW_PERMISSION,
+  ...MANAGED_WEB_PERMISSION,
 } as const;
 
 export const BALANCED_PERMISSION = {
@@ -67,7 +82,8 @@ export const BALANCED_PERMISSION = {
   skill: "ask",
   mcp: "ask",
   external_directory: "ask",
-  ask_user_question: "allow",
+  ...HARNESS_ALWAYS_ALLOW_PERMISSION,
+  ...MANAGED_WEB_PERMISSION,
 } as const;
 
 /**
@@ -110,8 +126,7 @@ export const DEVELOPER_PERMISSION = {
   fffind: "allow",
   ffgrep: "allow",
   "fff-multi-grep": "allow",
-  web_search: "ask",
-  fetch_content: "allow",
+  ...MANAGED_WEB_PERMISSION,
   write: "allow",
   edit: "allow",
   move_to_trash: "allow",
@@ -202,5 +217,5 @@ export const DEVELOPER_PERMISSION = {
     "git commit": "ask",
     "git commit *": "ask",
   },
-  ask_user_question: "allow",
+  ...HARNESS_ALWAYS_ALLOW_PERMISSION,
 } as const;

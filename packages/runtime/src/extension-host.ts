@@ -59,6 +59,17 @@ export function createExtensionHost(input: {
   let disposed = false;
   let bindingExtensions = false;
   let yoloActive = false;
+  let followUpInput: { fromRequestId: string; value: string } | undefined;
+
+  function takeFollowUpInput(): string | undefined {
+    const value = followUpInput?.value;
+    followUpInput = undefined;
+    return value;
+  }
+
+  function clearFollowUpInput(): void {
+    followUpInput = undefined;
+  }
 
   function recordDiagnostic(diagnostic: ResourceDiagnostic): void {
     diagnostics.push(diagnostic);
@@ -84,6 +95,8 @@ export function createExtensionHost(input: {
         disposed: () => disposed,
         emit: input.emit,
         pending,
+        takeStashedInputAnswer: takeFollowUpInput,
+        clearStashedInputAnswer: clearFollowUpInput,
         setPermissionStatus: (active) => {
           if (yoloActive === active) {
             return;
@@ -147,6 +160,13 @@ export function createExtensionHost(input: {
       if (result === INVALID_DIALOG_RESULT) {
         return;
       }
+      if (
+        dialog.kind === "select" &&
+        resolution.cancelled !== true &&
+        typeof resolution.value === "string"
+      ) {
+        followUpInput = { fromRequestId: resolution.requestId, value: resolution.value };
+      }
       pending.delete(resolution.requestId);
       dialog.resolve(result);
       input.emit({
@@ -155,6 +175,7 @@ export function createExtensionHost(input: {
       });
     },
     cancelPending() {
+      followUpInput = undefined;
       for (const [requestId, dialog] of pending) {
         dialog.resolve(cancelledDialogResult(dialog.kind));
         input.emit({
@@ -207,7 +228,10 @@ function dialogResult(
       }
       return resolution.confirmed === true;
     case "select": {
-      if (resolution.confirmed !== undefined || resolution.value !== undefined || resolution.answers !== undefined) {
+      if (resolution.confirmed !== undefined || resolution.answers !== undefined) {
+        return INVALID_DIALOG_RESULT;
+      }
+      if (resolution.value !== undefined && typeof resolution.value !== "string") {
         return INVALID_DIALOG_RESULT;
       }
       if (typeof resolution.selected !== "string" || !dialog.options?.includes(resolution.selected)) {
@@ -247,6 +271,8 @@ function createUiContext(input: {
   disposed: () => boolean;
   emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
   pending: Map<string, PendingDialog>;
+  takeStashedInputAnswer: () => string | undefined;
+  clearStashedInputAnswer: () => void;
   setPermissionStatus: (active: boolean) => void;
   unsupported: (capability: string) => never;
 }): ExtensionUIContext & QuestionnaireHostUI {
@@ -340,6 +366,8 @@ function requestDialog<T extends DialogResult>(
     disposed: () => boolean;
     emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
     pending: Map<string, PendingDialog>;
+    takeStashedInputAnswer: () => string | undefined;
+    clearStashedInputAnswer: () => void;
   },
   options: {
     kind: HostDialogKind;
@@ -357,6 +385,14 @@ function requestDialog<T extends DialogResult>(
   }
   if (input.isBinding() && options.timeout === undefined) {
     return Promise.resolve(options.cancelledValue);
+  }
+  if (options.kind === "input") {
+    const stashed = input.takeStashedInputAnswer();
+    if (stashed !== undefined) {
+      return Promise.resolve(stashed as T);
+    }
+  } else {
+    input.clearStashedInputAnswer();
   }
 
   const requestId = randomUUID();
@@ -418,6 +454,7 @@ function requestQuestionnaire(
     disposed: () => boolean;
     emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
     pending: Map<string, PendingDialog>;
+    clearStashedInputAnswer: () => void;
   },
   options: {
     questions: readonly AskUserQuestion[];
@@ -431,6 +468,7 @@ function requestQuestionnaire(
   if (input.isBinding()) {
     return Promise.resolve(undefined);
   }
+  input.clearStashedInputAnswer();
 
   const requestId = randomUUID();
   const firstQuestion = options.questions[0]?.question ?? "The agent has a question";

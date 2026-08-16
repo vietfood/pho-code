@@ -188,8 +188,18 @@ function summarizeAsk(input: {
   allow: string | null;
   target: PermissionPromptTarget | null;
 }): string {
-  const who = input.agent ? `Agent '${input.agent}'` : "The agent";
-  return `${who} ${summarizeAction(input)}`;
+  const action = summarizeAction(input);
+  if (input.agent) {
+    return `Agent '${input.agent}' wants to ${action}`;
+  }
+  return capitalizeSentence(action);
+}
+
+function capitalizeSentence(value: string): string {
+  if (value.length === 0) {
+    return value;
+  }
+  return value[0]!.toUpperCase() + value.slice(1);
 }
 
 function summarizeAction(input: {
@@ -201,14 +211,14 @@ function summarizeAction(input: {
   switch (input.kind) {
     case "bash command":
       return input.allow?.includes("external directory")
-        ? "wants to run a shell command that reaches outside the workspace."
-        : "wants to run a shell command.";
+        ? "run a shell command that reaches outside the workspace."
+        : "run a shell command.";
     case "skill":
-      return `wants to load the skill “${input.name}”.`;
+      return `load the skill “${input.name}”.`;
     case "access to skill":
-      return `wants to read files for the skill “${input.name}”.`;
+      return `read files for the skill “${input.name}”.`;
     case "MCP target":
-      return `wants to call MCP tool “${input.name}”.`;
+      return `call MCP tool “${input.name}”.`;
     case "tool":
       return summarizeToolAction(input.name, input.target, input.allow);
     default: {
@@ -225,47 +235,47 @@ function summarizeToolAction(
 ): string {
   const key = name.trim().toLowerCase();
   if (allow?.includes("path access")) {
-    return "wants to access a file path.";
+    return "access a file path.";
   }
   if (allow?.includes("external directory")) {
-    return "wants to use a path outside the workspace.";
+    return "use a path outside the workspace.";
   }
   if (key === "bash" || key === "shell") {
-    return "wants to run a shell command.";
+    return "run a shell command.";
   }
   if (key.includes("fetch") || key.includes("web search")) {
     return summarizeFetchAction(key, target);
   }
   if (key.includes("search") || key.includes("grep") || key.includes("find") || key === "ls") {
-    return "wants to search the workspace.";
+    return "search the workspace.";
   }
   if (key === "read" || key.includes("read ")) {
-    return "wants to read a file.";
+    return "read a file.";
   }
   if (key === "write" || key.includes("write ")) {
-    return "wants to write a file.";
+    return "write a file.";
   }
   if (key === "edit" || key.includes("edit") || key.includes("str replace")) {
-    return "wants to edit a file.";
+    return "edit a file.";
   }
   if (key.includes("trash")) {
-    return "wants to move a file to Trash.";
+    return "move a file to Trash.";
   }
   if (key.startsWith("github")) {
-    return `wants to use GitHub (${name}).`;
+    return `use GitHub (${name}).`;
   }
-  return `wants to use the “${name}” tool.`;
+  return `use the “${name}” tool.`;
 }
 
 function summarizeFetchAction(key: string, target: PermissionPromptTarget | null): string {
   if (key.includes("search")) {
-    return "wants to search the web.";
+    return "search the web.";
   }
   const origin = target?.label === "URL" ? fetchOrigin(target.value) : null;
   if (origin) {
-    return `wants to fetch a file from ${origin}.`;
+    return `fetch a file from ${origin}.`;
   }
-  return "wants to fetch content from the web.";
+  return "fetch content from the web.";
 }
 
 function fetchOrigin(url: string): string | null {
@@ -295,4 +305,49 @@ function quotedAfter(text: string, label: string): string | null {
 function compactRemainder(rest: string): string | null {
   const compact = rest.replace(/^with\s+/u, "").replace(/\s+/gu, " ").trim();
   return compact.length > 0 ? compact : null;
+}
+
+export const PERMISSION_APPROVE_ONCE = "Yes";
+export const PERMISSION_DENY = "No";
+export const PERMISSION_DENY_WITH_REASON = "No, provide reason";
+
+export interface PermissionChoice {
+  label: string;
+  value: string;
+}
+
+/**
+ * Permission-system RPC options are verbose Yes/No pairs. Collapse them to
+ * Allow once / Allow for this session / No, provide reason for the dock card.
+ */
+export function presentPermissionChoices(options: readonly string[]): PermissionChoice[] {
+  if (!isPermissionDecisionOptions(options)) {
+    return options.map((value) => ({ label: value, value }));
+  }
+  return [
+    { label: "Allow once", value: PERMISSION_APPROVE_ONCE },
+    { label: "Allow for this session", value: options[1] ?? "Yes, for this session" },
+    { label: PERMISSION_DENY_WITH_REASON, value: PERMISSION_DENY_WITH_REASON },
+  ];
+}
+
+export function isPermissionDecisionOptions(options: readonly string[]): boolean {
+  return (
+    options.length === 4 &&
+    options[0] === PERMISSION_APPROVE_ONCE &&
+    options[2] === PERMISSION_DENY &&
+    options[3] === PERMISSION_DENY_WITH_REASON &&
+    typeof options[1] === "string" &&
+    options[1].length > 0
+  );
+}
+
+export function permissionSelectResolution(
+  selected: string,
+  reason: string,
+): { selected: string; value?: string } {
+  if (selected === PERMISSION_DENY_WITH_REASON) {
+    return { selected, value: reason };
+  }
+  return { selected };
 }

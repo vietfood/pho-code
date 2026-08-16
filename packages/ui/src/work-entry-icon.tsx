@@ -3,6 +3,7 @@ import {
   EyeIcon,
   FolderIcon,
   GlobeIcon,
+  ListChecksIcon,
   SearchIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -26,6 +27,8 @@ export function WorkEntryIcon({ name, className }: { name: WorkEntryIconName; cl
       return <FolderIcon className={className} aria-hidden="true" />;
     case "bot":
       return <BotIcon className={className} aria-hidden="true" />;
+    case "list":
+      return <ListChecksIcon className={className} aria-hidden="true" />;
     case "wrench":
       return <WrenchIcon className={className} aria-hidden="true" />;
     default: {

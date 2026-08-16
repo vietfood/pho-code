@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestone 0 ask-back is in source and not accepted.
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestones 0–2 (ask-back, Plan/Agent, session todos) are in source and not accepted. Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -227,6 +227,8 @@ The lifecycle below is implemented in the accepted v1. Main constructs `createPh
 5. Renderer requests a bootstrap snapshot.
 6. Runtime refreshes remote model catalogs only when explicitly requested or when the chosen SDK policy says it is safe; startup must work from cached catalogs.
 
+Proposed, not accepted: [`../urgent/agent-stop/`](../urgent/agent-stop/README.md) would bound `abortRun` so Stop does not wait forever on `waitForIdle`. [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md) would create the window before `createPhoCodeRuntime` and may later move Pi into `utilityProcess`. Until those tracks are accepted, the lifecycle above remains the code.
+
 ### Open workspace
 
 1. Renderer invokes the native picker through the bridge.
@@ -366,7 +368,7 @@ Personal-v1 Milestone 3 implemented the baked permission transport. Personal-v1 
 - `notify` as an application notification/toast;
 - `setStatus("pi-permission-system", "yolo")` as a `permissionStatus` event and settings `yoloMode` flag;
 
-The Plan/Agent add-on additionally implements `questionnaire` host dialogs in source (not accepted). See [`features/plan-agent`](../features/plan-agent/README.md).
+The Plan/Agent add-on additionally implements `questionnaire` host dialogs and a session `todo` tool in source (not accepted). See [`features/plan-agent`](../features/plan-agent/README.md).
 
 Editor/custom components, widgets, terminal input handlers, headers, footers, and TUI renderers are unsupported until a named baked feature requires a specific structured adapter. Record a clear compatibility diagnostic and throw a useful `Error`; do not emulate a terminal inside React or throw a plain record that becomes `[object Object]`.
 

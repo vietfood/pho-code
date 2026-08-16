@@ -240,6 +240,7 @@ describe("assistant turn work collapse", () => {
     expect(markup).not.toContain("I'll look around.");
     expect(markup).toContain('data-testid="copy-assistant-output"');
     expect(markup).toContain('aria-label="Copy"');
+    expect(markup).not.toContain(">Copy</span>");
     expect(markup).not.toContain('data-testid="edit-assistant-output"');
     expect(markup).not.toContain("hidden thought from first assistant message");
     expect(markup).not.toContain("Bash completed");
@@ -248,7 +249,7 @@ describe("assistant turn work collapse", () => {
     expect(markup.match(/data-testid="work-log-toggle"/gu)?.length).toBe(1);
   });
 
-  test("offers Edit next to Copy when rewrite is available and marks rewritten output", () => {
+  test("offers icon-only Edit next to Copy when rewrite is available and marks rewritten output", () => {
     const snapshot: SessionSnapshot = {
       session: {
         id: "s1",
@@ -284,6 +285,8 @@ describe("assistant turn work collapse", () => {
       createElement(Transcript, { snapshot, onRewrite: () => undefined }),
     );
     expect(markup).toContain('data-testid="edit-assistant-output"');
+    expect(markup).toContain('aria-label="Edit"');
+    expect(markup).not.toContain(">Edit</span>");
     expect(markup).toContain('data-testid="rewritten-assistant-output"');
     expect(markup).toContain("Edited");
     expect(markup).toContain("x^2");

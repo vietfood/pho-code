@@ -8,6 +8,7 @@ import {
   createAskUserDrafts,
   draftsToAskUserAnswers,
   isAskUserDraftAnswered,
+  isAskUserTextEntryTarget,
   selectAskUserOption,
   setAskUserCustomText,
   shortcutOptionIndex,
@@ -78,7 +79,14 @@ export function AskUserCard({
       const currentPhase = phaseRef.current;
       const currentDrafts = draftsRef.current;
       const question = questions[currentIndex];
-      if (currentPhase === "question" && question && plain) {
+      const typing =
+        event.target instanceof HTMLElement &&
+        isAskUserTextEntryTarget(
+          event.target.tagName,
+          event.target instanceof HTMLInputElement ? event.target.type : undefined,
+          event.target.isContentEditable,
+        );
+      if (currentPhase === "question" && question && plain && !typing) {
         const optionIndex = shortcutOptionIndex(event.key, question.options.length);
         if (optionIndex !== null) {
           const option = question.options[optionIndex];

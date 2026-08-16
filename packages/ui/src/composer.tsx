@@ -1,14 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  ArrowUpIcon,
-  FileIcon,
-  FolderIcon,
-  ListPlusIcon,
-  PaperclipIcon,
-  SquareIcon,
-  WaypointsIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, FileIcon, FolderIcon, ListPlusIcon, PaperclipIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
 import type {
   ContextUsageSummary,
   ModelSummary,
@@ -21,6 +12,8 @@ import type {
   SkillSettingsSnapshot,
   ThinkingLevel,
   WorkspaceReferenceKind,
+  SessionAgentMode,
+  PlanTodoItem,
 } from "@pho-code/protocol";
 import { availableSlashSkills, SKILL_SOURCE_LABELS, skillNeedsCompatibilityNotice } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
@@ -57,6 +50,8 @@ import { MarkdownImage } from "./markdown-image";
 import { ModelPicker } from "./model-picker";
 import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 import { SkillSourceIcon } from "./skill-source-icon";
+import { SessionModeChip } from "./session-mode-chip";
+import { sessionTodoChipLabel } from "./session-todo-list";
 
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
@@ -82,6 +77,9 @@ export function Composer({
   selectorsDisabled,
   onModelChange,
   onThinkingChange,
+  sessionMode = "agent",
+  sessionTodos = [],
+  onSessionModeChange,
   metaHint,
   usage,
   contextUsage,
@@ -110,6 +108,9 @@ export function Composer({
   selectorsDisabled: boolean;
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
+  sessionMode?: SessionAgentMode;
+  sessionTodos?: readonly PlanTodoItem[];
+  onSessionModeChange?: (mode: SessionAgentMode) => void;
   metaHint?: string;
   usage?: SessionUsageSummary;
   contextUsage?: ContextUsageSummary;
@@ -388,6 +389,8 @@ export function Composer({
     insertSelectedSkill(entry, slash, cursor);
   }
 
+  const todoChip = sessionTodoChipLabel(sessionTodos);
+
   const selectors = (
     <>
       <label className="sr-only" htmlFor="model-selector">
@@ -422,6 +425,18 @@ export function Composer({
             ))}
           </select>
         </>
+      ) : null}
+      {onSessionModeChange ? (
+        <SessionModeChip
+          mode={sessionMode}
+          disabled={selectorsDisabled}
+          onChange={onSessionModeChange}
+        />
+      ) : null}
+      {todoChip ? (
+        <span className="composer-todo-chip" data-testid="composer-todo-chip" title="Session todos">
+          {todoChip}
+        </span>
       ) : null}
     </>
   );

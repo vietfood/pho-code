@@ -12,6 +12,7 @@ Read `AGENTS.md`, then route the change:
 - `docs/architecture/` — current accepted codebase boundaries and in-depth implementation maps.
 - `docs/version/` — current numbered core product, plan, logs, and unpromoted core roadmap.
 - `docs/features/` — standalone add-ons that can ship, fail, and retire independently.
+- `docs/urgent/` — owner-priority defects, safety, startup, and prerequisites to do before more capability; not a fourth product owner.
 - `docs/ui/` — conversation/UI design, implementation, ideas, changes, feedback, and defects.
 - `docs/archive/` — immutable closed versions and retired/superseded/abandoned add-ons.
 - `docs/current-state.md` — concise dated statement of what exists and each workstream's status.
@@ -51,7 +52,7 @@ Record:
 - owner feedback and UI impact;
 - blockers and handoff.
 
-Before changing shared protocol, Electron, accepted architecture, or right-sidebar host behavior, scan active `docs/version/*/logs/`, `docs/features/*/logs/`, and `docs/ui/logs/`. Add reciprocal links between affected records.
+Before changing shared protocol, Electron, accepted architecture, or right-sidebar host behavior, scan active `docs/version/*/logs/`, `docs/features/*/logs/`, `docs/urgent/*/logs/`, and `docs/ui/logs/`. Add reciprocal links between affected records.
 
 Do not hide an error by rewriting old evidence. Correct it in a new log and carry the correction into acceptance review.
 
@@ -66,6 +67,8 @@ State the surface, expected/actual behavior, reproduction or evidence, owner pla
 - UI owns transcript/composer/sidebar chrome and the shared right-sidebar host.
 
 Park unapproved interaction ideas under `docs/ui/ideas/`; ideas are not implementation contracts.
+
+Startup, Pi-process crash isolation, and other “do this first” work that is not a standalone add-on lives under `docs/urgent/`. Urgent tracks may use the same README / product / plan / logs shape. Accepted behavior still promotes into `architecture/` and `current-state.md`; do not treat an urgent plan as current architecture.
 
 ## Update architecture truthfully
 

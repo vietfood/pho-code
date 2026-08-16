@@ -13,6 +13,8 @@ import {
   isManagedPermissionProfileId,
   isProviderAuthMethod,
   isThinkingLevel,
+  isSessionAgentMode,
+  planDocumentTooLarge,
   isUiFontSize,
   isWorkspaceReferenceToken,
   isSessionCatalogScope,
@@ -85,6 +87,9 @@ import {
   type AppearanceSettings,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetSessionModeInput,
+  type UpdateSessionPlanDocumentInput,
+  type ExecuteSessionPlanInput,
   type StartProviderLoginInput,
   type SteerRunInput,
   type Unsubscribe,
@@ -190,6 +195,9 @@ export interface ApplicationService {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
+  executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
@@ -836,6 +844,69 @@ export function createApplicationService(input: {
       adoptSelectedSnapshot(snapshot);
       assertJsonSafe(snapshot, "setThinkingLevel");
       return snapshot;
+    },
+    async setSessionMode(command: SetSessionModeInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "setSessionMode");
+      if (!isSessionAgentMode(command.mode)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Unknown session mode.",
+          operation: "setSessionMode",
+          recoverable: true,
+        });
+      }
+      try {
+        const snapshot = await input.runtime.setSessionMode({ ...scope, mode: command.mode });
+        adoptSelectedSnapshot(snapshot);
+        assertJsonSafe(snapshot, "setSessionMode");
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "setSessionMode");
+      }
+    },
+    async updateSessionPlanDocument(command: UpdateSessionPlanDocumentInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "updateSessionPlanDocument");
+      if (typeof command.documentMarkdown !== "string") {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "Plan document markdown is required.",
+          operation: "updateSessionPlanDocument",
+          recoverable: true,
+        });
+      }
+      if (planDocumentTooLarge(command.documentMarkdown)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: "The Plan document is too large.",
+          operation: "updateSessionPlanDocument",
+          recoverable: true,
+        });
+      }
+      try {
+        const snapshot = await input.runtime.updateSessionPlanDocument({
+          ...scope,
+          documentMarkdown: command.documentMarkdown,
+        });
+        adoptSelectedSnapshot(snapshot);
+        assertJsonSafe(snapshot, "updateSessionPlanDocument");
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "updateSessionPlanDocument");
+      }
+    },
+    async executeSessionPlan(command: ExecuteSessionPlanInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "executeSessionPlan");
+      try {
+        const snapshot = await input.runtime.executeSessionPlan(scope);
+        adoptSelectedSnapshot(snapshot);
+        assertJsonSafe(snapshot, "executeSessionPlan");
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "executeSessionPlan");
+      }
     },
     async rewriteAssistantOutput(command: RewriteAssistantOutputInput) {
       assertActive();

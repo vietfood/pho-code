@@ -12,6 +12,7 @@ Pho Code docs are grouped by ownership and kind of work, not by date.
 | [`archive/`](./archive/README.md) | Closed numbered versions and retired/superseded features |
 | [`assets/capture/`](./assets/capture/README.md) | Demo GIFs and the recording sheet only |
 | [`features/`](./features/README.md) | Standalone add-ons (not a numbered product version) |
+| [`urgent/`](./urgent/README.md) | Owner-priority defects, safety, and startup work to do before more capability |
 | [`ui/`](./ui/README.md) | Conversation chrome: design, implementation, ideas, changes, feedback, and defect logs |
 | [`version/`](./version/README.md) | The next numbered product queue and later-release roadmap |
 
@@ -27,16 +28,19 @@ Do not mix these:
 - closed v3 product/plan/evidence → `archive/v3/`, not `version/` or `features/`
 - terminal, compaction, sandbox, plan-agent, later add-ons → `features/`, not `version/`
 - conversation chrome and UI bugs → `ui/`, not `features/`
+- startup, crash isolation of Pi, bounded Stop of a stuck run, and “do this before more features” → `urgent/`, not `features/` or a shell rewrite
 - demo captures → `assets/capture/`, not `archive/`
 
 ## Workstream contract
 
-An active numbered version or promoted add-on owns:
+An active numbered version, promoted add-on, or urgent track owns:
 
 1. a short local `README.md`;
 2. a product contract;
 3. an implementation plan with acceptance gates;
 4. a `logs/` directory for dated execution records.
+
+One-file notes under `urgent/` are pointers, not that contract.
 
 Plans are read-mostly contracts. Do not append chat-by-chat evidence or corrections to a shared plan while parallel work is active. Create one dated log file per implementation slice, issue, or feedback thread instead.
 
@@ -50,6 +54,6 @@ Every work log records:
 - mistakes, corrections, and owner feedback;
 - UI impact, blockers, and handoff.
 
-When work touches a shared protocol, Electron adapter, accepted architecture boundary, or the right-sidebar host, scan active logs under `version/*/logs/`, `features/*/logs/`, and `ui/logs/`. Cross-link the relevant records from both workstreams. There is no central append-only coordination file.
+When work touches a shared protocol, Electron adapter, accepted architecture boundary, or the right-sidebar host, scan active logs under `version/*/logs/`, `features/*/logs/`, `urgent/*/logs/`, and `ui/logs/`. Cross-link the relevant records from both workstreams. There is no central append-only coordination file.
 
 At acceptance, one integrator updates shared summaries and writes an immutable review. Old logs remain evidence; they are not rewritten to make an earlier mistake disappear.
