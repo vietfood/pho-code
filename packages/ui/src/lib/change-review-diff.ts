@@ -107,3 +107,32 @@ export function fileChangeVerb(kind: ChangeKind): string {
 export function unifiedLineNumber(line: { beforeLine?: number; afterLine?: number }): number | undefined {
   return line.afterLine ?? line.beforeLine;
 }
+
+export function visibleWhitespace(text: string): string {
+  return text.replaceAll(" ", "·").replaceAll("\t", "→");
+}
+
+export function splitSearchPieces(text: string, query: string): { text: string; hit: boolean }[] {
+  const needle = query.trim();
+  if (needle === "") {
+    return [{ text, hit: false }];
+  }
+  const pieces: { text: string; hit: boolean }[] = [];
+  const haystack = text;
+  const lower = haystack.toLowerCase();
+  const match = needle.toLowerCase();
+  let from = 0;
+  let index = lower.indexOf(match, from);
+  while (index >= 0) {
+    if (index > from) {
+      pieces.push({ text: haystack.slice(from, index), hit: false });
+    }
+    pieces.push({ text: haystack.slice(index, index + needle.length), hit: true });
+    from = index + needle.length;
+    index = lower.indexOf(match, from);
+  }
+  if (from < haystack.length) {
+    pieces.push({ text: haystack.slice(from), hit: false });
+  }
+  return pieces.length > 0 ? pieces : [{ text, hit: false }];
+}

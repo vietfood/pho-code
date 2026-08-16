@@ -22,6 +22,7 @@
   --app-scrollbar-width: 6px;
   --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
   --code-foreground: var(--foreground);
+  --shell-divider: color-mix(in srgb, var(--foreground) 18%, transparent);
 }
 
 @theme inline {
@@ -813,6 +814,14 @@ html[data-appearance="dark"] .approval-card {
   -webkit-app-region: no-drag;
 }
 
+.app-sidebar-panel {
+  border-right: 1px solid var(--shell-divider);
+}
+
+.right-sidebar-host {
+  border-left: 1px solid var(--shell-divider);
+}
+
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
@@ -1038,12 +1047,15 @@ html[data-appearance="dark"] .approval-card {
 }
 
 .chat-markdown :not(pre) > code {
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: var(--muted);
-  padding: 0.1em 0.35em;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  padding: 0.02em 0.28em;
   font-family: var(--font-mono);
-  font-size: 0.85em;
+  font-size: 0.86em;
+  line-height: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 .chat-markdown pre {
@@ -1065,29 +1077,52 @@ html[data-appearance="dark"] .approval-card {
 
 .chat-markdown .chat-markdown-codeblock {
   overflow: hidden;
-  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+  border-radius: var(--control-radius);
+  background: var(--background);
 }
 
 .chat-markdown .chat-markdown-codeblock-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--border);
-  padding: 0.4rem 0.75rem;
+  gap: 0.35rem;
+  min-height: 1.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+  padding: 0.2rem 0.55rem 0.2rem 0.65rem;
   color: var(--muted-foreground);
 }
 
 .chat-markdown .chat-markdown-codeblock-title {
-  font-family: var(--font-mono);
-  font-size: 0.8em;
-  text-transform: lowercase;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 0.7em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-markdown .chat-markdown-codeblock-copy {
+  color: color-mix(in srgb, var(--foreground) 42%, transparent);
+}
+
+.chat-markdown .chat-markdown-codeblock-copy:hover,
+.chat-markdown .chat-markdown-codeblock-copy[data-copied="true"] {
+  color: var(--foreground);
 }
 
 .chat-markdown .chat-markdown-codeblock pre {
   border-radius: 0;
   background: transparent;
-  padding: 0.75rem 0.9rem;
+  padding: 0.35rem 0.65rem;
+  line-height: 1.2;
+}
+
+.chat-markdown .chat-markdown-codeblock pre code {
+  font-size: 0.8em;
+  line-height: 1.2;
 }
 
 .chat-markdown .chat-markdown-shiki {
@@ -1098,7 +1133,8 @@ html[data-appearance="dark"] .approval-card {
   margin: 0;
   border-radius: 0;
   background: transparent !important;
-  padding: 0.75rem 0.9rem;
+  padding: 0.35rem 0.65rem;
+  line-height: 1.2;
 }
 
 .chat-markdown .chat-markdown-shiki code {
@@ -1106,8 +1142,8 @@ html[data-appearance="dark"] .approval-card {
   background: transparent;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 0.85em;
-  line-height: 1.5;
+  font-size: 0.8em;
+  line-height: 1.2;
 }
 
 .chat-markdown .katex {
@@ -1136,7 +1172,7 @@ html[data-appearance="dark"] .approval-card {
 .chat-markdown .chat-markdown-svg .chat-markdown-image-trigger {
   margin: 0;
   width: 100%;
-  padding: 0.75rem 0.9rem;
+  padding: 0.5rem 0.7rem;
 }
 
 .chat-markdown .chat-markdown-svg .chat-markdown-image {
@@ -1641,7 +1677,7 @@ html[data-glass="on"] .app-sidebar-panel {
   background: color-mix(in srgb, var(--sidebar) var(--sidebar-glass-opacity), transparent) !important;
   -webkit-backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
-  border-right: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
+  border-right: 1px solid var(--shell-divider);
 }
 
 html[data-glass="on"] .workspace-topbar {
@@ -1682,6 +1718,22 @@ html[data-glass="on"] .glass-field {
 ::-webkit-scrollbar-thumb {
   background: var(--app-scrollbar-thumb);
   border-radius: 3px;
+}
+
+.right-sidebar-host,
+.right-sidebar-host *,
+.transcript-scroller,
+.transcript-scroller * {
+  scrollbar-width: none;
+}
+
+.right-sidebar-host::-webkit-scrollbar,
+.right-sidebar-host *::-webkit-scrollbar,
+.transcript-scroller::-webkit-scrollbar,
+.transcript-scroller *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .streaming-text {
@@ -2117,6 +2169,46 @@ html[data-appearance="dark"] .session-context-menu {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.change-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 0.35rem 0.75rem;
+}
+
+.change-review-search {
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+
+.change-review-search-input,
+.change-review-context-select {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--control-radius);
+  background: var(--code-background);
+  padding: 0.2rem 0.5rem;
+  color: var(--code-foreground);
+  font-size: 0.75rem;
+}
+
+.change-review-context {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.change-review-context-select {
+  width: auto;
+}
+
+.change-review-search-hit {
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, var(--warning) 45%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

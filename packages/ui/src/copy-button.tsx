@@ -13,6 +13,7 @@ export function CopyButton({
   copiedLabel = "Copied",
   className,
   showLabel = false,
+  variant = "outline",
   "data-testid": testId,
 }: {
   text: string;
@@ -21,6 +22,7 @@ export function CopyButton({
   className?: string;
   /** When true, show the label text beside the icon (clearer for message copy). */
   showLabel?: boolean;
+  variant?: "outline" | "ghost";
   "data-testid"?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -43,11 +45,14 @@ export function CopyButton({
     <Button
       type="button"
       size={showLabel ? "sm" : "icon-sm"}
-      variant="outline"
+      variant={variant}
       className={cn(
-        "shrink-0 border-border/80 bg-background/80 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground",
+        "shrink-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground",
+        variant === "outline" && "border-border/80 bg-background/80",
+        variant === "ghost" && "border-transparent bg-transparent",
         showLabel ? "h-7 gap-1.5 px-2.5 text-xs font-medium" : "size-6",
-        copied && "border-border text-foreground",
+        copied && "text-foreground",
+        copied && variant === "outline" && "border-border",
         className,
       )}
       aria-label={ariaLabel}

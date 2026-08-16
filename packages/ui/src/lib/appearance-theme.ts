@@ -1,6 +1,8 @@
 import {
   glassCssTokens,
+  isAppearancePalette,
   resolveAppearanceMode,
+  type AppearancePalette,
   type AppearanceSettings,
   type ResolvedAppearance,
 } from "@pho-code/protocol";
@@ -62,6 +64,10 @@ export function applyAppearanceTheme(
 
 export function readResolvedAppearance(root: HTMLElement = document.documentElement): ResolvedAppearance {
   return root.dataset.appearance === "dark" ? "dark" : "light";
+}
+
+export function readAppearancePalette(root: HTMLElement = document.documentElement): AppearancePalette {
+  return isAppearancePalette(root.dataset.palette) ? root.dataset.palette : "default";
 }
 
 function attachSystemListener(

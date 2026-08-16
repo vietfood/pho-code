@@ -3,11 +3,15 @@
 // Pierre Diffs, review comments, split/before/after tabs, explorer, and extra rail
 // surfaces (terminal, files, browser) are omitted. The persistent pill/rail lives
 // in RightSidebar; this file is the changes surface only.
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { FileIcon } from "lucide-react";
 import {
   CHANGE_REVIEW_COPY,
+  DEFAULT_CHANGE_CONTEXT_LINES,
+  MAX_CHANGE_CONTEXT_LINES,
+  isUntrackedChangePath,
   type ChangeDiffHunk,
+  type ChangeDiffLine,
   type ChangeDiffPage,
   type ChangeKind,
   type ChangeReviewSetSnapshot,
@@ -22,10 +26,14 @@ import {
   diffPrefix,
   fileChangeVerb,
   serializeDiff,
+  splitSearchPieces,
   unifiedLineNumber,
   unmodifiedCountBeforeHunk,
   unmodifiedLabel,
+  visibleWhitespace,
 } from "./lib/change-review-diff";
+import { preferredShikiTheme, tokenizeCode } from "./shiki-highlight";
+import { useDocumentAppearance } from "./lib/use-resolved-appearance";
 import { Button } from "./ui/button";
 import { CopyButton } from "./copy-button";
 
@@ -44,6 +52,8 @@ export function ChangeReviewSheet({
   onApplyUndo = () => undefined,
   onCancelUndo = () => undefined,
   onLoadMore,
+  contextLines = DEFAULT_CHANGE_CONTEXT_LINES,
+  onContextLinesChange,
 }: {
   review: ChangeReviewSetSnapshot | null;
   selectedPath: string | null;
@@ -59,7 +69,11 @@ export function ChangeReviewSheet({
   onApplyUndo?: () => void;
   onCancelUndo?: () => void;
   onLoadMore?: () => void;
+  contextLines?: number;
+  onContextLinesChange?: (value: number) => void;
 }) {
+  const [search, setSearch] = useState("");
+  const [showWhitespace, setShowWhitespace] = useState(false);
   const selected = review?.files.find((file) => file.relativePath === selectedPath);
   const actionable =
     review?.files.filter((file) => file.status === "pending" || file.status === "conflict") ?? [];
@@ -81,7 +95,18 @@ export function ChangeReviewSheet({
           {CHANGE_REVIEW_COPY.notAllChanges ? (
             <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground/80">{CHANGE_REVIEW_COPY.notAllChanges}</p>
           ) : null}
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground/80">{CHANGE_REVIEW_COPY.undoMetadata}</p>
         </div>
+      ) : null}
+      {review?.ledgerUnreadable ? (
+        <p className="px-3 py-2 text-xs text-warning" role="status" data-testid="change-review-unreadable">
+          {CHANGE_REVIEW_COPY.ledgerUnreadable}
+        </p>
+      ) : null}
+      {review?.captureCapped ? (
+        <p className="px-3 py-2 text-xs text-warning" role="status" data-testid="change-review-capped">
+          {CHANGE_REVIEW_COPY.captureCapped}
+        </p>
       ) : null}
       {error ? (
         <p className="px-3 py-2 text-xs text-destructive" role="alert" data-testid="change-review-error">
@@ -91,8 +116,9 @@ export function ChangeReviewSheet({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {showFileList ? (
           <nav
-            className="flex w-[12.5rem] shrink-0 flex-col overflow-y-auto border-e border-border/60 bg-sidebar/40 px-1.5 py-2"
+            className="flex w-[12.5rem] min-w-0 shrink-0 flex-col overflow-y-auto border-e border-border/60 bg-sidebar/40 px-1.5 py-2"
             aria-label="Changed files"
+            onKeyDown={(event) => handleFileListKey(event, [...groups.created, ...groups.modified], selectedPath, onSelectPath)}
           >
             {groups.created.length > 0 ? (
               <FileGroup heading="Created" files={groups.created} selectedPath={selectedPath} onSelectPath={onSelectPath} />
@@ -109,7 +135,17 @@ export function ChangeReviewSheet({
               <p className="px-3 py-3 text-xs text-muted-foreground">No tracked write/edit files in this run.</p>
             ) : null}
             {!loading && (!review || review.files.length > 0) ? (
-              <UnifiedDiffView diff={diff} kind={selected?.kind ?? "modified"} copyText={copyText} />
+              <UnifiedDiffView
+                diff={diff}
+                kind={selected?.kind ?? "modified"}
+                copyText={copyText}
+                search={search}
+                onSearchChange={setSearch}
+                showWhitespace={showWhitespace}
+                onToggleWhitespace={() => setShowWhitespace((current) => !current)}
+                contextLines={contextLines}
+                onContextLinesChange={onContextLinesChange}
+              />
             ) : null}
           </div>
           {selected ? (
@@ -237,7 +273,11 @@ function FileGroup({
                     >
                       {file.kind === "created" ? "A" : "M"}
                     </span>
-                    <span className="truncate text-xs font-medium">{name}</span>
+                    <span className="truncate text-xs font-medium">
+                      {isUntrackedChangePath(file.relativePath)
+                        ? limitationLabel(file.limitation ?? "capture-failed")
+                        : name}
+                    </span>
                   </span>
                   {directory ? (
                     <span className="block truncate font-mono text-[10px] text-muted-foreground">{directory}</span>
@@ -257,10 +297,22 @@ function UnifiedDiffView({
   diff,
   kind,
   copyText,
+  search,
+  onSearchChange,
+  showWhitespace,
+  onToggleWhitespace,
+  contextLines,
+  onContextLinesChange,
 }: {
   diff: ChangeDiffPage | null;
   kind: ChangeKind;
   copyText: string;
+  search: string;
+  onSearchChange: (value: string) => void;
+  showWhitespace: boolean;
+  onToggleWhitespace: () => void;
+  contextLines: number;
+  onContextLinesChange?: (value: number) => void;
 }) {
   if (!diff) {
     return <p className="px-3 py-3 text-xs text-muted-foreground">Select a file to inspect the unified diff.</p>;
@@ -290,9 +342,52 @@ function UnifiedDiffView({
           </span>
           {copyText ? <CopyButton text={copyText} label="Copy" copiedLabel="Copied" /> : null}
         </header>
+        <div className="change-review-toolbar">
+          <label className="change-review-search">
+            <span className="sr-only">Search diff</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search"
+              data-testid="change-review-search"
+              className="change-review-search-input"
+            />
+          </label>
+          <Button
+            size="sm"
+            variant={showWhitespace ? "default" : "outline"}
+            data-testid="change-review-whitespace"
+            aria-pressed={showWhitespace}
+            onClick={onToggleWhitespace}
+          >
+            Whitespace
+          </Button>
+          <label className="change-review-context">
+            <span className="text-[11px] text-muted-foreground">Context</span>
+            <select
+              data-testid="change-review-context"
+              value={contextLines}
+              onChange={(event) => onContextLinesChange?.(Number(event.target.value))}
+              disabled={!onContextLinesChange}
+              className="change-review-context-select"
+            >
+              <option value={0}>0</option>
+              <option value={DEFAULT_CHANGE_CONTEXT_LINES}>{DEFAULT_CHANGE_CONTEXT_LINES}</option>
+              <option value={MAX_CHANGE_CONTEXT_LINES}>{MAX_CHANGE_CONTEXT_LINES}</option>
+            </select>
+          </label>
+        </div>
         <div className="change-review-diff">
           {diff.hunks.map((hunk, index) => (
-            <HunkView key={`${hunk.header}:${index}`} hunk={hunk} previous={index === 0 ? undefined : diff.hunks[index - 1]} />
+            <HunkView
+              key={`${hunk.header}:${index}`}
+              hunk={hunk}
+              previous={index === 0 ? undefined : diff.hunks[index - 1]}
+              language={diff.language}
+              search={search}
+              showWhitespace={showWhitespace}
+            />
           ))}
         </div>
         {diff.truncated ? <p className="px-3 py-2 text-xs text-muted-foreground">Diff truncated.</p> : null}
@@ -301,7 +396,19 @@ function UnifiedDiffView({
   );
 }
 
-function HunkView({ hunk, previous }: { hunk: ChangeDiffHunk; previous: ChangeDiffHunk | undefined }) {
+function HunkView({
+  hunk,
+  previous,
+  language,
+  search,
+  showWhitespace,
+}: {
+  hunk: ChangeDiffHunk;
+  previous: ChangeDiffHunk | undefined;
+  language?: string;
+  search: string;
+  showWhitespace: boolean;
+}) {
   const skipped = unmodifiedCountBeforeHunk(hunk.header, previous);
   return (
     <div className="change-review-hunk">
@@ -321,12 +428,110 @@ function HunkView({ hunk, previous }: { hunk: ChangeDiffHunk; previous: ChangeDi
           >
             <span className="change-review-diff-gutter">{number ?? ""}</span>
             <span className="change-review-diff-marker">{diffPrefix(line.kind)}</span>
-            <span className="change-review-diff-text">{line.text}</span>
+            <span className="change-review-diff-text">
+              <DiffLineText line={line} language={language} search={search} showWhitespace={showWhitespace} />
+            </span>
           </div>
         );
       })}
     </div>
   );
+}
+
+const MAX_HIGHLIGHT_LINE_CHARS = 512;
+
+function DiffLineText({
+  line,
+  language,
+  search,
+  showWhitespace,
+}: {
+  line: ChangeDiffLine;
+  language?: string;
+  search: string;
+  showWhitespace: boolean;
+}) {
+  const { appearance, palette } = useDocumentAppearance();
+  const theme = preferredShikiTheme(appearance === "dark", palette);
+  const [tokens, setTokens] = useState<{ content: string; color?: string }[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!language || language === "text" || line.text.length > MAX_HIGHLIGHT_LINE_CHARS) {
+      setTokens(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    void tokenizeCode(line.text, language, theme).then((next) => {
+      if (!cancelled) {
+        setTokens(next);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [language, line.text, theme]);
+
+  const pieces = tokens ?? [{ content: line.text }];
+  return (
+    <>
+      {pieces.map((token, index) => (
+        <ColoredText
+          key={`${index}:${token.content.slice(0, 12)}`}
+          text={token.content}
+          color={token.color}
+          search={search}
+          showWhitespace={showWhitespace}
+        />
+      ))}
+    </>
+  );
+}
+
+function ColoredText({
+  text,
+  color,
+  search,
+  showWhitespace,
+}: {
+  text: string;
+  color?: string;
+  search: string;
+  showWhitespace: boolean;
+}) {
+  return (
+    <>
+      {splitSearchPieces(text, search).map((piece, index) => (
+        <span
+          key={`${index}:${piece.hit ? "hit" : "text"}`}
+          className={piece.hit ? "change-review-search-hit" : undefined}
+          data-testid={piece.hit ? "change-review-search-hit" : undefined}
+          style={color ? { color } : undefined}
+        >
+          {showWhitespace ? visibleWhitespace(piece.text) : piece.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function handleFileListKey(
+  event: KeyboardEvent<HTMLElement>,
+  files: readonly FileChangeSummary[],
+  selectedPath: string | null,
+  onSelectPath: (relativePath: string) => void,
+): void {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+    return;
+  }
+  event.preventDefault();
+  const index = files.findIndex((file) => file.relativePath === selectedPath);
+  const nextIndex = event.key === "ArrowDown" ? index + 1 : index - 1;
+  const next = files[nextIndex];
+  if (next) {
+    onSelectPath(next.relativePath);
+  }
 }
 
 function StatusBadge({
@@ -415,6 +620,8 @@ function limitationLabel(limitation: NonNullable<FileChangeSummary["limitation"]
   switch (limitation) {
     case "too-large":
       return "Too large to capture";
+    case "too-complex":
+      return "Diff is too complex to render";
     case "binary":
       return "Binary or unsupported encoding";
     case "unsupported-kind":

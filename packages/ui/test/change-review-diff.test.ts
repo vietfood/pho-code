@@ -3,8 +3,10 @@ import {
   diffLineStat,
   fileChangeVerb,
   parseHunkHeader,
+  splitSearchPieces,
   unmodifiedCountBeforeHunk,
   unmodifiedLabel,
+  visibleWhitespace,
 } from "../src/lib/change-review-diff";
 
 describe("change-review unified diff helpers", () => {
@@ -19,6 +21,15 @@ describe("change-review unified diff helpers", () => {
     expect(unmodifiedCountBeforeHunk("@@ -12,4 +12,6 @@", undefined)).toBe(11);
     expect(unmodifiedLabel(1)).toBe("1 unmodified line");
     expect(unmodifiedLabel(11)).toBe("11 unmodified lines");
+  });
+
+  test("splits search hits and maps whitespace glyphs", () => {
+    expect(splitSearchPieces("hello agent world", "agent")).toEqual([
+      { text: "hello ", hit: false },
+      { text: "agent", hit: true },
+      { text: " world", hit: false },
+    ]);
+    expect(visibleWhitespace("a b\tc")).toBe("a·b→c");
   });
 
   test("counts additions and deletions and labels created vs edited", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { coerceAppearance, glassCssTokens, paletteSupportsMode, resolveAppearanceMode } from "@pho-code/protocol";
-import { applyAppearanceTheme } from "../src/lib/appearance-theme";
+import { applyAppearanceTheme, readAppearancePalette } from "../src/lib/appearance-theme";
 
 function fakeRoot() {
   const dataset: Record<string, string> = {};
@@ -82,5 +82,22 @@ describe("appearance theme helpers", () => {
     expect(root.dataset.glass).toBe("off");
     expect(root.style.properties.get("--glass-opacity")).toBe("100%");
     expect(root.style.properties.get("--composer-glass-opacity")).toBe("100%");
+  });
+
+  test("shell dividers mix from foreground so dark palettes stay visible", async () => {
+    const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
+    expect(css).toContain("--shell-divider: color-mix(in srgb, var(--foreground) 18%, transparent)");
+    expect(css).toContain(".app-sidebar-panel {\n  border-right: 1px solid var(--shell-divider);");
+    expect(css).toContain(".right-sidebar-host {\n  border-left: 1px solid var(--shell-divider);");
+    expect(css).toContain(".transcript-scroller,\n.transcript-scroller * {");
+  });
+
+  test("readAppearancePalette falls back to default", () => {
+    const root = fakeRoot();
+    expect(readAppearancePalette(root as unknown as HTMLElement)).toBe("default");
+    root.dataset.palette = "gruvbox";
+    expect(readAppearancePalette(root as unknown as HTMLElement)).toBe("gruvbox");
+    root.dataset.palette = "sepia";
+    expect(readAppearancePalette(root as unknown as HTMLElement)).toBe("default");
   });
 });

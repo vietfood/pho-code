@@ -86,6 +86,10 @@ describe("change review sheet", () => {
     expect(markup).toContain('data-testid="change-review-undo"');
     expect(markup).toContain(CHANGE_REVIEW_COPY.notAllChanges);
     expect(markup).toContain("change-review-diff");
+    expect(markup).toContain('data-testid="change-review-search"');
+    expect(markup).toContain('data-testid="change-review-whitespace"');
+    expect(markup).toContain('data-testid="change-review-context"');
+    expect(markup).toContain(CHANGE_REVIEW_COPY.undoMetadata);
     expect(markup).not.toContain('data-testid="change-review-resize"');
     expect(markup).not.toContain("Resize review sidebar");
     expect(markup).not.toContain('data-testid="change-review-undo-all"');
@@ -279,6 +283,38 @@ describe("change review sheet", () => {
     expect(markup).not.toContain('data-testid="change-review-approve-all"');
     expect(markup).toContain("The file list is truncated");
     expect(markup).toContain('data-testid="change-review-file"');
+  });
+
+  test("shows a run-level capture cap diagnostic", () => {
+    const capped = { ...pendingReview, captureCapped: true };
+    const markup = renderToStaticMarkup(
+      createElement(ChangeReviewSheet, {
+        review: capped,
+        selectedPath: "tracked.txt",
+        diff,
+        onSelectPath: () => undefined,
+        onApprove: () => undefined,
+        onApproveAll: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="change-review-capped"');
+    expect(markup).toContain(CHANGE_REVIEW_COPY.captureCapped);
+  });
+
+  test("shows an unreadable-ledger diagnostic", () => {
+    const unreadable = { ...pendingReview, ledgerUnreadable: true, files: [] as typeof pendingReview.files };
+    const markup = renderToStaticMarkup(
+      createElement(ChangeReviewSheet, {
+        review: unreadable,
+        selectedPath: null,
+        diff: null,
+        onSelectPath: () => undefined,
+        onApprove: () => undefined,
+        onApproveAll: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="change-review-unreadable"');
+    expect(markup).toContain(CHANGE_REVIEW_COPY.ledgerUnreadable);
   });
 });
 

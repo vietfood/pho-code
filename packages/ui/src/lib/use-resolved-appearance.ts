@@ -1,24 +1,44 @@
 import { useEffect, useState } from "react";
-import { readResolvedAppearance, type ResolvedAppearance } from "./appearance-theme";
+import type { AppearancePalette } from "@pho-code/protocol";
+import {
+  readAppearancePalette,
+  readResolvedAppearance,
+  type ResolvedAppearance,
+} from "./appearance-theme";
 
-/** Follows html[data-appearance] after applyAppearanceTheme. */
-export function useResolvedAppearance(): ResolvedAppearance {
-  const [appearance, setAppearance] = useState<ResolvedAppearance>(() =>
-    typeof document === "undefined" ? "light" : readResolvedAppearance(),
+export function useDocumentAppearance(): {
+  appearance: ResolvedAppearance;
+  palette: AppearancePalette;
+} {
+  const [state, setState] = useState(() =>
+    typeof document === "undefined"
+      ? { appearance: "light" as const, palette: "default" as const }
+      : {
+          appearance: readResolvedAppearance(),
+          palette: readAppearancePalette(),
+        },
   );
 
   useEffect(() => {
     const root = document.documentElement;
     const sync = () => {
-      setAppearance(readResolvedAppearance(root));
+      setState({
+        appearance: readResolvedAppearance(root),
+        palette: readAppearancePalette(root),
+      });
     };
     sync();
     const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ["data-appearance"] });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-appearance", "data-palette"] });
     return () => {
       observer.disconnect();
     };
   }, []);
 
-  return appearance;
+  return state;
+}
+
+/** Follows html[data-appearance] after applyAppearanceTheme. */
+export function useResolvedAppearance(): ResolvedAppearance {
+  return useDocumentAppearance().appearance;
 }
