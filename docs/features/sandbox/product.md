@@ -48,15 +48,33 @@ These are research inputs, not licenses to copy UI or JSON formats.
 
 | Harness | What the OS box covers | File tools | Prompts inside the box |
 | --- | --- | --- | --- |
+| **Pi official example** | Agent **`bash` + `user_bash`** via `@anthropic-ai/sandbox-runtime` | Unchanged; still in-process Pi tools | None in the example; TUI `/sandbox` is status only |
 | **Cursor** | Agent **terminal/shell** via Seatbelt (`sandbox-exec`) on macOS | Editor/file tools stay on a separate path; extra protections for delete and writes outside the workspace | Sandboxed shell can auto-run; commands that need full machine access still ask |
 | **Claude Code** | **Bash tool** via the same Anthropic sandbox-runtime family | File tools remain a permission model (read-only by default, ask before many writes) | In-box bash skips prompts; out-of-box access notifies |
 | **Codex CLI** | Tries to sandbox **shell and `apply_patch`** by routing filesystem work through a sandboxed helper | File edits are supposed to share the OS box | Higher completeness, higher cost; helper/PATH/Landlock regressions are common |
 
-Pho Code follows **Cursor + Claude Code**, not Codex:
+Pho Code follows the **Pi team’s sandbox example** for the wrap, plus **Cursor / Claude Code** for Settings-owned policy and skipped in-box asks. It does not follow Codex’s file-edit helper.
 
-- OS wrap **agent shell**;
-- keep Pi `write`/`edit` in-process so V3 capture stays on the existing Node path;
-- add a **matching in-process filesystem policy** so turning sandbox on actually limits file tools, without a second helper process.
+The Pi example is the first-party integration pattern:
+
+- public URL: [earendil-works/pi `examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts)
+- API source of truth for this app: the same file in pinned Pi `0.84.1` (`packages/runtime/node_modules/@earendil-works/pi-coding-agent/examples/extensions/sandbox/index.ts`). If `main` and the pin diverge, the pin wins.
+
+Take from it:
+
+- `SandboxManager.initialize` / `wrapWithSandbox` / `reset`;
+- replace built-in `bash` with `createBashTool(cwd, { operations })`;
+- hook `user_bash` with the same `BashOperations`;
+- `session_start` / `session_shutdown` lifecycle;
+- macOS + Linux only.
+
+Do not take from it:
+
+- `~/.pi/agent/extensions/sandbox.json` or project `.pi/sandbox.json`;
+- `--no-sandbox`, `/sandbox`, or TUI `notify` / `setStatus`;
+- default-on, or a baked network allowlist that is always active (our optional package-registry toggle may *start from* that example’s npm/PyPI/GitHub hosts, but Settings default is deny);
+- `process.cwd()` as the only workspace (Pho Code is per-session cwd);
+- in-process `read`/`write`/`edit` intercept (that is our Milestone 3, not the example).
 
 Codex’s helper is rejected: it fights V3, duplicates Pi fs tools, and is the expensive part of their sandbox.
 
@@ -66,6 +84,7 @@ Codex’s helper is rejected: it fights V3, duplicates Pi fs tools, and is the e
 | --- | --- |
 | Process extraction | **Do not wait.** This add-on is independently promotable. |
 | Engine | Pin exact `@anthropic-ai/sandbox-runtime`. Do not depend on `pi-sandbox` or `@carderne/sandbox-runtime`. |
+| Pi wrap pattern | Official Pi sandbox example (`createBashTool` operations + `user_bash`). Not `npm:pi-sandbox`. |
 | Pho-owned layer | Inline factory / runtime adapter. Structured Settings and existing `select`/`confirm` only. Never `ctx.ui.custom`. |
 | OS wrap | Agent `bash` and `user_bash`. Not the owner PTY. |
 | File tools | Same Settings filesystem policy, enforced **in-process** before Pi `read`/`write`/`edit`. Not Seatbelt. |
@@ -112,7 +131,7 @@ New Settings section **Sandbox**, after Permissions. Named commands only (`updat
 | Enable sandbox | boolean, default off | Idle-only apply. When on and healthy, wraps agent bash and applies file-tool policy. |
 | Network mode | `deny` \| `allowlist` | `deny`: no agent-bash network. `allowlist`: only listed domains. |
 | Allowed domains | bounded string list | Used only in `allowlist`. Exact hosts or a single leading `*.` label (`*.github.com`). Reject `"*"`, empty entries, and oversized lists. |
-| Include package-registry defaults | boolean, default off | When on **and** mode is `allowlist`, union a baked, documented registry list (npm, PyPI, crates, GitHub raw/codeload, and the same family Cursor publishes for package tools). The baked list is source-controlled, not owner-editable JSON. |
+| Include package-registry defaults | boolean, default off | When on **and** mode is `allowlist`, union a baked, documented registry list. Start that list from the Pi official example’s defaults (npm, Yarn, PyPI, GitHub hosts) plus the same family Cursor publishes for package tools. The baked list is source-controlled, not owner-editable JSON. |
 | Additional read paths | bounded path list | Extra readable roots. Canonicalized in privileged code. |
 | Additional write paths | bounded path list | Extra writable roots (also readable). Workspace `.` and platform temp are implicit and not shown as raw JSON. |
 
@@ -197,6 +216,7 @@ Diagnostics may report status, platform, redacted error class, domain count, and
 - Architecture: [`../../architecture/overview.md`](../../architecture/overview.md), [`../../architecture/extension-model.md`](../../architecture/extension-model.md)
 - Terminal honesty: [`../terminal/product.md`](../terminal/product.md)
 - Phase F: [`../../version/roadmap-vnext.md`](../../version/roadmap-vnext.md)
+- Pi official sandbox example: [earendil-works/pi `examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) (read against pinned `0.84.1`)
 - [Cursor Run Modes / sandboxing](https://cursor.com/docs/agent/security/run-modes)
 - [Claude Code sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing)
 - [Anthropic sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)

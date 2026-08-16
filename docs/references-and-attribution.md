@@ -14,7 +14,7 @@ Reading an implementation for architectural understanding does not require a row
 - Documentation: [pi.dev](https://pi.dev/docs/latest)
 - Role: runtime and public SDK dependency; primary behavioral authority
 - License: MIT in the current upstream project; verify and preserve the exact pinned package's license during bootstrap
-- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API.
+- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API. The agent-tool sandbox add-on reads the official example [`packages/coding-agent/examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) for the `createBashTool` / `user_bash` wrap; the pinned `0.84.1` copy is the API source of truth. Reading it does not require a copy row. If that example is later copied or closely adapted into Pho Code, add a copy row here with the pin revision.
 
 ### pi-gui
 

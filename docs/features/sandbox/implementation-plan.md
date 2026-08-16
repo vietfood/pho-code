@@ -53,9 +53,29 @@ One process-level `SandboxManager`. Per bash invocation, wrap with that session�
 
 `sandbox-runtime` sandboxes **children**. Pi `bash` is already a child. File tools stay in-process by product choice (V3 capture). Phase F would sandbox a different process with credential and model-HTTP needs this add-on must not take on.
 
+### Pi wrap pattern (official example)
+
+Use the Pi team’s sandbox extension as the bash-integration reference, not `pi-sandbox`:
+
+- [earendil-works/pi `examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts)
+- pinned copy in `0.84.1`: `packages/runtime/node_modules/@earendil-works/pi-coding-agent/examples/extensions/sandbox/index.ts`
+
+Implemented shape to follow:
+
+1. `SandboxManager.initialize(config)` on enable / session start;
+2. `createBashTool(cwd, { operations })` whose `exec` calls `SandboxManager.wrapWithSandbox(command)` then spawns;
+3. `pi.on("user_bash")` returning the same operations;
+4. `SandboxManager.reset()` on disable / shutdown.
+
+Prefer Pi’s public bash helpers from the pinned SDK (`createBashTool`, `BashOperations`, and shell-path helpers if exported) over the example’s hard-coded `spawn("bash", ["-c", …])` when the pin provides them. Verify the call shape against installed typings.
+
+Reject from the same example: `sandbox.json` merge, `--no-sandbox`, TUI `/sandbox`, default-on, always-on npm/GitHub allowlist, and `process.cwd()` as the only root. Policy is Settings. Cwd is the composite session workspace.
+
+If GitHub `main` and Pi `0.84.1` diverge, the pinned SDK example and typings win.
+
 ### Why not `pi-sandbox`
 
-Custom TUI, ambient install, project JSON, caret fork, and a second prompt UI violate the extension model. Use the Pi `0.84.1` example’s `createBashTool(cwd, { operations })` + `user_bash` pattern only.
+Custom TUI, ambient install, project JSON, caret fork, and a second prompt UI violate the extension model. It is a third-party package on a runtime fork. The official example above is the Pi-team pattern.
 
 ## Protocol contract
 
@@ -140,7 +160,7 @@ Prove `sandbox-exec` wrapping from the Pho Code runtime in isolated directories,
 1. Review `@anthropic-ai/sandbox-runtime` at the current latest (`0.0.73` as of 2026-08-13). Pin the exact version that typechecks against Electron’s embedded Node and Pi `0.84.1`. Record it in the pin table in the same change.
 2. Stage `rg` as an app-owned binary for macOS arm64 (and x64 if the package path already distinguishes). Electron adapter puts that directory on the child `PATH` used by sandbox init.
 3. Runtime service: `initialize` / `reset` / status. Tests use temp cwd.
-4. Wrap one `createBashTool` operations exec in a unit/integration test: workspace write succeeds, `~/.ssh` read fails, network to an unlisted host fails when mode is deny.
+4. Wrap one `createBashTool` operations exec the way the [Pi official sandbox example](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) does (`wrapWithSandbox` then spawn), verified against the `0.84.1` copy: workspace write succeeds, `~/.ssh` read fails, network to an unlisted host fails when mode is deny.
 5. Enabled+failed refuses bash. Disabled uses unsandboxed Pi bash (permission still applies in later milestones).
 6. Inspect the diff: no `pi-sandbox`, no renderer import, no weaker-isolation flags.
 

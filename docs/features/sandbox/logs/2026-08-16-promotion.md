@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: none
+Related logs: [`2026-08-16-decision-pi-official-example.md`](./2026-08-16-decision-pi-official-example.md)
 
 ## Intent
 

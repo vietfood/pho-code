@@ -131,7 +131,12 @@ Hard conflicts with Pho Code:
 | Requires `rg` on the process `PATH` | Electron GUI PATH often lacks Homebrew `/opt/homebrew/bin`; init fails closed |
 | Second permission UI beside `@gotgenes/pi-permission-system` | Two ask/deny engines will confuse the owner and can disagree |
 
-The official Pi example (`packages/coding-agent/examples/extensions/sandbox/`) is thinner: bash-only wrap, no read/write intercept, no grant prompts, config merge from `~/.pi/agent/extensions/sandbox.json` and `.pi/sandbox.json`. Useful as the **bash-operations** pattern against `0.84.1`, not as a product.
+The official Pi example is the Pi-team wrap pattern and is now a first-class reference for the promoted add-on:
+
+- public: [earendil-works/pi `examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts)
+- pin: `packages/runtime/node_modules/@earendil-works/pi-coding-agent/examples/extensions/sandbox/index.ts` in `0.84.1` (same shape as `main` on 2026-08-16)
+
+It is thinner than `pi-sandbox`: bash-only wrap, `user_bash`, no read/write intercept, no grant prompts, config merge from `~/.pi/agent/extensions/sandbox.json` and `.pi/sandbox.json`. Pho Code takes the wrap, not the JSON/TUI.
 
 ### Gondolin / micro-VM (out of first slice)
 
@@ -143,7 +148,7 @@ Reuse the **engine**, not the **package**.
 
 1. **Pin** `@anthropic-ai/sandbox-runtime` to an exact reviewed version (or a named, reviewed fork revision if Anthropic lags a Pi-required patch). Do not take `pi-sandbox` as a transitive caret.
 2. **Author a Pho Code inline factory** (or a thin staged package we own) that:
-   - wraps `createBashTool(cwd, { operations })` the way the Pi `0.84.1` example does;
+   - wraps `createBashTool(cwd, { operations })` the way the [Pi official sandbox example](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) does;
    - hooks `user_bash` if that path is reachable from this host;
    - initializes/resets `SandboxManager` per process with **workspace-scoped** config;
    - uses existing desktop `select` / `confirm` dialogs, never `ctx.ui.custom`.
@@ -248,7 +253,8 @@ Closed into [`product.md`](./product.md) and [`implementation-plan.md`](./implem
 - Pho Code [`architecture/extension-model.md`](../../architecture/extension-model.md)
 - Pho Code [`version/roadmap-vnext.md`](../../version/roadmap-vnext.md) Phase F
 - Pho Code [`features/terminal/product.md`](../terminal/product.md)
-- Pinned Pi `0.84.1` example `examples/extensions/sandbox/index.ts`
+- [Pi official sandbox example on `main`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts)
+- Pinned Pi `0.84.1` copy of the same example
 - [Anthropic sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)
 - [Anthropic engineering note](https://www.anthropic.com/engineering/claude-code-sandboxing)
 - [pi-sandbox](https://github.com/carderne/pi-sandbox)
