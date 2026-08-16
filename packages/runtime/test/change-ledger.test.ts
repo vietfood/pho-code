@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { HARNESS_ERROR_CODES, MAX_CHANGE_FILE_VIEW_CHARS, MAX_CHANGE_FILES_ON_SUMMARY, MAX_CHANGE_PATHS_PER_RUN, MAX_CHANGE_SNAPSHOT_BYTES } from "@pho-code/protocol";
+import { CHANGE_UNREADABLE_RUN_ID, HARNESS_ERROR_CODES, MAX_CHANGE_DIFF_CHARS, MAX_CHANGE_FILE_VIEW_CHARS, MAX_CHANGE_FILES_ON_SUMMARY, MAX_CHANGE_MANIFEST_BYTES, MAX_CHANGE_OPERATIONS_PER_RUN, MAX_CHANGE_PATHS_PER_RUN, MAX_CHANGE_SNAPSHOT_BYTES } from "@pho-code/protocol";
 import { hashBytes, hashUtf8 } from "../src/change-hash";
 import {
   applyApproveTransition,
@@ -18,11 +18,12 @@ import { createAtomicChangeRecoveryService } from "../src/change-recovery";
 import type { RecoverableRemovalService } from "../src/recoverable-removal";
 import { buildUnifiedDiffPage, pageFileText, parseUnifiedDiff } from "../src/change-diff";
 import { classifyBytes, detectLineEnding } from "../src/change-text";
-import { createFileChangeLedgerStore, opaqueScopeId } from "../src/change-ledger-store";
+import { createFileChangeLedgerStore, encodedManifestSize, exceedsPersistenceBudget, opaqueScopeId } from "../src/change-ledger-store";
 import { createUndoTempName } from "../src/change-identity";
 import { decodeWriteEditPath, resolveCapturePath } from "../src/change-path";
 
 const scope = { workspaceId: "/tmp/ws", sessionId: "s1", runId: "r1" };
+const FIXTURE_HASH = hashUtf8("fixture");
 
 function createReviewForTest(
   capture: ReturnType<typeof createChangeCaptureService>,
@@ -73,7 +74,7 @@ describe("change records", () => {
     const pending = applyCaptureSettle(capturing, {
       toolCallId: "c1",
       now: "t1",
-      afterHash: "abc",
+      afterHash: FIXTURE_HASH,
       isError: false,
     });
     expect(pending.status).toBe("pending");
@@ -141,7 +142,7 @@ describe("change ledger store", () => {
           latestToolCallId: "c1",
           startedAt: "t0",
           updatedAt: "t0",
-          afterHash: "abc",
+          afterHash: FIXTURE_HASH,
         },
       ],
       operations: [{ toolCallId: "c1", toolName: "write" as const, relativePath: "note.txt", at: "t0" }],
@@ -175,7 +176,12 @@ describe("change ledger store", () => {
     await expect(store.load(scope)).rejects.toMatchObject({
       code: HARNESS_ERROR_CODES.changeReviewCorrupt,
     });
-    expect(await store.listForSession(scope.workspaceId, scope.sessionId)).toEqual([]);
+    const listing = await store.listForSession(scope.workspaceId, scope.sessionId);
+    expect(listing.manifests).toEqual([]);
+    expect(listing.unreadable).toBe(true);
+    expect(listing.unreadableScopes).toEqual([
+      { workspaceId: scope.workspaceId, sessionId: scope.sessionId, runId: CHANGE_UNREADABLE_RUN_ID },
+    ]);
   });
 });
 
@@ -334,6 +340,8 @@ describe("change capture without Pi", () => {
     }
     const manifest = await capture.loadManifest(scope);
     expect(manifest?.files).toHaveLength(MAX_CHANGE_PATHS_PER_RUN);
+    expect(manifest?.captureCapped).toBe(true);
+    expect(projectSummary(manifest!).captureCapped).toBe(true);
     expect(projectSummary(manifest!).files).toHaveLength(MAX_CHANGE_FILES_ON_SUMMARY);
     expect(projectSummary(manifest!).filesTruncated).toBe(true);
     expect(projectSummary(manifest!).fileCount).toBe(MAX_CHANGE_PATHS_PER_RUN);
@@ -394,7 +402,7 @@ describe("change capture without Pi", () => {
       latestToolCallId: `c${index}`,
       startedAt: "t0",
       updatedAt: "t0",
-      afterHash: "abc",
+      afterHash: FIXTURE_HASH,
     }));
     await store.save({
       schemaVersion: 1 as const,
@@ -816,6 +824,331 @@ describe("safe per-file Undo", () => {
     expect(undone.files[0]?.status).toBe("undone");
     expect(reloaded.files[0]?.status).toBe("undone");
     expect(existsSync(path.join(workspace, "created.txt"))).toBe(false);
+  });
+});
+
+describe("milestone 3 capture, ledger, and recovery hardening", () => {
+  test("persists redacted outside-workspace, traversal, and malformed identities", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-outside-"));
+    const workspace = path.join(root, "ws");
+    const outside = path.join(root, "secret.txt");
+    await mkdir(workspace);
+    await writeFile(outside, "secret\n");
+    const capture = createChangeCaptureService({ store: createFileChangeLedgerStore(path.join(root, "ledger")) });
+    const identity = { ...scope, workspacePath: workspace, toolName: "write" as const };
+    await capture.begin({ ...identity, toolCallId: "abs", args: { path: outside } });
+    await capture.begin({ ...identity, toolCallId: "trav", args: { path: "../secret.txt" } });
+    await capture.begin({ ...identity, toolCallId: "bad", args: { path: "" } });
+    const parentLink = path.join(workspace, "escape");
+    await symlink(root, parentLink);
+    await capture.begin({ ...identity, toolCallId: "link", args: { path: "escape/secret.txt" } });
+    const manifest = await capture.loadManifest(scope);
+    expect(manifest?.files.length).toBeGreaterThanOrEqual(3);
+    for (const file of manifest?.files ?? []) {
+      expect(file.relativePath.startsWith(".pho-code-untracked/")).toBe(true);
+      expect(file.relativePath.includes("..")).toBe(false);
+      expect(file.relativePath.startsWith("/")).toBe(false);
+      expect(JSON.stringify(file)).not.toContain(outside);
+      expect(file.status).toBe("unavailable");
+    }
+    expect(manifest?.files.some((file) => file.limitation === "outside-workspace")).toBe(true);
+  });
+
+  test("rejects oversized, contradictory, and duplicate manifests on save", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-corrupt-schema-"));
+    const store = createFileChangeLedgerStore(root);
+    await store.save({
+      schemaVersion: 1 as const,
+      ...scope,
+      revision: 1,
+      updatedAt: "t0",
+      blobBytes: 0,
+      files: [],
+      operations: [],
+    });
+    await expect(
+      store.save({
+        schemaVersion: 1 as const,
+        ...scope,
+        revision: 1,
+        updatedAt: "t0",
+        blobBytes: 0,
+        files: [
+          {
+            relativePath: "note.txt",
+            kind: "created" as const,
+            status: "pending" as const,
+            firstToolCallId: "c1",
+            latestToolCallId: "c1",
+            startedAt: "t0",
+            updatedAt: "t0",
+            afterHash: "abc",
+          },
+        ],
+        operations: [{ toolCallId: "c1", toolName: "write" as const, relativePath: "note.txt", at: "t0" }],
+      }),
+    ).rejects.toThrow(/invalid change-ledger manifest/u);
+    const other = { workspaceId: "/tmp/ws", sessionId: "s1", runId: "r-other" };
+    await store.save({
+      schemaVersion: 1 as const,
+      ...other,
+      revision: 1,
+      updatedAt: "t1",
+      blobBytes: 0,
+      files: [],
+      operations: [],
+    });
+    const listed = await store.listForSession(scope.workspaceId, scope.sessionId);
+    expect(listed.unreadable).toBe(false);
+    expect(listed.manifests.some((manifest) => manifest.runId === "r-other")).toBe(true);
+  });
+
+  test("refuses to display or restore tampered blob bytes", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-blob-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    await writeFile(path.join(workspace, "note.txt"), "before\n");
+    const store = createFileChangeLedgerStore(path.join(root, "ledger"));
+    const capture = createChangeCaptureService({ store });
+    const review = createReviewForTest(capture, workspace, root);
+    const blobScope = { workspaceId: workspace, sessionId: "s1", runId: "blob" };
+    const identity = { ...blobScope, workspacePath: workspace, toolName: "edit" as const, toolCallId: "edit-blob" };
+    await capture.begin({ ...identity, args: { path: "note.txt" } });
+    await writeFile(path.join(workspace, "note.txt"), "after\n");
+    await capture.settle({ ...identity, args: { path: "note.txt" }, isError: false });
+    const manifest = await capture.loadManifest(blobScope);
+    const blobId = manifest?.files[0]?.afterBlobId;
+    expect(blobId).toHaveLength(64);
+    await writeFile(path.join(root, "ledger", "blobs", blobId!), "tampered\n");
+    const diff = await review.getDiff({ ...blobScope, relativePath: "note.txt" });
+    expect(diff.limitation).toBe("capture-failed");
+    expect(diff.hunks).toEqual([]);
+    expect(await store.getBlob(blobId!)).toBeUndefined();
+  });
+
+  test("pages a long changed line without dropping the remainder", async () => {
+    const huge = "x".repeat(MAX_CHANGE_DIFF_CHARS + 80);
+    const beforeText = `${huge}\n`;
+    const afterText = `y${huge}\n`;
+    let cursor: string | undefined;
+    let added = "";
+    let removed = "";
+    let pages = 0;
+    for (;;) {
+      const page = buildUnifiedDiffPage({
+        relativePath: "min.js",
+        beforeText,
+        afterText,
+        ...(cursor ? { cursor } : {}),
+      });
+      expect(page.limitation).toBeUndefined();
+      for (const hunk of page.hunks) {
+        for (const line of hunk.lines) {
+          if (line.kind === "added") {
+            added += line.text;
+          } else if (line.kind === "removed") {
+            removed += line.text;
+          }
+        }
+      }
+      pages += 1;
+      if (!page.truncated || !page.nextCursor || pages > 20) {
+        break;
+      }
+      cursor = page.nextCursor;
+    }
+    expect(pages).toBeGreaterThan(1);
+    expect(removed).toBe(huge);
+    expect(added).toBe(`y${huge}`);
+  });
+
+  test("rejects malformed cursors and too-complex diff input before paging", async () => {
+    expect(() => pageFileText("note.txt", "a\n", "nope")).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    expect(() => buildUnifiedDiffPage({ relativePath: "note.txt", beforeText: "a\n", afterText: "b\n", cursor: "hunk:9" })).toThrow(
+      expect.objectContaining({ code: HARNESS_ERROR_CODES.invalidCommand }),
+    );
+    const many = Array.from({ length: 8_001 }, (_, index) => `line-${index}`).join("\n");
+    const complex = buildUnifiedDiffPage({ relativePath: "note.txt", beforeText: many, afterText: `${many}\nchanged` });
+    expect(complex.limitation).toBe("too-complex");
+    expect(complex.hunks).toEqual([]);
+  });
+
+  test("preserves POSIX permission bits on restore and refuses symlink replacement", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-mode-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const filePath = path.join(workspace, "note.txt");
+    await writeFile(filePath, "before\n");
+    await chmod(filePath, 0o640);
+    const capture = createChangeCaptureService({ store: createFileChangeLedgerStore(path.join(root, "ledger")) });
+    const review = createReviewForTest(capture, workspace, root, { randomId: () => "mode-token" });
+    const modeScope = { workspaceId: workspace, sessionId: "s1", runId: "undo-mode" };
+    const identity = { ...modeScope, workspacePath: workspace, toolName: "edit" as const, toolCallId: "edit-mode" };
+    await capture.begin({ ...identity, args: { path: "note.txt" } });
+    await writeFile(filePath, "after\n");
+    await capture.settle({ ...identity, args: { path: "note.txt" }, isError: false });
+    const pending = await review.getReviewSet(modeScope);
+    const preview = await review.prepareUndo({ ...modeScope, relativePath: "note.txt", expectedRevision: pending.revision });
+    const undone = await review.applyUndo({ ...modeScope, previewToken: preview.previewToken });
+    expect(undone.files[0]?.status).toBe("undone");
+    expect(await readFile(filePath, "utf8")).toBe("before\n");
+    expect((await stat(filePath)).mode & 0o777).toBe(0o640);
+
+    const linkPath = path.join(workspace, "link.txt");
+    await writeFile(linkPath, "before\n");
+    const linkReview = createReviewForTest(capture, workspace, root, { randomId: () => "link-token" });
+    const linkScope = { workspaceId: workspace, sessionId: "s1", runId: "undo-link" };
+    const linkIdentity = { ...linkScope, workspacePath: workspace, toolName: "edit" as const, toolCallId: "edit-link" };
+    await capture.begin({ ...linkIdentity, args: { path: "link.txt" } });
+    await writeFile(linkPath, "after\n");
+    await capture.settle({ ...linkIdentity, args: { path: "link.txt" }, isError: false });
+    const linkPending = await linkReview.getReviewSet(linkScope);
+    const linkPreview = await linkReview.prepareUndo({
+      ...linkScope,
+      relativePath: "link.txt",
+      expectedRevision: linkPending.revision,
+    });
+    await unlink(linkPath);
+    await symlink(path.join(workspace, "note.txt"), linkPath);
+    await expect(linkReview.applyUndo({ ...linkScope, previewToken: linkPreview.previewToken })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.changeReviewConflict,
+    });
+    expect((await lstat(linkPath)).isSymbolicLink()).toBe(true);
+  });
+
+  test("treats an unreadable session ledger as blocking instead of missing", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-unreadable-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const store = createFileChangeLedgerStore(path.join(root, "ledger"));
+    const capture = createChangeCaptureService({ store });
+    const review = createReviewForTest(capture, workspace, root);
+    const identity = { workspaceId: workspace, sessionId: "s1", runId: "r-block", workspacePath: workspace, toolName: "write" as const, toolCallId: "c1" };
+    await capture.begin({ ...identity, args: { path: "note.txt" } });
+    await capture.settle({ ...identity, args: { path: "note.txt" }, isError: false });
+    expect(await capture.hasBlockingReview(workspace, "s1")).toBe(true);
+    const manifestFile = path.join(root, "ledger", "manifests", `${opaqueScopeId({ workspaceId: workspace, sessionId: "s1", runId: "r-block" })}.json`);
+    await writeFile(manifestFile, "{not-json", "utf8");
+    expect(await capture.hasUnreadableReview(workspace, "s1")).toBe(true);
+    expect(await capture.hasBlockingReview(workspace, "s1")).toBe(true);
+    const reviews = await capture.listSessionReviews(workspace, "s1");
+    expect(reviews.some((review) => review.ledgerUnreadable && review.runId === CHANGE_UNREADABLE_RUN_ID)).toBe(true);
+    const opened = await review.getReviewSet({
+      workspaceId: workspace,
+      sessionId: "s1",
+      runId: CHANGE_UNREADABLE_RUN_ID,
+    });
+    expect(opened.ledgerUnreadable).toBe(true);
+    expect(opened.files).toEqual([]);
+    const other = await store.listForSession(workspace, "s2");
+    expect(other.unreadable).toBe(true);
+  });
+
+  test("attributes a parseable but invalid manifest to its session without hiding it", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-attributed-corrupt-"));
+    const store = createFileChangeLedgerStore(root);
+    await mkdir(path.join(root, "manifests"), { recursive: true });
+    await writeFile(
+      path.join(root, "manifests", "broken.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        workspaceId: "/tmp/ws",
+        sessionId: "s-other",
+        runId: "r-other",
+      }),
+    );
+    const attributed = await store.listForSession("/tmp/ws", "s-other");
+    expect(attributed.unreadable).toBe(true);
+    expect(attributed.unreadableScopes).toEqual([
+      { workspaceId: "/tmp/ws", sessionId: "s-other", runId: CHANGE_UNREADABLE_RUN_ID },
+    ]);
+    const capture = createChangeCaptureService({ store });
+    const review = createReviewForTest(capture, "/tmp/ws", root);
+    const opened = await review.getReviewSet({
+      workspaceId: "/tmp/ws",
+      sessionId: "s-other",
+      runId: CHANGE_UNREADABLE_RUN_ID,
+    });
+    expect(opened.ledgerUnreadable).toBe(true);
+    const unrelated = await store.listForSession("/tmp/ws", "s1");
+    expect(unrelated.unreadable).toBe(false);
+    expect(unrelated.manifests).toEqual([]);
+  });
+
+  test("sets captureCapped instead of persisting past the operation budget", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-op-cap-"));
+    const workspace = path.join(root, "ws");
+    await mkdir(workspace);
+    const store = createFileChangeLedgerStore(path.join(root, "ledger"));
+    const fatOps = Array.from({ length: MAX_CHANGE_OPERATIONS_PER_RUN }, (_, index) => ({
+      toolCallId: `op-${index}`,
+      toolName: "write" as const,
+      relativePath: "note.txt",
+      at: "t0",
+    }));
+    expect(
+      exceedsPersistenceBudget({
+        schemaVersion: 1 as const,
+        workspaceId: workspace,
+        sessionId: "s1",
+        runId: "r-ops",
+        revision: 1,
+        updatedAt: "t0",
+        blobBytes: 0,
+        files: [
+          {
+            relativePath: "note.txt",
+            kind: "created",
+            status: "unavailable",
+            limitation: "capture-failed",
+            firstToolCallId: "op-0",
+            latestToolCallId: "op-0",
+            startedAt: "t0",
+            updatedAt: "t0",
+          },
+        ],
+        operations: [...fatOps, { toolCallId: "op-extra", toolName: "write", relativePath: "note.txt", at: "t0" }],
+      }),
+    ).toBe(true);
+    await store.save({
+      schemaVersion: 1 as const,
+      workspaceId: workspace,
+      sessionId: "s1",
+      runId: "r-ops",
+      revision: 1,
+      updatedAt: "t0",
+      blobBytes: 0,
+      files: [
+        {
+          relativePath: "note.txt",
+          kind: "created",
+          status: "unavailable",
+          limitation: "capture-failed",
+          firstToolCallId: "op-0",
+          latestToolCallId: "op-0",
+          startedAt: "t0",
+          updatedAt: "t0",
+        },
+      ],
+      operations: fatOps,
+    });
+    const capture = createChangeCaptureService({ store });
+    await capture.begin({
+      workspaceId: workspace,
+      sessionId: "s1",
+      runId: "r-ops",
+      workspacePath: workspace,
+      toolName: "write",
+      toolCallId: "op-overflow",
+      args: { path: "extra.txt" },
+    });
+    const manifest = await capture.loadManifest({ workspaceId: workspace, sessionId: "s1", runId: "r-ops" });
+    expect(manifest?.captureCapped).toBe(true);
+    expect(manifest?.operations).toHaveLength(MAX_CHANGE_OPERATIONS_PER_RUN);
+    expect(manifest?.files).toHaveLength(1);
+    expect(encodedManifestSize(manifest!)).toBeLessThanOrEqual(MAX_CHANGE_MANIFEST_BYTES);
   });
 });
 

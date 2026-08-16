@@ -1,14 +1,27 @@
 import { generateUnifiedPatch } from "@earendil-works/pi-coding-agent";
 import {
+  DEFAULT_CHANGE_CONTEXT_LINES,
+  HARNESS_ERROR_CODES,
+  MAX_CHANGE_CONTEXT_LINES,
   MAX_CHANGE_DIFF_CHARS,
   MAX_CHANGE_DIFF_HUNKS_PER_PAGE,
+  MAX_CHANGE_DIFF_INPUT_LINES,
   MAX_CHANGE_DIFF_LINES_PER_PAGE,
+  MAX_CHANGE_DIFF_PATCH_CHARS,
   MAX_CHANGE_FILE_VIEW_CHARS,
+  createHarnessError,
+  formatChangeDiffCursor,
+  formatChangeFileViewCursor,
+  parseChangeDiffCursor,
+  parseChangeFileViewCursor,
+  type ChangeDiffCursor,
   type ChangeDiffHunk,
   type ChangeDiffLine,
   type ChangeDiffLineKind,
   type ChangeDiffPage,
+  type ChangeFileViewCursor,
   type ChangeFileViewPage,
+  type ChangeLimitation,
 } from "@pho-code/protocol";
 import { languageFromRelativePath, splitLines } from "./change-text";
 
@@ -16,9 +29,11 @@ export function pageFileText(
   relativePath: string,
   text: string,
   cursor: string | undefined,
+  operation = "getChangeFileView",
 ): Pick<ChangeFileViewPage, "text" | "nextCursor" | "truncated" | "language"> {
-  const start = parseLineCursor(cursor);
+  const start = parseChangeFileViewCursor(cursor, operation);
   const lines = splitLines(text);
+  assertFileViewCursorInRange(start, lines, operation);
   let used = 0;
   const out: string[] = [];
   let index = start.line;
@@ -54,7 +69,9 @@ export function pageFileText(
     language: languageFromRelativePath(relativePath),
   };
   if (truncated) {
-    page.nextCursor = nextChar !== undefined ? `line:${index}:char:${nextChar}` : `line:${index}`;
+    page.nextCursor = formatChangeFileViewCursor(
+      nextChar !== undefined ? { line: index, char: nextChar } : { line: index, char: 0 },
+    );
   }
   return page;
 }
@@ -65,37 +82,52 @@ export function buildUnifiedDiffPage(input: {
   afterText: string;
   cursor?: string;
   contextLines?: number;
-}): Pick<ChangeDiffPage, "hunks" | "nextCursor" | "truncated" | "language"> {
+  operation?: string;
+}): Pick<ChangeDiffPage, "hunks" | "nextCursor" | "truncated" | "language" | "limitation"> {
+  const operation = input.operation ?? "getChangeDiff";
+  const complexity = diffComplexityLimitation(input.beforeText, input.afterText);
+  if (complexity) {
+    return {
+      hunks: [],
+      truncated: false,
+      language: languageFromRelativePath(input.relativePath),
+      limitation: complexity,
+    };
+  }
   const contextLines = clampContextLines(input.contextLines);
   const patch = generateUnifiedPatch(input.relativePath, input.beforeText, input.afterText, contextLines);
+  if (patch.length > MAX_CHANGE_DIFF_PATCH_CHARS) {
+    return {
+      hunks: [],
+      truncated: false,
+      language: languageFromRelativePath(input.relativePath),
+      limitation: "too-complex",
+    };
+  }
   const hunks = parseUnifiedDiff(patch);
-  const start = parseHunkCursor(input.cursor);
+  const start = parseChangeDiffCursor(input.cursor, operation);
+  assertDiffCursorInRange(start, hunks, operation);
   const pageHunks: ChangeDiffHunk[] = [];
   let chars = 0;
   let lines = 0;
   let index = start.hunk;
   let nextHunkLine: number | undefined;
+  let nextHunkChar: number | undefined;
   while (index < hunks.length && pageHunks.length < MAX_CHANGE_DIFF_HUNKS_PER_PAGE) {
     const hunk = hunks[index];
     if (!hunk) {
       break;
     }
     const lineStart = index === start.hunk ? start.line : 0;
-    const sliced = sliceHunk(hunk, lineStart, MAX_CHANGE_DIFF_CHARS - chars, MAX_CHANGE_DIFF_LINES_PER_PAGE - lines);
+    const charStart = index === start.hunk ? start.char : 0;
+    const sliced = sliceHunk(
+      hunk,
+      lineStart,
+      charStart,
+      MAX_CHANGE_DIFF_CHARS - chars,
+      MAX_CHANGE_DIFF_LINES_PER_PAGE - lines,
+    );
     if (sliced.lines.length === 0) {
-      if (pageHunks.length === 0 && lineStart < hunk.lines.length) {
-        const first = hunk.lines[lineStart];
-        if (first) {
-          const take = Math.max(1, MAX_CHANGE_DIFF_CHARS - chars - hunk.header.length);
-          pageHunks.push({
-            header: hunk.header,
-            lines: [{ ...first, text: first.text.slice(0, take) }],
-          });
-          chars += hunk.header.length + take + 1;
-          lines += 1;
-          nextHunkLine = lineStart + 1;
-        }
-      }
       break;
     }
     if (pageHunks.length > 0 && (chars + sliced.chars > MAX_CHANGE_DIFF_CHARS || lines + sliced.lines.length > MAX_CHANGE_DIFF_LINES_PER_PAGE)) {
@@ -106,6 +138,7 @@ export function buildUnifiedDiffPage(input: {
     lines += sliced.lines.length;
     if (!sliced.complete) {
       nextHunkLine = sliced.nextLine;
+      nextHunkChar = sliced.nextChar;
       break;
     }
     index += 1;
@@ -117,7 +150,11 @@ export function buildUnifiedDiffPage(input: {
     language: languageFromRelativePath(input.relativePath),
   };
   if (truncated) {
-    page.nextCursor = nextHunkLine !== undefined ? `hunk:${index}:line:${nextHunkLine}` : `hunk:${index}`;
+    page.nextCursor = formatChangeDiffCursor({
+      hunk: index,
+      line: nextHunkLine ?? 0,
+      char: nextHunkChar ?? 0,
+    });
   }
   return page;
 }
@@ -157,30 +194,62 @@ export function parseUnifiedDiff(patch: string): ChangeDiffHunk[] {
   return hunks;
 }
 
+function diffComplexityLimitation(beforeText: string, afterText: string): Extract<ChangeLimitation, "too-complex"> | undefined {
+  if (countLines(beforeText) > MAX_CHANGE_DIFF_INPUT_LINES || countLines(afterText) > MAX_CHANGE_DIFF_INPUT_LINES) {
+    return "too-complex";
+  }
+  return undefined;
+}
+
+function countLines(text: string): number {
+  if (text.length === 0) {
+    return 0;
+  }
+  return splitLines(text).length;
+}
+
 function sliceHunk(
   hunk: ChangeDiffHunk,
   startLine: number,
+  startChar: number,
   maxChars: number,
   maxLines: number,
-): { lines: ChangeDiffLine[]; chars: number; nextLine: number; complete: boolean } {
+): { lines: ChangeDiffLine[]; chars: number; nextLine: number; nextChar?: number; complete: boolean } {
   const lines: ChangeDiffLine[] = [];
   let chars = hunk.header.length;
   let index = Math.max(0, startLine);
+  let first = true;
   while (index < hunk.lines.length && lines.length < maxLines) {
     const line = hunk.lines[index];
     if (!line) {
       break;
     }
-    const addition = line.text.length + 1;
+    const charStart = first ? Math.max(0, startChar) : 0;
+    const remaining = line.text.slice(charStart);
+    const addition = remaining.length + 1;
     if (lines.length > 0 && chars + addition > maxChars) {
       break;
     }
-    if (lines.length === 0 && chars + addition > maxChars) {
-      break;
+    if (chars + addition > maxChars) {
+      const room = Math.max(0, maxChars - chars - 1);
+      if (room <= 0 && lines.length > 0) {
+        break;
+      }
+      const take = Math.max(1, room);
+      lines.push({ ...line, text: remaining.slice(0, take) });
+      chars += take + 1;
+      return {
+        lines,
+        chars,
+        nextLine: index,
+        nextChar: charStart + take,
+        complete: false,
+      };
     }
-    lines.push(line);
+    lines.push(charStart > 0 ? { ...line, text: remaining } : line);
     chars += addition;
     index += 1;
+    first = false;
   }
   return {
     lines,
@@ -211,37 +280,60 @@ function diffLineKind(line: string): ChangeDiffLineKind | undefined {
   return undefined;
 }
 
-function parseLineCursor(cursor: string | undefined): { line: number; char: number } {
-  if (!cursor) {
-    return { line: 0, char: 0 };
-  }
-  const match = /^line:(\d+)(?::char:(\d+))?$/u.exec(cursor);
-  if (!match) {
-    return { line: 0, char: 0 };
-  }
-  return {
-    line: Math.max(0, Number(match[1])),
-    char: Math.max(0, Number(match[2] ?? 0)),
-  };
-}
-
-function parseHunkCursor(cursor: string | undefined): { hunk: number; line: number } {
-  if (!cursor) {
-    return { hunk: 0, line: 0 };
-  }
-  const match = /^hunk:(\d+)(?::line:(\d+))?$/u.exec(cursor);
-  if (!match) {
-    return { hunk: 0, line: 0 };
-  }
-  return {
-    hunk: Math.max(0, Number(match[1])),
-    line: Math.max(0, Number(match[2] ?? 0)),
-  };
-}
-
 function clampContextLines(value: number | undefined): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return 3;
+    return DEFAULT_CHANGE_CONTEXT_LINES;
   }
-  return Math.min(8, Math.max(0, Math.floor(value)));
+  return Math.min(MAX_CHANGE_CONTEXT_LINES, Math.max(0, Math.floor(value)));
+}
+
+function assertFileViewCursorInRange(cursor: ChangeFileViewCursor, lines: readonly string[], operation: string): void {
+  if (cursor.line > lines.length) {
+    throw invalidCursor(operation);
+  }
+  if (cursor.line === lines.length) {
+    if (cursor.line === 0 && cursor.char === 0) {
+      return;
+    }
+    throw invalidCursor(operation);
+  }
+  const line = lines[cursor.line] ?? "";
+  if (cursor.char > line.length) {
+    throw invalidCursor(operation);
+  }
+}
+
+function assertDiffCursorInRange(cursor: ChangeDiffCursor, hunks: readonly ChangeDiffHunk[], operation: string): void {
+  if (cursor.hunk > hunks.length) {
+    throw invalidCursor(operation);
+  }
+  if (cursor.hunk === hunks.length) {
+    if (cursor.hunk === 0 && cursor.line === 0 && cursor.char === 0) {
+      return;
+    }
+    throw invalidCursor(operation);
+  }
+  const hunk = hunks[cursor.hunk];
+  if (!hunk) {
+    throw invalidCursor(operation);
+  }
+  if (cursor.line > hunk.lines.length) {
+    throw invalidCursor(operation);
+  }
+  if (cursor.line === hunk.lines.length) {
+    throw invalidCursor(operation);
+  }
+  const line = hunk.lines[cursor.line];
+  if (cursor.char > (line?.text.length ?? 0)) {
+    throw invalidCursor(operation);
+  }
+}
+
+function invalidCursor(operation: string): never {
+  throw createHarnessError({
+    code: HARNESS_ERROR_CODES.invalidCommand,
+    message: "That review cursor is invalid.",
+    operation,
+    recoverable: true,
+  });
 }

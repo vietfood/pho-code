@@ -1,18 +1,30 @@
-import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   CHANGE_KINDS,
   CHANGE_LIMITATIONS,
+  CHANGE_UNREADABLE_RUN_ID,
   MAX_CHANGE_LEDGER_BYTES,
+  MAX_CHANGE_LEDGER_STRING_CHARS,
+  MAX_CHANGE_MANIFEST_BYTES,
+  MAX_CHANGE_OPERATIONS_PER_RUN,
+  MAX_CHANGE_PATHS_PER_RUN,
+  MAX_CHANGE_SCOPE_ID_CHARS,
+  MAX_CHANGE_SNAPSHOT_BYTES,
+  MAX_CHANGE_TOOL_CALL_ID_CHARS,
   REVIEW_STATUSES,
   createHarnessError,
   HARNESS_ERROR_CODES,
+  hasDisallowedControlChars,
+  isChangeContentHash,
+  isPersistableRelativePath,
   type ChangeKind,
   type ChangeLimitation,
   type ChangeScope,
   type ReviewStatus,
 } from "@pho-code/protocol";
 import { hashBytes } from "./change-hash";
+import { fsyncParentDirectory, writeFileDurable } from "./change-fsync";
 import type { ChangeOperation, StoredFileChangeRecord } from "./change-record";
 import { isUndoTempName } from "./change-identity";
 
@@ -28,16 +40,40 @@ export interface ChangeLedgerManifest {
   files: StoredFileChangeRecord[];
   operations: ChangeOperation[];
   blobBytes: number;
+  captureCapped?: boolean;
+}
+
+export interface ChangeLedgerSessionListing {
+  manifests: ChangeLedgerManifest[];
+  unreadable: boolean;
+  unreadableScopes: ChangeScope[];
 }
 
 export interface ChangeLedgerStore {
   load(scope: ChangeScope): Promise<ChangeLedgerManifest | undefined>;
   save(manifest: ChangeLedgerManifest): Promise<void>;
-  listForSession(workspaceId: string, sessionId: string): Promise<ChangeLedgerManifest[]>;
+  listForSession(workspaceId: string, sessionId: string): Promise<ChangeLedgerSessionListing>;
   putBlob(bytes: Uint8Array): Promise<{ blobId: string; created: boolean }>;
   getBlob(blobId: string): Promise<Uint8Array | undefined>;
   totalBytes(): Promise<number>;
 }
+
+export function encodedManifestSize(manifest: ChangeLedgerManifest): number {
+  return Buffer.byteLength(`${JSON.stringify(manifest)}\n`, "utf8");
+}
+
+export function exceedsPersistenceBudget(manifest: ChangeLedgerManifest): boolean {
+  return (
+    manifest.files.length > MAX_CHANGE_PATHS_PER_RUN ||
+    manifest.operations.length > MAX_CHANGE_OPERATIONS_PER_RUN ||
+    encodedManifestSize(manifest) > MAX_CHANGE_MANIFEST_BYTES
+  );
+}
+
+type ManifestFileRead =
+  | { status: "missing" }
+  | { status: "valid"; manifest: ChangeLedgerManifest }
+  | { status: "corrupt"; owner?: { workspaceId: string; sessionId: string; runId?: string } };
 
 export function opaqueScopeId(scope: ChangeScope): string {
   return hashBytes(Buffer.from(`${scope.workspaceId}\0${scope.sessionId}\0${scope.runId}`, "utf8"));
@@ -73,44 +109,80 @@ export function createFileChangeLedgerStore(rootDir: string): ChangeLedgerStore 
     return path.join(manifestsDir, `${opaqueScopeId(scope)}.json`);
   }
 
+  async function readManifestFile(filePath: string): Promise<ManifestFileRead> {
+    let info;
+    try {
+      info = await stat(filePath);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return { status: "missing" };
+      }
+      throw error;
+    }
+    if (!info.isFile() || info.size > MAX_CHANGE_MANIFEST_BYTES) {
+      return { status: "corrupt" };
+    }
+    let raw: string;
+    try {
+      raw = await readFile(filePath, "utf8");
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return { status: "missing" };
+      }
+      throw error;
+    }
+    if (raw.length > MAX_CHANGE_MANIFEST_BYTES) {
+      return { status: "corrupt" };
+    }
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(raw);
+    } catch {
+      return { status: "corrupt" };
+    }
+    const parsed = parseManifest(parsedJson);
+    if (!parsed) {
+      return { status: "corrupt", owner: peekLedgerOwner(parsedJson) };
+    }
+    return { status: "valid", manifest: parsed };
+  }
+
   return {
     async load(scope) {
       await ensureDirs();
-      let raw: string;
-      try {
-        raw = await readFile(manifestPath(scope), "utf8");
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          return undefined;
-        }
-        throw error;
+      const parsed = await readManifestFile(manifestPath(scope));
+      if (parsed.status === "missing") {
+        return undefined;
       }
-      let parsedJson: unknown;
-      try {
-        parsedJson = JSON.parse(raw);
-      } catch {
+      if (parsed.status === "corrupt") {
         throw corruptManifestError();
       }
-      const parsed = parseManifest(parsedJson, scope);
-      if (!parsed) {
+      if (
+        parsed.manifest.workspaceId !== scope.workspaceId ||
+        parsed.manifest.sessionId !== scope.sessionId ||
+        parsed.manifest.runId !== scope.runId
+      ) {
         throw corruptManifestError();
       }
-      return parsed;
+      return parsed.manifest;
     },
     async save(manifest) {
       await ensureDirs();
-      const decoded = parseManifest(manifest, {
-        workspaceId: manifest.workspaceId,
-        sessionId: manifest.sessionId,
-        runId: manifest.runId,
-      });
-      if (!decoded) {
+      const decoded = parseManifest(manifest);
+      if (
+        !decoded ||
+        decoded.workspaceId !== manifest.workspaceId ||
+        decoded.sessionId !== manifest.sessionId ||
+        decoded.runId !== manifest.runId ||
+        exceedsPersistenceBudget(decoded)
+      ) {
         throw new Error("Refusing to persist an invalid change-ledger manifest.");
       }
       const target = manifestPath(decoded);
       const temp = path.join(tmpDir, `${opaqueScopeId(decoded)}.${process.pid}.${Date.now()}.json`);
-      await writeFile(temp, `${JSON.stringify(decoded)}\n`, "utf8");
+      await writeFileDurable(temp, `${JSON.stringify(decoded)}\n`);
       await rename(temp, target);
+      await fsyncParentDirectory(target);
     },
     async listForSession(workspaceId, sessionId) {
       await ensureDirs();
@@ -118,24 +190,54 @@ export function createFileChangeLedgerStore(rootDir: string): ChangeLedgerStore 
       try {
         names = await readdir(manifestsDir);
       } catch {
-        return [];
+        return { manifests: [], unreadable: false, unreadableScopes: [] };
       }
       const manifests: ChangeLedgerManifest[] = [];
+      const unreadableScopes: ChangeScope[] = [];
+      const seenUnreadable = new Set<string>();
+      let unreadable = false;
       for (const name of names) {
         if (!name.endsWith(".json")) {
           continue;
         }
-        try {
-          const raw = await readFile(path.join(manifestsDir, name), "utf8");
-          const parsed = parseManifest(JSON.parse(raw));
-          if (parsed && parsed.workspaceId === workspaceId && parsed.sessionId === sessionId) {
-            manifests.push(parsed);
+        const parsed = await readManifestFile(path.join(manifestsDir, name));
+        if (parsed.status === "missing") {
+          continue;
+        }
+        if (parsed.status === "valid") {
+          if (parsed.manifest.workspaceId === workspaceId && parsed.manifest.sessionId === sessionId) {
+            manifests.push(parsed.manifest);
           }
-        } catch {
-          // Corrupt manifests must not block chat.
+          continue;
+        }
+        if (parsed.status !== "corrupt") {
+          const exhaustive: never = parsed;
+          void exhaustive;
+          continue;
+        }
+        const owner = parsed.owner;
+        const attributed = owner?.workspaceId === workspaceId && owner.sessionId === sessionId;
+        const unattributed = owner === undefined;
+        if (!attributed && !unattributed) {
+          continue;
+        }
+        unreadable = true;
+        const scope: ChangeScope = {
+          workspaceId,
+          sessionId,
+          runId: CHANGE_UNREADABLE_RUN_ID,
+        };
+        const key = `${scope.workspaceId}\0${scope.sessionId}\0${scope.runId}`;
+        if (!seenUnreadable.has(key)) {
+          seenUnreadable.add(key);
+          unreadableScopes.push(scope);
         }
       }
-      return manifests.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt));
+      return {
+        manifests: manifests.sort((left, right) => left.updatedAt.localeCompare(right.updatedAt)),
+        unreadable,
+        unreadableScopes,
+      };
     },
     async putBlob(bytes) {
       await ensureDirs();
@@ -146,19 +248,39 @@ export function createFileChangeLedgerStore(rootDir: string): ChangeLedgerStore 
         return { blobId, created: false };
       } catch {
         const temp = path.join(tmpDir, `${blobId}.${process.pid}.${Date.now()}`);
-        await writeFile(temp, bytes);
+        await writeFileDurable(temp, bytes);
         await rename(temp, target);
+        await fsyncParentDirectory(target);
         return { blobId, created: true };
       }
     },
     async getBlob(blobId) {
-      if (!/^[a-f0-9]{64}$/u.test(blobId)) {
+      if (!isChangeContentHash(blobId)) {
+        return undefined;
+      }
+      let handle;
+      try {
+        handle = await open(path.join(blobsDir, blobId), "r");
+      } catch {
         return undefined;
       }
       try {
-        return await readFile(path.join(blobsDir, blobId));
-      } catch {
-        return undefined;
+        const info = await handle.stat();
+        if (!info.isFile() || info.size > MAX_CHANGE_SNAPSHOT_BYTES) {
+          return undefined;
+        }
+        const buffer = Buffer.alloc(info.size);
+        const { bytesRead } = await handle.read(buffer, 0, info.size, 0);
+        if (bytesRead !== info.size) {
+          return undefined;
+        }
+        const bytes = buffer.subarray(0, bytesRead);
+        if (hashBytes(bytes) !== blobId) {
+          return undefined;
+        }
+        return bytes;
+      } finally {
+        await handle.close();
       }
     },
     async totalBytes() {
@@ -209,7 +331,28 @@ async function directorySize(directory: string): Promise<number> {
   return total;
 }
 
-function parseManifest(value: unknown, expected?: ChangeScope): ChangeLedgerManifest | undefined {
+function peekLedgerOwner(value: unknown): { workspaceId: string; sessionId: string; runId?: string } | undefined {
+  if (value === null || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = value as Partial<ChangeScope>;
+  if (
+    !isBoundedLedgerString(candidate.workspaceId, MAX_CHANGE_SCOPE_ID_CHARS) ||
+    !isBoundedLedgerString(candidate.sessionId, MAX_CHANGE_SCOPE_ID_CHARS)
+  ) {
+    return undefined;
+  }
+  const owner: { workspaceId: string; sessionId: string; runId?: string } = {
+    workspaceId: candidate.workspaceId,
+    sessionId: candidate.sessionId,
+  };
+  if (isBoundedLedgerString(candidate.runId, MAX_CHANGE_SCOPE_ID_CHARS)) {
+    owner.runId = candidate.runId;
+  }
+  return owner;
+}
+
+function parseManifest(value: unknown): ChangeLedgerManifest | undefined {
   if (value === null || typeof value !== "object") {
     return undefined;
   }
@@ -218,44 +361,44 @@ function parseManifest(value: unknown, expected?: ChangeScope): ChangeLedgerMani
     return undefined;
   }
   if (
-    typeof candidate.workspaceId !== "string" ||
-    typeof candidate.sessionId !== "string" ||
-    typeof candidate.runId !== "string" ||
-    typeof candidate.revision !== "number" ||
-    !Number.isInteger(candidate.revision) ||
-    candidate.revision < 0 ||
-    typeof candidate.updatedAt !== "string" ||
-    typeof candidate.blobBytes !== "number" ||
+    !isBoundedLedgerString(candidate.workspaceId, MAX_CHANGE_SCOPE_ID_CHARS) ||
+    !isBoundedLedgerString(candidate.sessionId, MAX_CHANGE_SCOPE_ID_CHARS) ||
+    !isBoundedLedgerString(candidate.runId, MAX_CHANGE_SCOPE_ID_CHARS) ||
+    !isNonNegativeInt(candidate.revision) ||
+    !isBoundedLedgerString(candidate.updatedAt, MAX_CHANGE_LEDGER_STRING_CHARS) ||
+    !isNonNegativeInt(candidate.blobBytes) ||
+    candidate.blobBytes > MAX_CHANGE_LEDGER_BYTES ||
     !Array.isArray(candidate.files) ||
-    !Array.isArray(candidate.operations)
+    !Array.isArray(candidate.operations) ||
+    candidate.files.length > MAX_CHANGE_PATHS_PER_RUN ||
+    candidate.operations.length > MAX_CHANGE_OPERATIONS_PER_RUN
   ) {
     return undefined;
   }
-  if (
-    expected &&
-    (candidate.workspaceId !== expected.workspaceId ||
-      candidate.sessionId !== expected.sessionId ||
-      candidate.runId !== expected.runId)
-  ) {
+  if (candidate.captureCapped !== undefined && typeof candidate.captureCapped !== "boolean") {
     return undefined;
   }
   const files: StoredFileChangeRecord[] = [];
+  const filePaths = new Set<string>();
   for (const file of candidate.files) {
     const parsed = parseFileRecord(file);
-    if (!parsed) {
+    if (!parsed || filePaths.has(parsed.relativePath)) {
       return undefined;
     }
+    filePaths.add(parsed.relativePath);
     files.push(parsed);
   }
   const operations: ChangeOperation[] = [];
+  const toolCallIds = new Set<string>();
   for (const operation of candidate.operations) {
     const parsed = parseOperation(operation);
-    if (!parsed) {
+    if (!parsed || toolCallIds.has(parsed.toolCallId) || !filePaths.has(parsed.relativePath)) {
       return undefined;
     }
+    toolCallIds.add(parsed.toolCallId);
     operations.push(parsed);
   }
-  return {
+  const manifest: ChangeLedgerManifest = {
     schemaVersion: CHANGE_LEDGER_SCHEMA_VERSION,
     workspaceId: candidate.workspaceId,
     sessionId: candidate.sessionId,
@@ -266,6 +409,10 @@ function parseManifest(value: unknown, expected?: ChangeScope): ChangeLedgerMani
     operations,
     blobBytes: candidate.blobBytes,
   };
+  if (candidate.captureCapped) {
+    manifest.captureCapped = true;
+  }
+  return manifest;
 }
 
 function parseFileRecord(value: unknown): StoredFileChangeRecord | undefined {
@@ -273,21 +420,56 @@ function parseFileRecord(value: unknown): StoredFileChangeRecord | undefined {
     return undefined;
   }
   const candidate = value as Partial<StoredFileChangeRecord>;
-  if (typeof candidate.relativePath !== "string" || candidate.relativePath.includes("..") || candidate.relativePath.startsWith("/")) {
+  if (!isPersistableRelativePath(candidate.relativePath)) {
     return undefined;
   }
   if (!isStoredKind(candidate.kind) || !isStoredStatus(candidate.status)) {
     return undefined;
   }
   if (
-    typeof candidate.firstToolCallId !== "string" ||
-    typeof candidate.latestToolCallId !== "string" ||
-    typeof candidate.startedAt !== "string" ||
-    typeof candidate.updatedAt !== "string"
+    !isBoundedLedgerString(candidate.firstToolCallId, MAX_CHANGE_TOOL_CALL_ID_CHARS) ||
+    !isBoundedLedgerString(candidate.latestToolCallId, MAX_CHANGE_TOOL_CALL_ID_CHARS) ||
+    !isBoundedLedgerString(candidate.startedAt, MAX_CHANGE_LEDGER_STRING_CHARS) ||
+    !isBoundedLedgerString(candidate.updatedAt, MAX_CHANGE_LEDGER_STRING_CHARS)
   ) {
     return undefined;
   }
   if (candidate.limitation !== undefined && !isStoredLimitation(candidate.limitation)) {
+    return undefined;
+  }
+  if (candidate.beforeHash !== undefined && !isChangeContentHash(candidate.beforeHash)) {
+    return undefined;
+  }
+  if (candidate.afterHash !== undefined && !isChangeContentHash(candidate.afterHash)) {
+    return undefined;
+  }
+  if (candidate.beforeBlobId !== undefined && !isChangeContentHash(candidate.beforeBlobId)) {
+    return undefined;
+  }
+  if (candidate.afterBlobId !== undefined && !isChangeContentHash(candidate.afterBlobId)) {
+    return undefined;
+  }
+  if (candidate.byteLengthBefore !== undefined && !isBoundedByteLength(candidate.byteLengthBefore)) {
+    return undefined;
+  }
+  if (candidate.byteLengthAfter !== undefined && !isBoundedByteLength(candidate.byteLengthAfter)) {
+    return undefined;
+  }
+  if (candidate.status === "pending") {
+    if (candidate.limitation) {
+      return undefined;
+    }
+    if (candidate.kind === "created" && typeof candidate.afterHash !== "string") {
+      return undefined;
+    }
+    if (candidate.kind === "modified" && (typeof candidate.beforeHash !== "string" || typeof candidate.afterHash !== "string")) {
+      return undefined;
+    }
+  }
+  if (
+    (candidate.beforeBlobId && candidate.beforeHash && candidate.beforeBlobId !== candidate.beforeHash) ||
+    (candidate.afterBlobId && candidate.afterHash && candidate.afterBlobId !== candidate.afterHash)
+  ) {
     return undefined;
   }
   const record: StoredFileChangeRecord = {
@@ -299,22 +481,22 @@ function parseFileRecord(value: unknown): StoredFileChangeRecord | undefined {
     startedAt: candidate.startedAt,
     updatedAt: candidate.updatedAt,
   };
-  if (typeof candidate.beforeHash === "string") {
+  if (candidate.beforeHash) {
     record.beforeHash = candidate.beforeHash;
   }
-  if (typeof candidate.afterHash === "string") {
+  if (candidate.afterHash) {
     record.afterHash = candidate.afterHash;
   }
-  if (typeof candidate.beforeBlobId === "string") {
+  if (candidate.beforeBlobId) {
     record.beforeBlobId = candidate.beforeBlobId;
   }
-  if (typeof candidate.afterBlobId === "string") {
+  if (candidate.afterBlobId) {
     record.afterBlobId = candidate.afterBlobId;
   }
-  if (typeof candidate.byteLengthBefore === "number") {
+  if (candidate.byteLengthBefore !== undefined) {
     record.byteLengthBefore = candidate.byteLengthBefore;
   }
-  if (typeof candidate.byteLengthAfter === "number") {
+  if (candidate.byteLengthAfter !== undefined) {
     record.byteLengthAfter = candidate.byteLengthAfter;
   }
   if (candidate.limitation) {
@@ -335,10 +517,10 @@ function parseOperation(value: unknown): ChangeOperation | undefined {
   }
   const candidate = value as Partial<ChangeOperation>;
   if (
-    typeof candidate.toolCallId !== "string" ||
+    !isBoundedLedgerString(candidate.toolCallId, MAX_CHANGE_TOOL_CALL_ID_CHARS) ||
     (candidate.toolName !== "write" && candidate.toolName !== "edit") ||
-    typeof candidate.relativePath !== "string" ||
-    typeof candidate.at !== "string"
+    !isPersistableRelativePath(candidate.relativePath) ||
+    !isBoundedLedgerString(candidate.at, MAX_CHANGE_LEDGER_STRING_CHARS)
   ) {
     return undefined;
   }
@@ -350,6 +532,8 @@ function parseOperation(value: unknown): ChangeOperation | undefined {
   };
   if (typeof candidate.isError === "boolean") {
     operation.isError = candidate.isError;
+  } else if (candidate.isError !== undefined) {
+    return undefined;
   }
   return operation;
 }
@@ -364,4 +548,21 @@ function isStoredStatus(value: unknown): value is ReviewStatus {
 
 function isStoredLimitation(value: unknown): value is ChangeLimitation {
   return typeof value === "string" && (CHANGE_LIMITATIONS as readonly string[]).includes(value);
+}
+
+function isBoundedLedgerString(value: unknown, maxChars: number): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= maxChars &&
+    !hasDisallowedControlChars(value)
+  );
+}
+
+function isNonNegativeInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
+}
+
+function isBoundedByteLength(value: unknown): value is number {
+  return isNonNegativeInt(value) && value <= MAX_CHANGE_LEDGER_BYTES;
 }

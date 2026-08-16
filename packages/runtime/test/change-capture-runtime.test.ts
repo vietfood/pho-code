@@ -190,4 +190,47 @@ describe("Pi write/edit change capture", () => {
       await runtime.dispose();
     }
   }, 60_000);
+
+  test("records outside-workspace and path-cap overflow without leaking absolute tool paths", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createPhoCodeRuntime({ agentDir, deterministicTestModel: true });
+    const events: RuntimeEvent[] = [];
+    runtime.subscribe((event) => {
+      events.push(event);
+    });
+
+    try {
+      const workspace = await runtime.inspectWorkspace({ path: workspaceDir, approveProjectResources: true });
+      const session = await runtime.createSession(workspace.workspace.id);
+      const outsideAdmission = await runtime.sendPrompt({
+        sessionId: session.session.id,
+        text: TEST_PROMPT.useWriteOutside,
+      });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === outsideAdmission.runId);
+      const outsideReview = await runtime.getChangeReviewSet({
+        workspaceId: session.workspace.id,
+        sessionId: session.session.id,
+        runId: outsideAdmission.runId,
+      });
+      expect(outsideReview.files.length).toBeGreaterThan(0);
+      expect(outsideReview.files.every((file) => file.relativePath.startsWith(".pho-code-untracked/"))).toBe(true);
+      expect(JSON.stringify(outsideReview)).not.toContain("/tmp/pho-code-outside-note.txt");
+      expect(outsideReview.files.some((file) => file.limitation === "outside-workspace" || file.status === "unavailable")).toBe(
+        true,
+      );
+
+      const capAdmission = await runtime.sendPrompt({ sessionId: session.session.id, text: TEST_PROMPT.useWriteCap });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === capAdmission.runId, 120_000);
+      const capReview = await runtime.getChangeReviewSet({
+        workspaceId: session.workspace.id,
+        sessionId: session.session.id,
+        runId: capAdmission.runId,
+      });
+      expect(capReview.fileCount).toBeLessThanOrEqual(200);
+      expect(capReview.captureCapped).toBe(true);
+      expect(JSON.stringify(capReview)).not.toContain("/tmp/pho-code-outside-note.txt");
+    } finally {
+      await runtime.dispose();
+    }
+  }, 180_000);
 });

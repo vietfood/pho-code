@@ -1,7 +1,12 @@
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import {
+  CHANGE_UNTRACKED_PATH_PREFIX,
+  isPersistableRelativePath,
+  type ChangeLimitation,
+} from "@pho-code/protocol";
+import { hashUtf8 } from "./change-hash";
 import { isSensitiveWorkspaceRelative, toPosixRelative } from "./workspace-reference";
-import type { ChangeLimitation } from "@pho-code/protocol";
 
 export type CapturePathKind = "regular-file" | "absent" | "directory" | "symlink" | "other";
 
@@ -9,7 +14,7 @@ export interface ResolvedCapturePath {
   relativePath: string;
   canonicalPath: string;
   kind: CapturePathKind;
-  limitation?: Extract<ChangeLimitation, "outside-workspace" | "sensitive" | "unsupported-kind">;
+  limitation?: Extract<ChangeLimitation, "outside-workspace" | "sensitive" | "unsupported-kind" | "capture-failed">;
 }
 
 export function decodeWriteEditPath(args: unknown): string | undefined {
@@ -21,6 +26,11 @@ export function decodeWriteEditPath(args: unknown): string | undefined {
     return undefined;
   }
   return pathValue.trim();
+}
+
+export function untrackedCapturePath(kind: "outside-workspace" | "malformed", discriminator: string): string {
+  const digest = hashUtf8(discriminator).slice(0, 16);
+  return `${CHANGE_UNTRACKED_PATH_PREFIX}${kind}-${digest}`;
 }
 
 export async function resolveCapturePath(
@@ -38,12 +48,7 @@ export async function resolveCapturePath(
   } catch {
     const relative = posixRelativeOrOutside(workspace, resolved);
     if (relative.outside) {
-      return {
-        relativePath: requestedPath,
-        canonicalPath: resolved,
-        kind: "absent",
-        limitation: "outside-workspace",
-      };
+      return outsideResult(requestedPath, resolved, "absent");
     }
     if (isSensitiveWorkspaceRelative(relative.path)) {
       return {
@@ -62,32 +67,41 @@ export async function resolveCapturePath(
 
   const canonicalPath = stats.isSymbolicLink() ? resolved : await realpath(resolved);
   const relative = posixRelativeOrOutside(workspace, canonicalPath);
+  const kind: CapturePathKind = stats.isDirectory()
+    ? "directory"
+    : stats.isSymbolicLink()
+      ? "symlink"
+      : stats.isFile()
+        ? "regular-file"
+        : "other";
   if (relative.outside) {
-    return {
-      relativePath: requestedPath,
-      canonicalPath,
-      kind: stats.isDirectory() ? "directory" : stats.isSymbolicLink() ? "symlink" : "other",
-      limitation: "outside-workspace",
-    };
+    return outsideResult(requestedPath, canonicalPath, kind);
   }
   if (isSensitiveWorkspaceRelative(relative.path)) {
     return {
       relativePath: relative.path,
       canonicalPath,
-      kind: stats.isDirectory() ? "directory" : stats.isSymbolicLink() ? "symlink" : stats.isFile() ? "regular-file" : "other",
+      kind,
       limitation: "sensitive",
     };
   }
-  if (stats.isSymbolicLink()) {
-    return { relativePath: relative.path, canonicalPath, kind: "symlink", limitation: "unsupported-kind" };
-  }
-  if (stats.isDirectory()) {
-    return { relativePath: relative.path, canonicalPath, kind: "directory", limitation: "unsupported-kind" };
-  }
-  if (!stats.isFile()) {
-    return { relativePath: relative.path, canonicalPath, kind: "other", limitation: "unsupported-kind" };
+  if (kind === "symlink" || kind === "directory" || kind === "other") {
+    return { relativePath: relative.path, canonicalPath, kind, limitation: "unsupported-kind" };
   }
   return { relativePath: relative.path, canonicalPath, kind: "regular-file" };
+}
+
+function outsideResult(
+  requestedPath: string,
+  canonicalPath: string,
+  kind: CapturePathKind,
+): ResolvedCapturePath {
+  return {
+    relativePath: untrackedCapturePath("outside-workspace", requestedPath),
+    canonicalPath,
+    kind,
+    limitation: "outside-workspace",
+  };
 }
 
 function posixRelativeOrOutside(
@@ -101,5 +115,9 @@ function posixRelativeOrOutside(
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     return { path: relative, outside: true };
   }
-  return { path: toPosixRelative(relative), outside: false };
+  const posix = toPosixRelative(relative);
+  if (!isPersistableRelativePath(posix)) {
+    return { path: posix, outside: true };
+  }
+  return { path: posix, outside: false };
 }

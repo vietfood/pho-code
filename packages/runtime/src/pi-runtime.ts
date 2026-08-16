@@ -24,6 +24,7 @@ import {
 import {
   PROTOCOL_VERSION,
   RUNTIME_EVENT_TYPES,
+  CHANGE_REVIEW_COPY,
   assertJsonSafe,
   createHarnessError,
   HARNESS_ERROR_CODES,
@@ -1419,6 +1420,14 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(key.workspaceId, "prepareRemoveSession");
       refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: key.sessionId }), "prepareRemoveSession");
+      if (await changeCapture.hasUnreadableReview(cwd, key.sessionId)) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.changeReviewCorrupt,
+          message: CHANGE_REVIEW_COPY.ledgerUnreadable,
+          operation: "prepareRemoveSession",
+          recoverable: true,
+        });
+      }
       if (await changeCapture.hasBlockingReview(cwd, key.sessionId)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.sessionRemovalRefused,
@@ -1437,6 +1446,14 @@ export async function createPhoCodeRuntime(
       const cwd = await canonicalizeWorkspaceDirectory(input.workspaceId, "removeSession");
       return registry.runLocked({ workspaceId: cwd, sessionId: input.sessionId }, async () => {
         refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: input.sessionId }), "removeSession");
+        if (await changeCapture.hasUnreadableReview(cwd, input.sessionId)) {
+          throw createHarnessError({
+            code: HARNESS_ERROR_CODES.changeReviewCorrupt,
+            message: CHANGE_REVIEW_COPY.ledgerUnreadable,
+            operation: "removeSession",
+            recoverable: true,
+          });
+        }
         if (await changeCapture.hasBlockingReview(cwd, input.sessionId)) {
           throw createHarnessError({
             code: HARNESS_ERROR_CODES.sessionRemovalRefused,

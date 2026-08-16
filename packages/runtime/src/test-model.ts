@@ -25,6 +25,8 @@ export const TEST_PROMPT = {
   useWrite: "USE_WRITE",
   useEdit: "USE_EDIT",
   useWriteFail: "USE_WRITE_FAIL",
+  useWriteOutside: "USE_WRITE_OUTSIDE",
+  useWriteCap: "USE_WRITE_CAP",
   failAfter: "FAIL_AFTER",
   abortMe: "ABORT_ME",
 } as const;
@@ -151,6 +153,26 @@ function buildTestResponse(context: Context) {
       [
         fauxThinking("Writing over a directory."),
         fauxToolCall("write", { path: "blocked-dir", content: "should fail\n" }, { id: "call_write_fail" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useWriteOutside)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing outside the workspace."),
+        fauxToolCall("write", { path: "/tmp/pho-code-outside-note.txt", content: "outside\n" }, { id: "call_write_outside" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useWriteCap)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing many tracked files."),
+        ...Array.from({ length: 201 }, (_, index) =>
+          fauxToolCall("write", { path: `cap-${index}.txt`, content: `${index}\n` }, { id: `call_write_cap_${index}` }),
+        ),
       ],
       { stopReason: "toolUse" },
     );

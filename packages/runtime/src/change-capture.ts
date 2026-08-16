@@ -1,11 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { open } from "node:fs/promises";
 import {
+  blockingReviewStatuses,
   createHarnessError,
   HARNESS_ERROR_CODES,
   MAX_CHANGE_BLOB_BYTES_PER_RUN,
   MAX_CHANGE_FILES_ON_SUMMARY,
-  MAX_CHANGE_PATHS_PER_RUN,
   MAX_CHANGE_SNAPSHOT_BYTES,
   type ChangeKind,
   type ChangeLimitation,
@@ -15,11 +15,12 @@ import {
 import { hashBytes } from "./change-hash";
 import {
   createEmptyManifest,
+  exceedsPersistenceBudget,
   ledgerBudgetExceeded,
   type ChangeLedgerManifest,
   type ChangeLedgerStore,
 } from "./change-ledger-store";
-import { decodeWriteEditPath, resolveCapturePath } from "./change-path";
+import { decodeWriteEditPath, resolveCapturePath, untrackedCapturePath } from "./change-path";
 import {
   applyCaptureBegin,
   applyCaptureSettle,
@@ -61,6 +62,7 @@ export interface ChangeCaptureService {
   readWorkspaceFile(workspacePath: string, relativePath: string): Promise<WorkspaceFileRead>;
   hashWorkspaceFile(workspacePath: string, relativePath: string): Promise<string | undefined>;
   hasBlockingReview(workspaceId: string, sessionId: string): Promise<boolean>;
+  hasUnreadableReview(workspaceId: string, sessionId: string): Promise<boolean>;
 }
 
 export function createChangeCaptureService(input: {
@@ -134,17 +136,18 @@ export function createChangeCaptureService(input: {
   return {
     async begin(command) {
       const relative = decodeWriteEditPath(command.args);
-      if (!relative) {
-        return;
-      }
       await transact(
         command,
         async (manifest) => {
-          const resolved = await resolveCapturePath(relative, command.workspacePath);
-          const existing = manifest.files.find((entry) => entry.relativePath === resolved.relativePath);
-          if (!existing && manifest.files.length >= MAX_CHANGE_PATHS_PER_RUN) {
-            return null;
-          }
+          const previous = cloneManifest(manifest);
+          const resolved = relative
+            ? await resolveCapturePath(relative, command.workspacePath)
+            : {
+                relativePath: untrackedCapturePath("malformed", command.toolCallId),
+                canonicalPath: command.workspacePath,
+                kind: "other" as const,
+                limitation: "capture-failed" as const,
+              };
           const kind = resolved.kind === "regular-file" || command.toolName === "edit" ? "modified" : "created";
           const file = beginFile(manifest, command, resolved.relativePath, kind, resolved.limitation, now());
           upsertFile(manifest, file);
@@ -155,14 +158,14 @@ export function createChangeCaptureService(input: {
             at: now(),
           });
           if (resolved.limitation || resolved.kind === "directory" || resolved.kind === "symlink" || resolved.kind === "other") {
-            return manifest;
+            return commitOrCap(manifest, previous);
           }
           if (resolved.kind === "absent") {
-            return manifest;
+            return commitOrCap(manifest, previous);
           }
           const current = manifest.files.find((entry) => entry.relativePath === resolved.relativePath);
           if (!current) {
-            return manifest;
+            return commitOrCap(manifest, previous);
           }
           try {
             const snapshot = await snapshotFile(resolved.canonicalPath, manifest, input.store);
@@ -183,7 +186,7 @@ export function createChangeCaptureService(input: {
             current.status = "unavailable";
             current.limitation = "capture-failed";
           }
-          return manifest;
+          return commitOrCap(manifest, previous);
         },
         { createIfMissing: true },
       );
@@ -243,14 +246,12 @@ export function createChangeCaptureService(input: {
       await transact(
         command,
         async (manifest) => {
+          const previous = cloneManifest(manifest);
           const relative = await relativeForSettle(manifest, command);
           if (!relative) {
             return null;
           }
           const existing = manifest.files.find((entry) => entry.relativePath === relative);
-          if (!existing && manifest.files.length >= MAX_CHANGE_PATHS_PER_RUN) {
-            return null;
-          }
           const failed = applyCaptureBegin(existing, {
             relativePath: relative,
             toolCallId: command.toolCallId,
@@ -269,7 +270,7 @@ export function createChangeCaptureService(input: {
               at: now(),
             });
           }
-          return manifest;
+          return commitOrCap(manifest, previous);
         },
         { createIfMissing: true },
       );
@@ -301,8 +302,15 @@ export function createChangeCaptureService(input: {
       });
     },
     async listSessionReviews(workspaceId, sessionId) {
-      const manifests = await input.store.listForSession(workspaceId, sessionId);
-      return manifests.map(projectSummary);
+      const listing = await input.store.listForSession(workspaceId, sessionId);
+      const summaries = listing.manifests.map(projectSummary);
+      for (const scope of listing.unreadableScopes) {
+        if (summaries.some((summary) => summary.runId === scope.runId)) {
+          continue;
+        }
+        summaries.push(unreadableReviewSummary(scope, now()));
+      }
+      return summaries;
     },
     loadManifest(scope) {
       return input.store.load(scope);
@@ -328,17 +336,14 @@ export function createChangeCaptureService(input: {
       return probe.state === "hashed" ? probe.hash : undefined;
     },
     async hasBlockingReview(workspaceId, sessionId) {
-      const reviews = await input.store.listForSession(workspaceId, sessionId);
-      return reviews.some((manifest) =>
-        manifest.files.some(
-          (file) =>
-            file.status === "pending" ||
-            file.status === "capturing" ||
-            file.status === "undoing" ||
-            file.status === "conflict" ||
-            file.status === "indeterminate",
-        ),
-      );
+      const listing = await input.store.listForSession(workspaceId, sessionId);
+      if (listing.unreadable) {
+        return true;
+      }
+      return listing.manifests.some((manifest) => manifest.files.some((file) => blockingReviewStatuses(file.status)));
+    },
+    async hasUnreadableReview(workspaceId, sessionId) {
+      return (await input.store.listForSession(workspaceId, sessionId)).unreadable;
     },
   };
 }
@@ -365,6 +370,7 @@ function projectReview(manifest: ChangeLedgerManifest, truncateFiles: boolean): 
     unavailableCount: files.filter((file) => file.status === "unavailable" || file.status === "indeterminate").length,
     fileCount: files.length,
     filesTruncated: truncated,
+    ...(manifest.captureCapped ? { captureCapped: true } : {}),
     files: truncated ? files.slice(0, MAX_CHANGE_FILES_ON_SUMMARY) : files,
     toolCallIds: [...new Set(manifest.operations.map((operation) => operation.toolCallId))],
     updatedAt: manifest.updatedAt,
@@ -491,7 +497,7 @@ async function relativeForSettle(
   }
   const decoded = decodeWriteEditPath(command.args);
   if (!decoded) {
-    return undefined;
+    return untrackedCapturePath("malformed", command.toolCallId);
   }
   const resolved = await resolveCapturePath(decoded, command.workspacePath);
   return resolved.relativePath;
@@ -512,4 +518,54 @@ function findRelativeForCall(manifest: ChangeLedgerManifest | undefined, toolCal
 
 function scopeKey(scope: ChangeScope): string {
   return `${scope.workspaceId}\0${scope.sessionId}\0${scope.runId}`;
+}
+
+function cloneManifest(manifest: ChangeLedgerManifest): ChangeLedgerManifest {
+  return {
+    ...manifest,
+    files: manifest.files.map((file) => ({ ...file })),
+    operations: manifest.operations.map((operation) => ({ ...operation })),
+  };
+}
+
+function restoreManifest(target: ChangeLedgerManifest, source: ChangeLedgerManifest): void {
+  target.files = source.files;
+  target.operations = source.operations;
+  target.blobBytes = source.blobBytes;
+  if (source.captureCapped) {
+    target.captureCapped = true;
+  } else {
+    delete target.captureCapped;
+  }
+}
+
+function commitOrCap(manifest: ChangeLedgerManifest, previous: ChangeLedgerManifest): ChangeLedgerManifest | null {
+  if (!exceedsPersistenceBudget(manifest)) {
+    return manifest;
+  }
+  restoreManifest(manifest, previous);
+  if (manifest.captureCapped) {
+    return null;
+  }
+  manifest.captureCapped = true;
+  return manifest;
+}
+
+function unreadableReviewSummary(scope: ChangeScope, updatedAt: string): ChangeReviewSetSummary {
+  return {
+    workspaceId: scope.workspaceId,
+    sessionId: scope.sessionId,
+    runId: scope.runId,
+    revision: 0,
+    pendingCount: 0,
+    approvedCount: 0,
+    conflictCount: 0,
+    unavailableCount: 1,
+    fileCount: 0,
+    filesTruncated: false,
+    ledgerUnreadable: true,
+    files: [],
+    toolCallIds: [],
+    updatedAt,
+  };
 }

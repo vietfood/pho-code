@@ -4,12 +4,15 @@ import {
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import {
+  CHANGE_UNREADABLE_RUN_ID,
   createHarnessError,
   HARNESS_ERROR_CODES,
   MAX_CHANGE_FILES_ON_SUMMARY,
-  MAX_CHANGE_RELATIVE_PATH_CHARS,
   isChangeFileVersion,
   isHarnessError,
+  parseChangeDiffCursor,
+  parseChangeFileViewCursor,
+  requireChangeRelativePath,
   type ApproveChangesInput,
   type ApplyUndoChangesInput,
   type ChangeDiffPage,
@@ -86,16 +89,7 @@ export function createChangeReviewRuntime(input: {
   const previews = new Map<string, StoredUndoPreview>();
   const now = () => (input.now ?? (() => new Date()))();
   function requireRelativePath(relativePath: string, operation: string): string {
-    const trimmed = relativePath.trim();
-    if (trimmed === "" || trimmed.length > MAX_CHANGE_RELATIVE_PATH_CHARS || trimmed.includes("..") || trimmed.startsWith("/")) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "A workspace-relative tracked path is required.",
-        operation,
-        recoverable: true,
-      });
-    }
-    return trimmed;
+    return requireChangeRelativePath(relativePath, operation);
   }
 
   async function requireRecord(scope: ChangeScope, relativePath: string, operation: string) {
@@ -141,9 +135,31 @@ export function createChangeReviewRuntime(input: {
     );
   }
 
+  async function findUnreadableReview(scope: ChangeScope): Promise<ChangeReviewSetSnapshot | undefined> {
+    const listed = await input.capture.listSessionReviews(scope.workspaceId, scope.sessionId);
+    return listed.find((review) => review.runId === scope.runId && review.ledgerUnreadable === true);
+  }
+
   return {
     async getReviewSet(scope) {
-      await input.capture.reconcileInterrupted(scope);
+      if (scope.runId === CHANGE_UNREADABLE_RUN_ID) {
+        const unreadable = await findUnreadableReview(scope);
+        if (unreadable) {
+          return unreadable;
+        }
+      }
+      try {
+        await input.capture.reconcileInterrupted(scope);
+      } catch (error) {
+        if (!isHarnessError(error) || error.code !== HARNESS_ERROR_CODES.changeReviewCorrupt) {
+          throw error;
+        }
+        const unreadable = await findUnreadableReview(scope);
+        if (unreadable) {
+          return unreadable;
+        }
+        throw error;
+      }
       const workspacePath = await input.resolveWorkspacePath(scope.workspaceId);
       return input.capture.transact(
         scope,
@@ -195,6 +211,7 @@ export function createChangeReviewRuntime(input: {
         });
       }
       const relativePath = requireRelativePath(command.relativePath, "getChangeFileView");
+      parseChangeFileViewCursor(command.cursor, "getChangeFileView");
       if (command.version === "current") {
         await refreshCurrentHash(command, relativePath, "getChangeFileView");
         const { record } = await requireRecord(command, relativePath, "getChangeFileView");
@@ -245,7 +262,7 @@ export function createChangeReviewRuntime(input: {
           limitation: record.limitation ?? "capture-failed",
         };
       }
-      const stored = await input.capture.getBlob(blobId);
+      const stored = await verifiedBlob(input.capture, blobId, command.version === "before" ? record.beforeHash : record.afterHash);
       if (!stored) {
         return {
           relativePath,
@@ -259,6 +276,7 @@ export function createChangeReviewRuntime(input: {
     },
     async getDiff(command) {
       const relativePath = requireRelativePath(command.relativePath, "getChangeDiff");
+      parseChangeDiffCursor(command.cursor, "getChangeDiff");
       await refreshCurrentHash(command, relativePath, "getChangeDiff");
       const { record } = await requireRecord(command, relativePath, "getChangeDiff");
       if (record.limitation) {
@@ -270,8 +288,12 @@ export function createChangeReviewRuntime(input: {
           limitation: record.limitation,
         };
       }
-      const beforeBytes = record.beforeBlobId ? await input.capture.getBlob(record.beforeBlobId) : new Uint8Array();
-      const afterBytes = record.afterBlobId ? await input.capture.getBlob(record.afterBlobId) : undefined;
+      const beforeBytes = record.beforeBlobId
+        ? await verifiedBlob(input.capture, record.beforeBlobId, record.beforeHash)
+        : new Uint8Array();
+      const afterBytes = record.afterBlobId
+        ? await verifiedBlob(input.capture, record.afterBlobId, record.afterHash)
+        : undefined;
       if (beforeBytes === undefined || !afterBytes) {
         return {
           relativePath,
@@ -298,7 +320,17 @@ export function createChangeReviewRuntime(input: {
         afterText: afterClass.text,
         ...(command.cursor ? { cursor: command.cursor } : {}),
         ...(command.contextLines !== undefined ? { contextLines: command.contextLines } : {}),
+        operation: "getChangeDiff",
       });
+      if (paged.limitation) {
+        return {
+          relativePath,
+          status: record.status,
+          hunks: [],
+          truncated: false,
+          limitation: paged.limitation,
+        };
+      }
       const page: ChangeDiffPage = {
         relativePath,
         status: record.status,
@@ -333,7 +365,7 @@ export function createChangeReviewRuntime(input: {
             });
           }
           const selected =
-            command.relativePaths?.map((path) => path.trim()).filter((path) => path !== "") ??
+            command.relativePaths?.map((path) => requireChangeRelativePath(path, "approveChanges")) ??
             manifest.files
               .filter((file) => file.status === "pending" || file.status === "conflict")
               .map((file) => file.relativePath);
@@ -797,6 +829,22 @@ async function waitForCreatedFileAbsence(
 
 function sameScope(left: ChangeScope, right: ChangeScope): boolean {
   return left.workspaceId === right.workspaceId && left.sessionId === right.sessionId && left.runId === right.runId;
+}
+
+async function verifiedBlob(
+  capture: ChangeCaptureService,
+  blobId: string,
+  expectedHash: string | undefined,
+): Promise<Uint8Array | undefined> {
+  const stored = await capture.getBlob(blobId);
+  if (!stored) {
+    return undefined;
+  }
+  const hash = hashBytes(stored);
+  if (hash !== blobId || (expectedHash !== undefined && hash !== expectedHash)) {
+    return undefined;
+  }
+  return stored;
 }
 
 function fileViewFromBytes(

@@ -1,6 +1,7 @@
 import { open, rename } from "node:fs/promises";
 import { MAX_CHANGE_SNAPSHOT_BYTES } from "@pho-code/protocol";
 import { hashBytes } from "./change-hash";
+import { fsyncParentDirectory } from "./change-fsync";
 import {
   ChangeRecoveryConflictError,
   assertPathHoldsIdentity,
@@ -42,9 +43,11 @@ export function createAtomicChangeRecoveryService(
         if (current.hash !== input.expectedCurrentHash) {
           throw new ChangeRecoveryConflictError("The file changed after the Undo preview.");
         }
-        const temp = await open(input.temporaryPath, "wx", current.mode);
+        const permission = current.mode & 0o7777;
+        const temp = await open(input.temporaryPath, "wx", permission);
         temporaryCreated = true;
         try {
+          await temp.chmod(permission);
           await temp.writeFile(input.bytes);
           await temp.sync();
         } finally {
@@ -60,6 +63,7 @@ export function createAtomicChangeRecoveryService(
         await assertPathHoldsIdentity(input.canonicalPath, input.expectedIdentity);
         await rename(input.temporaryPath, input.canonicalPath);
         temporaryCreated = false;
+        await fsyncParentDirectory(input.canonicalPath);
       } finally {
         await handle.close();
         if (temporaryCreated) {
