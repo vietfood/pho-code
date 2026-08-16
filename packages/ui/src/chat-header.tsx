@@ -1,24 +1,37 @@
+import type { ReactNode } from "react";
+import { cn } from "./lib/cn";
 import { workspaceTopbarClass } from "./lib/workspace-topbar";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
 import { Button } from "./ui/button";
 
 export function ChatHeader({
+  title,
   modelError,
   yoloMode,
   sidebarCollapsed,
+  paneFill = false,
+  headerActions,
   onToggleSidebar,
   onTrustProject,
 }: {
+  title?: string;
   modelError?: string;
   yoloMode?: boolean;
   sidebarCollapsed?: boolean;
+  paneFill?: boolean;
+  headerActions?: ReactNode;
   onToggleSidebar?: () => void;
   onTrustProject?: () => void;
 }) {
   const showToggle = Boolean(sidebarCollapsed && onToggleSidebar);
 
   return (
-    <header className={workspaceTopbarClass({ leadingInset: showToggle, className: "gap-3" })}>
+    <header
+      className={workspaceTopbarClass({
+        leadingInset: showToggle,
+        className: cn("gap-2", paneFill && "border-border/50 border-b"),
+      })}
+    >
       {showToggle && onToggleSidebar ? (
         <SidebarToggleButton
           collapsed
@@ -26,7 +39,18 @@ export function ChatHeader({
           className="text-muted-foreground hover:text-foreground"
         />
       ) : null}
-      <div className="min-w-0 flex-1" aria-hidden="true" />
+      {headerActions}
+      {title ? (
+        <p
+          className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+          data-testid="chat-title"
+          title={title}
+        >
+          {title}
+        </p>
+      ) : (
+        <div className="min-w-0 flex-1" aria-hidden="true" />
+      )}
       {onTrustProject ? (
         <Button
           size="sm"

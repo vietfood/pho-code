@@ -10,7 +10,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  EllipsisVerticalIcon,
+  ArchiveIcon,
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
@@ -57,6 +57,7 @@ export function AppSidebar({
   onOpenSettings,
   onGoHome,
   homeActive = false,
+  overlay = true,
   onToggleCollapsed,
   busy,
 }: {
@@ -77,6 +78,7 @@ export function AppSidebar({
   onOpenSettings: () => void;
   onGoHome: () => void;
   homeActive?: boolean;
+  overlay?: boolean;
   onToggleCollapsed: () => void;
   busy: boolean;
 }) {
@@ -140,42 +142,27 @@ export function AppSidebar({
   const aboutDialog = aboutOpen ? <AboutDialog state={bootstrap} onClose={() => setAboutOpen(false)} /> : null;
 
   if (collapsed) {
+    if (!overlay) {
+      return (
+        <>
+          <div data-testid="app-sidebar" data-collapsed="true" data-overlay="false" hidden />
+          {aboutDialog}
+        </>
+      );
+    }
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-20" data-testid="app-sidebar" data-collapsed="true">
-          <nav
-            className="pointer-events-auto absolute start-2 top-14 flex flex-col items-center gap-0.5 rounded-2xl border border-border bg-sidebar p-1 shadow-sm"
-            aria-label="Projects"
-            data-testid="app-sidebar-pill"
-          >
-            <SidebarGlyphButton
-              label="Home"
-              testId="go-home"
-              current={homeActive}
-              onClick={onGoHome}
-            >
-              <HouseIcon className="size-3.5" aria-hidden="true" />
-            </SidebarGlyphButton>
-            <SidebarGlyphButton
-              label="Open folder"
-              testId="add-project"
-              disabled={busy}
-              onClick={onAddProject}
-            >
-              <FolderPlusIcon className="size-3.5" aria-hidden="true" />
-            </SidebarGlyphButton>
-            <SidebarGlyphButton
-              label="New session"
-              testId="new-session"
-              disabled={busy || !canNewSession}
-              onClick={handleNewSession}
-            >
-              <SquarePenIcon className="size-3.5" aria-hidden="true" />
-            </SidebarGlyphButton>
-            <SidebarGlyphButton label="Settings" testId="open-settings" onClick={onOpenSettings}>
-              <SettingsIcon className="size-3.5" aria-hidden="true" />
-            </SidebarGlyphButton>
-          </nav>
+          <CollapsedSidebarActions
+            layout="pill"
+            busy={busy}
+            canNewSession={canNewSession}
+            homeActive={homeActive}
+            onGoHome={onGoHome}
+            onAddProject={onAddProject}
+            onNewSession={handleNewSession}
+            onOpenSettings={onOpenSettings}
+          />
         </div>
         {aboutDialog}
       </>
@@ -269,6 +256,7 @@ export function AppSidebar({
                       onOpenMenu={(sessionId, point) => {
                         setMenu({ kind: "session", workspaceId: project.id, sessionId, x: point.x, y: point.y });
                       }}
+                      onArchive={(sessionId) => onArchiveSession(project.id, sessionId)}
                       onOpenProjectMenu={(point) => {
                         setMenu({ kind: "project", workspaceId: project.id, x: point.x, y: point.y });
                       }}
@@ -315,6 +303,75 @@ export function AppSidebar({
       ) : null}
     </aside>
   );
+}
+
+export function CollapsedSidebarActions({
+  layout,
+  busy,
+  canNewSession,
+  homeActive,
+  onGoHome,
+  onAddProject,
+  onNewSession,
+  onOpenSettings,
+}: {
+  layout: "pill" | "header";
+  busy: boolean;
+  canNewSession: boolean;
+  homeActive: boolean;
+  onGoHome: () => void;
+  onAddProject: () => void;
+  onNewSession: () => void;
+  onOpenSettings: () => void;
+}) {
+  const buttons = (
+    <>
+      <SidebarGlyphButton label="Home" testId="go-home" current={homeActive} onClick={onGoHome}>
+        <HouseIcon className="size-3.5" aria-hidden="true" />
+      </SidebarGlyphButton>
+      <SidebarGlyphButton label="Open folder" testId="add-project" disabled={busy} onClick={onAddProject}>
+        <FolderPlusIcon className="size-3.5" aria-hidden="true" />
+      </SidebarGlyphButton>
+      <SidebarGlyphButton
+        label="New session"
+        testId="new-session"
+        disabled={busy || !canNewSession}
+        onClick={onNewSession}
+      >
+        <SquarePenIcon className="size-3.5" aria-hidden="true" />
+      </SidebarGlyphButton>
+      <SidebarGlyphButton label="Settings" testId="open-settings" onClick={onOpenSettings}>
+        <SettingsIcon className="size-3.5" aria-hidden="true" />
+      </SidebarGlyphButton>
+    </>
+  );
+
+  switch (layout) {
+    case "header":
+      return (
+        <nav
+          className="flex shrink-0 items-center gap-0.5"
+          aria-label="Projects"
+          data-testid="app-sidebar-header-actions"
+        >
+          {buttons}
+        </nav>
+      );
+    case "pill":
+      return (
+        <nav
+          className="pointer-events-auto absolute start-2 top-14 flex flex-col items-center gap-0.5 rounded-2xl border border-border bg-sidebar p-1 shadow-sm"
+          aria-label="Projects"
+          data-testid="app-sidebar-pill"
+        >
+          {buttons}
+        </nav>
+      );
+    default: {
+      const exhaustive: never = layout;
+      return exhaustive;
+    }
+  }
 }
 
 function SidebarGlyphButton({
@@ -366,6 +423,7 @@ function SortableProjectRow({
   onToggle,
   onOpenSession,
   onOpenMenu,
+  onArchive,
   onOpenProjectMenu,
 }: {
   project: RecentWorkspaceRecord;
@@ -377,6 +435,7 @@ function SortableProjectRow({
   onToggle: () => void;
   onOpenSession: (sessionId: string) => void;
   onOpenMenu: (sessionId: string, point: { x: number; y: number }) => void;
+  onArchive: (sessionId: string) => void;
   onOpenProjectMenu: (point: { x: number; y: number }) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -452,6 +511,7 @@ function SortableProjectRow({
                   selected={session.sessionId === selectedSessionId && active}
                   busy={busy}
                   onOpen={() => onOpenSession(session.sessionId)}
+                  onArchive={() => onArchive(session.sessionId)}
                   onOpenMenu={(point) => onOpenMenu(session.sessionId, point)}
                 />
               ))}
@@ -470,12 +530,14 @@ function SessionRow({
   selected,
   busy,
   onOpen,
+  onArchive,
   onOpenMenu,
 }: {
   session: SessionCatalogEntry;
   selected: boolean;
   busy: boolean;
   onOpen: () => void;
+  onArchive: () => void;
   onOpenMenu: (point: { x: number; y: number }) => void;
 }) {
   const relative = formatRelativeTime(session.updatedAt);
@@ -525,19 +587,18 @@ function SessionRow({
           <Button
             size="icon-sm"
             variant="ghost"
-            data-testid="session-actions"
+            data-testid="session-archive"
             disabled={busy}
-            aria-haspopup="menu"
-            aria-label={`Actions for ${session.title}`}
+            aria-label={`Archive ${session.title}`}
+            title="Archive chat"
             className="absolute inset-y-0 right-0 size-5 text-sidebar-muted-foreground opacity-0 hover:text-sidebar-foreground focus-visible:opacity-100 group-hover/session:opacity-100 group-focus-within/session:opacity-100"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              const rect = event.currentTarget.getBoundingClientRect();
-              onOpenMenu({ x: rect.right, y: rect.bottom });
+              onArchive();
             }}
           >
-            <EllipsisVerticalIcon className="size-3" aria-hidden="true" />
+            <ArchiveIcon className="size-3" aria-hidden="true" />
           </Button>
         </div>
       </div>

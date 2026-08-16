@@ -84,7 +84,7 @@ export function Transcript({
   return (
     <div
       ref={scrollerRef}
-      className="transcript-scroller flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 py-3 sm:px-5 sm:py-4"
+      className="transcript-scroller flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain px-3 py-2 sm:px-4 sm:py-2.5"
       data-testid="transcript"
       aria-live="polite"
     >
@@ -189,7 +189,7 @@ function LiveRunTail({
   return (
     <>
       {liveWorkCounts.steps > 0 ? (
-        <div className="mx-auto w-full min-w-0 max-w-3xl overflow-x-clip pb-2" data-testid="live-work">
+        <div className="chat-column overflow-x-clip pb-2" data-testid="live-work">
           <div className="space-y-1 px-1 py-0.5">
             <WorkLogToggle
               label="Working"
@@ -213,18 +213,18 @@ function LiveRunTail({
         </div>
       ) : null}
       {run.streamingText ? (
-        <article className="streaming-text chat-text mx-auto w-full min-w-0 max-w-3xl overflow-x-clip px-1 py-0.5 pb-4" data-testid="streaming-text">
+        <article className="streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5" data-testid="streaming-text">
           <ConservativeMarkdown text={run.streamingText} streaming />
           {running ? <span className="streaming-caret" aria-hidden="true" /> : null}
         </article>
       ) : null}
       {running && !run.streamingText && liveWorkCounts.steps === 0 ? (
-        <p className="mx-auto w-full max-w-3xl px-1 pb-4 pt-1 text-sm text-muted-foreground" data-testid="agent-working">
+        <p className="chat-column px-1 pb-2.5 pt-1 text-sm text-muted-foreground" data-testid="agent-working">
           Working
         </p>
       ) : null}
       {run.error ? (
-        <p className="mx-auto w-full max-w-3xl px-1 pb-4 text-sm text-destructive" role="alert">
+        <p className="chat-column px-1 pb-2.5 text-sm text-destructive" role="alert">
           {run.error.message}
         </p>
       ) : null}
@@ -310,7 +310,7 @@ function WorkNarration({ text }: { text: string }) {
 
 const UserMessageRow = memo(function UserMessageRow({ message }: { message: TranscriptMessage }) {
   return (
-    <article className="mx-auto flex w-full min-w-0 max-w-3xl flex-col items-end gap-1 overflow-x-clip pb-4">
+    <article className="chat-column flex flex-col items-end gap-1 overflow-x-clip pb-2.5">
       <div className="chat-text relative max-h-[300px] max-w-[80%] overflow-y-auto break-words rounded-2xl bg-message px-3 py-2.5 text-message-foreground">
         {message.blocks.map((block, index) => (
           <UserTranscriptBlockView key={`${message.id}:${index}`} block={block} />
@@ -453,7 +453,7 @@ const AssistantTurn = memo(function AssistantTurn({
   }
 
   return (
-    <article className="mx-auto w-full min-w-0 max-w-3xl overflow-x-clip" data-testid="assistant-turn">
+    <article className="chat-column overflow-x-clip" data-testid="assistant-turn">
       {workCounts.steps > 0 ? (
         <div className="space-y-1 px-1 py-0.5 pb-2">
           <WorkLogToggle
@@ -567,7 +567,7 @@ const AssistantTurn = memo(function AssistantTurn({
         })
       )}
       {outputText && !editing ? (
-        <div className="assistant-turn-actions flex items-center gap-1.5 px-1 pb-3 pt-0.5">
+        <div className="assistant-turn-actions flex items-center gap-1.5 px-1 pb-2 pt-0.5">
           <CopyButton
             text={outputText}
             label="Copy"

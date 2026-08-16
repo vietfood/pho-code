@@ -180,6 +180,11 @@ describe("empty session hero", () => {
     expect(markup).toContain("Send follow-up");
     expect(markup).toContain("overflow-y-auto");
     expect(markup).toContain("transcript-scroller");
+    expect(markup).toContain("chat-column");
+    expect(markup).toContain('data-testid="chat-title"');
+    expect(markup).toContain("New session");
+    expect(markup).not.toContain("max-w-3xl");
+    expect(markup).not.toContain('data-chat-fill="true"');
     expect(markup).not.toContain("scrollbar-gutter-both");
   });
 
@@ -400,5 +405,28 @@ describe("local machine label", () => {
   test("names macOS and other desktops honestly", () => {
     expect(localMachineLabel(true)).toBe("This Mac");
     expect(localMachineLabel(false)).toBe("This computer");
+  });
+});
+
+describe("split-pane chat fill", () => {
+  test("fills the chat column when the right sidebar is expanded", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+        }),
+        paneFill: true,
+        sidebarCollapsed: true,
+        onToggleSidebar: () => undefined,
+        headerActions: createElement("nav", { "data-testid": "app-sidebar-header-actions" }, "actions"),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-chat-fill="true"');
+    expect(markup).toContain("chat-column");
+    expect(markup).toContain('data-testid="app-sidebar-header-actions"');
+    expect(markup).toContain('data-testid="chat-title"');
+    expect(markup).not.toContain("max-w-3xl");
+    expect(markup).not.toContain('data-testid="app-sidebar-pill"');
   });
 });

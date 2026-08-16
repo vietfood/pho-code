@@ -3,7 +3,7 @@
 Status: in progress  
 Owner: features/terminal  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-15-change-v3-right-sidebar.md`](../../../ui/logs/2026-08-15-change-v3-right-sidebar.md), [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../../ui/logs/2026-08-16-change-sidebar-shortcuts-scrollbar.md`](../../../ui/logs/2026-08-16-change-sidebar-shortcuts-scrollbar.md), [`../../../archive/v3/logs/2026-08-15-m0-m2-implementation.md`](../../../archive/v3/logs/2026-08-15-m0-m2-implementation.md), [`../../../archive/v3/logs/2026-08-16-v3-acceptance-review.md`](../../../archive/v3/logs/2026-08-16-v3-acceptance-review.md)
+Related logs: [`../../../ui/logs/2026-08-15-change-v3-right-sidebar.md`](../../../ui/logs/2026-08-15-change-v3-right-sidebar.md), [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../../ui/logs/2026-08-16-change-sidebar-shortcuts-scrollbar.md`](../../../ui/logs/2026-08-16-change-sidebar-shortcuts-scrollbar.md), [`../../../ui/logs/2026-08-16-change-split-pane-chat-fill.md`](../../../ui/logs/2026-08-16-change-split-pane-chat-fill.md), [`../../../archive/v3/logs/2026-08-15-m0-m2-implementation.md`](../../../archive/v3/logs/2026-08-15-m0-m2-implementation.md), [`../../../archive/v3/logs/2026-08-16-v3-acceptance-review.md`](../../../archive/v3/logs/2026-08-16-v3-acceptance-review.md)
 
 ## Intent
 
@@ -45,3 +45,4 @@ Terminal will be a peer right-sidebar surface beside Changes and Context prompt.
 - Milestone 0 must prove Electron ABI loading for `node-pty` and CSP-compatible Ghostty WASM.
 - Before changing the right-sidebar surface union, read the linked UI/V3 record and preserve exhaustive handling.
 - Host chrome has no dedicated Collapse control; re-clicking the active surface (Changes, Context prompt, and later Terminal) hides the panel. See [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md).
+- Host resize clamp is 360–1100px (or 62% of the window), default 520px. See [`../../../ui/logs/2026-08-16-change-split-pane-chat-fill.md`](../../../ui/logs/2026-08-16-change-split-pane-chat-fill.md).

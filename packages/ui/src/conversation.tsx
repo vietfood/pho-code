@@ -38,6 +38,8 @@ export function Conversation({
   onResolveDialog,
   yoloMode,
   sidebarCollapsed,
+  paneFill = false,
+  headerActions,
   onToggleSidebar,
   onSearchReferences,
   images,
@@ -63,6 +65,8 @@ export function Conversation({
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
   yoloMode?: boolean;
   sidebarCollapsed?: boolean;
+  paneFill?: boolean;
+  headerActions?: ReactNode;
   onToggleSidebar?: () => void;
   onSearchReferences?: (query: string) => Promise<SearchWorkspaceReferencesResult>;
   images?: readonly PreparedImageSummary[];
@@ -172,12 +176,16 @@ export function Conversation({
     <section
       className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       aria-label="Conversation"
+      {...(paneFill ? { "data-chat-fill": "true" } : {})}
     >
       <div className="session-pane-body flex min-h-0 flex-1 flex-col overflow-hidden">
         <ChatHeader
+          title={snapshot.session.title}
+          paneFill={paneFill}
           {...(snapshot.modelError ? { modelError: snapshot.modelError } : {})}
           {...(yoloMode ? { yoloMode: true } : {})}
           {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
+          {...(headerActions ? { headerActions } : {})}
           {...(onToggleSidebar ? { onToggleSidebar } : {})}
           {...(onTrustProject ? { onTrustProject } : {})}
         />
@@ -195,8 +203,8 @@ export function Conversation({
               {...(onRewrite ? { onRewrite } : {})}
               {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
             />
-            <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1.5 pb-4 sm:pt-2 sm:pb-5">
-              <div className="pointer-events-auto mx-auto w-full max-w-3xl">
+            <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1 pb-2.5 sm:pt-1.5 sm:pb-3">
+              <div className="chat-column pointer-events-auto">
                 {hostDialog}
                 {composer}
               </div>

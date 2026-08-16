@@ -1,5 +1,5 @@
 export { AppShell } from "./app-shell";
-export { AppSidebar } from "./app-sidebar";
+export { AppSidebar, CollapsedSidebarActions } from "./app-sidebar";
 export { ChatHeader } from "./chat-header";
 export { SidebarToggleButton } from "./sidebar-toggle-button";
 export { readSidebarCollapsed, writeSidebarCollapsed } from "./lib/sidebar-collapsed";

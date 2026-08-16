@@ -41,6 +41,7 @@ import {
 import {
   AppShell,
   AppSidebar,
+  CollapsedSidebarActions,
   applyAppearanceFonts,
   applyAppearanceTheme,
   ChatPaneLoading,
@@ -600,6 +601,39 @@ export function App() {
     ) : null;
 
   const contextPrompt = snapshot?.contextPrompt ?? emptySessionContextPrompt();
+  const paneFill = Boolean(snapshot || chatLoading) && !rightSidebarCollapsed;
+  const collapsedHeaderActions =
+    sidebarCollapsed && paneFill ? (
+      <CollapsedSidebarActions
+        layout="header"
+        busy={busy}
+        canNewSession={Boolean(activeWorkspaceId)}
+        homeActive={!snapshot && !chatLoading}
+        onGoHome={clearSelectedSession}
+        onAddProject={() => {
+          void runCommand(async () => {
+            const picked = await getDesktopBridge().pickWorkspace();
+            if (picked) {
+              setWorkspace(picked);
+              setDraft("");
+              setPreparedImages([]);
+              resetConversationChrome();
+              await refreshCatalog(picked.workspace.id);
+              await refreshBootstrap();
+            }
+          });
+        }}
+        onNewSession={() => {
+          if (!activeWorkspaceId) {
+            return;
+          }
+          void switchSession(activeWorkspaceId, null, () =>
+            getDesktopBridge().createSession({ workspaceId: activeWorkspaceId }),
+          );
+        }}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+    ) : null;
   let rightSidebarPanel: ReactNode = null;
   if (!rightSidebarCollapsed) {
     switch (rightSidebarSurface) {
@@ -787,6 +821,7 @@ export function App() {
       sidebar={
         <AppSidebar
           collapsed={sidebarCollapsed}
+          overlay={!(sidebarCollapsed && paneFill)}
           projects={projects}
           sessionsByWorkspace={sessionsByWorkspace}
           bootstrap={sidebarBootstrap}
@@ -864,7 +899,12 @@ export function App() {
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {chatLoading ? (
-          <ChatPaneLoading sidebarCollapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} />
+          <ChatPaneLoading
+            sidebarCollapsed={sidebarCollapsed}
+            paneFill={paneFill}
+            {...(collapsedHeaderActions ? { headerActions: collapsedHeaderActions } : {})}
+            onToggleSidebar={toggleSidebar}
+          />
         ) : snapshot ? (
               <Conversation
                 snapshot={snapshot}
@@ -873,6 +913,8 @@ export function App() {
                 dialog={conversation.dialog}
                 onResolveDialog={resolveHostDialog}
                 sidebarCollapsed={sidebarCollapsed}
+                paneFill={paneFill}
+                {...(collapsedHeaderActions ? { headerActions: collapsedHeaderActions } : {})}
                 onToggleSidebar={toggleSidebar}
                 notice={trustNotice}
                 {...(trustPending ? { onTrustProject: () => setTrustDialogOpen(true) } : {})}

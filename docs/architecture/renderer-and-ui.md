@@ -70,11 +70,11 @@ The shell preserves:
 
 - manual recent-project order;
 - project expansion and sidebar width across collapse;
-- left-sidebar collapsed overlay pill (Home, Open folder, New session, Settings);
+- left-sidebar collapsed overlay pill (Home, Open folder, New session, Settings), or the same actions in the chat header when the right sidebar is expanded so the conversation can fill the left pane;
 - Home returning to the welcome launcher without disposing background sessions;
 - per-chat drafts and live-run projections;
 - session catalog state for inactive workspaces;
-- right-sidebar collapsed state and width.
+- right-sidebar collapsed state and width (default 520px, clamp 360–1100px or 62% of the window).
 
 Archive is metadata over Pi sessions. Removal is a confirmed privileged operation using recoverable Trash. A busy session or blocking review state may refuse removal.
 

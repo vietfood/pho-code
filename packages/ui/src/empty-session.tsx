@@ -13,12 +13,12 @@ export function EmptySessionStage({
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="empty-session">
       <div className="empty-session-glow" aria-hidden="true" />
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-        <div className="relative z-10 w-full max-w-2xl">
+        <div className="empty-session-column relative z-10">
           <SessionContext workspaceName={workspaceName} />
           {children}
         </div>
       </div>
-      <p className="shrink-0 px-4 pb-5 text-center text-[11px] text-muted-foreground/70">
+      <p className="shrink-0 px-4 pb-3 text-center text-[11px] text-muted-foreground/70">
         Send a message to start chatting in this workspace.
       </p>
     </div>

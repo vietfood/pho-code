@@ -112,7 +112,7 @@ export function unselectedSessionItem(page: Page): Locator {
 
 export async function openSessionActions(sessionItem: Locator): Promise<void> {
   const row = sessionItem.first().locator("xpath=ancestor::li[1]");
-  await row.getByTestId("session-actions").click();
+  await row.click({ button: "right" });
   await expect(sessionItem.page().getByTestId("session-context-menu")).toBeVisible();
 }
 

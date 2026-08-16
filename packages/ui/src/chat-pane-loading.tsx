@@ -1,11 +1,16 @@
+import type { ReactNode } from "react";
 import { ChatHeader } from "./chat-header";
 import { LoadingDots } from "./loading-dots";
 
 export function ChatPaneLoading({
   sidebarCollapsed,
+  paneFill = false,
+  headerActions,
   onToggleSidebar,
 }: {
   sidebarCollapsed?: boolean;
+  paneFill?: boolean;
+  headerActions?: ReactNode;
   onToggleSidebar?: () => void;
 }) {
   return (
@@ -14,9 +19,12 @@ export function ChatPaneLoading({
       aria-label="Conversation"
       aria-busy="true"
       data-testid="session-switching"
+      {...(paneFill ? { "data-chat-fill": "true" } : {})}
     >
       <ChatHeader
+        paneFill={paneFill}
         {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
+        {...(headerActions ? { headerActions } : {})}
         {...(onToggleSidebar ? { onToggleSidebar } : {})}
       />
       <div

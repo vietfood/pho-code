@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { INTENDED_PI_SDK, PINNED_ELECTRON, PROTOCOL_VERSION } from "@pho-code/protocol";
 import type { BootstrapState, RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
-import { AppSidebar } from "../src/app-sidebar";
+import { AppSidebar, CollapsedSidebarActions } from "../src/app-sidebar";
 
 const noop = (): void => undefined;
 
@@ -112,6 +112,31 @@ describe("app sidebar project folders", () => {
     expect(markup).toContain("Plan the beds");
   });
 
+  test("session rows show an archive button instead of a three-dot menu", () => {
+    const garden = sampleProject("/tmp/garden", "Garden");
+    const markup = renderToStaticMarkup(
+      createElement(
+        AppSidebar,
+        sidebarProps({
+          projects: [garden],
+          activeWorkspaceId: garden.id,
+          selectedSessionId: "s1",
+          sessionsByWorkspace: {
+            [garden.id]: [sampleSession(garden.id, "s1", "Plan the beds")],
+          },
+        }),
+      ),
+    );
+
+    expect(markup).toContain('data-testid="session-archive"');
+    expect(markup).toContain('aria-label="Archive Plan the beds"');
+    expect(markup).toContain("title=\"Archive chat\"");
+    expect(markup).toContain("lucide-archive");
+    expect(markup).not.toContain("lucide-ellipsis");
+    expect(markup).not.toContain('data-testid="session-actions"');
+    expect(markup).not.toContain("aria-haspopup");
+  });
+
   test("renders a Projects heading at the project-row type size aligned with folder glyphs", () => {
     const garden = sampleProject("/tmp/garden", "Garden");
     const markup = renderToStaticMarkup(
@@ -181,6 +206,46 @@ describe("app sidebar project folders", () => {
     expect(markup).not.toContain('data-testid="project-list"');
     expect(markup).not.toContain('data-testid="bootstrap-state"');
     expect(markup).not.toContain('data-testid="sidebar-resize"');
+  });
+
+  test("hides the overlay pill when collapsed without overlay chrome", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        AppSidebar,
+        sidebarProps({
+          collapsed: true,
+          overlay: false,
+          projects: [sampleProject("/tmp/garden", "Garden")],
+        }),
+      ),
+    );
+    expect(markup).toContain('data-testid="app-sidebar"');
+    expect(markup).toContain('data-collapsed="true"');
+    expect(markup).toContain('data-overlay="false"');
+    expect(markup).not.toContain('data-testid="app-sidebar-pill"');
+    expect(markup).not.toContain('data-testid="go-home"');
+  });
+
+  test("renders collapsed actions as a header row", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CollapsedSidebarActions, {
+        layout: "header",
+        busy: false,
+        canNewSession: true,
+        homeActive: false,
+        onGoHome: noop,
+        onAddProject: noop,
+        onNewSession: noop,
+        onOpenSettings: noop,
+      }),
+    );
+    expect(markup).toContain('data-testid="app-sidebar-header-actions"');
+    expect(markup).toContain('data-testid="go-home"');
+    expect(markup).toContain('data-testid="add-project"');
+    expect(markup).toContain('data-testid="new-session"');
+    expect(markup).toContain('data-testid="open-settings"');
+    expect(markup).not.toContain("rounded-2xl");
+    expect(markup).not.toContain('data-testid="app-sidebar-pill"');
   });
 
   test("marks Home as the current page on the welcome launcher", () => {

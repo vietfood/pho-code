@@ -35,6 +35,6 @@ Conversation must remain primary; the Changes workbench is secondary and read-on
 
 Any change to the right-sidebar surface union, resize ownership, or collapsed pill must cross-link the active terminal log before implementation.
 
-Later host chrome (surface union unchanged): [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md) removes the dedicated Collapse control; re-clicking the active Changes or Context prompt icon hides the panel.
+Later host chrome (surface union unchanged): [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md) removes the dedicated Collapse control; re-clicking the active Changes or Context prompt icon hides the panel. [`2026-08-16-change-split-pane-chat-fill.md`](./2026-08-16-change-split-pane-chat-fill.md) lets the conversation fill the left pane when this host is expanded and raises the resize clamp.
 
 V3 Milestone 3 completed highlighting, search, whitespace, context expansion, and capture-cap/undo-metadata copy inside the existing Changes surface. It did not add a new right-sidebar surface or change the host contract. Evidence: [`../../archive/v3/logs/2026-08-16-m3-hardening.md`](../../archive/v3/logs/2026-08-16-m3-hardening.md). An unreadable-ledger banner was added in the same surface: [`../../archive/v3/logs/2026-08-16-m3-ledger-fail-closed.md`](../../archive/v3/logs/2026-08-16-m3-ledger-fail-closed.md).

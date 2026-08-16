@@ -91,26 +91,28 @@ export function ModelPicker({
       </button>
       {open ? (
         <div className="composer-model-picker-panel" data-testid="model-picker-panel">
-          <div className="composer-model-picker-filter">
-            <label className="sr-only" htmlFor={filterId}>
-              Filter models
-            </label>
-            <SearchIcon className="composer-model-picker-filter-icon" aria-hidden="true" />
-            <input
-              ref={filterRef}
-              id={filterId}
-              type="search"
-              data-testid="model-picker-filter"
-              className="composer-model-picker-filter-input"
-              placeholder="Search models"
-              value={filter}
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => setFilter(event.target.value)}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-              }}
-            />
+          <div className="composer-model-picker-toolbar">
+            <div className="composer-model-picker-filter">
+              <label className="sr-only" htmlFor={filterId}>
+                Filter models
+              </label>
+              <SearchIcon className="composer-model-picker-filter-icon" aria-hidden="true" />
+              <input
+                ref={filterRef}
+                id={filterId}
+                type="search"
+                data-testid="model-picker-filter"
+                className="composer-model-picker-filter-input"
+                placeholder="Search models"
+                value={filter}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => setFilter(event.target.value)}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                }}
+              />
+            </div>
           </div>
           <ul
             id={listId}

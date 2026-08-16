@@ -79,7 +79,7 @@ This add-on will not:
 ## User-visible contract
 
 - The collapsed overlay pill and expanded icon rail gain a Terminal control (`SquareTerminal` or equivalent lucide icon) after Changes / Context prompt. There is no dedicated Collapse control; clicking the active surface icon hides the panel.
-- Selecting it expands the same mouse-resizable panel (`pho-code.reviewSidebarWidth`, clamp 360–720px) and shows the emulator.
+- Selecting it expands the same mouse-resizable panel (`pho-code.reviewSidebarWidth`, default 520px, clamp 360–1100px or 62% of the window) and shows the emulator.
 - No selected workspace: the icon is disabled with a short reason (“Open a project to use the terminal”).
 - Empty/error states: spawn failure, WASM load failure, exited shell with Restart.
 - Status chrome: running / exited / error, plus an optional short OSC title (truncated).
