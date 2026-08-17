@@ -258,6 +258,35 @@ export type {
 } from "./github-mcp";
 
 export {
+  emptySandboxSettingsSnapshot,
+  isSandboxNetworkMode,
+  isSandboxStatus,
+  isSandboxStatusReason,
+  MAX_SANDBOX_ALLOWED_DOMAINS,
+  MAX_SANDBOX_DOMAIN_CHARS,
+  MAX_SANDBOX_PATH_CHARS,
+  MAX_SANDBOX_PATH_LIST,
+  parseSandboxAllowedDomains,
+  parseSandboxDomain,
+  parseSandboxPathEntry,
+  parseSandboxPathList,
+  parseSandboxSettingsPatch,
+  SANDBOX_DISCLOSURE,
+  SANDBOX_NETWORK_MODES,
+  SANDBOX_STATUS_REASONS,
+  SANDBOX_STATUSES,
+  sandboxStatusLabel,
+  sandboxStatusReasonLabel,
+} from "./sandbox";
+export type {
+  SandboxNetworkMode,
+  SandboxSettingsSnapshot,
+  SandboxStatus,
+  SandboxStatusReason,
+  UpdateSandboxSettingsInput,
+} from "./sandbox";
+
+export {
   APPEARANCE_MODES,
   APPEARANCE_PALETTES,
   clampChatFontSize,

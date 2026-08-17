@@ -51,6 +51,7 @@ export const PROTOCOL_COMMANDS = {
   updateSkillSourceSettings: "updateSkillSourceSettings",
   refreshSkills: "refreshSkills",
   updateGitHubMcpSettings: "updateGitHubMcpSettings",
+  updateSandboxSettings: "updateSandboxSettings",
   importGitHubPat: "importGitHubPat",
   removeGitHubPat: "removeGitHubPat",
   getChangeReviewSet: "getChangeReviewSet",

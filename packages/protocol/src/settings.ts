@@ -1,4 +1,5 @@
 import { emptyGitHubMcpSettingsSnapshot, type GitHubMcpSettingsSnapshot } from "./github-mcp";
+import { emptySandboxSettingsSnapshot, type SandboxSettingsSnapshot } from "./sandbox";
 import { emptySkillSettingsSnapshot, type SkillSettingsSnapshot } from "./skills";
 
 export const APPEARANCE_PALETTES = [
@@ -61,6 +62,7 @@ export interface HarnessSettingsSnapshot {
   permission: PermissionSettings;
   skills: SkillSettingsSnapshot;
   githubMcp: GitHubMcpSettingsSnapshot;
+  sandbox: SandboxSettingsSnapshot;
 }
 
 export interface UpdateAppearanceSettingsInput {
@@ -244,6 +246,7 @@ export function emptySettingsSnapshot(): HarnessSettingsSnapshot {
     },
     skills: emptySkillSettingsSnapshot(),
     githubMcp: emptyGitHubMcpSettingsSnapshot(),
+    sandbox: emptySandboxSettingsSnapshot(),
   };
 }
 

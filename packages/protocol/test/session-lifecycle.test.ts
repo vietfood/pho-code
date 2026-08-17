@@ -10,6 +10,7 @@ import {
   emptyConversationState,
   emptyFeatureSnapshot,
   emptyGitHubMcpSettingsSnapshot,
+  emptySandboxSettingsSnapshot,
   emptySkillSettingsSnapshot,
   HARNESS_ERROR_CODES,
   idleRunState,
@@ -255,6 +256,7 @@ describe("keyed conversation routing", () => {
       },
       skills: emptySkillSettingsSnapshot(),
       githubMcp: emptyGitHubMcpSettingsSnapshot(),
+      sandbox: emptySandboxSettingsSnapshot(),
     };
     const cache = applyRuntimeEventToCache(
       { ...emptyConversationCache(), settings },

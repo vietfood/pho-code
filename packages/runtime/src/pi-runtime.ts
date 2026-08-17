@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import type { FauxProviderHandle } from "@earendil-works/pi-ai";
 import type {
@@ -86,6 +87,8 @@ import {
   type Unsubscribe,
   type UpdatePermissionSettingsInput,
   type UpdateGitHubMcpSettingsInput,
+  type UpdateSandboxSettingsInput,
+  type SandboxSettingsSnapshot,
   type ImportGitHubPatInput,
   type ContextUsageSummary,
   type SessionUsageSummary,
@@ -108,6 +111,7 @@ import {
   EXECUTE_PLAN_TOOL_NAME,
   isSessionAgentMode,
   planDocumentTooLarge,
+  parseSandboxSettingsPatch,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -179,6 +183,16 @@ import {
 import { resolveCuratedSkillsRoot } from "./skills-feature";
 import { createGitHubMcpFeature } from "./github-mcp-feature";
 import { createGitHubMcpRuntime } from "./github-mcp-runtime";
+import { createAgentSandbox, type SandboxRuntimeSnapshot } from "./sandbox-runtime";
+import { createSandboxFeature, SANDBOX_FEATURE_ID } from "./sandbox-feature";
+import {
+  applyStoredSandboxPatch,
+  canonicalizeSandboxPathList,
+  loadSandboxSettings,
+  sandboxSettingsPath,
+  saveSandboxSettings,
+  toSandboxSettingsSnapshot,
+} from "./sandbox-settings";
 import { createOsSecretStore, type SecretStore } from "./secret-store";
 import { projectModelSummary, modelSupportsImages } from "./model-summary";
 import { createPreparedImageStore } from "./image-store";
@@ -224,6 +238,7 @@ export interface PhoCodeRuntimeOptions {
   githubMcpServerPath?: string;
   githubMcpLaunch?: (token: string) => { command: string; args: readonly string[] };
   secretStore?: SecretStore;
+  rgPath?: string;
 }
 
 interface ActiveRun {
@@ -303,6 +318,25 @@ export async function createPhoCodeRuntime(
     ...(options.githubMcpLaunch ? { launch: options.githubMcpLaunch } : {}),
   });
   await githubMcp.startIfEnabled();
+  const sandboxDataDir = options.applicationDataDir ?? agentDir;
+  let storedSandbox = loadSandboxSettings(sandboxDataDir);
+  // Deterministic tests keep unsandboxed bash unless a settings file opts in, so
+  // permission journeys stay stable while production defaults sandbox on.
+  if (options.deterministicTestModel === true && !existsSync(sandboxSettingsPath(sandboxDataDir))) {
+    storedSandbox = { ...storedSandbox, enabled: false };
+  }
+  const sandbox = createAgentSandbox({
+    enabled: storedSandbox.enabled,
+    networkMode: storedSandbox.networkMode,
+    allowedDomains: storedSandbox.allowedDomains,
+    includePackageRegistryDefaults: storedSandbox.includePackageRegistryDefaults,
+    additionalReadPaths: storedSandbox.additionalReadPaths,
+    additionalWritePaths: storedSandbox.additionalWritePaths,
+    agentDir,
+    ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
+    ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
+    ...(options.rgPath ? { rgPath: options.rgPath } : {}),
+  });
   const baseManifest = withTestHostUi(
     options.featureManifest ??
       (options.deterministicTestModel
@@ -327,14 +361,18 @@ export async function createPhoCodeRuntime(
   const changeCaptureFeature = createChangeCaptureFeature(changeCaptureHost);
   const featureManifest = {
     features: [
+      createSandboxFeature(sandbox),
       ...(options.deterministicTestModel
-        ? baseManifest.features.filter((feature) => feature.id !== CONTEXT_PROMPT_FEATURE_ID)
+        ? baseManifest.features.filter(
+            (feature) => feature.id !== CONTEXT_PROMPT_FEATURE_ID && feature.id !== SANDBOX_FEATURE_ID,
+          )
         : [
             ...baseManifest.features.filter(
               (feature) =>
                 feature.id !== SKILL_INVOKE_FEATURE_ID &&
                 feature.id !== GITHUB_MCP_FEATURE_ID &&
-                feature.id !== CONTEXT_PROMPT_FEATURE_ID,
+                feature.id !== CONTEXT_PROMPT_FEATURE_ID &&
+                feature.id !== SANDBOX_FEATURE_ID,
             ),
             createSkillInvokeFeature(skillSources),
             createGitHubMcpFeature(githubMcp),
@@ -530,6 +568,7 @@ export async function createPhoCodeRuntime(
       workspaceId,
       sessionId ? "openSession" : "createSession",
     );
+    await ensureSandboxInitialized(cwd);
     const workspace = workspaceSummary(cwd);
     const next = sessionId
       ? await openPiRuntime(cwd, sessionId)
@@ -977,6 +1016,35 @@ export async function createPhoCodeRuntime(
     }
     selected = await registry.open(selectedKey);
     registry.select(selectedKey);
+  }
+
+  async function rebindIdleSandboxSessions(): Promise<void> {
+    for (const live of registry.list()) {
+      if (!live.runtime.session) {
+        continue;
+      }
+      await live.runtime.session.reload();
+      await bindHostUi(live);
+    }
+  }
+
+  async function applyStoredSandboxToEngine(workspacePath?: string): Promise<SandboxRuntimeSnapshot> {
+    return sandbox.initialize({
+      enabled: storedSandbox.enabled,
+      networkMode: storedSandbox.networkMode,
+      allowedDomains: storedSandbox.allowedDomains,
+      includePackageRegistryDefaults: storedSandbox.includePackageRegistryDefaults,
+      additionalReadPaths: canonicalizeSandboxPathList(storedSandbox.additionalReadPaths),
+      additionalWritePaths: canonicalizeSandboxPathList(storedSandbox.additionalWritePaths),
+      ...(workspacePath ? { workspacePath } : {}),
+    });
+  }
+
+  async function ensureSandboxInitialized(workspacePath: string): Promise<void> {
+    if (!storedSandbox.enabled) {
+      return;
+    }
+    await applyStoredSandboxToEngine(workspacePath);
   }
 
   async function refreshGitHubBinding(live: LiveSession): Promise<void> {
@@ -2323,6 +2391,35 @@ export async function createPhoCodeRuntime(
       assertJsonSafe(snapshot, "getGitHubMcpSettings");
       return snapshot;
     },
+    getSandboxSettings() {
+      assertNotDisposed();
+      const snapshot = currentSandboxSettings();
+      assertJsonSafe(snapshot, "getSandboxSettings");
+      return snapshot;
+    },
+    async updateSandboxSettings(input: UpdateSandboxSettingsInput) {
+      assertNotDisposed();
+      if (hasAnyActiveRun()) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.sessionBusy,
+          message: "Wait for the current run to finish before changing sandbox settings.",
+          operation: "updateSandboxSettings",
+          recoverable: true,
+        });
+      }
+      const parsed = parseSandboxSettingsPatch(input);
+      if (!parsed.ok) {
+        throw invalidSandboxSettings(parsed.message);
+      }
+      storedSandbox = applyStoredSandboxPatch(storedSandbox, parsed.patch);
+      saveSandboxSettings(sandboxDataDir, storedSandbox);
+      const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
+      const live = await applyStoredSandboxToEngine(workspacePath);
+      const snapshot = toSandboxSettingsSnapshot(storedSandbox, live);
+      assertJsonSafe(snapshot, "updateSandboxSettings");
+      await rebindIdleSandboxSessions();
+      return snapshot;
+    },
     async updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput) {
       assertNotDisposed();
       const snapshot = await githubMcp.setEnabled(input.enabled === true);
@@ -2426,6 +2523,7 @@ export async function createPhoCodeRuntime(
         await retrieval.dispose();
         await web.dispose();
         await githubMcp.dispose();
+        await sandbox.reset();
         selected = undefined;
         restoreAgentDirEnv(previousAgentDirEnv, options.agentDir);
       }
@@ -2444,6 +2542,19 @@ export async function createPhoCodeRuntime(
       ...settings,
       projectPermissionRulesTrusted: workspacePath ? isProjectApproved(workspacePath) : true,
     };
+  }
+
+  function currentSandboxSettings(): SandboxSettingsSnapshot {
+    return toSandboxSettingsSnapshot(storedSandbox, sandbox.snapshot());
+  }
+
+  function invalidSandboxSettings(message: string): HarnessError {
+    return createHarnessError({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+      message,
+      operation: "updateSandboxSettings",
+      recoverable: true,
+    });
   }
 
   function assertNotDisposed(): void {

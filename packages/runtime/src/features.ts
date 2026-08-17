@@ -122,7 +122,10 @@ export function resolveCursorSdkFeature(locator: ResourceLocator): {
 
 export function createDefaultFeatureManifest(
   locator: ResourceLocator = createNodeModuleResourceLocator(),
-  options: TrashFeatureOptions & { retrieval?: LocalRetrievalRuntime; web?: WebResearchRuntime } = {},
+  options: TrashFeatureOptions & {
+    retrieval?: LocalRetrievalRuntime;
+    web?: WebResearchRuntime;
+  } = {},
 ): HarnessFeatureManifest {
   const features: HarnessFeature[] = [
     resolvePermissionFeature(locator).feature,

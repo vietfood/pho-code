@@ -14,6 +14,7 @@ import {
   patchPermissionConfig,
   permissionPolicyForProfile,
   readPermissionSettings,
+  SANDBOX_PERMISSION_AUTHORIZER_NAME,
   syncHarnessPermissionPolicy,
   PERMISSION_PRESET_VERSION,
 } from "../src/permission-settings";
@@ -196,6 +197,21 @@ describe("permission settings adapter", () => {
     expect(after.permission.web_search).toBe("ask");
     expect(after.permission.fetch_content).toBeUndefined();
     expect(readPermissionSettings({ agentDir }).profile).toBe("custom");
+  });
+
+  test("syncs the sandbox authorizer into authorizerChain without replacing owner links", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ permission: BALANCED_PERMISSION, authorizerChain: ["owner-judge"] }, null, 2)}\n`,
+    );
+    syncHarnessPermissionPolicy(agentDir);
+    const after = JSON.parse(await readFile(configPath, "utf8")) as { authorizerChain: string[] };
+    expect(after.authorizerChain).toEqual(["owner-judge", SANDBOX_PERMISSION_AUTHORIZER_NAME]);
+    const patched = patchPermissionConfig({ permission: GUARDED_PERMISSION }, { profile: "developer" });
+    expect(patched.authorizerChain).toEqual([SANDBOX_PERMISSION_AUTHORIZER_NAME]);
   });
 
   test("every v3 preset explicitly denies permanent removal", () => {

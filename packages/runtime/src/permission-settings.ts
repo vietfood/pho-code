@@ -17,6 +17,8 @@ import {
 } from "./permission-presets";
 
 export const PERMISSION_PRESET_VERSION = 4 as const;
+/** Named permission-system authorizer; skip-ask is a no-op until this name is in `authorizerChain`. */
+export const SANDBOX_PERMISSION_AUTHORIZER_NAME = "pho-code-sandbox";
 export {
   BALANCED_PERMISSION,
   DEVELOPER_PERMISSION,
@@ -108,43 +110,46 @@ export function applyPermissionSettingsPatch(input: {
 /** Write harness allow-list keys onto an existing permission file so the engine sees them. */
 export function syncHarnessPermissionPolicy(agentDir: string): void {
   const filePath = globalPermissionConfigPath(agentDir);
-  if (!existsSync(filePath)) {
-    return;
-  }
   let loaded: { config: Record<string, unknown> };
   try {
     loaded = loadPermissionConfigFile(filePath);
   } catch {
     return;
   }
-  const existing = loaded.config.permission;
-  if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
-    return;
-  }
-  const permission = existing as Record<string, unknown>;
-  const profile = detectPermissionProfile(permission);
-  const next = cloneJson(permission);
+  const nextConfig: Record<string, unknown> = { ...loaded.config };
   let changed = false;
-  for (const [name, action] of Object.entries(HARNESS_ALWAYS_ALLOW_PERMISSION)) {
-    if (next[name] !== action) {
-      delete next[name];
-      next[name] = action;
-      changed = true;
-    }
+  const authorizerChain = withSandboxAuthorizerChain(nextConfig.authorizerChain);
+  if (!sameStringArray(nextConfig.authorizerChain, authorizerChain)) {
+    nextConfig.authorizerChain = authorizerChain;
+    changed = true;
   }
-  if (profile !== "custom") {
-    for (const [name, action] of Object.entries(MANAGED_WEB_PERMISSION)) {
+  const existing = loaded.config.permission;
+  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+    const permission = existing as Record<string, unknown>;
+    const profile = detectPermissionProfile(permission);
+    const next = cloneJson(permission);
+    for (const [name, action] of Object.entries(HARNESS_ALWAYS_ALLOW_PERMISSION)) {
       if (next[name] !== action) {
         delete next[name];
         next[name] = action;
         changed = true;
       }
     }
+    if (profile !== "custom") {
+      for (const [name, action] of Object.entries(MANAGED_WEB_PERMISSION)) {
+        if (next[name] !== action) {
+          delete next[name];
+          next[name] = action;
+          changed = true;
+        }
+      }
+    }
+    nextConfig.permission = next;
   }
   if (!changed) {
     return;
   }
-  atomicWriteJson(filePath, { ...loaded.config, permission: next });
+  atomicWriteJson(filePath, nextConfig);
 }
 
 export function detectPermissionProfile(permission: unknown): PermissionProfileId {
@@ -251,8 +256,21 @@ export function patchPermissionConfig(
   if (patch.permissionReviewLog !== undefined) {
     next.permissionReviewLog = patch.permissionReviewLog;
   }
+  next.authorizerChain = withSandboxAuthorizerChain(next.authorizerChain);
   assertSupportedPermissionConfig(next);
   return next;
+}
+
+function withSandboxAuthorizerChain(chain: unknown): string[] {
+  const names = isStringArray(chain) ? [...chain] : [];
+  if (!names.includes(SANDBOX_PERMISSION_AUTHORIZER_NAME)) {
+    names.push(SANDBOX_PERMISSION_AUTHORIZER_NAME);
+  }
+  return names;
+}
+
+function sameStringArray(left: unknown, right: readonly string[]): boolean {
+  return isStringArray(left) && left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
 function loadPermissionConfigFile(filePath: string): { config: Record<string, unknown> } {

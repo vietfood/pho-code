@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import path from "node:path";
 import {
   Type,
   fauxAssistantMessage,
@@ -23,6 +25,13 @@ export const TEST_PROMPT = {
   useWrapper: "USE_WRAPPER",
   useTrash: "USE_TRASH",
   useAskUser: "USE_ASK_USER",
+  useSandboxTouch: "USE_SANDBOX_TOUCH",
+  useSandboxPwd: "USE_SANDBOX_PWD",
+  useSandboxCurl: "USE_SANDBOX_CURL",
+  useSandboxWriteEnv: "USE_SANDBOX_WRITE_ENV",
+  useSandboxWriteMcp: "USE_SANDBOX_WRITE_MCP",
+  useSandboxWriteSsh: "USE_SANDBOX_WRITE_SSH",
+  useSandboxWriteAbs: "USE_SANDBOX_WRITE_ABS:",
   useWrite: "USE_WRITE",
   useEdit: "USE_EDIT",
   useWriteFail: "USE_WRITE_FAIL",
@@ -167,6 +176,82 @@ function buildTestResponse(context: Context) {
             ],
           },
           { id: "call_ask_user" },
+        ),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxTouch)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing a sandbox probe file."),
+        fauxToolCall("bash", { command: "touch sandbox-allowed.txt" }, { id: "call_sandbox_touch" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxPwd)) {
+    return fauxAssistantMessage(
+      [fauxThinking("Printing the workspace path."), fauxToolCall("bash", { command: "pwd" }, { id: "call_sandbox_pwd" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxCurl)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Trying a public HTTP fetch."),
+        fauxToolCall(
+          "bash",
+          { command: "curl -sS -o /dev/null --max-time 5 https://example.com" },
+          { id: "call_sandbox_curl" },
+        ),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxWriteEnv)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing a dotenv file."),
+        fauxToolCall("write", { path: ".env", content: "SECRET=1\n" }, { id: "call_sandbox_write_env" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxWriteMcp)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing an MCP config file."),
+        fauxToolCall("write", { path: ".mcp.json", content: "{}\n" }, { id: "call_sandbox_write_mcp" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxWriteSsh)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing an SSH private key."),
+        fauxToolCall(
+          "write",
+          { path: path.join(homedir(), ".ssh", "id_rsa"), content: "sandbox-must-not-write\n" },
+          { id: "call_sandbox_write_ssh" },
+        ),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useSandboxWriteAbs)) {
+    const absolutePath = prompt
+      .slice(prompt.indexOf(TEST_PROMPT.useSandboxWriteAbs) + TEST_PROMPT.useSandboxWriteAbs.length)
+      .trim()
+      .split(/\s+/u)[0];
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing an absolute path."),
+        fauxToolCall(
+          "write",
+          { path: absolutePath || "/tmp/pho-code-sandbox-missing-abs.txt", content: "extra-write\n" },
+          { id: "call_sandbox_write_abs" },
         ),
       ],
       { stopReason: "toolUse" },

@@ -249,4 +249,36 @@ describe("application settings", () => {
     expect(JSON.stringify(imported)).not.toContain(canary);
     expect(JSON.stringify(enabled)).not.toContain(canary);
   });
+
+  test("rejects a wildcard sandbox domain allowlist and enables deny-network while idle", async () => {
+    let sandbox = emptySettingsSnapshot().sandbox;
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      getSandboxSettings() {
+        return sandbox;
+      },
+      updateSandboxSettings(input) {
+        sandbox = {
+          ...sandbox,
+          enabled: input.enabled ?? sandbox.enabled,
+          networkMode: input.networkMode ?? sandbox.networkMode,
+          allowedDomains: input.allowedDomains ?? sandbox.allowedDomains,
+          status: (input.enabled ?? sandbox.enabled) ? "healthy" : "off",
+          platformSupported: true,
+        };
+        return Promise.resolve(sandbox);
+      },
+    };
+    const { application } = createTestApplication(runtime);
+    await expect(application.updateSandboxSettings({ allowedDomains: ["*"] })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    await expect(application.updateSandboxSettings({})).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    const enabled = await application.updateSandboxSettings({ enabled: true, networkMode: "deny" });
+    expect(enabled.sandbox.enabled).toBe(true);
+    expect(enabled.sandbox.networkMode).toBe("deny");
+    expect(isJsonSafeValue(enabled)).toBe(true);
+  });
 });

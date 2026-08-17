@@ -29,6 +29,7 @@ import {
   MAX_GITHUB_PAT_CHARS,
   nodeVersionMeetsMinimum,
   parseAskUserAnswers,
+  parseSandboxSettingsPatch,
   type AbortRunInput,
   type ArchiveSessionInput,
   type BootstrapState,
@@ -101,6 +102,7 @@ import {
   type ImportGitHubPatInput,
   type ImportGitHubPatResult,
   type GitHubMcpSettingsSnapshot,
+  type UpdateSandboxSettingsInput,
   type WorkspaceReferenceToken,
   type WorkspaceSnapshot,
   type ApproveChangesInput,
@@ -217,6 +219,7 @@ export interface ApplicationService {
   updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
+  updateSandboxSettings(input: UpdateSandboxSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
@@ -1178,6 +1181,7 @@ export function createApplicationService(input: {
         permission,
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
+        sandbox: input.runtime.getSandboxSettings(),
       };
       assertJsonSafe(snapshot, "updatePermissionSettings");
       return snapshot;
@@ -1209,6 +1213,7 @@ export function createApplicationService(input: {
         permission: { ...permission, projectPermissionRulesRemembered: true },
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
+        sandbox: input.runtime.getSandboxSettings(),
       };
       assertJsonSafe(snapshot, "trustProjectPermissionRules");
       return snapshot;
@@ -1361,6 +1366,22 @@ export function createApplicationService(input: {
       await persistGitHubMetadata(githubMcp);
       const snapshot = settingsSnapshot();
       assertJsonSafe(snapshot, "updateGitHubMcpSettings");
+      return snapshot;
+    },
+    async updateSandboxSettings(command: UpdateSandboxSettingsInput) {
+      assertActive();
+      const parsed = parseSandboxSettingsPatch(command);
+      if (!parsed.ok) {
+        throw createHarnessError({
+          code: HARNESS_ERROR_CODES.invalidCommand,
+          message: parsed.message,
+          operation: "updateSandboxSettings",
+          recoverable: true,
+        });
+      }
+      await input.runtime.updateSandboxSettings(parsed.patch);
+      const snapshot = settingsSnapshot();
+      assertJsonSafe(snapshot, "updateSandboxSettings");
       return snapshot;
     },
     async importGitHubPat(command: ImportGitHubPatInput) {
@@ -1543,6 +1564,7 @@ export function createApplicationService(input: {
       permission: decoratePermissionSettings(input.runtime.getPermissionSettings()),
       skills: input.runtime.getSkillSettings(),
       githubMcp: input.runtime.getGitHubMcpSettings(),
+      sandbox: input.runtime.getSandboxSettings(),
     };
   }
 

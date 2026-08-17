@@ -46,6 +46,8 @@ import {
   type GitHubMcpSettingsSnapshot,
   type ImportGitHubPatInput,
   type UpdateGitHubMcpSettingsInput,
+  type SandboxSettingsSnapshot,
+  type UpdateSandboxSettingsInput,
   type WorkspaceSnapshot,
   type ApproveChangesInput,
   type ApplyUndoChangesInput,
@@ -122,6 +124,8 @@ export interface HarnessRuntime {
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   getGitHubMcpSettings(): GitHubMcpSettingsSnapshot;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<GitHubMcpSettingsSnapshot>;
+  getSandboxSettings(): SandboxSettingsSnapshot;
+  updateSandboxSettings(input: UpdateSandboxSettingsInput): Promise<SandboxSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<GitHubMcpSettingsSnapshot>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   getChangeReviewSet(scope: ChangeScope): Promise<ChangeReviewSetSnapshot>;
@@ -278,6 +282,12 @@ export function createDisposableStubHarnessRuntime(options?: {
     },
     updateGitHubMcpSettings() {
       return Promise.resolve(emptySettingsSnapshot().githubMcp);
+    },
+    getSandboxSettings() {
+      return emptySettingsSnapshot().sandbox;
+    },
+    updateSandboxSettings() {
+      return Promise.resolve(emptySettingsSnapshot().sandbox);
     },
     importGitHubPat() {
       return Promise.resolve(emptySettingsSnapshot().githubMcp);

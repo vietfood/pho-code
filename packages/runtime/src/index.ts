@@ -86,10 +86,63 @@ export {
   patchPermissionConfig,
   permissionPolicyForProfile,
   readPermissionSettings,
+  SANDBOX_PERMISSION_AUTHORIZER_NAME,
   syncHarnessPermissionPolicy,
 } from "./permission-settings";
 export { TEST_MODEL_ID, TEST_PROMPT, TEST_PROVIDER_ID, TEST_TOOL_NAME } from "./test-model";
 export { PLAN_AGENT_FEATURE_ID, PLAN_AGENT_FEATURE_VERSION, createPlanAgentFeature } from "./plan-agent-feature";
+export {
+  SANDBOX_RUNTIME_PACKAGE,
+  SANDBOX_RUNTIME_VERSION,
+  SANDBOX_RUNTIME_NESTED_DEPS,
+  RIPGREP_VERSION,
+  RIPGREP_EXECUTABLE,
+  RIPGREP_LICENSE,
+  RIPGREP_UPSTREAM,
+  ripgrepPackagedRelativePath,
+  ripgrepPlatformId,
+  ripgrepReleaseAsset,
+  ripgrepReleaseUrl,
+} from "./sandbox-artifact";
+export {
+  BAKED_PACKAGE_REGISTRY_DOMAINS,
+  SANDBOX_FILE_TOOL_NAMES,
+  SANDBOX_FILE_TOOL_OUTSIDE_REASON,
+  SANDBOX_FILE_TOOL_PROTECTED_REASON,
+  SANDBOX_BASH_OS_DENY_REASON,
+  SANDBOX_DENY_OWNER_ACTION,
+  shouldAnnotateSandboxBashFailure,
+  buildSandboxRuntimeConfig,
+  assertNoWeakerSandboxFlags,
+  evaluateSandboxFileToolAccess,
+  isSandboxFileToolName,
+} from "./sandbox-policy";
+export {
+  AgentBashUnavailableError,
+  agentBashUnavailableMessage,
+  createAgentSandbox,
+  createAnthropicSandboxEngine,
+  resolveRipgrepDirectory,
+  resolveRipgrepPath,
+  sandboxPlatformSupported,
+} from "./sandbox-runtime";
+export type {
+  AgentSandbox,
+  AgentSandboxInitInput,
+  AgentSandboxOptions,
+  SandboxEngine,
+  SandboxFileToolVerdict,
+  SandboxRuntimeSnapshot,
+  SandboxStatus,
+  SandboxStatusReason,
+} from "./sandbox-runtime";
+export { SANDBOX_FEATURE_ID, SANDBOX_FEATURE_VERSION, createSandboxFeature } from "./sandbox-feature";
+export {
+  SANDBOX_SETTINGS_FILE,
+  loadSandboxSettings,
+  saveSandboxSettings,
+  emptyStoredSandboxSettings,
+} from "./sandbox-settings";
 export { PLAN_AGENT_CUSTOM_TYPE, PLAN_EXECUTE_PROMPT, isPlanForbiddenTool, intersectPlanActiveTools } from "./plan-agent-state";
 export { reconstructPlanTodos, remainingPlanTodos } from "./todo-tool";
 export { ASK_USER_DECLINE_MESSAGE, ASK_USER_HOST_FAILURE_MESSAGE } from "./ask-user-question";

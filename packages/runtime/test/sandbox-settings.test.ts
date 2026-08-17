@@ -1,0 +1,46 @@
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, test } from "bun:test";
+import {
+  canonicalizeSandboxPath,
+  coerceStoredSandboxSettings,
+  emptyStoredSandboxSettings,
+  loadSandboxSettings,
+  saveSandboxSettings,
+} from "../src/sandbox-settings";
+
+describe("sandbox settings persistence", () => {
+  test("round-trips owner policy under application data", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-code-sandbox-settings-"));
+    const stored = {
+      ...emptyStoredSandboxSettings(),
+      enabled: true,
+      networkMode: "allowlist" as const,
+      allowedDomains: ["github.com", "*.npmjs.org"],
+      includePackageRegistryDefaults: true,
+      additionalWritePaths: ["/tmp/pho-extra-write"],
+    };
+    saveSandboxSettings(root, stored);
+    expect(JSON.parse(await readFile(path.join(root, "sandbox-settings.json"), "utf8"))).toEqual(stored);
+    expect(loadSandboxSettings(root)).toEqual(stored);
+  });
+
+  test("corrupt or wildcard files fail closed to defaults", () => {
+    expect(coerceStoredSandboxSettings({ enabled: true, allowedDomains: ["*"] })).toBeUndefined();
+    expect(coerceStoredSandboxSettings("nope")).toBeUndefined();
+    expect(loadSandboxSettings("/tmp/pho-code-missing-sandbox-settings")).toEqual(emptyStoredSandboxSettings());
+    expect(emptyStoredSandboxSettings().enabled).toBe(true);
+  });
+
+  test("missing enabled key defaults on; explicit false is kept", () => {
+    expect(coerceStoredSandboxSettings({ networkMode: "deny" })?.enabled).toBe(true);
+    expect(coerceStoredSandboxSettings({ enabled: false })?.enabled).toBe(false);
+    expect(coerceStoredSandboxSettings({ enabled: true })?.enabled).toBe(true);
+  });
+
+  test("canonicalizes ~ and rejects parent traversal after resolve", () => {
+    expect(canonicalizeSandboxPath("/tmp/pho-extra")).toBe(path.resolve("/tmp/pho-extra"));
+    expect(canonicalizeSandboxPath("~/Documents").startsWith("/")).toBe(true);
+  });
+});

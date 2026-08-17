@@ -13,6 +13,7 @@ import {
   emptyConversationState,
   emptyFeatureSnapshot,
   emptyGitHubMcpSettingsSnapshot,
+  emptySandboxSettingsSnapshot,
   emptySkillSettingsSnapshot,
   glassCssTokens,
   idleRunState,
@@ -498,6 +499,7 @@ describe("protocol serialization", () => {
       },
       skills: emptySkillSettingsSnapshot(),
       githubMcp: emptyGitHubMcpSettingsSnapshot(),
+      sandbox: emptySandboxSettingsSnapshot(),
     };
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);

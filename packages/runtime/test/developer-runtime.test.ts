@@ -194,4 +194,40 @@ describe("Developer profile runtime", () => {
       await runtime.dispose();
     }
   }, 45_000);
+
+  test("refuses sandbox changes during an active run", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    applyPermissionSettingsPatch({ agentDir, patch: { profile: "developer" } });
+    const runtime = await createPhoCodeRuntime({
+      agentDir,
+      applicationDataDir: agentDir,
+      deterministicTestModel: true,
+      featureManifest: createDefaultFeatureManifest(createNodeModuleResourceLocator(), { agentDir }),
+    });
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const events: RuntimeEvent[] = [];
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+      const prompt = runtime.sendPrompt({ sessionId: created.session.id, text: TEST_PROMPT.useWrapper });
+      await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      await expect(runtime.updateSandboxSettings({ enabled: true })).rejects.toMatchObject({
+        code: HARNESS_ERROR_CODES.sessionBusy,
+      });
+      await runtime.resolveHostDialog({
+        requestId: (events.find((event) => event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest)?.payload as { requestId: string })
+          .requestId,
+        selected: "No",
+      });
+      await prompt;
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 45_000);
 });

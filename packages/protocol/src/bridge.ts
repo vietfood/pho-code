@@ -45,6 +45,7 @@ import type {
   UpdateGitHubMcpSettingsInput,
 } from "./github-mcp";
 import type { SkillSettingsSnapshot, UpdateSkillSourceSettingsInput } from "./skills";
+import type { UpdateSandboxSettingsInput } from "./sandbox";
 import type {
   HarnessSettingsSnapshot,
   UpdateAppearanceSettingsInput,
@@ -134,6 +135,7 @@ export interface DesktopBridge {
   updateSkillSourceSettings(input: UpdateSkillSourceSettingsInput): Promise<HarnessSettingsSnapshot>;
   refreshSkills(): Promise<SkillSettingsSnapshot>;
   updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput): Promise<HarnessSettingsSnapshot>;
+  updateSandboxSettings(input: UpdateSandboxSettingsInput): Promise<HarnessSettingsSnapshot>;
   importGitHubPat(input: ImportGitHubPatInput): Promise<ImportGitHubPatResult>;
   removeGitHubPat(): Promise<GitHubMcpSettingsSnapshot>;
   getChangeReviewSet(input: GetChangeReviewSetInput): Promise<ChangeReviewSetSnapshot>;
