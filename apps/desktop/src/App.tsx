@@ -232,6 +232,17 @@ export function App() {
     errorMessage,
   });
 
+  const startNewSession = useCallback(
+    (workspaceId: string) => {
+      changeReview.close();
+      collapseRightSidebar();
+      void switchSession(workspaceId, null, () =>
+        getDesktopBridge().createSession({ workspaceId }),
+      );
+    },
+    [changeReview.close, collapseRightSidebar, switchSession],
+  );
+
   const refreshBootstrap = useCallback(async () => {
     const bridge = getDesktopBridge();
     const [next, settings, accounts] = await Promise.all([
@@ -479,6 +490,14 @@ export function App() {
 
   function applySettings(settings: HarnessSettingsSnapshot): void {
     setCache((current) => ({ ...current, settings }));
+  }
+
+  function openSettings(): void {
+    setSettingsOpen(true);
+    void getDesktopBridge()
+      .getSettings()
+      .then(applySettings)
+      .catch(() => undefined);
   }
 
   const patchSnapshot = useCallback(
@@ -746,11 +765,9 @@ export function App() {
           if (!activeWorkspaceId) {
             return;
           }
-          void switchSession(activeWorkspaceId, null, () =>
-            getDesktopBridge().createSession({ workspaceId: activeWorkspaceId }),
-          );
+          startNewSession(activeWorkspaceId);
         }}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
       />
     ) : null;
   let rightSidebarPanel: ReactNode = null;
@@ -866,7 +883,7 @@ export function App() {
       );
       return;
     }
-    void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
+    startNewSession(workspaceId);
   }
 
   function requestRemoveSession(workspaceId: string, sessionId: string): void {
@@ -988,9 +1005,7 @@ export function App() {
                 { busy: false },
               );
             }}
-            onNewSession={(workspaceId) => {
-              void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
-            }}
+            onNewSession={startNewSession}
             onOpenSession={(workspaceId, sessionId) => {
               void switchSession(workspaceId, sessionId, () =>
                 getDesktopBridge().openSession({ workspaceId, sessionId }),
@@ -1027,7 +1042,7 @@ export function App() {
                   setBootstrap((current) => (current ? { ...current, recentWorkspaces: previous } : current));
                 });
             }}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={openSettings}
             {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
             {...(selectedSessionId ? { selectedSessionId } : {})}
           />
@@ -1188,6 +1203,9 @@ export function App() {
                 onSessionModeChange={(mode) => {
                   void onSetSessionMode(mode);
                 }}
+                onOpenPlan={() => {
+                  selectRightSurface("plan");
+                }}
               />
         ) : (
           <WorkspacePicker
@@ -1224,9 +1242,7 @@ export function App() {
                 await refreshBootstrap();
               });
             }}
-            onNewSession={(workspaceId) => {
-              void switchSession(workspaceId, null, () => getDesktopBridge().createSession({ workspaceId }));
-            }}
+            onNewSession={startNewSession}
             onOpenSession={(workspaceId, sessionId) => {
               void switchSession(workspaceId, sessionId, () =>
                 getDesktopBridge().openSession({ workspaceId, sessionId }),

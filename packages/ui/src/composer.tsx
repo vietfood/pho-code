@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUpIcon, FileIcon, FolderIcon, ListPlusIcon, PaperclipIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, FileIcon, FolderIcon, ListPlusIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
 import type {
   ContextUsageSummary,
   ModelSummary,
@@ -44,14 +44,14 @@ import {
   serializeComposerEditable,
   setComposerCaretOffset,
 } from "./lib/composer-editable-dom";
-import { ComposerUsage } from "./composer-usage";
-import { isMaxThinkingLevel, thinkingLevelLabel } from "./lib/thinking-labels";
+import { ComposerContextButton } from "./composer-context-button";
+import { ComposerMetaStrip } from "./composer-meta-strip";
+import { isMaxThinkingLevel } from "./lib/thinking-labels";
+import { ThinkingLevelChip } from "./thinking-level-chip";
 import { MarkdownImage } from "./markdown-image";
 import { ModelPicker } from "./model-picker";
 import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 import { SkillSourceIcon } from "./skill-source-icon";
-import { SessionModeChip } from "./session-mode-chip";
-import { sessionTodoChipLabel } from "./session-todo-list";
 
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
@@ -92,6 +92,7 @@ export function Composer({
   onPickImages,
   onPasteImages,
   onRemoveImage,
+  onOpenPlan,
   skills,
 }: {
   value: string;
@@ -123,6 +124,7 @@ export function Composer({
   onPickImages?: () => void;
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
+  onOpenPlan?: () => void;
   skills?: SkillSettingsSnapshot;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -389,10 +391,20 @@ export function Composer({
     insertSelectedSkill(entry, slash, cursor);
   }
 
-  const todoChip = sessionTodoChipLabel(sessionTodos);
+  const attachTitle = supportsImages
+    ? "Attach PNG, JPEG, GIF, or WebP images"
+    : "The selected model does not accept images";
 
   const selectors = (
     <>
+      <ComposerContextButton
+        mode={sessionMode}
+        disabled={selectorsDisabled}
+        {...(onSessionModeChange ? { onModeChange: onSessionModeChange } : {})}
+        {...(onPickImages ? { onAttach: onPickImages } : {})}
+        attachDisabled={disabled || !canAttach}
+        attachTitle={attachTitle}
+      />
       <label className="sr-only" htmlFor="model-selector">
         Model
       </label>
@@ -403,40 +415,12 @@ export function Composer({
         {...(selectedModel ? { selectedModel } : {})}
       />
       {showThinking ? (
-        <>
-          <label className="sr-only" htmlFor="thinking-selector">
-            Thinking level
-          </label>
-          <select
-            id="thinking-selector"
-            data-testid="thinking-selector"
-            className={cn(
-              "composer-meta-select composer-thinking-select",
-              maxThinking && "is-max",
-            )}
-            value={thinkingLevel}
-            disabled={selectorsDisabled || availableThinkingLevels.length === 0}
-            onChange={(event) => onThinkingChange(event.target.value as ThinkingLevel)}
-          >
-            {availableThinkingLevels.map((level) => (
-              <option key={level} value={level}>
-                {thinkingLevelLabel(level)}
-              </option>
-            ))}
-          </select>
-        </>
-      ) : null}
-      {onSessionModeChange ? (
-        <SessionModeChip
-          mode={sessionMode}
+        <ThinkingLevelChip
+          level={thinkingLevel}
+          availableLevels={availableThinkingLevels}
           disabled={selectorsDisabled}
-          onChange={onSessionModeChange}
+          onChange={onThinkingChange}
         />
-      ) : null}
-      {todoChip ? (
-        <span className="composer-todo-chip" data-testid="composer-todo-chip" title="Session todos">
-          {todoChip}
-        </span>
       ) : null}
     </>
   );
@@ -499,14 +483,6 @@ export function Composer({
       <ArrowUpIcon className="size-3.5 stroke-[2.2]" aria-hidden="true" />
     </button>
   );
-
-  const usageStrip =
-    usage || contextUsage ? (
-      <ComposerUsage
-        {...(usage ? { usage } : {})}
-        {...(contextUsage ? { contextUsage } : {})}
-      />
-    ) : null;
 
   return (
     <form
@@ -776,31 +752,6 @@ export function Composer({
             <div className={cn("flex shrink-0 items-center justify-between gap-2", hero ? "mt-1.5" : "mt-1")}>
               <div className="flex min-w-0 items-center gap-0.5">
                 {selectors}
-                {onPickImages ? (
-                  <button
-                    type="button"
-                    className="composer-attach-button"
-                    data-testid="attach-images-button"
-                    aria-label={
-                      supportsImages
-                        ? "Attach images"
-                        : "The selected model does not accept images"
-                    }
-                    title={
-                      supportsImages
-                        ? "Attach PNG, JPEG, GIF, or WebP images"
-                        : "The selected model does not accept images"
-                    }
-                    disabled={disabled || !canAttach}
-                    onClick={() => {
-                      if (canAttach) {
-                        onPickImages();
-                      }
-                    }}
-                  >
-                    <PaperclipIcon className="size-3.5" aria-hidden="true" />
-                  </button>
-                ) : null}
               </div>
               {submit}
             </div>
@@ -812,17 +763,13 @@ export function Composer({
           </div>
         </div>
       </div>
-      {usageStrip || (!hero && metaHint) ? (
-        <div className="mt-1.5 flex min-w-0 items-center gap-3 px-1 text-[0.6875rem] leading-snug text-muted-foreground">
-          {!hero && metaHint ? (
-            <div className="flex min-w-0 items-center gap-1">
-              <FolderIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
-              <span className="min-w-0 truncate">{metaHint}</span>
-            </div>
-          ) : null}
-          {usageStrip ? <div className="ml-auto min-w-0 shrink-0">{usageStrip}</div> : null}
-        </div>
-      ) : null}
+      <ComposerMetaStrip
+        {...(!hero && metaHint ? { metaHint } : {})}
+        sessionTodos={sessionTodos}
+        {...(onOpenPlan ? { onOpenPlan } : {})}
+        {...(usage ? { usage } : {})}
+        {...(contextUsage ? { contextUsage } : {})}
+      />
       {pendingSkill ? (
         <SkillCompatibilityDialog
           title={

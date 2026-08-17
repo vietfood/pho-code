@@ -194,14 +194,18 @@ describe("empty session hero", () => {
           messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
         }),
         ...handlers,
+        onSessionModeChange: () => undefined,
+        onPickImages: () => undefined,
       }),
     );
-    expect(markup).toContain('data-testid="composer-usage"');
-    expect(markup).toContain("6.2%/200k");
-    expect(markup).toContain("↑1.2k");
-    expect(markup).toContain("↓800");
-    expect(markup).toContain("R500");
-    expect(markup).toContain("$0.042");
+    expect(markup).toContain('data-testid="composer-meta-strip"');
+    expect(markup).toContain('data-testid="composer-usage-info"');
+    expect(markup).toContain('data-testid="composer-context-ring"');
+    expect(markup).not.toContain("composer-usage-input");
+    expect(markup).not.toContain("composer-usage-cost");
+    expect(markup).toContain('aria-label="More session usage details. Session usage 6.2%/200k, $0.042"');
+    expect(markup).toContain('data-testid="composer-context-button"');
+    expect(markup).toContain("composer-context-button is-agent");
     expect(markup).toContain('data-testid="model-selector"');
     expect(markup).toContain('data-provider="deepseek"');
     expect(markup).toContain("M23.748 4.651");

@@ -1,8 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useState, type CSSProperties } from "react";
+import { InfoIcon } from "lucide-react";
 import type { ContextUsageSummary, SessionUsageSummary } from "@pho-code/protocol";
 import { contextBarFillColor } from "./lib/context-bar-color";
 import { formatContextPercent, formatTokenCount, formatUsd } from "./lib/format-tokens";
 import { cn } from "./lib/cn";
+import { ContextUsageMeter } from "./context-usage-meter";
 
 export function ComposerUsage({
   usage,
@@ -22,7 +24,6 @@ export function ComposerUsage({
 
   const percent = contextUsage?.percent ?? null;
   const windowSize = contextUsage?.contextWindow ?? 0;
-  const fill = Math.min(100, Math.max(0, percent ?? 0));
   const fillColor = contextBarFillColor(percent);
   const contextLabel =
     percent === null || percent === undefined
@@ -34,16 +35,26 @@ export function ComposerUsage({
   const cacheRead = usage?.cacheRead ?? 0;
   const cacheWrite = usage?.cacheWrite ?? 0;
   const costUsd = usage?.costUsd ?? 0;
+  const detailLabel = `Session usage ${contextLabel}, ${formatUsd(costUsd)}`;
 
   return (
-    <div className={cn("relative min-w-0", className)}>
+    <div className={cn("composer-usage relative min-w-0", className)}>
+      {contextUsage ? (
+        <ContextUsageMeter
+          className="context-usage-meter"
+          percent={percent}
+          tokens={contextUsage.tokens}
+          contextWindow={windowSize}
+        />
+      ) : null}
       <button
         type="button"
-        data-testid="composer-usage"
-        className="composer-usage-trigger"
+        data-testid="composer-usage-info"
+        className={cn("composer-usage-info", open && "is-open")}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={`Session usage ${contextLabel}, ${formatUsd(costUsd)}`}
+        aria-label={`More session usage details. ${detailLabel}`}
+        title={`More session usage details. ${detailLabel}`}
         onClick={() => setOpen((value) => !value)}
         onBlur={(event) => {
           if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
@@ -56,24 +67,7 @@ export function ComposerUsage({
           }
         }}
       >
-        <span className="context-usage-bar" aria-hidden="true">
-          <span
-            className="context-usage-bar__fill"
-            style={{ width: `${fill}%`, backgroundColor: fillColor }}
-          />
-        </span>
-        <span className="tabular-nums">{contextLabel}</span>
-        <span className="composer-usage-sep" aria-hidden="true">
-          |
-        </span>
-        <span className="tabular-nums">↑{formatTokenCount(input)}</span>
-        <span className="tabular-nums">↓{formatTokenCount(output)}</span>
-        {cacheRead > 0 ? <span className="tabular-nums">R{formatTokenCount(cacheRead)}</span> : null}
-        {cacheWrite > 0 ? <span className="tabular-nums">W{formatTokenCount(cacheWrite)}</span> : null}
-        <span className="composer-usage-sep" aria-hidden="true">
-          |
-        </span>
-        <span className="composer-usage-cost tabular-nums">{formatUsd(costUsd)}</span>
+        <InfoIcon className="size-3" aria-hidden="true" />
       </button>
       {open ? (
         <div
@@ -81,13 +75,39 @@ export function ComposerUsage({
           role="dialog"
           data-testid="composer-usage-detail"
           className="composer-usage-popover"
+          style={{ "--usage-context-accent": fillColor } as CSSProperties}
         >
-          <UsageRow label="Context" value={contextDetail(contextUsage)} />
-          <UsageRow label="Input" value={formatTokenCount(input)} />
-          <UsageRow label="Output" value={formatTokenCount(output)} />
-          <UsageRow label="Cache read" value={formatTokenCount(cacheRead)} />
-          <UsageRow label="Cache write" value={formatTokenCount(cacheWrite)} />
-          <UsageRow label="Total cost" value={formatUsd(costUsd)} emphasize />
+          <UsageRow
+            label="Context"
+            value={contextDetail(contextUsage)}
+            valueClassName="composer-usage-percent"
+          />
+          <UsageRow
+            label="Input"
+            value={`↑${formatTokenCount(input)}`}
+            valueClassName="composer-usage-input"
+          />
+          <UsageRow
+            label="Output"
+            value={`↓${formatTokenCount(output)}`}
+            valueClassName="composer-usage-output"
+          />
+          <UsageRow
+            label="Cache read"
+            value={`R${formatTokenCount(cacheRead)}`}
+            valueClassName="composer-usage-cache-read"
+          />
+          <UsageRow
+            label="Cache write"
+            value={`W${formatTokenCount(cacheWrite)}`}
+            valueClassName="composer-usage-cache-write"
+          />
+          <UsageRow
+            label="Total cost"
+            value={formatUsd(costUsd)}
+            valueClassName="composer-usage-cost"
+            emphasize
+          />
         </div>
       ) : null}
     </div>
@@ -97,16 +117,18 @@ export function ComposerUsage({
 function UsageRow({
   label,
   value,
+  valueClassName,
   emphasize = false,
 }: {
   label: string;
   value: string;
+  valueClassName?: string;
   emphasize?: boolean;
 }) {
   return (
     <div className={cn("flex items-center justify-between gap-4 text-[0.6875rem]", emphasize && "font-medium")}>
       <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums text-foreground">{value}</span>
+      <span className={cn("tabular-nums", valueClassName ?? "text-foreground")}>{value}</span>
     </div>
   );
 }

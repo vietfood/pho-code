@@ -61,7 +61,7 @@ export function SessionModeChip({
         data-testid="session-mode-selector"
         className={cn(
           "composer-meta-select composer-mode-chip",
-          selected.mode === "plan" && "is-plan",
+          selected.mode === "agent" ? "is-agent" : "is-plan",
         )}
         disabled={disabled}
         title={selected.description}
@@ -88,7 +88,11 @@ export function SessionModeChip({
                 type="button"
                 role="option"
                 data-testid={`session-mode-option-${option.mode}`}
-                className={cn("composer-mode-option", option.mode === selected.mode && "is-selected")}
+                className={cn(
+                  "composer-mode-option",
+                  option.mode === selected.mode && "is-selected",
+                  option.mode === "agent" ? "is-agent" : "is-plan",
+                )}
                 aria-selected={option.mode === selected.mode}
                 title={option.description}
                 onClick={() => {

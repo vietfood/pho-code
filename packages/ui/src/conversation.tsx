@@ -54,6 +54,7 @@ export function Conversation({
   onOpenChangeReview,
   notice,
   onTrustProject,
+  onOpenPlan,
   skills,
 }: {
   snapshot: SessionSnapshot;
@@ -82,6 +83,7 @@ export function Conversation({
   onOpenChangeReview?: (scope: ChangeScope) => void;
   notice?: ReactNode;
   onTrustProject?: () => void;
+  onOpenPlan?: () => void;
   skills?: SkillSettingsSnapshot;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
@@ -143,6 +145,7 @@ export function Conversation({
       {...(onPickImages ? { onPickImages } : {})}
       {...(onPasteImages ? { onPasteImages } : {})}
       {...(onRemoveImage ? { onRemoveImage } : {})}
+      {...(onOpenPlan ? { onOpenPlan } : {})}
       {...(skills ? { skills } : {})}
     />
   );

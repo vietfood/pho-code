@@ -93,6 +93,8 @@ describe("appearance theme helpers", () => {
     expect(css).toContain(".chat-column {");
     expect(css).toContain('[data-chat-fill="true"] .chat-column,\n[data-chat-fill="true"] .empty-session-column {');
     expect(css).toContain("max-width: none;");
+    expect(css).toContain(".composer-mode-chip.is-agent {\n  color: var(--destructive-foreground);");
+    expect(css).toContain(".composer-thinking-select {\n  width: fit-content;");
     expect(css).toContain(".composer-model-picker-toolbar {\n  z-index: 2;\n  flex-shrink: 0;");
     expect(css).toContain(".composer-model-picker-list {\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow: auto;\n  margin: 0;\n  padding: 0 0.35rem 0.4rem;");
     expect(css).toContain(".composer-model-picker-group-title {\n  position: sticky;\n  top: 0;\n  z-index: 1;");

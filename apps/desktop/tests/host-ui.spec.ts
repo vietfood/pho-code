@@ -27,6 +27,7 @@ test("shows a new session immediately and completes a select host dialog", async
       await expect(page.getByTestId("new-session")).toBeEnabled();
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("empty-session")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
       await expect(page.getByTestId("session-context")).toBeVisible();
       await expect(page.getByTestId("composer")).toBeVisible();
       await expect(page.getByTestId("session-item")).toBeVisible();
