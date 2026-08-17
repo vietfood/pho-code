@@ -4,23 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ComposerMetaStrip } from "../src/composer-meta-strip";
 
 describe("ComposerMetaStrip", () => {
-  test("shows folder, todo, and slim usage together", () => {
+  test("shows folder and slim usage together", () => {
     const markup = renderToStaticMarkup(
       createElement(ComposerMetaStrip, {
         metaHint: "piui",
-        sessionTodos: [
-          {
-            id: "1",
-            content: "Inspect repository status",
-            status: "in_progress",
-          },
-          {
-            id: "2",
-            content: "Write plan",
-            status: "pending",
-          },
-        ],
-        onOpenPlan: () => undefined,
         usage: {
           input: 7_600,
           output: 365,
@@ -34,8 +21,7 @@ describe("ComposerMetaStrip", () => {
     );
     expect(markup).toContain('data-testid="composer-meta-strip"');
     expect(markup).toContain("piui");
-    expect(markup).toContain('data-testid="composer-meta-todo"');
-    expect(markup).toContain("0/2 · Inspect repository status");
+    expect(markup).not.toContain('data-testid="composer-meta-todo"');
     expect(markup).toContain('data-testid="composer-usage-info"');
     expect(markup).toContain('data-testid="composer-context-ring"');
     expect(markup).toContain("context-usage-meter__label");

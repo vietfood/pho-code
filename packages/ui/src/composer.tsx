@@ -13,7 +13,6 @@ import type {
   ThinkingLevel,
   WorkspaceReferenceKind,
   SessionAgentMode,
-  PlanTodoItem,
 } from "@pho-code/protocol";
 import { availableSlashSkills, SKILL_SOURCE_LABELS, skillNeedsCompatibilityNotice } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
@@ -78,7 +77,6 @@ export function Composer({
   onModelChange,
   onThinkingChange,
   sessionMode = "agent",
-  sessionTodos = [],
   onSessionModeChange,
   metaHint,
   usage,
@@ -92,7 +90,6 @@ export function Composer({
   onPickImages,
   onPasteImages,
   onRemoveImage,
-  onOpenPlan,
   skills,
 }: {
   value: string;
@@ -110,7 +107,6 @@ export function Composer({
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
   sessionMode?: SessionAgentMode;
-  sessionTodos?: readonly PlanTodoItem[];
   onSessionModeChange?: (mode: SessionAgentMode) => void;
   metaHint?: string;
   usage?: SessionUsageSummary;
@@ -124,7 +120,6 @@ export function Composer({
   onPickImages?: () => void;
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
-  onOpenPlan?: () => void;
   skills?: SkillSettingsSnapshot;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -765,8 +760,6 @@ export function Composer({
       </div>
       <ComposerMetaStrip
         {...(!hero && metaHint ? { metaHint } : {})}
-        sessionTodos={sessionTodos}
-        {...(onOpenPlan ? { onOpenPlan } : {})}
         {...(usage ? { usage } : {})}
         {...(contextUsage ? { contextUsage } : {})}
       />
