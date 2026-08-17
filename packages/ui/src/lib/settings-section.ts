@@ -29,6 +29,11 @@ export const SETTINGS_SECTIONS = [
     label: "Permissions",
     description: "What the agent may do in a workspace.",
   },
+  {
+    id: "sandbox",
+    label: "Sandbox",
+    description: "OS box for agent bash. Workspace files stay allowed.",
+  },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

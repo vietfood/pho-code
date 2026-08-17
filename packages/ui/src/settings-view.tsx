@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArchiveIcon, BookOpenIcon, GithubIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, BookOpenIcon, BoxIcon, GithubIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
 import {
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
@@ -22,10 +22,12 @@ import {
   type UpdatePermissionSettingsInput,
   type UpdateSkillSourceSettingsInput,
   type UpdateGitHubMcpSettingsInput,
+  type UpdateSandboxSettingsInput,
   type ImportGitHubPatInput,
 } from "@pho-code/protocol";
 import { ArchivedChatsSection } from "./archived-chats";
 import { GitHubMcpSettingsSection } from "./github-mcp-settings";
+import { SandboxSettingsSection } from "./sandbox-settings";
 import { SkillsSettingsSection } from "./skills-settings";
 import { cn } from "./lib/cn";
 import { handleDialogTab } from "./lib/dialog-focus";
@@ -122,6 +124,7 @@ export function SettingsView({
   onGitHubMcpChange,
   onImportGitHubPat,
   onRemoveGitHubPat,
+  onSandboxChange,
 }: {
   settings: HarnessSettingsSnapshot;
   running: boolean;
@@ -149,6 +152,7 @@ export function SettingsView({
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
   onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
   onRemoveGitHubPat: () => void;
+  onSandboxChange: (input: UpdateSandboxSettingsInput) => void;
 }) {
   const flowActive = isActiveAuthFlow(authFlow);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -402,6 +406,7 @@ export function SettingsView({
                 onGitHubMcpChange={onGitHubMcpChange}
                 onImportGitHubPat={onImportGitHubPat}
                 onRemoveGitHubPat={onRemoveGitHubPat}
+                onSandboxChange={onSandboxChange}
               />
             </div>
           </div>
@@ -447,6 +452,7 @@ function SettingsPanel({
   onGitHubMcpChange,
   onImportGitHubPat,
   onRemoveGitHubPat,
+  onSandboxChange,
 }: {
   section: SettingsSectionId;
   settings: HarnessSettingsSnapshot;
@@ -483,6 +489,7 @@ function SettingsPanel({
   onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
   onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
   onRemoveGitHubPat: () => void;
+  onSandboxChange: (input: UpdateSandboxSettingsInput) => void;
 }): ReactNode {
   switch (section) {
     case "appearance":
@@ -551,6 +558,15 @@ function SettingsPanel({
           onSave={onSavePermissions}
         />
       );
+    case "sandbox":
+      return (
+        <SandboxSettingsSection
+          sandbox={settings.sandbox}
+          busy={busy}
+          running={running}
+          onChange={onSandboxChange}
+        />
+      );
     default: {
       const exhaustive: never = section;
       return exhaustive;
@@ -572,6 +588,8 @@ function SectionIcon({ id, className }: { id: SettingsSectionId; className?: str
       return <ArchiveIcon className={className} aria-hidden="true" />;
     case "permissions":
       return <ShieldIcon className={className} aria-hidden="true" />;
+    case "sandbox":
+      return <BoxIcon className={className} aria-hidden="true" />;
     default: {
       const exhaustive: never = id;
       return exhaustive;

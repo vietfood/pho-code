@@ -64,6 +64,7 @@ export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selec
 export { SettingsView } from "./settings-view";
 export { SkillsSettingsSection } from "./skills-settings";
 export { GitHubMcpSettingsSection } from "./github-mcp-settings";
+export { SandboxSettingsSection } from "./sandbox-settings";
 export { ChangeModelDialog } from "./change-model-dialog";
 export { ContextPromptDialog } from "./context-prompt-dialog";
 export { CursorModelWarningDialog } from "./cursor-model-warning-dialog";

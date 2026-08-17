@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,10 @@ import { recoverablyRemoveOwnedTempFixture, TEST_FIXTURE_PREFIX } from "./owned-
 const desktopDir = dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
 const require = createRequire(import.meta.url);
 const electronExecutablePath = require("electron") as string;
+
+export function desktopResourcesDir(): string {
+  return join(desktopDir, "resources");
+}
 
 export interface DesktopHarness {
   electronApp: ElectronApplication;
@@ -77,6 +82,71 @@ export async function removeTestDirectory(directory: string): Promise<void> {
   await recoverablyRemoveOwnedTempFixture(directory);
 }
 
+export async function allowOnceIfPrompted(page: Page): Promise<void> {
+  const dialog = page.getByTestId("extension-dialog");
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("radio", { name: "Allow once", exact: true }).check();
+  const confirm = page.getByTestId("extension-dialog-confirm");
+  if ((await confirm.count()) > 0) {
+    await confirm.click();
+  } else {
+    await page.keyboard.press("Enter");
+  }
+  await expect(dialog).toHaveCount(0);
+}
+
+/** Milestone 2: sandboxed bash must not open a permission dock. Fail if one appears. */
+export async function expectNoDialogThenExpandWorkLog(page: Page, priorToggleCount = 0): Promise<void> {
+  const dialog = page.getByTestId("extension-dialog");
+  const toggle = page.getByTestId("work-log-toggle").nth(priorToggleCount);
+  const settled =
+    /Behind the scenes|Had a quick think|Thought it through|Took a peek|Looked around a bit|Thought, then peeked|Did a little digging|Went exploring/u;
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if (await dialog.isVisible().catch(() => false)) {
+      throw new Error("Permission dialog appeared while sandbox skip-ask should have applied.");
+    }
+    const text = (await toggle.textContent().catch(() => "")) ?? "";
+    if (settled.test(text)) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await expandSettledWorkLog(page, priorToggleCount);
+}
+
+export async function writeSandboxSettingsFile(userDataDir: string, enabled: boolean): Promise<void> {
+  await writeFile(
+    join(userDataDir, "sandbox-settings.json"),
+    `${JSON.stringify(
+      {
+        enabled,
+        networkMode: "deny",
+        allowedDomains: [],
+        includePackageRegistryDefaults: false,
+        additionalReadPaths: [],
+        additionalWritePaths: [],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+export async function stageRipgrepFixture(resourcesDir: string): Promise<string> {
+  const platform = process.arch === "arm64" ? "darwin-arm64" : "darwin-x64";
+  const dest = join(resourcesDir, "features", "ripgrep", "15.2.0", platform, "rg");
+  await mkdir(dirname(dest), { recursive: true });
+  const which = spawnSync("which", ["rg"], { encoding: "utf8" });
+  const source = which.stdout.trim();
+  if (!source) {
+    throw new Error("rg is required on PATH to stage a desktop sandbox fixture.");
+  }
+  await copyFile(source, dest);
+  await chmod(dest, 0o755);
+  return dest;
+}
+
 export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Promise<void> {
   const toggle = page.getByTestId("work-log-toggle").nth(priorToggleCount);
   await expect(toggle).toContainText(
@@ -91,7 +161,7 @@ export async function expandSettledWorkLog(page: Page, priorToggleCount = 0): Pr
 
 export async function openSettingsSection(
   page: Page,
-  section: "appearance" | "accounts" | "skills" | "archived" | "permissions",
+  section: "appearance" | "accounts" | "github" | "skills" | "archived" | "permissions" | "sandbox",
 ): Promise<void> {
   const view = page.getByTestId("settings-view");
   if ((await view.count()) === 0 || !(await view.isVisible())) {

@@ -62,6 +62,7 @@ import {
   type UpdatePermissionSettingsInput,
   type UpdateSkillSourceSettingsInput,
   type UpdateGitHubMcpSettingsInput,
+  type UpdateSandboxSettingsInput,
   type ImportGitHubPatInput,
   type GetChangeReviewSetInput,
   type GetChangeDiffInput,
@@ -77,6 +78,7 @@ import {
   createPackagedResourceLocator,
   createPhoCodeRuntime,
   resolveGitHubMcpServerPath,
+  resolveRipgrepPath,
   type HarnessRuntime,
   type ResourceLocator,
 } from "@pho-code/runtime";
@@ -686,6 +688,13 @@ function registerIpc(): void {
     }),
   );
 
+  ipcMain.handle(IPC_CHANNELS.updateSandboxSettings, async (event, payload: unknown) =>
+    handleCommand("updateSandboxSettings", async () => {
+      assertTrustedSender(event, trustedRenderer);
+      return requireApplication().updateSandboxSettings(asRecord(payload) as unknown as UpdateSandboxSettingsInput);
+    }),
+  );
+
   ipcMain.handle(IPC_CHANNELS.importGitHubPat, async (event, payload: unknown) =>
     handleCommand("importGitHubPat", async () => {
       assertTrustedSender(event, trustedRenderer);
@@ -879,10 +888,11 @@ app.whenReady().then(async () => {
   const locator = resolveDesktopResourceLocator();
   const metadataStore = createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json"));
   const metadata = metadataStore.load();
-  const githubMcpResourcesRoot = app.isPackaged
+  const resourcesRoot = app.isPackaged
     ? process.resourcesPath
     : path.resolve(process.env.PHO_CODE_RESOURCES_DIR?.trim() || path.join(__dirname, "..", "..", "resources"));
-  const githubMcpServerPath = resolveGitHubMcpServerPath(githubMcpResourcesRoot);
+  const githubMcpServerPath = resolveGitHubMcpServerPath(resourcesRoot);
+  const rgPath = resolveRipgrepPath({ resourcesRoot });
   runtime = await createPhoCodeRuntime({
     agentDir,
     appliesToSharedPiAgentDir: Boolean(agentDirOverride),
@@ -891,6 +901,7 @@ app.whenReady().then(async () => {
     githubMcpEnabled: metadata.githubMcpEnabled,
     ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
     ...(githubMcpServerPath ? { githubMcpServerPath } : {}),
+    ...(rgPath ? { rgPath } : {}),
     ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
     deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
     testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",

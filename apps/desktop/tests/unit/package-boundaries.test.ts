@@ -34,6 +34,7 @@ describe("workspace package dependency graph", () => {
   test("runtime depends only on protocol and reviewed pinned feature packages", async () => {
     const manifest = await readPackage("packages/runtime");
     expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
+      "@anthropic-ai/sandbox-runtime",
       "@earendil-works/pi-ai",
       "@earendil-works/pi-coding-agent",
       "@ff-labs/fff-node",

@@ -55,6 +55,7 @@ const bridge: DesktopBridge = {
   updateSkillSourceSettings: (input) => invoke(IPC_CHANNELS.updateSkillSourceSettings, input),
   refreshSkills: () => invoke(IPC_CHANNELS.refreshSkills),
   updateGitHubMcpSettings: (input) => invoke(IPC_CHANNELS.updateGitHubMcpSettings, input),
+  updateSandboxSettings: (input) => invoke(IPC_CHANNELS.updateSandboxSettings, input),
   importGitHubPat: (input) => invoke(IPC_CHANNELS.importGitHubPat, input),
   removeGitHubPat: () => invoke(IPC_CHANNELS.removeGitHubPat),
   getChangeReviewSet: (input) => invoke(IPC_CHANNELS.getChangeReviewSet, input),

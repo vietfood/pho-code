@@ -8,7 +8,7 @@ import {
 } from "../src/lib/settings-section";
 
 describe("settings sections", () => {
-  test("lists appearance, accounts, github, skills, archived, and permissions in a stable order", () => {
+  test("lists appearance, accounts, github, skills, archived, permissions, and sandbox in a stable order", () => {
     expect(SETTINGS_SECTIONS.map((section) => section.id)).toEqual([
       "appearance",
       "accounts",
@@ -16,6 +16,7 @@ describe("settings sections", () => {
       "skills",
       "archived",
       "permissions",
+      "sandbox",
     ]);
     expect(DEFAULT_SETTINGS_SECTION).toBe("appearance");
   });
@@ -36,8 +37,9 @@ describe("settings sections", () => {
     expect(adjacentSettingsSection("appearance", 1)).toBe("accounts");
     expect(adjacentSettingsSection("accounts", 1)).toBe("github");
     expect(adjacentSettingsSection("github", 1)).toBe("skills");
-    expect(adjacentSettingsSection("permissions", 1)).toBe("appearance");
-    expect(adjacentSettingsSection("appearance", -1)).toBe("permissions");
+    expect(adjacentSettingsSection("permissions", 1)).toBe("sandbox");
+    expect(adjacentSettingsSection("sandbox", 1)).toBe("appearance");
+    expect(adjacentSettingsSection("appearance", -1)).toBe("sandbox");
     expect(adjacentSettingsSection("skills", 1)).toBe("archived");
   });
 });

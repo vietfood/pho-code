@@ -47,6 +47,7 @@ export const IPC_CHANNELS = {
   updateSkillSourceSettings: "pho-code:v1:updateSkillSourceSettings",
   refreshSkills: "pho-code:v1:refreshSkills",
   updateGitHubMcpSettings: "pho-code:v1:updateGitHubMcpSettings",
+  updateSandboxSettings: "pho-code:v1:updateSandboxSettings",
   importGitHubPat: "pho-code:v1:importGitHubPat",
   removeGitHubPat: "pho-code:v1:removeGitHubPat",
   getChangeReviewSet: "pho-code:v1:getChangeReviewSet",

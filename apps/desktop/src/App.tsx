@@ -1372,6 +1372,12 @@ export function App() {
               );
             });
           }}
+          onSandboxChange={(input) => {
+            void runCommand(async () => {
+              const next = await getDesktopBridge().updateSandboxSettings(input);
+              applySettings(next);
+            });
+          }}
         />
       ) : null}
       {trustDialogOpen && trustWorkspace ? (

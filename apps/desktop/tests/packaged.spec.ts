@@ -1,19 +1,24 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
+import { ripgrepPackagedRelativePath, SANDBOX_RUNTIME_PACKAGE } from "../../../packages/runtime/src/sandbox-artifact.ts";
 import {
+  expectNoDialogThenExpandWorkLog,
+  expandSettledWorkLog,
   launchPackagedDesktop,
   makeUserDataDir,
   makeWorkspaceDir,
   openSessionActions,
   openSettingsSection,
   pathWithoutPi,
-  expandSettledWorkLog,
   removeTestDirectory,
   resolvePackagedAppPath,
   unselectedSessionItem,
   writeResourceFixture,
+  writeSandboxSettingsFile,
 } from "./helpers/electron-app";
 
 test("packaged macOS app loads permission and Trash features without Pi CLI", async () => {
@@ -256,5 +261,73 @@ test("packaged macOS app undoes a created file through OS Trash without Pi CLI",
   } finally {
     await removeTestDirectory(userDataDir);
     await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("packaged macOS app loads staged rg, starts sandbox healthy, wraps bash, and denies out-of-policy writes without Pi or Homebrew", async () => {
+  test.setTimeout(120_000);
+  const appPath = resolvePackagedAppPath();
+  const rgRelative = ripgrepPackagedRelativePath();
+  expect(rgRelative).toBeDefined();
+  const rgPath = join(appPath, "Contents", "Resources", "features", rgRelative ?? "");
+  expect(existsSync(rgPath)).toBe(true);
+  const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");
+  expect(notices).toContain(`${SANDBOX_RUNTIME_PACKAGE} 0.0.73`);
+  expect(notices).toContain("ripgrep 15.2.0");
+  expect(notices).not.toContain("pi-sandbox");
+
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const extraRoot = await mkdtemp(join(homedir(), "pho-code-sandbox-packaged-extra-"));
+  const deniedFile = join(extraRoot, "blocked-note.txt");
+  await writeSandboxSettingsFile(userDataDir, true);
+
+  try {
+    const harness = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+        PHO_CODE_TEST_FEATURES: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await harness.firstWindow();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+
+      await openSettingsSection(page, "sandbox");
+      await expect(page.getByTestId("sandbox-settings")).toContainText("Seatbelt for agent bash");
+      await expect(page.getByTestId("sandbox-settings")).toContainText("skip permission asks");
+      await expect(page.getByTestId("sandbox-enabled")).toBeChecked();
+      await expect(page.getByTestId("sandbox-status")).toContainText(/Healthy/i, { timeout: 30_000 });
+      await page.getByTestId("settings-close").click();
+
+      await page.getByTestId("composer").fill("USE_SANDBOX_TOUCH");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expectNoDialogThenExpandWorkLog(page, 0);
+      expect(existsSync(join(workspaceDir, "sandbox-allowed.txt"))).toBe(true);
+
+      await page.getByTestId("composer").fill("USE_SANDBOX_CURL");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expectNoDialogThenExpandWorkLog(page, 1);
+      await page.getByTestId("tool-card").last().click();
+      await expect(page.getByTestId("tool-detail").last()).toContainText("Sandbox blocked");
+      await expect(page.getByTestId("tool-detail").last()).toContainText("Do not retry");
+      await expect(page.getByTestId("tool-detail").last()).toContainText("Settings → Sandbox");
+
+      await page.getByTestId("composer").fill(`USE_SANDBOX_WRITE_ABS:${deniedFile}`);
+      await page.getByRole("button", { name: "Send" }).click();
+      await expectNoDialogThenExpandWorkLog(page, 2);
+      await page.getByTestId("tool-card").last().click();
+      await expect(page.getByTestId("tool-detail").last()).toContainText(/denied|outside|protected|Sandbox policy/i);
+      expect(existsSync(deniedFile)).toBe(false);
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+    spawnSync("/usr/bin/trash", [extraRoot], { encoding: "utf8" });
   }
 });
