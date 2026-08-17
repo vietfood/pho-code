@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Owner-approved implementation plan for the **agent-tool sandbox** add-on (2026-08-16). This is the implementation contract, not acceptance evidence. No milestone is accepted until its stated evidence exists.
+Owner-approved implementation plan for the **agent-tool sandbox** add-on (2026-08-16). This is the implementation contract. Status is **Accepted**. Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md). Earlier milestone evidence: [`logs/2026-08-17-m1-acceptance-review.md`](./logs/2026-08-17-m1-acceptance-review.md), [`logs/2026-08-17-m2-permission-skip.md`](./logs/2026-08-17-m2-permission-skip.md), [`logs/2026-08-17-m3-file-tool-policy.md`](./logs/2026-08-17-m3-file-tool-policy.md), [`logs/2026-08-17-deny-copy.md`](./logs/2026-08-17-deny-copy.md), [`logs/2026-08-17-m4-packaged-macos.md`](./logs/2026-08-17-m4-packaged-macos.md).
 
 Read the product contract in [`product.md`](./product.md), the research note in [`research.md`](./research.md), accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), and the extension model in [`../../architecture/extension-model.md`](../../architecture/extension-model.md) before implementation.
 
@@ -69,7 +69,7 @@ Implemented shape to follow:
 
 Prefer Pi’s public bash helpers from the pinned SDK (`createBashTool`, `BashOperations`, and shell-path helpers if exported) over the example’s hard-coded `spawn("bash", ["-c", …])` when the pin provides them. Verify the call shape against installed typings.
 
-Reject from the same example: `sandbox.json` merge, `--no-sandbox`, TUI `/sandbox`, default-on, always-on npm/GitHub allowlist, and `process.cwd()` as the only root. Policy is Settings. Cwd is the composite session workspace.
+Reject from the same example: `sandbox.json` merge, `--no-sandbox`, TUI `/sandbox`, always-on npm/GitHub allowlist, and `process.cwd()` as the only root. Policy is Settings. Cwd is the composite session workspace. Enable defaults on because workspace and temp stay allowed; network still defaults to deny.
 
 If GitHub `main` and Pi `0.84.1` diverge, the pinned SDK example and typings win.
 
@@ -182,10 +182,10 @@ Prove `sandbox-exec` wrapping from the Pho Code runtime in isolated directories,
 
 | Package | Planned pin | Status |
 | --- | --- | --- |
-| `@anthropic-ai/sandbox-runtime` | `0.0.73` candidate | **record during Milestone 0** |
+| `@anthropic-ai/sandbox-runtime` | `0.0.73` | pinned in `@pho-code/runtime`; Apache-2.0; `engines.node` `>=20.11.0` (Electron 43 embeds Node 24.18.1) |
 | `pi-sandbox` | not a dependency | rejected |
 | `@carderne/sandbox-runtime` | not a dependency | rejected |
-| bundled `rg` | exact upstream version/license | **record during Milestone 0** |
+| bundled `rg` | BurntSushi/ripgrep `15.2.0` (Unlicense OR MIT); macOS arm64 + x64 SHA-256 in `packages/runtime/src/sandbox-artifact.ts` | **recorded in Milestone 0** |
 
 ## Milestone 1: Settings + bash wrap in Electron
 
@@ -279,7 +279,7 @@ Unsigned macOS `.app` loads engine + `rg` from app resources. Architecture, noti
 ### Implementation sequence
 
 1. `package:mac` stages pinned engine and `rg`; no global Pi; no `npm:pi-sandbox`.
-2. Packaged smoke: enable sandbox, workspace bash write, denied curl, file-tool deny outside policy.
+2. Packaged smoke: sandbox starts healthy, workspace bash write, denied curl, file-tool deny outside policy.
 3. Attribution and third-party notices (Apache-2.0 engine, `rg` license).
 4. Architecture overview: tool-policy sandbox is implemented for agent bash + in-process file tools; Pi process containment remains deferred.
 5. Development runbook: `rg` staging, GUI PATH.

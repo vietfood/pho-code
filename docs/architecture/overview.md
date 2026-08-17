@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestones 0–2 (ask-back, Plan/Agent, session todos) are in source and not accepted. Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestones 0–2 (ask-back, Plan/Agent, session todos) are in source and not accepted. Agent-tool sandbox is accepted under [`features/sandbox`](../features/sandbox/README.md). Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -386,12 +386,13 @@ Required now:
 - validate external URL schemes;
 - do not display raw credentials;
 - render model/tool output as untrusted content;
-- isolate tests from real Pi data.
+- isolate tests from real Pi data;
+- agent `bash` / `user_bash` Seatbelt wrap when Settings Sandbox is enabled (fail closed; default on). Workspace and temp files stay allowed. The same Settings filesystem policy also gates in-process `read`/`write`/`edit`. Healthy sandbox skips bash and in-policy file-tool **asks**; permission **denies** still hold. Packaged macOS stages the pinned engine and bundled `rg` as app-owned resources.
 
 Explicitly deferred:
 
+- wrapping PTY/MCP/`pho-web`/Cursor and Linux packaged bubblewrap;
 - containment of the Pi runtime or extension code;
-- tool policy sandbox;
 - broad package audits and signatures beyond pinning/reviewing the baked feature set;
 - containerized execution;
 - public-distribution threat model.

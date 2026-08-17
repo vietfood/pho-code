@@ -4,7 +4,7 @@
 
 Owner-approved add-on product boundary, 2026-08-16. This is **not** v3, **not** the integrated terminal, and **not** Phase F runtime extraction.
 
-Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Owner-approved plan; implementation not started** until Milestone 0 begins, then **In implementation** until that plan’s acceptance gate passes.
+Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Accepted**. Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md).
 
 Earlier candidate research lives in [`research.md`](./research.md). This file is the product contract.
 
@@ -72,9 +72,11 @@ Do not take from it:
 
 - `~/.pi/agent/extensions/sandbox.json` or project `.pi/sandbox.json`;
 - `--no-sandbox`, `/sandbox`, or TUI `notify` / `setStatus`;
-- default-on, or a baked network allowlist that is always active (our optional package-registry toggle may *start from* that example’s npm/PyPI/GitHub hosts, but Settings default is deny);
+- a baked network allowlist that is always active (our optional package-registry toggle may *start from* that example’s npm/PyPI/GitHub hosts, but Settings network default is deny);
 - `process.cwd()` as the only workspace (Pho Code is per-session cwd);
 - in-process `read`/`write`/`edit` intercept (that is our Milestone 3, not the example).
+
+Pho Code later defaults **enable on** because workspace and temp read/write stay allowed in-policy. That is a Pho product choice, not the example’s always-on registry allowlist.
 
 Codex’s helper is rejected: it fights V3, duplicates Pi fs tools, and is the expensive part of their sandbox.
 
@@ -88,10 +90,10 @@ Codex’s helper is rejected: it fights V3, duplicates Pi fs tools, and is the e
 | Pho-owned layer | Inline factory / runtime adapter. Structured Settings and existing `select`/`confirm` only. Never `ctx.ui.custom`. |
 | OS wrap | Agent `bash` and `user_bash`. Not the owner PTY. |
 | File tools | Same Settings filesystem policy, enforced **in-process** before Pi `read`/`write`/`edit`. Not Seatbelt. |
-| Permission asks | **No** for in-box sandboxed `bash` and in-policy `read`/`write`/`edit` while sandbox is on and healthy. Permanent-removal and privilege-escalation **denies** remain. Out-of-policy bash is OS `EPERM` (tool error), not a silent unsandbox retry. Out-of-policy file tools are denied. MCP, `pho-web`, Cursor SDK, and owner PTY keep today’s permission behavior. |
+| Permission asks | **No** for in-box sandboxed `bash` and in-policy `read`/`write`/`edit` while sandbox is on and healthy. Permanent-removal and privilege-escalation **denies** remain. Out-of-policy bash is OS `EPERM` (tool error with a sandbox reason, not a silent unsandbox retry). Out-of-policy file tools are denied with the same owner-action copy. MCP, `pho-web`, Cursor SDK, and owner PTY keep today’s permission behavior. |
 | Network | **Settings only.** Typed mode + domain list. No runtime “allow this domain” prompt. No project `.pi/sandbox.json`. |
 | Filesystem extras | Typed additional read/write paths in Settings, application-owned. Workspace write and documented temp are implicit when enabled. |
-| Default | **Off.** Owner enables in Settings. Idle-only apply, same as permission settings. |
+| Default | **On.** Missing settings file enables the OS box. Network remains deny. Idle-only apply, same as permission settings. Owner can turn it off. |
 | Fail closed | If Settings says on and init fails, **do not run** agent `bash` until the owner turns it off or the dependency is fixed. Do not silently unsandbox. |
 | Platform | macOS first. Linux: named `unavailable` / `degraded` diagnostic. Windows: out of scope. |
 | `rg` | Bundle or adapter-inject. Do not require Homebrew on GUI `PATH`. |
@@ -128,7 +130,7 @@ New Settings section **Sandbox**, after Permissions. Named commands only (`updat
 
 | Control | Type | Behavior |
 | --- | --- | --- |
-| Enable sandbox | boolean, default off | Idle-only apply. When on and healthy, wraps agent bash and applies file-tool policy. |
+| Enable sandbox | boolean, default on | Idle-only apply. When on and healthy, wraps agent bash and applies file-tool policy. |
 | Network mode | `deny` \| `allowlist` | `deny`: no agent-bash network. `allowlist`: only listed domains. |
 | Allowed domains | bounded string list | Used only in `allowlist`. Exact hosts or a single leading `*.` label (`*.github.com`). Reject `"*"`, empty entries, and oversized lists. |
 | Include package-registry defaults | boolean, default off | When on **and** mode is `allowlist`, union a baked, documented registry list. Start that list from the Pi official example’s defaults (npm, Yarn, PyPI, GitHub hosts) plus the same family Cursor publishes for package tools. The baked list is source-controlled, not owner-editable JSON. |
@@ -169,7 +171,7 @@ If sandbox is **on and failed**: agent `bash` is refused with a named error. Fil
 
 - Settings → Sandbox is the only owner control surface.
 - A compact healthy/failed/off mark may appear in Settings and, if cheap, in the existing permission/status chrome. No lock glyph required in the transcript.
-- Tool errors from OS deny show as ordinary tool failure text (untrusted). Do not offer “Run without sandbox.”
+- Tool errors from OS or in-process file-tool deny show as ordinary tool failure text (untrusted). They name the sandbox reason and tell the agent to stop and ask the owner to turn sandbox off or add a path/domain in Settings → Sandbox. Do not offer “Run without sandbox.” After the owner changes Settings, they tell the agent to continue.
 - About/Settings copy uses the honesty bullets above.
 - Applying Settings waits until the session is idle, matching permission apply.
 

@@ -41,7 +41,7 @@ The authoritative command registry is `packages/protocol/src/version.ts`; method
 
 - bootstrap, workspace recents/reorder, session catalog/snapshots, create/open/archive/restore/removal;
 - prompt, steer/follow-up, image preparation, abort, model/thinking, assistant rewrite, context prompt, host dialogs;
-- appearance, permissions/trust, skill sources, credentials/provider OAuth, and GitHub MCP;
+- appearance, permissions/trust, skill sources, credentials/provider OAuth, GitHub MCP, and agent-tool sandbox Settings (`updateSandboxSettings`);
 - workspace-reference search;
 - implemented V3 review/diff/Approve/per-file Undo commands.
 

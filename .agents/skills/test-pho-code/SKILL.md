@@ -64,6 +64,7 @@ Prefer extending the existing focused spec for the affected journey:
 - `host-ui.spec.ts` / `permission.spec.ts` / `project-trust.spec.ts`;
 - `ask-user.spec.ts` — Plan/Agent Milestone 0 questionnaire card vs permission dock;
 - `settings.spec.ts` / `credentials.spec.ts` / `oauth.spec.ts`;
+- `sandbox.spec.ts` — agent-tool sandbox default-on Healthy, wrapped bash, skipped bash asks, denied curl;
 - `change-review.spec.ts` — tracked changes, Approve, Undo, conflict, relaunch;
 - `shutdown.spec.ts` — bounded disposal;
 - `packaged.spec.ts` — app-owned resources and no-Pi-CLI journeys.
@@ -76,8 +77,11 @@ Start development with:
 
 ```bash
 bun run stage:github-mcp
-bun run dev
+bun run stage:ripgrep
+env -u ELECTRON_RUN_AS_NODE bun run dev
 ```
+
+If `bun run dev` fails with `The requested module 'electron' does not provide an export named 'BrowserWindow'`, the shell has `ELECTRON_RUN_AS_NODE` set; unset it as above. Playwright already deletes that variable in `desktopLaunchEnv`.
 
 Before starting another server, reuse a healthy existing process. Keep the app alive while the owner may inspect it or request follow-up changes. Stop only the process you started, using its captured PID or terminal session.
 

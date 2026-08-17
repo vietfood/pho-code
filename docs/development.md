@@ -36,13 +36,13 @@ Do not run install/build commands inside a reference submodule as if that built 
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input host-UI records, typed appearance/permission/skill-source/GitHub MCP settings, `/` skill tokens, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, `rewriteAssistantOutput`, and bounded change-review commands/events |
-| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, `SkillSourceRegistry` with `/` expansion and named `read_skill`, GitHub MCP runtime with allowlisted `github_` tools, write/edit change ledger and privileged diff/file views, deterministic test model |
-| `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, and GitHub MCP enabled metadata, change-review command validation, shutdown |
-| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, persistent right sidebar (Changes review + Context prompt), host dialogs, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions) with deferred API-key import, GitHub PAT, and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid/SVG, Tailwind theme |
-| `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, agent-dir override, test seams |
+| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input host-UI records, typed appearance/permission/skill-source/GitHub MCP/sandbox settings, `/` skill tokens, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, `rewriteAssistantOutput`, and bounded change-review commands/events |
+| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, `SkillSourceRegistry` with `/` expansion and named `read_skill`, GitHub MCP runtime with allowlisted `github_` tools, write/edit change ledger and privileged diff/file views, agent-tool sandbox runtime (engine pin, fail-closed bash wrap, default-on Settings persist, deny-first bash ask-skip, in-process file-tool policy, packaged engine/`rg` staging), deterministic test model |
+| `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, GitHub MCP enabled metadata, idle-only sandbox apply, change-review command validation, shutdown |
+| `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer, tool rows, persistent right sidebar (Changes review + Context prompt), host dialogs, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions, Sandbox) with deferred API-key import, GitHub PAT, and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid/SVG, Tailwind theme |
+| `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, staged `rg` PATH prepend for GUI and packaged launches, agent-dir override, test seams |
 | `apps/desktop/src` | Shell state and conversation React composition |
-| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/session-lifecycle/host-ui/permission/settings/credentials/change-review specs, packaged artifact lane, unit tests, fail-closed trash helper |
+| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/session-lifecycle/host-ui/permission/settings/credentials/change-review/sandbox specs, packaged artifact lane, unit tests, fail-closed trash helper |
 
 The production build writes `apps/desktop/out/main`, `out/preload`, and `out/renderer`. These are ignored build artifacts, not distributable installers.
 
@@ -70,9 +70,10 @@ Run commands from the repository root:
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun test` | Run non-GUI unit and integration tests. |
-| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, credentials, OAuth, developer-mode, project-trust, and change-review specs. |
-| `bun run package:mac` | Stage baked features and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
+| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, session-lifecycle, host-UI, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
+| `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
 | `bun run stage:github-mcp` | Fetch the pinned GitHub MCP binary into gitignored `apps/desktop/resources` for `bun run dev`. `package:mac` stages the same artifact. The running app never downloads it. |
+| `bun run stage:ripgrep` | Fetch the pinned ripgrep binary into gitignored `apps/desktop/resources` for sandbox init. `package:mac` stages the same artifact. The running app never downloads it. |
 | `bun run test:packaged` | Smoke the packaged `.app` with isolated user data, baked-feature loading, and a PATH that does not contain `pi`. |
 
 Package-local scripts exist for focused work, but documentation and CI should call the root commands for milestone acceptance.
@@ -84,6 +85,7 @@ Package-local scripts exist for focused work, but documentation and CI should ca
 ```bash
 bun install --frozen-lockfile
 bun run stage:github-mcp
+bun run stage:ripgrep
 bun run dev
 ```
 
@@ -98,6 +100,7 @@ Expected development behavior:
 - `PHO_CODE_AGENT_DIR` explicitly replaces only the Pi data root and is treated as external/shared;
 - desktop tests isolate `userData`, so a separate agent-directory override is needed only when a test intentionally exercises shared-scope disclosure;
 - GitHub MCP in Settings needs the pinned binary under gitignored `apps/desktop/resources`; run `bun run stage:github-mcp` once (or `bun run package:mac`). The running app never downloads it. After staging, restart development or turn the GitHub row off and on.
+- Settings → Sandbox defaults on and needs the pinned `rg` binary under the same resources tree; run `bun run stage:ripgrep` once (or `bun run package:mac`). Missing `rg` fails closed and refuses agent bash. GUI `PATH` does not need Homebrew `rg`. The running app never downloads it. Deterministic tests (`PHO_CODE_TEST_MODEL=1`) keep sandbox off unless `userData/sandbox-settings.json` opts in, so permission journeys stay unsandboxed.
 
 ### Isolation and test environment variables
 
@@ -182,6 +185,7 @@ Check in this order:
 8. Are the agent directory, application data directory, and workspace absolute and accessible?
 9. Did resource loading produce diagnostics?
 10. Did a native dependency require an Electron ABI rebuild?
+11. If main fails with `The requested module 'electron' does not provide an export named 'BrowserWindow'`, is `ELECTRON_RUN_AS_NODE` set? Unset it (`env -u ELECTRON_RUN_AS_NODE bun run dev`). Playwright already deletes it in `desktopLaunchEnv`.
 
 Log paths and versions, but do not log API keys, auth files, MCP tokens, complete environment dumps, or sensitive tool payloads.
 
@@ -292,7 +296,7 @@ Covered by `packages/runtime/test/{resource-locator,credentials}.test.ts`, `scri
 2. missing permission package fails closed with a named diagnostic instead of loading ambient packages;
 3. API-key import persists through Pi `ModelRuntime.login` into isolated `auth.json` and never returns the secret;
 4. Electron Settings imports a dummy key without exposing it on the bridge;
-5. `bun run package:mac` stages the pinned permission feature, nested runtime dependencies, the three Pho Code skills, the pinned GitHub MCP native binary (SHA-256 verified; fetched into a gitignored cache when missing), and `THIRD_PARTY_NOTICES.txt`;
+5. `bun run package:mac` stages the pinned permission feature, nested runtime dependencies, the three Pho Code skills, the pinned GitHub MCP native binary (SHA-256 verified; fetched into a gitignored cache when missing), the pinned `@anthropic-ai/sandbox-runtime` engine with nested deps, bundled `rg` (SHA-256 verified), and `THIRD_PARTY_NOTICES.txt`;
 6. `bun run test:packaged` launches the unsigned `.app` with isolated user data, `PHO_CODE_TEST_FEATURES=1`, and a PATH that does not contain `pi`.
 
 Default Playwright config ignores `packaged.spec.ts`; the packaged lane uses `playwright.packaged.config.ts`.

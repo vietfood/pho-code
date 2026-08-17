@@ -70,6 +70,7 @@ Pi JSONL is not copied into application metadata. Assistant rewrites are explici
 - recent workspace order and selected identities;
 - archive/restore metadata and UI preferences;
 - metadata schema v6 lifecycle/view/outcome records, project permission trust, typed appearance, enabled skill sources, and GitHub MCP enabled state;
+- agent-tool sandbox policy in `sandbox-settings.json` (enable defaults on; network mode, domains, extra paths; extra paths also gate in-process `read`/`write`/`edit`; not Pi JSONL);
 - opaque credential-flow handles;
 - workspace retrieval indexes under application data;
 - accepted feature-specific operational state.
@@ -89,6 +90,7 @@ Normal production state is rooted under Electron `userData`:
 ```text
 userData/
 ├── app-metadata.json
+├── sandbox-settings.json
 ├── pi-agent/
 │   ├── sessions/
 │   ├── credentials and model state

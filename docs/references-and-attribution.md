@@ -14,7 +14,20 @@ Reading an implementation for architectural understanding does not require a row
 - Documentation: [pi.dev](https://pi.dev/docs/latest)
 - Role: runtime and public SDK dependency; primary behavioral authority
 - License: MIT in the current upstream project; verify and preserve the exact pinned package's license during bootstrap
-- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API. The agent-tool sandbox add-on reads the official example [`packages/coding-agent/examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) for the `createBashTool` / `user_bash` wrap; the pinned `0.84.1` copy is the API source of truth. Plan/Agent reads the official [`plan-mode`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/index.ts), [`questionnaire.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/questionnaire.ts), [`question.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/question.ts), and [`todo.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/todo.ts) examples the same way. Reading them does not require a copy row. If an example is later copied or closely adapted into Pho Code, add a copy row here with the pin revision.
+- Notes: use public SDK APIs and installed typings. Do not copy internal implementation merely to avoid learning the supported API. The agent-tool sandbox add-on reads the official example [`packages/coding-agent/examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) for the `createBashTool` / `user_bash` wrap; the pinned `0.84.1` copy is the API source of truth. Milestone 0 uses Pi's public `createLocalBashOperations` plus `SandboxManager.wrapWithSandbox` rather than copying the example's `spawn("bash", ["-c", …])`. Plan/Agent reads the official [`plan-mode`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/index.ts), [`questionnaire.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/questionnaire.ts), [`question.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/question.ts), and [`todo.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/todo.ts) examples the same way. Reading them does not require a copy row. If an example is later copied or closely adapted into Pho Code, add a copy row here with the pin revision.
+
+### Anthropic sandbox-runtime
+
+- Package: [`@anthropic-ai/sandbox-runtime`](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime) `0.0.73`
+- Upstream: [anthropic-experimental/sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)
+- License: Apache-2.0
+- Role: OS wrap of agent `bash` children (`sandbox-exec` on macOS). Runtime dependency of the [`features/sandbox`](./features/sandbox/README.md) add-on. Not a renderer import. Packaged macOS flattens the pin into production `node_modules` with nested `zod` 3 so it does not collide with top-level `zod` 4.
+
+### ripgrep
+
+- Upstream: [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) `15.2.0`
+- License: Unlicense OR MIT
+- Role: bundled `rg` binary for sandbox-runtime deny-path detection (required on Linux; required by this add-on's fail-closed contract on every platform). Staged as an app-owned resource, not a Homebrew `PATH` dependency. `package:mac` copies the pinned binary into `Contents/Resources/features/ripgrep/`.
 
 ### juicesharp rpiv-ask-user-question
 

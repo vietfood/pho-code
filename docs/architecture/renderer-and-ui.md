@@ -107,7 +107,8 @@ The floating Settings UI renders typed protocol snapshots:
 - GitHub MCP;
 - Skills and source trust;
 - Archived chats;
-- Permissions.
+- Permissions;
+- Sandbox (accepted agent-tool sandbox add-on; default on — see [`../features/sandbox`](../features/sandbox/README.md)).
 
 Settings never renders a generic schema, path picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
 

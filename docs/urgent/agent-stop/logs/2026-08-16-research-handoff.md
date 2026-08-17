@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: urgent/agent-stop  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md`](../../../features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md`](../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md)
+Related logs: [`../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md`](../../../features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md`](../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../../features/sandbox/logs/2026-08-16-m1-settings.md)
 
 ## Intent
 

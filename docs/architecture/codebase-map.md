@@ -37,7 +37,7 @@ Electron main is the composition root and may import application/runtime package
 - `version.ts`, `bridge.ts`, `command-result.ts`, `errors.ts`, `json.ts` — versioned facade, result envelope, normalized failures, JSON-safety.
 - `events.ts`, `conversation.ts`, `bootstrap.ts` — runtime envelopes, transcript/run projections, bootstrap snapshot and reducers.
 - `workspace.ts`, `session-lifecycle.ts` — composite identity, catalog, archive/restore/removal, recent projects.
-- `settings.ts`, `credentials.ts`, `github-mcp.ts`, `skills.ts` — typed settings and redacted account/skill/MCP projections.
+- `settings.ts`, `sandbox.ts`, `credentials.ts`, `github-mcp.ts`, `skills.ts` — typed settings and redacted account/skill/MCP/sandbox projections.
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
 - `resources.ts` — baked feature diagnostics.
@@ -71,12 +71,13 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 ### Feature composition and resources
 
 - `features.ts`, `resources.ts`, `resource-locator.ts` build the immutable manifest and resolve development vs packaged resources.
-- `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature; runtime start syncs harness allow-list tools (`ask_user_question`, `update_plan_document`, `todo`, `execute_plan`) and the managed `web_search` / `fetch_content` pair onto existing configs.
+- `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature; runtime start syncs harness allow-list tools (`ask_user_question`, `update_plan_document`, `todo`, `execute_plan`) and the managed `web_search` / `fetch_content` pair onto existing configs, and appends the sandbox `authorizerChain` link (`pho-code-sandbox`).
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
 - `plan-agent-feature.ts`, `plan-agent-state.ts`, `todo-tool.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` (Plan/Agent Milestones 0–2 in source, not accepted).
+- `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
 
-`createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, and V3 change capture. Both stages are source-selected and immutable to the user.
+`createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, V3 change capture, and the agent-tool sandbox factory (bash wrap plus file-tool intercept while enabled). Both stages are source-selected and immutable to the user.
 
 ### Retrieval and input
 
@@ -104,7 +105,7 @@ This accepted subsystem's product contract, evidence, and residual recovery limi
 
 `apps/desktop/electron` owns:
 
-- `main.ts` — app lifecycle, composition, BrowserWindow, native dialogs/clipboard/theme, resource roots, command registration, bounded quit.
+- `main.ts` — app lifecycle, composition, BrowserWindow, native dialogs/clipboard/theme, resource roots, staged `rg` PATH prepend, command registration, bounded quit.
 - `application-menu.ts`, `application-menu-spec.ts` — application menu; Reload is CommandOrControl+Shift+R so CommandOrControl+R can toggle the right sidebar.
 - `preload.ts`, `ipc.ts` — explicit `window.phoCode` facade and fixed channel names.
 - `security.ts`, `security-policy.ts`, `trusted-renderer.ts` — CSP, sender/origin, navigation, permission, and external-URL policy.
@@ -136,7 +137,7 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 - shell/navigation: `app-shell.tsx`, `app-sidebar.tsx`, project/session menus, resize/toggle controls, welcome/empty/loading surfaces;
 - conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (Plan/Agent add-on; in source, not accepted);
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
-- settings/accounts/skills/GitHub/archive/trust dialogs;
+- settings/accounts/skills/GitHub/archive/trust/sandbox dialogs;
 - right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
 - design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/`.
 
@@ -146,7 +147,7 @@ UI imports React and protocol only. It renders remote/tool/model content as untr
 
 - Package tests live beside `packages/*/test` and cover reducers, validation, adapters, Pi integration, lifecycle, and recovery using owned temporary roots.
 - `apps/desktop/tests/unit` covers shell helpers and boundary invariants.
-- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, sessions, dialogs, ask-user questionnaires, settings, credentials, OAuth, permissions, project trust, V3 review, and shutdown.
+- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, sessions, dialogs, ask-user questionnaires, settings, credentials, OAuth, permissions, project trust, V3 review, sandbox, and shutdown.
 - `apps/desktop/tests/packaged.spec.ts` verifies the unsigned macOS artifact with isolated data and no Pi CLI.
 - `eslint.config.js` enforces package dependency direction.
 

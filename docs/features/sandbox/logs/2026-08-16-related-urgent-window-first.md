@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md`](../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md)
+Related logs: [`../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md`](../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md)
 
 ## Intent
 
