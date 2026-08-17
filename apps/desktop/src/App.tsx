@@ -1203,9 +1203,6 @@ export function App() {
                 onSessionModeChange={(mode) => {
                   void onSetSessionMode(mode);
                 }}
-                onOpenPlan={() => {
-                  selectRightSurface("plan");
-                }}
               />
         ) : (
           <WorkspacePicker
