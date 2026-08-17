@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -21,6 +21,20 @@ import {
   githubMcpReleaseAsset,
   githubMcpReleaseUrl,
 } from "../packages/runtime/src/github-mcp-artifact.ts";
+import {
+  RIPGREP_EXECUTABLE,
+  RIPGREP_LICENSE,
+  RIPGREP_TAG,
+  RIPGREP_UPSTREAM,
+  RIPGREP_VERSION,
+  SANDBOX_RUNTIME_LICENSE,
+  SANDBOX_RUNTIME_PACKAGE,
+  SANDBOX_RUNTIME_VERSION,
+  ripgrepPackagedRelativePath,
+  ripgrepPlatformId,
+  ripgrepReleaseAsset,
+  ripgrepReleaseUrl,
+} from "../packages/runtime/src/sandbox-artifact.ts";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const WORKSPACE_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -263,6 +277,15 @@ export function githubMcpCacheDir(): string {
   return path.join(WORKSPACE_ROOT, "packages", "runtime", "features", "github", "github-mcp-server", "cache");
 }
 
+export function ripgrepCacheDir(): string {
+  return path.join(WORKSPACE_ROOT, "packages", "runtime", "features", "ripgrep", "cache");
+}
+
+export function stagedRipgrepPath(resourcesRoot: string): string | undefined {
+  const relative = ripgrepPackagedRelativePath();
+  return relative ? path.join(resourcesRoot, PACKAGED_FEATURES_DIR, relative) : undefined;
+}
+
 export function sha256File(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
@@ -333,9 +356,95 @@ export function stageGitHubMcpServer(
   return destination;
 }
 
+function findExtractedRipgrep(root: string): string | undefined {
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+    for (const entry of readdirSync(current)) {
+      const candidate = path.join(current, entry);
+      if (entry === RIPGREP_EXECUTABLE) {
+        return candidate;
+      }
+      if (statSync(candidate).isDirectory()) {
+        stack.push(candidate);
+      }
+    }
+  }
+  return undefined;
+}
+
+export function stageRipgrep(
+  featuresRoot: string,
+  options: { required?: boolean; fetchIfMissing?: boolean; cacheDir?: string; archivePath?: string } = {},
+): string | undefined {
+  const asset = ripgrepReleaseAsset();
+  const relative = ripgrepPackagedRelativePath();
+  const platform = ripgrepPlatformId();
+  if (!asset || !relative || !platform) {
+    if (options.required) {
+      throw new Error(`No pinned ripgrep asset for ${process.platform}/${process.arch}.`);
+    }
+    return undefined;
+  }
+  const cacheDir = options.cacheDir ?? ripgrepCacheDir();
+  mkdirSync(cacheDir, { recursive: true });
+  const archivePath = options.archivePath ?? path.join(cacheDir, asset.asset);
+  if (!existsSync(archivePath) && options.fetchIfMissing) {
+    const downloaded = spawnSync("curl", ["-fsSL", "-o", archivePath, ripgrepReleaseUrl(asset.asset)], {
+      encoding: "utf8",
+    });
+    if (downloaded.status !== 0) {
+      throw new Error(`Failed to fetch ripgrep archive (${downloaded.stderr?.trim() || downloaded.status}).`);
+    }
+  }
+  if (!existsSync(archivePath)) {
+    if (!options.required) {
+      return undefined;
+    }
+    throw new Error(
+      `Missing ripgrep archive ${archivePath}. Fetch ${ripgrepReleaseUrl(asset.asset)} into the cache during a reviewed build action.`,
+    );
+  }
+  const digest = sha256File(archivePath);
+  if (digest !== asset.sha256) {
+    throw new Error(`Ripgrep archive SHA-256 mismatch for ${asset.asset}. Expected ${asset.sha256}, got ${digest}.`);
+  }
+  const scratch = mkdtempSync(path.join(tmpdir(), "pho-code-ripgrep-"));
+  const extract = spawnSync("tar", ["-xzf", archivePath, "-C", scratch], { encoding: "utf8" });
+  if (extract.status !== 0) {
+    throw new Error(`Failed to extract ripgrep archive (${extract.stderr?.trim() || extract.status}).`);
+  }
+  const binary = findExtractedRipgrep(scratch);
+  if (!binary) {
+    throw new Error(`Ripgrep archive did not contain ${RIPGREP_EXECUTABLE}.`);
+  }
+  const destination = path.join(featuresRoot, relative);
+  mkdirSync(path.dirname(destination), { recursive: true });
+  cpSync(binary, destination);
+  chmodSync(destination, 0o755);
+  writeFileSync(
+    path.join(path.dirname(destination), "PIN.json"),
+    `${JSON.stringify(
+      {
+        version: RIPGREP_VERSION,
+        tag: RIPGREP_TAG,
+        platform,
+        asset: asset.asset,
+        sha256: asset.sha256,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return destination;
+}
+
 export function stageBakedFeatureResources(
   resourcesRoot = DESKTOP_RESOURCES_DIR,
-  options: { requireGitHubMcp?: boolean } = {},
+  options: { requireGitHubMcp?: boolean; requireRipgrep?: boolean } = {},
 ): string {
   const scratch = mkdtempSync(path.join(tmpdir(), "pho-code-stage-"));
   const preparedFeatures = path.join(scratch, PACKAGED_FEATURES_DIR);
@@ -347,6 +456,10 @@ export function stageBakedFeatureResources(
     stageGitHubMcpServer(preparedFeatures, {
       required: options.requireGitHubMcp === true,
       fetchIfMissing: options.requireGitHubMcp === true,
+    });
+    stageRipgrep(preparedFeatures, {
+      required: options.requireRipgrep === true,
+      fetchIfMissing: options.requireRipgrep === true,
     });
     replaceGeneratedTree(preparedFeatures, path.join(resourcesRoot, PACKAGED_FEATURES_DIR));
     return path.join(resourcesRoot, PACKAGED_FEATURES_DIR, ...PERMISSION_PACKAGE_NAME.split("/"));
@@ -387,6 +500,7 @@ function readNoticePackage(packageName: string, fromPackageJson?: string): Notic
 export function generateThirdPartyNotices(): string {
   const permissionManifest = path.join(resolveWorkspacePackageRoot(PERMISSION_PACKAGE_NAME), "package.json");
   const cursorManifest = path.join(resolveWorkspacePackageRoot(CURSOR_SDK_PACKAGE_NAME), "package.json");
+  const runtimeManifest = path.join(resolveWorkspacePackageRoot("@pho-code/runtime"), "package.json");
   const packages = [
     readNoticePackage("@earendil-works/pi-coding-agent"),
     readNoticePackage("@earendil-works/pi-ai"),
@@ -400,7 +514,18 @@ export function generateThirdPartyNotices(): string {
     readNoticePackage("@mozilla/readability"),
     readNoticePackage("linkedom"),
     readNoticePackage("turndown"),
+    readNoticePackage(SANDBOX_RUNTIME_PACKAGE, runtimeManifest),
   ];
+  const sandboxRuntime = packages.find((entry) => entry.name === SANDBOX_RUNTIME_PACKAGE);
+  if (
+    !sandboxRuntime ||
+    sandboxRuntime.version !== SANDBOX_RUNTIME_VERSION ||
+    sandboxRuntime.license !== SANDBOX_RUNTIME_LICENSE
+  ) {
+    throw new Error(
+      `Third-party notices expected ${SANDBOX_RUNTIME_PACKAGE} ${SANDBOX_RUNTIME_VERSION} (${SANDBOX_RUNTIME_LICENSE}).`,
+    );
+  }
   const sections = [
     "# Third-party notices",
     "",
@@ -417,8 +542,69 @@ export function generateThirdPartyNotices(): string {
       sections.push("");
     }
   }
+  sections.push(`## BurntSushi/ripgrep ${RIPGREP_VERSION}`);
+  sections.push("");
+  sections.push(`License: ${RIPGREP_LICENSE} · Andrew Gallant`);
+  sections.push("");
+  sections.push(`Upstream: ${RIPGREP_UPSTREAM}/tree/${RIPGREP_TAG}`);
+  sections.push("");
+  sections.push(
+    "Pho Code ships the pinned macOS `rg` binary as an app-owned resource for sandbox-runtime deny-path detection. The running app never downloads it.",
+  );
+  sections.push("");
+  sections.push(RIPGREP_UNLICENSE_TEXT);
+  sections.push("");
+  sections.push(RIPGREP_MIT_TEXT);
+  sections.push("");
   return `${sections.join("\n").trim()}\n`;
 }
+
+const RIPGREP_UNLICENSE_TEXT = `This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <https://unlicense.org/>`;
+
+const RIPGREP_MIT_TEXT = `The MIT License (MIT)
+
+Copyright (c) 2015 Andrew Gallant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.`;
 
 export function writeThirdPartyNotices(resourcesRoot = DESKTOP_RESOURCES_DIR): { artifact: string; docs: string } {
   const text = generateThirdPartyNotices();

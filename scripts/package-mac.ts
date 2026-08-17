@@ -10,6 +10,11 @@ import {
   stageBakedFeatureResources,
   writeThirdPartyNotices,
 } from "./stage-app-resources.ts";
+import {
+  SANDBOX_RUNTIME_NESTED_DEPS,
+  SANDBOX_RUNTIME_PACKAGE,
+  SANDBOX_RUNTIME_VERSION,
+} from "../packages/runtime/src/sandbox-artifact.ts";
 
 const STAGE_DIR = path.join(DESKTOP_DIR, ".package-stage");
 const SKIP_APP_PACKAGES = new Set([
@@ -21,6 +26,9 @@ const SKIP_APP_PACKAGES = new Set([
   "react",
   "react-dom",
 ]);
+
+const WALK_WITHOUT_COPY = new Set(["@pho-code/runtime"]);
+const NEST_DEPENDENCY_PACKAGES = new Set([SANDBOX_RUNTIME_PACKAGE]);
 
 interface PackageManifest {
   name?: string;
@@ -78,14 +86,22 @@ function run(command: string, args: readonly string[], cwd: string): void {
 export function collectProductionPackages(entryPackageJson: string): ResolvedProductionPackage[] {
   const queued = new Set<string>();
   const resolved: ResolvedProductionPackage[] = [];
-  const queue: { name: string; from: string; optional: boolean }[] = [];
+  const queue: { name: string; from: string; optional: boolean; copy: boolean }[] = [];
 
   function enqueue(packageName: string, from: string, optional: boolean): void {
-    if (SKIP_APP_PACKAGES.has(packageName) || queued.has(packageName) || packageName.startsWith("@pho-code/")) {
+    if (queued.has(packageName)) {
+      return;
+    }
+    if (WALK_WITHOUT_COPY.has(packageName)) {
+      queued.add(packageName);
+      queue.push({ name: packageName, from, optional, copy: false });
+      return;
+    }
+    if (SKIP_APP_PACKAGES.has(packageName) || packageName.startsWith("@pho-code/")) {
       return;
     }
     queued.add(packageName);
-    queue.push({ name: packageName, from, optional });
+    queue.push({ name: packageName, from, optional, copy: true });
   }
 
   const root = JSON.parse(readFileSync(entryPackageJson, "utf8")) as PackageManifest;
@@ -102,7 +118,12 @@ export function collectProductionPackages(entryPackageJson: string): ResolvedPro
       }
       throw new Error(`Cannot resolve production dependency ${item.name} from ${item.from}.`);
     }
-    resolved.push({ name: item.name, root: path.dirname(manifestPath) });
+    if (item.copy) {
+      resolved.push({ name: item.name, root: path.dirname(manifestPath) });
+    }
+    if (NEST_DEPENDENCY_PACKAGES.has(item.name)) {
+      continue;
+    }
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PackageManifest;
     for (const name of Object.keys(manifest.dependencies ?? {})) {
       enqueue(name, manifestPath, false);
@@ -186,7 +207,7 @@ function writeStagedBuilderConfig(): string {
 }
 
 export function prepareMacPackageStage(): void {
-  stageBakedFeatureResources(DESKTOP_RESOURCES_DIR, { requireGitHubMcp: true });
+  stageBakedFeatureResources(DESKTOP_RESOURCES_DIR, { requireGitHubMcp: true, requireRipgrep: true });
   writeThirdPartyNotices(DESKTOP_RESOURCES_DIR);
   run("bun", ["run", "build"], DESKTOP_DIR);
 
@@ -204,7 +225,39 @@ function copyProductionNodeModules(destination: string, packages: readonly Resol
   for (const pkg of packages) {
     copyPackageTree(pkg.root, path.join(destination, ...pkg.name.split("/")));
   }
+  nestSandboxRuntimeDependencies(destination, packages);
   patchStagedFffAsarResolver(destination);
+}
+
+export function nestSandboxRuntimeDependencies(
+  nodeModulesDir: string,
+  packages: readonly ResolvedProductionPackage[],
+): void {
+  const sandboxRuntime = packages.find((entry) => entry.name === SANDBOX_RUNTIME_PACKAGE);
+  if (!sandboxRuntime) {
+    throw new Error(`Packaged node_modules is missing ${SANDBOX_RUNTIME_PACKAGE}.`);
+  }
+  const destination = path.join(nodeModulesDir, ...SANDBOX_RUNTIME_PACKAGE.split("/"));
+  const manifestPath = path.join(destination, "package.json");
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Staged ${SANDBOX_RUNTIME_PACKAGE} is missing package.json.`);
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as PackageManifest;
+  if (manifest.name !== SANDBOX_RUNTIME_PACKAGE || manifest.version !== SANDBOX_RUNTIME_VERSION) {
+    throw new Error(
+      `Staged ${SANDBOX_RUNTIME_PACKAGE} is ${manifest.name}@${manifest.version}, expected ${SANDBOX_RUNTIME_VERSION}.`,
+    );
+  }
+  const nestedModules = path.join(destination, "node_modules");
+  const fromPackageJson = path.join(sandboxRuntime.root, "package.json");
+  const require = createRequire(fromPackageJson);
+  for (const dependency of SANDBOX_RUNTIME_NESTED_DEPS) {
+    const nestedManifest = resolveManifestPath(require, dependency);
+    if (!nestedManifest) {
+      throw new Error(`Cannot resolve nested ${dependency} for ${SANDBOX_RUNTIME_PACKAGE}.`);
+    }
+    copyPackageTree(path.dirname(nestedManifest), path.join(nestedModules, ...dependency.split("/")));
+  }
 }
 
 export function patchFffAsarResolverSource(source: string): string {

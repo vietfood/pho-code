@@ -19,6 +19,8 @@ function isExternalRuntimeDependency(id: string): boolean {
   return (
     id.startsWith("@earendil-works/") ||
     id.startsWith("@ff-labs/") ||
+    id === "@anthropic-ai/sandbox-runtime" ||
+    id.startsWith("@anthropic-ai/sandbox-runtime/") ||
     id === "ffi-rs" ||
     id === "@silvia-odwyer/photon-node" ||
     id === "typebox" ||

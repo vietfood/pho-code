@@ -1,5 +1,6 @@
 node_modules
 packages/runtime/features/github/github-mcp-server/cache
+packages/runtime/features/ripgrep/cache
 dist
 out
 release

@@ -10,6 +10,7 @@ import {
   generateThirdPartyNotices,
   stageBakedFeatureResources,
   stageGitHubMcpServer,
+  stageRipgrep,
   stagedCuratedSkillsRoot,
   stagedCursorSdkPackageRoot,
 } from "./stage-app-resources.ts";
@@ -49,6 +50,11 @@ describe("baked feature staging", () => {
     expect(notices).toContain("pi-cursor-sdk 0.2.0");
     expect(notices).toContain("@cursor/sdk 1.0.23");
     expect(notices).toContain("@modelcontextprotocol/sdk");
+    expect(notices).toContain("@anthropic-ai/sandbox-runtime 0.0.73");
+    expect(notices).toContain("Apache-2.0");
+    expect(notices).toContain("ripgrep 15.2.0");
+    expect(notices).toContain("Unlicense OR MIT");
+    expect(notices).not.toContain("pi-sandbox");
     expect(notices).toContain("MIT");
   });
 
@@ -60,6 +66,20 @@ describe("baked feature staging", () => {
     writeFileSync(archivePath, "not-the-pinned-binary");
     expect(() =>
       stageGitHubMcpServer(featuresRoot, {
+        required: true,
+        archivePath,
+      }),
+    ).toThrow(/SHA-256 mismatch/);
+  });
+
+  test("fails closed when a ripgrep archive hash does not match the pin", () => {
+    const featuresRoot = mkdtempSync(path.join(tmpdir(), "pho-code-rg-stage-"));
+    const cacheDir = mkdtempSync(path.join(tmpdir(), "pho-code-rg-cache-"));
+    const asset = "mismatch.tar.gz";
+    const archivePath = path.join(cacheDir, asset);
+    writeFileSync(archivePath, "not-the-pinned-binary");
+    expect(() =>
+      stageRipgrep(featuresRoot, {
         required: true,
         archivePath,
       }),
