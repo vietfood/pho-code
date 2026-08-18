@@ -28,7 +28,6 @@ export { ThinkingBlock } from "./thinking-block";
 export { ChangeReviewSheet, firstSelectablePath } from "./change-review-sheet";
 export { RightSidebar, type RightSidebarSurface } from "./right-sidebar";
 export { PlanDocumentPanel } from "./plan-document-panel";
-export { SessionModeChip } from "./session-mode-chip";
 export { SessionTodoList, sessionTodoChipLabel } from "./session-todo-list";
 export { readRightSidebarCollapsed, writeRightSidebarCollapsed } from "./lib/right-sidebar-collapsed";
 export { ToolRow } from "./tool-row";

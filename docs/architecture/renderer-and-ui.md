@@ -2,7 +2,7 @@
 
 ## Status
 
-Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted. Plan/Agent chrome (composer `+` mode, questionnaire dock, Plan rail) is accepted. Terminal is not implemented.
+Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted. Plan/Agent chrome (composer mode icon + menu, questionnaire dock, Plan rail) is accepted. Terminal is not implemented.
 
 ## Composition boundary
 

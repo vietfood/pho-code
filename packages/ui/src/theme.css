@@ -1565,27 +1565,6 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
   font-weight: 600;
 }
 
-.composer-mode-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 7.5rem;
-  padding: 0.25rem 0.55rem;
-  background-image: none;
-  font-weight: 500;
-}
-
-/* Agent (default): red. Plan: primary blue. */
-.composer-mode-chip.is-agent {
-  color: var(--destructive-foreground);
-  font-weight: 600;
-}
-
-.composer-mode-chip.is-plan {
-  color: var(--primary);
-  font-weight: 600;
-}
-
 .composer-mode-menu {
   position: absolute;
   z-index: 40;
@@ -1622,14 +1601,6 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 .composer-mode-option:hover,
 .composer-mode-option.is-selected {
   background: var(--accent);
-}
-
-.composer-mode-option.is-agent {
-  color: var(--destructive-foreground);
-}
-
-.composer-mode-option.is-plan {
-  color: var(--primary);
 }
 
 .composer-mode-option-label {
@@ -2173,10 +2144,6 @@ html[data-appearance="dark"] .composer-model-picker-panel {
 .composer-usage-trigger.is-open {
   background: color-mix(in srgb, var(--accent) 72%, transparent);
   outline: none;
-}
-
-.composer-usage-sep {
-  opacity: 0.45;
 }
 
 .composer-usage-cost {
