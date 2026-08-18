@@ -4,8 +4,8 @@ Kind: feedback
 Status: implemented; not accepted
 Surface: Plan document panel; settled assistant turn actions
 Owner: features/plan-agent (Plan chrome); ui/conversation chrome (Copy/Edit)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
 
 ## Intended change
 
@@ -34,4 +34,4 @@ Actual: Stay / Refine / Edit labels on the Plan footer; assistant Copy showed â€
 
 ## Handoff
 
-Product contract in [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Restart `bun run dev`.
+Product contract in [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Restart `bun run dev`.

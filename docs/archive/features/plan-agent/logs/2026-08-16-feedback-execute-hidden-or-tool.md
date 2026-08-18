@@ -3,7 +3,7 @@
 Status: implemented (add-on not accepted)
 Owner: features/plan-agent
 Plan: [`../implementation-plan.md`](../implementation-plan.md)
-Related logs: [`2026-08-16-m1-plan-agent.md`](./2026-08-16-m1-plan-agent.md), [`../../../ui/logs/2026-08-16-feedback-execute-hidden-prompt.md`](../../../ui/logs/2026-08-16-feedback-execute-hidden-prompt.md), [`../../../ui/logs/2026-08-16-feedback-plan-comment-icons.md`](../../../ui/logs/2026-08-16-feedback-plan-comment-icons.md)
+Related logs: [`2026-08-16-m1-plan-agent.md`](./2026-08-16-m1-plan-agent.md), [`../../../../ui/logs/2026-08-16-feedback-execute-hidden-prompt.md`](../../../../ui/logs/2026-08-16-feedback-execute-hidden-prompt.md), [`../../../../ui/logs/2026-08-16-feedback-plan-comment-icons.md`](../../../../ui/logs/2026-08-16-feedback-plan-comment-icons.md)
 
 ## Intent
 

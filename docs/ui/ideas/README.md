@@ -6,4 +6,4 @@ Do not treat files in this folder as an implementation contract. Promote an idea
 
 Open notes:
 
-- [`2026-08-16-plan-canvas.md`](./2026-08-16-plan-canvas.md) — superseded; Plan document is in [`features/plan-agent`](../../features/plan-agent/README.md).
+- [`2026-08-16-plan-canvas.md`](./2026-08-16-plan-canvas.md) — superseded; Plan document is in [`archive/features/plan-agent`](../../archive/features/plan-agent/README.md).

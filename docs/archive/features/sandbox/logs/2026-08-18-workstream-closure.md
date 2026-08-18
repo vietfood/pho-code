@@ -41,4 +41,4 @@ None. Settings Sandbox chrome is unchanged.
 
 ## Blockers and handoff
 
-No remaining sandbox milestone. Later expansions (Linux packaged, wrapping other tools, Phase F) need a new promotion. Next open add-on work is [`../../../../features/plan-agent`](../../../../features/plan-agent/README.md).
+Next open add-on work is [`../../../../features/terminal`](../../../../features/terminal/README.md). Plan/Agent later closed as [`../../../../archive/features/plan-agent`](../../../../archive/features/plan-agent/README.md).

@@ -98,6 +98,6 @@ Window-first and this track must not wait on each other. Window-first Milestone 
 - Architecture (accepted abort as a command, not the hang contract): [`runtime-and-data.md`](../../architecture/runtime-and-data.md), [`protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md), [`overview.md`](../../architecture/overview.md)
 - Crash isolation / window-first: [`../window-first-pi-core/product.md`](../window-first-pi-core/product.md)
 - Phase F public distribution: [`roadmap-vnext.md`](../../version/roadmap-vnext.md)
-- Plan/Agent ask-user cancel: [`features/plan-agent/product.md`](../../features/plan-agent/product.md)
+- Plan/Agent ask-user cancel: [`archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md)
 - Conversation Stop chrome: [`ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
 - Research log: [`logs/2026-08-16-research-handoff.md`](./logs/2026-08-16-research-handoff.md)

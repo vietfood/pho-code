@@ -9,3 +9,4 @@ Active add-ons remain under [`../../features/`](../../features/README.md).
 ## Closed add-ons
 
 - [`sandbox/`](./sandbox/README.md) — accepted agent-tool sandbox (2026-08-17); workstream archived 2026-08-18. Seatbelt wrap of agent `bash`, in-process file-tool policy, Settings Sandbox. Closure: [`sandbox/logs/2026-08-18-workstream-closure.md`](./sandbox/logs/2026-08-18-workstream-closure.md).
+- [`plan-agent/`](./plan-agent/README.md) — accepted Plan/Agent and ask-user (2026-08-18); workstream archived 2026-08-18. Questionnaire card, Plan write-tool policy, session todos, Plan document + Execute. Closure: [`plan-agent/logs/2026-08-18-workstream-closure.md`](./plan-agent/logs/2026-08-18-workstream-closure.md).

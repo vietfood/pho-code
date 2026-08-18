@@ -184,7 +184,7 @@ The desktop host implements only structured interactions required by baked featu
 - `confirm` for other curated feature decisions where needed;
 - notification and status projection.
 
-The Plan/Agent add-on implements an extra structured `questionnaire` request plus Plan/Agent tool policy, a session `todo` tool, and Plan-only `execute_plan` in source (not accepted): JSON-safe questions/answers on the same one-dialog lifecycle, distinct chrome from permission copy; Plan drops `write` / `edit` / `move_to_trash` / Cursor SDK tools. `custom` and `editor` still throw. See [`../features/plan-agent`](../features/plan-agent/README.md).
+The Plan/Agent factory implements an extra structured `questionnaire` request plus Plan/Agent tool policy, a session `todo` tool, and Plan-only `execute_plan`: JSON-safe questions/answers on the same one-dialog lifecycle, distinct chrome from permission copy; Plan drops `write` / `edit` / `move_to_trash` / Cursor SDK tools. `custom` and `editor` still throw. See [`../archive/features/plan-agent`](../archive/features/plan-agent/README.md).
 
 The host does not implement multiline editor, widgets, editor mutation, arbitrary `@earendil-works/pi-tui` components, or the permission package's terminal-only configuration modal unless a later baked feature requires a specific structured equivalent. If a feature calls `ctx.ui.custom`, terminal input hooks, custom editor components, or another unsupported method, record a typed compatibility diagnostic and throw a real `Error` with a useful message. Never throw a plain protocol data record that downstream code renders as `[object Object]`.
 

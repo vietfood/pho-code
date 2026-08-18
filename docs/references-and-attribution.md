@@ -36,7 +36,7 @@ Reading an implementation for architectural understanding does not require a row
 - Copyright: juicesharp
 - License: MIT
 - Role: research-only ask-user questionnaire for Pi; RPC `select`/`input` walker is the fallback pattern; schema/envelope/guidelines are the adaptation source
-- Relationship: not a product runtime dependency. Do not bake the package. The promoted [`features/plan-agent`](./features/plan-agent/README.md) add-on reimplements a Pho-owned tool. Milestone 0 copy rows are in the adaptation log below.
+- Relationship: not a product runtime dependency. Do not bake the package. The archived [`archive/features/plan-agent`](./archive/features/plan-agent/README.md) add-on reimplements a Pho-owned tool. Milestone 0 copy rows are in the adaptation log below.
 
 ### pi-gui
 

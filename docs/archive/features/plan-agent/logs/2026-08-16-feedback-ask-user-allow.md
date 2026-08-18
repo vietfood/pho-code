@@ -3,7 +3,7 @@
 Status: implemented (add-on not accepted)
 Owner: features/plan-agent
 Plan: [`../implementation-plan.md`](../implementation-plan.md)
-Related logs: [`2026-08-16-m0-ask-back.md`](./2026-08-16-m0-ask-back.md), [`2026-08-16-m2-todos.md`](./2026-08-16-m2-todos.md), [`../../../ui/logs/2026-08-16-bug-ask-user-type-shortcut.md`](../../../ui/logs/2026-08-16-bug-ask-user-type-shortcut.md)
+Related logs: [`2026-08-16-m0-ask-back.md`](./2026-08-16-m0-ask-back.md), [`2026-08-16-m2-todos.md`](./2026-08-16-m2-todos.md), [`../../../../ui/logs/2026-08-16-bug-ask-user-type-shortcut.md`](../../../../ui/logs/2026-08-16-bug-ask-user-type-shortcut.md)
 
 ## Intent
 
@@ -12,7 +12,7 @@ The owner does not want a permission prompt for `ask_user_question`. Treat it th
 ## Contracts and files
 
 - Product: [`../product.md`](../product.md) ask-user contract
-- Architecture: [`../../../architecture/extension-model.md`](../../../architecture/extension-model.md) managed permission templates
+- Architecture: [`../../../../architecture/extension-model.md`](../../../../architecture/extension-model.md) managed permission templates
 - Runtime: `packages/runtime/src/permission-presets.ts`, `permission-settings.ts` (`syncHarnessPermissionPolicy`), `pi-runtime.ts`
 
 ## Changes and decisions

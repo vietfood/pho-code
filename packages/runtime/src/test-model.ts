@@ -11,6 +11,7 @@ import {
   type FauxProviderHandle,
 } from "@earendil-works/pi-ai";
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { PLAN_EXECUTE_PROMPT } from "./plan-agent-state";
 
 export const TEST_PROVIDER_ID = "harness-test";
 export const TEST_MODEL_ID = "slice";
@@ -25,6 +26,8 @@ export const TEST_PROMPT = {
   useWrapper: "USE_WRAPPER",
   useTrash: "USE_TRASH",
   useAskUser: "USE_ASK_USER",
+  useTodo: "USE_TODO",
+  usePlanDoc: "USE_PLAN_DOC",
   useSandboxTouch: "USE_SANDBOX_TOUCH",
   useSandboxPwd: "USE_SANDBOX_PWD",
   useSandboxCurl: "USE_SANDBOX_CURL",
@@ -94,6 +97,15 @@ function buildTestResponse(context: Context) {
   }
 
   const prompt = lastUserText(context);
+  if (prompt.includes(PLAN_EXECUTE_PROMPT) || prompt.includes("[EXECUTING PLAN]")) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing the first Execute step."),
+        fauxToolCall("write", { path: "agent-note.txt", content: "hello from agent\n" }, { id: "call_write" }),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
   if (prompt.includes(TEST_PROMPT.failAfter)) {
     return fauxAssistantMessage("synthetic failure after admission", {
       stopReason: "error",
@@ -145,6 +157,38 @@ function buildTestResponse(context: Context) {
   if (prompt.includes(TEST_PROMPT.useWrapper)) {
     return fauxAssistantMessage(
       [fauxThinking("Hiding a command behind a wrapper."), fauxToolCall("bash", { command: "bash -c 'pwd'" }, { id: "call_wrapper" })],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useTodo)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing a session checklist."),
+        fauxToolCall(
+          "todo",
+          {
+            todos: [
+              { id: "inspect", content: "Inspect the workspace", status: "completed" },
+              { id: "group", content: "Group remaining work", status: "in_progress" },
+              { id: "verify", content: "Verify the result", status: "pending" },
+            ],
+          },
+          { id: "call_todo" },
+        ),
+      ],
+      { stopReason: "toolUse" },
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.usePlanDoc)) {
+    return fauxAssistantMessage(
+      [
+        fauxThinking("Writing the Plan document."),
+        fauxToolCall(
+          "update_plan_document",
+          { markdown: "# Packaged plan\n\nWrite `agent-note.txt` with hello from agent.\n" },
+          { id: "call_plan_doc" },
+        ),
+      ],
       { stopReason: "toolUse" },
     );
   }
@@ -326,28 +370,50 @@ function buildTestResponse(context: Context) {
 }
 
 function lastUserText(context: Context): string {
+  const index = lastTurnStartIndex(context);
+  if (index < 0) {
+    return "";
+  }
+  return messageText(context.messages[index]);
+}
+
+function lastTurnStartIndex(context: Context): number {
   for (let index = context.messages.length - 1; index >= 0; index -= 1) {
     const message = context.messages[index];
-    if (!message || message.role !== "user") {
+    if (!message) {
       continue;
     }
-    if (typeof message.content === "string") {
-      return message.content;
+    const text = messageText(message);
+    if (!text) {
+      continue;
     }
-    return message.content
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("");
+    if (text.includes("[PLAN MODE ACTIVE]")) {
+      continue;
+    }
+    if (message.role === "user" || text.includes(PLAN_EXECUTE_PROMPT) || text.includes("[EXECUTING PLAN]")) {
+      return index;
+    }
   }
-  return "";
+  return -1;
+}
+
+function messageText(message: Context["messages"][number]): string {
+  const record = message as { content?: unknown };
+  if (typeof record.content === "string") {
+    return record.content;
+  }
+  if (!Array.isArray(record.content)) {
+    return "";
+  }
+  return record.content
+    .filter((part): part is { type: "text"; text: string } => {
+      return Boolean(part) && typeof part === "object" && (part as { type?: unknown }).type === "text";
+    })
+    .map((part) => part.text)
+    .join("");
 }
 
 function hasToolResult(context: Context): boolean {
-  let lastUserIndex = -1;
-  for (let index = 0; index < context.messages.length; index += 1) {
-    if (context.messages[index]?.role === "user") {
-      lastUserIndex = index;
-    }
-  }
+  const lastUserIndex = lastTurnStartIndex(context);
   return context.messages.slice(lastUserIndex + 1).some((message) => message.role === "toolResult");
 }

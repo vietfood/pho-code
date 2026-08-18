@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/plan-agent  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../../archive/features/sandbox/logs/2026-08-16-promotion.md`](../../../archive/features/sandbox/logs/2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`2026-08-16-decision-milestone-order.md`](./2026-08-16-decision-milestone-order.md)
+Related logs: [`../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../../../archive/features/sandbox/logs/2026-08-16-promotion.md`](../../../../archive/features/sandbox/logs/2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`2026-08-16-decision-milestone-order.md`](./2026-08-16-decision-milestone-order.md)
 
 ## Intent
 
@@ -14,7 +14,7 @@ Record owner decisions that close the Plan/Agent research note and promote an **
 - Product: [`../product.md`](../product.md)
 - Plan: [`../implementation-plan.md`](../implementation-plan.md)
 - Research retained as [`../research.md`](../research.md)
-- Stub: [`../../plan-agent.md`](../../plan-agent.md)
+- Stub: [`../../../../features/plan-agent.md`](../../../../features/plan-agent.md)
 
 ## Changes and decisions
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for personal v1, v2, and v3. The immutable V3 recovery contract and evidence live in [`../archive/v3/`](../archive/v3/README.md).
+Accepted architecture for personal v1, v2, and v3. The immutable V3 recovery contract and evidence live in [`../archive/v3/`](../archive/v3/README.md). Plan/Agent is accepted; its immutable contract lives in [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
 ## Service ownership
 
@@ -28,6 +28,7 @@ The application coordinates use cases. The runtime is the only product layer tha
 - prepared images, local retrieval, public web tools, text-only skill sources, and the fixed GitHub MCP adapter;
 - context-prompt compilation/reinjection and assistant display overlays through Pi custom entries;
 - accepted V3 write/edit capture, ledger, diff, Approve, and per-file recovery;
+- Plan/Agent inline factory (`ask_user_question` questionnaire, Plan write-tool policy, session `todo`, Plan document + Execute); `custom`/`editor` still throw;
 - normalized protocol projections.
 
 Application code does not know Electron APIs. Runtime code does not know Electron or React.
@@ -61,7 +62,8 @@ Application shutdown stops admission, aborts or settles active work according to
 
 - JSONL session tree, transcript entries, compaction entries, and model context;
 - model/provider behavior and compatible credentials;
-- agent loop, built-in tools, extension execution, and final message state.
+- agent loop, built-in tools, extension execution, and final message state;
+- Plan/Agent session `todo` lists in Pi tool details (not a separate application store).
 
 Pi JSONL is not copied into application metadata. Assistant rewrites are explicit display overlays stored as Pi custom entries; context-prompt customization is another Pi custom entry whose compiled prompt is looked up from the live session and re-injected on `before_agent_start`. Neither mutates original assistant messages or workspace context files.
 

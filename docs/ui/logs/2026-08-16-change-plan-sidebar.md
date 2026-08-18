@@ -4,8 +4,8 @@ Kind: change
 Status: implemented; not accepted
 Surface: composer footer; right sidebar host; Plan document panel
 Owner: features/plan-agent (product); ui/conversation chrome (host rules only)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-16-change-ask-user-card.md`](./2026-08-16-change-ask-user-card.md), [`../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-16-change-ask-user-card.md`](./2026-08-16-change-ask-user-card.md), [`../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
 
 ## Intended change
 
@@ -34,4 +34,4 @@ None yet.
 
 ## Handoff
 
-Product semantics remain in [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Reciprocal record: [`../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md).
+Product semantics remain in [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Reciprocal record: [`../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md).

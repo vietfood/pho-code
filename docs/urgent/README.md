@@ -54,7 +54,7 @@ These are owner-approved add-ons. They are not urgent-queue items; do not hide t
 | Work | Status | Documents |
 | --- | --- | --- |
 | Integrated terminal | In implementation | [`features/terminal`](../features/terminal/README.md) |
-| Plan / Agent | In implementation; M0–M2 in source, not accepted | [`features/plan-agent`](../features/plan-agent/README.md) |
+| Plan / Agent | Accepted; archived 2026-08-18 | [`archive/features/plan-agent`](../archive/features/plan-agent/README.md) |
 | Agent-tool sandbox | Accepted; archived 2026-08-18 | [`archive/features/sandbox`](../archive/features/sandbox/README.md) |
 
 Window-first and agent-stop must not block those add-ons, and those add-ons must not wait on `utilityProcess` or bounded Stop. Agent-stop and window-first must not wait on each other.

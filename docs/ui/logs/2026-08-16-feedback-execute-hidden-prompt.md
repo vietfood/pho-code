@@ -4,8 +4,8 @@ Kind: feedback
 Status: implemented; not accepted
 Surface: conversation transcript; Plan Execute
 Owner: features/plan-agent (Execute semantics); ui/conversation chrome (transcript projection)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`../../features/plan-agent/logs/2026-08-16-feedback-execute-hidden-or-tool.md`](../../features/plan-agent/logs/2026-08-16-feedback-execute-hidden-or-tool.md), [`2026-08-16-feedback-plan-comment-icons.md`](./2026-08-16-feedback-plan-comment-icons.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`../../archive/features/plan-agent/logs/2026-08-16-feedback-execute-hidden-or-tool.md`](../../archive/features/plan-agent/logs/2026-08-16-feedback-execute-hidden-or-tool.md), [`2026-08-16-feedback-plan-comment-icons.md`](./2026-08-16-feedback-plan-comment-icons.md)
 
 ## Intended change
 
@@ -34,4 +34,4 @@ Actual: Clicking Execute sent a visible user message: “Execute the plan in the
 
 ## Handoff
 
-Product contract in [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Restart `bun run dev`.
+Product contract in [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Restart `bun run dev`.

@@ -20,6 +20,11 @@ const runtimeImport = {
 };
 const nodePattern = { group: ["node:*"], message: "This layer must not import Node modules." };
 const piSdkPattern = { group: ["@earendil-works/*"], message: "This layer must not import Pi SDK packages." };
+const piTuiImport = { name: "@earendil-works/pi-tui", message: "Do not import pi-tui. Plan/Agent uses JSON-safe host dialogs." };
+const juicesharpImport = {
+  name: "@juicesharp/rpiv-ask-user-question",
+  message: "Do not bake juicesharp. Ask-user is a Pho-owned factory.",
+};
 
 export default tseslint.config(
   {
@@ -62,7 +67,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          paths: [electronImport, reactImport, reactDomImport, applicationImport, runtimeImport],
+          paths: [electronImport, reactImport, reactDomImport, applicationImport, runtimeImport, piTuiImport, juicesharpImport],
           patterns: [nodePattern, piSdkPattern],
         },
       ],
@@ -74,7 +79,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          paths: [electronImport, reactImport, reactDomImport],
+          paths: [electronImport, reactImport, reactDomImport, piTuiImport, juicesharpImport],
           patterns: [nodePattern, piSdkPattern],
         },
       ],
@@ -92,6 +97,8 @@ export default tseslint.config(
             reactDomImport,
             applicationImport,
             { name: "@pho-code/ui", message: "Runtime must not import UI packages." },
+            piTuiImport,
+            juicesharpImport,
           ],
         },
       ],
@@ -110,7 +117,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          paths: [electronImport, applicationImport, runtimeImport],
+          paths: [electronImport, applicationImport, runtimeImport, piTuiImport, juicesharpImport],
           patterns: [nodePattern, piSdkPattern],
         },
       ],

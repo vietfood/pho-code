@@ -10,7 +10,7 @@ Last evaluated: 2026-08-16 against:
 - the official Pi examples [`plan-mode`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/index.ts), [`questionnaire.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/questionnaire.ts), [`question.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/question.ts), and [`todo.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/todo.ts);
 - [`@juicesharp/rpiv-ask-user-question`](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-ask-user-question) `2.6.0` (MIT), especially the RPC dialog walker.
 
-The numbered-version backlog already names this capability: [Plan and Agent modes with structured questions and optional session todo state](../../version/research-backlog.md). Owner promotion 2026-08-16 treats it as **one standalone add-on** with an end-to-end product (Plan/Agent, juicesharp-style ask-back, plan document). The plan document is part of that product, not a later add-on.
+The numbered-version backlog already names this capability: [Plan and Agent modes with structured questions and optional session todo state](../../../version/research-backlog.md). Owner promotion 2026-08-16 treats it as **one standalone add-on** with an end-to-end product (Plan/Agent, juicesharp-style ask-back, plan document). The plan document is part of that product, not a later add-on.
 
 ## Owner outcome
 
@@ -28,7 +28,7 @@ The target is **mode + structured interruption**, not a second agent loop, not a
 
 ## Why this can be one standalone add-on
 
-[`research-backlog.md`](../../version/research-backlog.md) listed Plan/Agent as core-product research. It still ships or fails independently, the same way terminal and sandbox do:
+[`research-backlog.md`](../../../version/research-backlog.md) listed Plan/Agent as core-product research. It still ships or fails independently, the same way terminal and sandbox do:
 
 - it is a baked inline factory plus a small protocol/UI slice;
 - turning it off restores today's Agent-only behavior;
@@ -267,8 +267,8 @@ Recorded in [`logs/2026-08-16-promotion.md`](./logs/2026-08-16-promotion.md). Th
 
 - Product: [`product.md`](./product.md)
 - Implementation contract: [`implementation-plan.md`](./implementation-plan.md)
-- Backlog item: [`version/research-backlog.md`](../../version/research-backlog.md)
-- Conversation chrome: [`ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
-- Host UI contract: [`architecture/extension-model.md`](../../architecture/extension-model.md)
-- Sandbox (separate): [`../../archive/features/sandbox/product.md`](../../archive/features/sandbox/product.md)
-- Attribution inventory: [`../../references-and-attribution.md`](../../references-and-attribution.md)
+- Backlog item: [`version/research-backlog.md`](../../../version/research-backlog.md)
+- Conversation chrome: [`ui/implementation/conversation-ui.md`](../../../ui/implementation/conversation-ui.md)
+- Host UI contract: [`architecture/extension-model.md`](../../../architecture/extension-model.md)
+- Sandbox (separate): [`../../../archive/features/sandbox/product.md`](../../../archive/features/sandbox/product.md)
+- Attribution inventory: [`../../../references-and-attribution.md`](../../../references-and-attribution.md)

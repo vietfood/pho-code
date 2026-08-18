@@ -4,8 +4,8 @@ Kind: decision
 Status: planned; not implemented  
 Surface: right sidebar host; composer footer  
 Owner: features/plan-agent (product); ui/conversation chrome (host rules only)  
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)  
-Related logs: [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`../../features/terminal/logs/2026-08-16-promotion.md`](../../features/terminal/logs/2026-08-16-promotion.md), [`../../features/plan-agent/logs/2026-08-16-promotion.md`](../../features/plan-agent/logs/2026-08-16-promotion.md), [`../../features/plan-agent/logs/2026-08-16-decision-milestone-order.md`](../../features/plan-agent/logs/2026-08-16-decision-milestone-order.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`../../features/terminal/logs/2026-08-16-promotion.md`](../../features/terminal/logs/2026-08-16-promotion.md), [`../../archive/features/plan-agent/logs/2026-08-16-promotion.md`](../../archive/features/plan-agent/logs/2026-08-16-promotion.md), [`../../archive/features/plan-agent/logs/2026-08-16-decision-milestone-order.md`](../../archive/features/plan-agent/logs/2026-08-16-decision-milestone-order.md)
 
 ## Intended change
 
@@ -26,11 +26,11 @@ Actual: `RightSidebarSurface` is `"changes" | "context-prompt"`. Conversation UI
 
 ## Verification
 
-Not verified: no Plan surface in source. Implementation is Milestone 1 of the plan-agent add-on (sequence corrected in [`../../features/plan-agent/logs/2026-08-16-decision-milestone-order.md`](../../features/plan-agent/logs/2026-08-16-decision-milestone-order.md); this log previously said Milestone 3).
+Not verified: no Plan surface in source. Implementation is Milestone 1 of the plan-agent add-on (sequence corrected in [`../../archive/features/plan-agent/logs/2026-08-16-decision-milestone-order.md`](../../archive/features/plan-agent/logs/2026-08-16-decision-milestone-order.md); this log previously said Milestone 3).
 
 ## Mistakes and corrections
 
-Do not implement Plan chrome from this idea log. The contract is [`features/plan-agent/product.md`](../../features/plan-agent/product.md).
+Do not implement Plan chrome from this idea log. The contract is [`archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md).
 
 ## Owner feedback
 
@@ -38,4 +38,4 @@ Full Plan/Agent + juicesharp-style ask-back product, including a plan document b
 
 ## Handoff
 
-When adding `"plan"` to `RightSidebarSurface`, keep re-click collapse and exhaustive switch. Reciprocal record: [`../../features/plan-agent/logs/2026-08-16-promotion.md`](../../features/plan-agent/logs/2026-08-16-promotion.md).
+When adding `"plan"` to `RightSidebarSurface`, keep re-click collapse and exhaustive switch. Reciprocal record: [`../../archive/features/plan-agent/logs/2026-08-16-promotion.md`](../../archive/features/plan-agent/logs/2026-08-16-promotion.md).

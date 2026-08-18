@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { ripgrepPackagedRelativePath, SANDBOX_RUNTIME_PACKAGE } from "../../../packages/runtime/src/sandbox-artifact.ts";
 import {
+  allowOnceThenExpandWorkLog,
   expectNoDialogThenExpandWorkLog,
   expandSettledWorkLog,
   launchPackagedDesktop,
@@ -17,6 +18,7 @@ import {
   removeTestDirectory,
   resolvePackagedAppPath,
   unselectedSessionItem,
+  waitForPathAllowingOnce,
   writeResourceFixture,
   writeSandboxSettingsFile,
 } from "./helpers/electron-app";
@@ -329,5 +331,107 @@ test("packaged macOS app loads staged rg, starts sandbox healthy, wraps bash, an
     await removeTestDirectory(userDataDir);
     await removeTestDirectory(workspaceDir);
     spawnSync("/usr/bin/trash", [extraRoot], { encoding: "utf8" });
+  }
+});
+
+test("packaged macOS app loads Plan/Agent, ask-back, Plan write-off, Execute write, and Agent todos without juicesharp or pi-tui", async () => {
+  test.setTimeout(180_000);
+  const appPath = resolvePackagedAppPath();
+  const resources = join(appPath, "Contents", "Resources");
+  expect(existsSync(join(resources, "features", "@juicesharp"))).toBe(false);
+  expect(existsSync(join(resources, "app.asar.unpacked", "node_modules", "@juicesharp"))).toBe(false);
+  const notices = await readFile(join(resources, "THIRD_PARTY_NOTICES.txt"), "utf8");
+  expect(notices).toContain("juicesharp ask-user questionnaire (adapted source)");
+  expect(notices).not.toMatch(/^## @juicesharp/m);
+  expect(notices).not.toContain("@earendil-works/pi-tui");
+
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const createdPath = join(workspaceDir, "agent-note.txt");
+
+  try {
+    const harness = await launchPackagedDesktop(userDataDir, {
+      env: {
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+        PHO_CODE_TEST_FEATURES: "1",
+        PATH: pathWithoutPi(),
+      },
+    });
+    try {
+      const page = await harness.firstWindow();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("bootstrap-state").click();
+      await expect(page.getByTestId("feature-diagnostics")).toContainText("plan-agent 0.1.0 · loaded");
+      await page.getByTestId("about-close").click();
+
+      await expect(page.getByTestId("composer-context-button")).toHaveAccessibleName("Agent mode and attachments");
+      await page.getByTestId("composer-context-button").click();
+      await expect(page.getByTestId("composer-context-mode-plan")).toHaveAttribute(
+        "title",
+        "Explore and write a plan. File writes are off. Shell is not sandboxed.",
+      );
+      await page.getByTestId("composer-context-button").click();
+
+      await page.getByTestId("composer").fill("USE_ASK_USER");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("extension-dialog")).toBeVisible({ timeout: 20_000 });
+      if (await page.getByRole("radio", { name: "Allow once", exact: true }).isVisible()) {
+        await page.getByRole("radio", { name: "Allow once", exact: true }).check();
+        await page.getByTestId("extension-dialog-confirm").click();
+        await expect(page.locator('[data-kind="questionnaire"]')).toBeVisible({ timeout: 20_000 });
+      }
+      const card = page.locator('[data-kind="questionnaire"]');
+      await expect(card).toBeVisible();
+      await expect(card).not.toContainText("Pending approval");
+      await card.locator("label.ask-user-option", { hasText: "Patch" }).click();
+      await page.getByTestId("ask-user-custom").fill("Keep the permission boundary.");
+      await page.getByTestId("extension-dialog-confirm").click();
+      await expect(page.getByTestId("ask-user-review")).toBeVisible();
+      await page.getByTestId("extension-dialog-confirm").click();
+      await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
+      await expect(page.getByTestId("transcript")).toContainText("Tool completed.", { timeout: 20_000 });
+
+      await page.getByTestId("composer-context-button").click();
+      await page.getByTestId("composer-context-mode-plan").click();
+      await expect(page.getByTestId("composer-context-button")).toHaveAccessibleName("Plan mode and attachments");
+
+      await page.getByTestId("composer").fill("USE_WRITE");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 1);
+      await page.getByTestId("tool-card").last().click();
+      await expect(page.getByTestId("tool-detail").last()).toContainText(/Plan mode keeps write|write not found/i);
+      expect(existsSync(createdPath)).toBe(false);
+
+      await page.getByTestId("composer").fill("USE_PLAN_DOC");
+      await page.getByRole("button", { name: "Send" }).click();
+      await allowOnceThenExpandWorkLog(page, 2);
+      await expect(page.getByTestId("plan-document-panel")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("plan-document-preview")).toContainText("Packaged plan");
+      await page.getByTestId("plan-execute").click();
+      await waitForPathAllowingOnce(page, createdPath);
+      const executeLog = Math.max(0, (await page.getByTestId("work-log-toggle").count()) - 1);
+      await expandSettledWorkLog(page, executeLog);
+      await page.getByTestId("tool-open-review").last().click();
+      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-diff")).toContainText("hello from agent");
+
+      const todoLog = await page.getByTestId("work-log-toggle").count();
+      await page.getByTestId("composer").fill("USE_TODO");
+      await page.getByRole("button", { name: "Send" }).click();
+      await allowOnceThenExpandWorkLog(page, todoLog);
+      await expect(page.getByTestId("tool-todo-list").last()).toContainText("Group remaining work");
+      const planTodos = page.getByTestId("plan-todo-list");
+      if (!(await planTodos.isVisible().catch(() => false))) {
+        await page.getByTestId("right-sidebar-surface-plan").click();
+      }
+      await expect(planTodos).toContainText("Group remaining work");
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
   }
 });

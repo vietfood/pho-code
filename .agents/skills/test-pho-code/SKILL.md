@@ -67,7 +67,7 @@ Prefer extending the existing focused spec for the affected journey:
 - `sandbox.spec.ts` — agent-tool sandbox default-on Healthy, wrapped bash, skipped bash asks, denied curl;
 - `change-review.spec.ts` — tracked changes, Approve, Undo, conflict, relaunch;
 - `shutdown.spec.ts` — bounded disposal;
-- `packaged.spec.ts` — app-owned resources and no-Pi-CLI journeys.
+- `packaged.spec.ts` — app-owned resources and no-Pi-CLI journeys, including Plan/Agent honesty;
 
 Do not replace Electron evidence with component tests when renderer/IPC behavior changed.
 

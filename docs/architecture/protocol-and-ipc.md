@@ -117,7 +117,7 @@ Accepted additions are promoted here; active proposals remain with their owner:
 
 - change-review/Approve/per-file Undo are accepted named commands; their closed contract lives under [`../archive/v3/`](../archive/v3/README.md);
 - terminal commands and dedicated events are proposed under [`../features/terminal/`](../features/terminal/README.md) and do not exist in source;
-- `HostDialogKind` `"questionnaire"` and ask-user answer payloads are implemented in source for [`../features/plan-agent/`](../features/plan-agent/README.md) Milestone 0 and are not accepted;
-- `setSessionMode`, `updateSessionPlanDocument`, and `executeSessionPlan` plus snapshot `plan` (including `todos`) and Plan-only `execute_plan` are implemented in source for Plan/Agent Milestones 1–2 and are not accepted.
+- `HostDialogKind` `"questionnaire"` and ask-user answer payloads are accepted structured host dialogs ([`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md));
+- `setSessionMode`, `updateSessionPlanDocument`, and `executeSessionPlan` plus snapshot `plan` (including `todos`) and Plan-only `execute_plan` are accepted Plan/Agent commands.
 
 Those plans must preserve named methods, JSON safety, bounded results, composite identity, and renderer non-authority.

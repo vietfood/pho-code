@@ -55,6 +55,9 @@ describe("baked feature staging", () => {
     expect(notices).toContain("ripgrep 15.2.0");
     expect(notices).toContain("Unlicense OR MIT");
     expect(notices).not.toContain("pi-sandbox");
+    expect(notices).toContain("juicesharp ask-user questionnaire (adapted source)");
+    expect(notices).toContain("@juicesharp/rpiv-ask-user-question");
+    expect(notices).not.toMatch(/^## @juicesharp/m);
     expect(notices).toContain("MIT");
   });
 

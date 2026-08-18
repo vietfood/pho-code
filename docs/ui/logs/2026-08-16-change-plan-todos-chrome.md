@@ -4,8 +4,8 @@ Kind: change
 Status: implemented; not accepted
 Surface: composer footer; Plan document panel; transcript todo tool row
 Owner: features/plan-agent (product); ui/conversation chrome (host rules only)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`2026-08-16-change-plan-sidebar.md`](./2026-08-16-change-plan-sidebar.md), [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../features/plan-agent/logs/2026-08-16-m2-todos.md`](../../features/plan-agent/logs/2026-08-16-m2-todos.md), [`2026-08-18-bug-todo-plan-desync.md`](./2026-08-18-bug-todo-plan-desync.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-change-plan-sidebar.md`](./2026-08-16-change-plan-sidebar.md), [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../archive/features/plan-agent/logs/2026-08-16-m2-todos.md`](../../archive/features/plan-agent/logs/2026-08-16-m2-todos.md), [`2026-08-18-bug-todo-plan-desync.md`](./2026-08-18-bug-todo-plan-desync.md)
 
 ## Intended change
 
@@ -33,4 +33,4 @@ None yet.
 
 ## Handoff
 
-Product semantics remain in [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Reciprocal record: [`../../features/plan-agent/logs/2026-08-16-m2-todos.md`](../../features/plan-agent/logs/2026-08-16-m2-todos.md).
+Product semantics remain in [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Reciprocal record: [`../../archive/features/plan-agent/logs/2026-08-16-m2-todos.md`](../../archive/features/plan-agent/logs/2026-08-16-m2-todos.md).

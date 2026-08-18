@@ -34,5 +34,6 @@ describe("ComposerContextButton", () => {
     );
     expect(markup).toContain("composer-context-button is-plan");
     expect(markup).toContain("lucide-list-tree");
+    expect(markup).toContain("Plan mode and attachments");
   });
 });

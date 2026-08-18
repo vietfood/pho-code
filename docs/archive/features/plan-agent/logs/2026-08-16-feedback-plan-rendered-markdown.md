@@ -2,8 +2,8 @@
 
 Status: implemented (add-on not accepted)
 Owner: features/plan-agent
-Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest)
-Related logs: [`2026-08-16-m1-plan-agent.md`](./2026-08-16-m1-plan-agent.md), [`../../../ui/logs/2026-08-16-feedback-plan-rendered-markdown.md`](../../../ui/logs/2026-08-16-feedback-plan-rendered-markdown.md), [`../../../ui/logs/2026-08-16-feedback-plan-chip.md`](../../../ui/logs/2026-08-16-feedback-plan-chip.md)
+Plan: [`../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest`](../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest)
+Related logs: [`2026-08-16-m1-plan-agent.md`](./2026-08-16-m1-plan-agent.md), [`../../../../ui/logs/2026-08-16-feedback-plan-rendered-markdown.md`](../../../../ui/logs/2026-08-16-feedback-plan-rendered-markdown.md), [`../../../../ui/logs/2026-08-16-feedback-plan-chip.md`](../../../../ui/logs/2026-08-16-feedback-plan-chip.md)
 
 ## Intent
 

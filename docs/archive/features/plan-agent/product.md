@@ -4,7 +4,7 @@
 
 Owner-approved add-on product boundary, 2026-08-16. This is **not** v3, **not** the sandbox, **not** Cursor Ask mode, and **not** a numbered v4.
 
-Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation.** Milestone 0 ask-back, Milestone 1 Plan/Agent, and Milestone 2 session todos are in source and not accepted. Packaged honesty waits for Milestone 3.
+Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Accepted and archived** (workstream closed 2026-08-18). Review: [`logs/2026-08-18-acceptance-review.md`](./logs/2026-08-18-acceptance-review.md). Closure: [`logs/2026-08-18-workstream-closure.md`](./logs/2026-08-18-workstream-closure.md). Milestone 3: [`logs/2026-08-18-m3-packaged-honesty.md`](./logs/2026-08-18-m3-packaged-honesty.md).
 
 Earlier candidate research lives in [`research.md`](./research.md). This file is the product contract. The owner asked for the **end-to-end product**, not a toggle-only first slice.
 
@@ -297,8 +297,8 @@ Diagnostics may report factory loaded/failed. They must not ship raw TUI objects
 - Implementation contract: [`implementation-plan.md`](./implementation-plan.md)
 - Research: [`research.md`](./research.md)
 - Add-on tracker: [`../README.md`](../README.md)
-- Architecture: [`../../architecture/overview.md`](../../architecture/overview.md), [`../../architecture/extension-model.md`](../../architecture/extension-model.md)
-- Conversation UI: [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
-- Right-sidebar host: [`../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md)
+- Architecture: [`../../../architecture/overview.md`](../../../architecture/overview.md), [`../../../architecture/extension-model.md`](../../../architecture/extension-model.md)
+- Conversation UI: [`../../../ui/implementation/conversation-ui.md`](../../../ui/implementation/conversation-ui.md)
+- Right-sidebar host: [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md)
 - Pi official plan-mode: [earendil-works/pi `examples/extensions/plan-mode`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/plan-mode/index.ts) (read against pinned `0.84.1`)
 - juicesharp ask-user: [rpiv-ask-user-question](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-ask-user-question) `2.6.0` MIT

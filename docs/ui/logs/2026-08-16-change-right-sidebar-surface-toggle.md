@@ -41,4 +41,4 @@ The previous footer pass right-aligned Settings. This log corrects that to start
 
 ## Handoff
 
-When adding a Terminal or Plan surface, do not restore a dedicated Collapse icon. Re-click of the active surface (including Terminal or Plan once it exists) should hide the panel. Keep exhaustive `RightSidebarSurface` handling. Plan product: [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Decision: [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md).
+When adding a Terminal or Plan surface, do not restore a dedicated Collapse icon. Re-click of the active surface (including Terminal or Plan once it exists) should hide the panel. Keep exhaustive `RightSidebarSurface` handling. Plan product: [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Decision: [`2026-08-16-decision-plan-sidebar-surface.md`](./2026-08-16-decision-plan-sidebar-surface.md).

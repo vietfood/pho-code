@@ -115,6 +115,62 @@ export async function expectNoDialogThenExpandWorkLog(page: Page, priorToggleCou
   await expandSettledWorkLog(page, priorToggleCount);
 }
 
+export async function allowOnceThenExpandWorkLog(page: Page, priorToggleCount = 0): Promise<void> {
+  const dialog = page.getByTestId("extension-dialog");
+  const toggle = page.getByTestId("work-log-toggle").nth(priorToggleCount);
+  const settled =
+    /Behind the scenes|Had a quick think|Thought it through|Took a peek|Looked around a bit|Thought, then peeked|Did a little digging|Went exploring/u;
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const questionnaire = page.locator('[data-kind="questionnaire"]');
+    if (
+      (await dialog.isVisible().catch(() => false)) &&
+      (await questionnaire.count()) === 0 &&
+      (await page.getByRole("radio", { name: "Allow once", exact: true }).isVisible().catch(() => false))
+    ) {
+      await page.getByRole("radio", { name: "Allow once", exact: true }).check();
+      await page.getByTestId("extension-dialog-confirm").click();
+      await expect(dialog).toHaveCount(0);
+    }
+    const text = (await toggle.textContent().catch(() => "")) ?? "";
+    if (settled.test(text)) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await expandSettledWorkLog(page, priorToggleCount);
+}
+
+export async function dismissPermissionDockIfPresent(page: Page): Promise<boolean> {
+  const dialog = page.getByTestId("extension-dialog");
+  if (!(await dialog.isVisible().catch(() => false))) {
+    return false;
+  }
+  if ((await page.locator('[data-kind="questionnaire"]').count()) > 0) {
+    return false;
+  }
+  const once = page.getByRole("radio", { name: "Allow once", exact: true });
+  if (!(await once.isVisible().catch(() => false))) {
+    return false;
+  }
+  await once.check();
+  await page.getByTestId("extension-dialog-confirm").click();
+  await expect(dialog).toHaveCount(0);
+  return true;
+}
+
+export async function waitForPathAllowingOnce(page: Page, filePath: string, timeoutMs = 30_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await dismissPermissionDockIfPresent(page);
+    if (existsSync(filePath)) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  expect(existsSync(filePath)).toBe(true);
+}
+
 export async function writeSandboxSettingsFile(userDataDir: string, enabled: boolean): Promise<void> {
   await writeFile(
     join(userDataDir, "sandbox-settings.json"),

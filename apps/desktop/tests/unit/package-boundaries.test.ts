@@ -79,5 +79,26 @@ describe("workspace package dependency graph", () => {
     expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.1");
     expect(manifest.dependencies?.["@earendil-works/pi-ai"]).toBe("0.84.1");
     expect(manifest.dependencies?.["@gotgenes/pi-permission-system"]).toBe("24.0.0");
+    expect(manifest.dependencies?.["@juicesharp/rpiv-ask-user-question"]).toBeUndefined();
+    expect(manifest.dependencies?.["@earendil-works/pi-tui"]).toBeUndefined();
+  });
+
+  test("no workspace package bakes juicesharp or pi-tui", async () => {
+    for (const relativePath of [
+      "packages/protocol",
+      "packages/application",
+      "packages/runtime",
+      "packages/ui",
+      "apps/desktop",
+    ]) {
+      const manifest = await readPackage(relativePath);
+      const names = [
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.devDependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+      ];
+      expect(names).not.toContain("@juicesharp/rpiv-ask-user-question");
+      expect(names).not.toContain("@earendil-works/pi-tui");
+    }
   });
 });

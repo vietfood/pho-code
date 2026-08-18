@@ -4,8 +4,8 @@ Kind: feedback
 Status: implemented; not accepted
 Surface: Plan document panel
 Owner: features/plan-agent (product); ui/conversation chrome (host rules only)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`2026-08-16-feedback-plan-chip.md`](./2026-08-16-feedback-plan-chip.md), [`2026-08-16-change-plan-todos-chrome.md`](./2026-08-16-change-plan-todos-chrome.md), [`2026-08-16-feedback-plan-comment-icons.md`](./2026-08-16-feedback-plan-comment-icons.md), [`../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-feedback-plan-chip.md`](./2026-08-16-feedback-plan-chip.md), [`2026-08-16-change-plan-todos-chrome.md`](./2026-08-16-change-plan-todos-chrome.md), [`2026-08-16-feedback-plan-comment-icons.md`](./2026-08-16-feedback-plan-comment-icons.md), [`../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md`](../../archive/features/plan-agent/logs/2026-08-16-m1-plan-agent.md)
 
 ## Intended change
 
@@ -35,4 +35,4 @@ Actual: headings became labels with separate textareas; mermaid/KaTeX could not 
 
 ## Handoff
 
-Product contract updated in [`../../features/plan-agent/product.md`](../../features/plan-agent/product.md). Restart `bun run dev` to see the rail.
+Product contract updated in [`../../archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md). Restart `bun run dev` to see the rail.

@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/plan-agent  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`2026-08-16-promotion.md`](./2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md)
+Related logs: [`2026-08-16-promotion.md`](./2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md)
 
 ## Intent
 

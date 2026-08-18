@@ -12,7 +12,7 @@ const MODE_OPTIONS = [
   {
     mode: "plan" as const,
     label: "Plan",
-    description: "Explore and write a plan. File writes are off.",
+    description: "Explore and write a plan. File writes are off. Shell is not sandboxed.",
   },
 ] as const;
 

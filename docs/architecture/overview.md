@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is a promoted add-on under [`features/plan-agent`](../features/plan-agent/README.md); Milestones 0–2 (ask-back, Plan/Agent, session todos) are in source and not accepted. Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -368,7 +368,7 @@ Personal-v1 Milestone 3 implemented the baked permission transport. Personal-v1 
 - `notify` as an application notification/toast;
 - `setStatus("pi-permission-system", "yolo")` as a `permissionStatus` event and settings `yoloMode` flag;
 
-The Plan/Agent add-on additionally implements `questionnaire` host dialogs and a session `todo` tool in source (not accepted). See [`features/plan-agent`](../features/plan-agent/README.md).
+The Plan/Agent factory implements `questionnaire` host dialogs, Plan/Agent tool policy, a session `todo` tool, and Plan-only `execute_plan`. `custom` and `editor` still throw. See [`archive/features/plan-agent`](../archive/features/plan-agent/README.md).
 
 Editor/custom components, widgets, terminal input handlers, headers, footers, and TUI renderers are unsupported until a named baked feature requires a specific structured adapter. Record a clear compatibility diagnostic and throw a useful `Error`; do not emulate a terminal inside React or throw a plain record that becomes `[object Object]`.
 

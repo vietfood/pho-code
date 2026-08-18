@@ -2,8 +2,8 @@
 
 Status: in progress (not accepted)
 Owner: features/plan-agent
-Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-2-cursor-style-todo-tool)
-Related logs: [`2026-08-16-m2-todos.md`](./2026-08-16-m2-todos.md), [`../../../ui/logs/2026-08-16-change-plan-todos-chrome.md`](../../../ui/logs/2026-08-16-change-plan-todos-chrome.md), [`../../../ui/logs/2026-08-18-bug-todo-plan-desync.md`](../../../ui/logs/2026-08-18-bug-todo-plan-desync.md)
+Plan: [`../implementation-plan.md#milestone-2-cursor-style-todo-tool`](../implementation-plan.md#milestone-2-cursor-style-todo-tool)
+Related logs: [`2026-08-16-m2-todos.md`](./2026-08-16-m2-todos.md), [`../../../../ui/logs/2026-08-16-change-plan-todos-chrome.md`](../../../../ui/logs/2026-08-16-change-plan-todos-chrome.md), [`../../../../ui/logs/2026-08-18-bug-todo-plan-desync.md`](../../../../ui/logs/2026-08-18-bug-todo-plan-desync.md)
 
 ## Intent
 
@@ -42,7 +42,7 @@ Milestone 2 treated branch reconstruct as live state. Pi’s own todo example ke
 
 ## UI impact
 
-Plan rail checklist should track the latest `todo` call as soon as that card appears. Reciprocal UI log: [`../../../ui/logs/2026-08-18-bug-todo-plan-desync.md`](../../../ui/logs/2026-08-18-bug-todo-plan-desync.md).
+Plan rail checklist should track the latest `todo` call as soon as that card appears. Reciprocal UI log: [`../../../../ui/logs/2026-08-18-bug-todo-plan-desync.md`](../../../../ui/logs/2026-08-18-bug-todo-plan-desync.md).
 
 ## Blockers and handoff
 

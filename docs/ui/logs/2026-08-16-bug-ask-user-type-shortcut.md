@@ -4,8 +4,8 @@ Kind: bug
 Status: implemented (feature Milestone 0 chrome; add-on not accepted)
 Surface: ask-user questionnaire card
 Owner: features/plan-agent (card semantics); ui/conversation chrome (dock host)
-Owning plan: [`../../features/plan-agent/implementation-plan.md`](../../features/plan-agent/implementation-plan.md)
-Related logs: [`2026-08-16-change-ask-user-card.md`](./2026-08-16-change-ask-user-card.md), [`../../features/plan-agent/logs/2026-08-16-feedback-ask-user-allow.md`](../../features/plan-agent/logs/2026-08-16-feedback-ask-user-allow.md)
+Owning plan: [`../../archive/features/plan-agent/implementation-plan.md`](../../archive/features/plan-agent/implementation-plan.md)
+Related logs: [`2026-08-16-change-ask-user-card.md`](./2026-08-16-change-ask-user-card.md), [`../../archive/features/plan-agent/logs/2026-08-16-feedback-ask-user-allow.md`](../../archive/features/plan-agent/logs/2026-08-16-feedback-ask-user-allow.md)
 
 ## Intended change
 

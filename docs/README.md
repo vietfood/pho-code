@@ -26,8 +26,8 @@ Living entry points that stay at this root:
 Do not mix these:
 
 - closed v3 product/plan/evidence → `archive/v3/`, not `version/` or `features/`
-- closed accepted add-ons (sandbox) → `archive/features/`, not `features/`
-- terminal, compaction, plan-agent, later add-ons → `features/`, not `version/`
+- closed accepted add-ons (sandbox, plan-agent) → `archive/features/`, not `features/`
+- terminal, compaction, later add-ons → `features/`, not `version/`
 - conversation chrome and UI bugs → `ui/`, not `features/`
 - startup, crash isolation of Pi, bounded Stop of a stuck run, and “do this before more features” → `urgent/`, not `features/` or a shell rewrite
 - demo captures → `assets/capture/`, not `archive/`

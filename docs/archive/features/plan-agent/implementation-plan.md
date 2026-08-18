@@ -2,9 +2,9 @@
 
 ## Status and use
 
-Owner-approved implementation plan for the **Plan / Agent and ask-user** add-on (2026-08-16). This is the implementation contract, not acceptance evidence. No milestone is accepted until its stated evidence exists.
+Owner-approved implementation plan for the **Plan / Agent and ask-user** add-on (2026-08-16). This is the implementation contract. Status is **Accepted and archived** (workstream closed 2026-08-18). Review: [`logs/2026-08-18-acceptance-review.md`](./logs/2026-08-18-acceptance-review.md). Closure: [`logs/2026-08-18-workstream-closure.md`](./logs/2026-08-18-workstream-closure.md). Milestone 3: [`logs/2026-08-18-m3-packaged-honesty.md`](./logs/2026-08-18-m3-packaged-honesty.md).
 
-Read the product contract in [`product.md`](./product.md), the research note in [`research.md`](./research.md), accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), the extension model in [`../../architecture/extension-model.md`](../../architecture/extension-model.md), and conversation chrome in [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md) before implementation.
+Read the product contract in [`product.md`](./product.md), the research note in [`research.md`](./research.md), accepted architecture in [`../../../architecture/overview.md`](../../../architecture/overview.md), the extension model in [`../../../architecture/extension-model.md`](../../../architecture/extension-model.md), and conversation chrome in [`../../../ui/implementation/conversation-ui.md`](../../../ui/implementation/conversation-ui.md) before implementation.
 
 This add-on is independent of archived V3, the terminal add-on, the sandbox add-on, and Phase F. Do not put this work in `archive/v3/` or treat Seatbelt / process extraction as a prerequisite.
 
@@ -36,7 +36,7 @@ Every milestone must:
 - treat ask-user cancel as a tool decline, not a permission deny;
 - treat questionnaire host failure as “owner never saw the questions,” not a decline;
 - distinguish unit, integration, desktop, packaged, and unverified evidence;
-- record juicesharp/Pi adaptations in [`../../references-and-attribution.md`](../../references-and-attribution.md) when code is copied or closely adapted;
+- record juicesharp/Pi adaptations in [`../../../references-and-attribution.md`](../../../references-and-attribution.md) when code is copied or closely adapted;
 - update architecture, development, attribution, and current-state only when the corresponding milestone lands, and mark accepted behavior only after the acceptance gate.
 
 ## Architecture

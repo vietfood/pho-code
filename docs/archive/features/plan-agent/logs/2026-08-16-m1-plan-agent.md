@@ -2,8 +2,8 @@
 
 Status: in progress (not accepted)
 Owner: features/plan-agent
-Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest)
-Related logs: [`2026-08-16-m0-ask-back.md`](./2026-08-16-m0-ask-back.md), [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../../ui/logs/2026-08-16-change-plan-sidebar.md`](../../../ui/logs/2026-08-16-change-plan-sidebar.md), [`../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../ui/logs/2026-08-16-feedback-plan-chip.md`](../../../ui/logs/2026-08-16-feedback-plan-chip.md)
+Plan: [`../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest`](../implementation-plan.md#milestone-1-full-plan-mode-and-agent-mode-hardest)
+Related logs: [`2026-08-16-m0-ask-back.md`](./2026-08-16-m0-ask-back.md), [`2026-08-16-feedback-plan-rendered-markdown.md`](./2026-08-16-feedback-plan-rendered-markdown.md), [`../../../../ui/logs/2026-08-16-change-plan-sidebar.md`](../../../../ui/logs/2026-08-16-change-plan-sidebar.md), [`../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../../ui/logs/2026-08-16-feedback-plan-chip.md`](../../../../ui/logs/2026-08-16-feedback-plan-chip.md)
 
 ## Intent
 
@@ -43,7 +43,7 @@ None yet.
 
 ## UI impact
 
-Composer Plan/Agent select plus “Writes off” mark. Right-sidebar Plan surface with re-click collapse. Reciprocal UI log: [`../../../ui/logs/2026-08-16-change-plan-sidebar.md`](../../../ui/logs/2026-08-16-change-plan-sidebar.md).
+Composer Plan/Agent select plus “Writes off” mark. Right-sidebar Plan surface with re-click collapse. Reciprocal UI log: [`../../../../ui/logs/2026-08-16-change-plan-sidebar.md`](../../../../ui/logs/2026-08-16-change-plan-sidebar.md).
 
 ## Blockers and handoff
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted; Terminal is not implemented.
+Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted. Plan/Agent chrome (composer `+` mode, questionnaire dock, Plan rail) is accepted. Terminal is not implemented.
 
 ## Composition boundary
 
@@ -94,9 +94,9 @@ Current surfaces are:
 
 - `changes` — implemented V3 review UI;
 - `context-prompt` — edit while the session is empty, inspect after first message;
-- `plan` — Plan/Agent add-on document (in source, not accepted). Terminal remains a planned peer with no `terminal` variant yet.
+- `plan` — Plan document surface (accepted Plan/Agent). Terminal remains a planned peer with no `terminal` variant yet.
 
-V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. The plan-agent add-on owns Plan/Agent meaning and the Plan document.
+V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
 ## Settings and account surfaces
 

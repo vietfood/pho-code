@@ -41,7 +41,7 @@ Electron main is the composition root and may import application/runtime package
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
 - `resources.ts` — baked feature diagnostics.
-- `plan-agent.ts` — ask-user questionnaire types/bounds plus Plan/Agent mode, document, `todo` list, `execute_plan`, and commands (in source, not accepted).
+- `plan-agent.ts` — ask-user questionnaire types/bounds plus Plan/Agent mode, document, `todo` list, `execute_plan`, and commands (accepted).
 - `change-review.ts` — accepted V3 review/Approve/per-file Undo contracts.
 
 `index.ts` is the public package surface. Runtime validation accompanies types; TypeScript alone is not an IPC boundary.
@@ -73,7 +73,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `features.ts`, `resources.ts`, `resource-locator.ts` build the immutable manifest and resolve development vs packaged resources.
 - `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature; runtime start syncs harness allow-list tools (`ask_user_question`, `update_plan_document`, `todo`, `execute_plan`) and the managed `web_search` / `fetch_content` pair onto existing configs, and appends the sandbox `authorizerChain` link (`pho-code-sandbox`).
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
-- `plan-agent-feature.ts`, `plan-agent-state.ts`, `todo-tool.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` (Plan/Agent Milestones 0–2 in source, not accepted).
+- `plan-agent-feature.ts`, `plan-agent-state.ts`, `todo-tool.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` (accepted Plan/Agent).
 - `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
 
@@ -135,7 +135,7 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 `packages/ui/src` is presentation plus pure interaction helpers:
 
 - shell/navigation: `app-shell.tsx`, `app-sidebar.tsx`, project/session menus, resize/toggle controls, welcome/empty/loading surfaces;
-- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (Plan/Agent add-on; in source, not accepted);
+- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (accepted Plan/Agent);
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
 - settings/accounts/skills/GitHub/archive/trust/sandbox dialogs;
 - right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
