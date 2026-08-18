@@ -28,4 +28,4 @@ Related logs: <relative links or none>
 ## Blockers and handoff
 ```
 
-Use the repository verification vocabulary and record only checks that ran. When sandbox work touches shared protocol, Electron, accepted architecture, permission settings, or Settings chrome, scan and cross-link related logs under `../../../version/*/logs/`, `../../../ui/logs/`, `../../../urgent/*/logs/`, and `../../terminal/logs/`.
+Use the repository verification vocabulary and record only checks that ran. When sandbox work touches shared protocol, Electron, accepted architecture, permission settings, or Settings chrome, scan and cross-link related logs under `../../../../version/*/logs/`, `../../../../ui/logs/`, `../../../../urgent/*/logs/`, and `../../../../features/terminal/logs/`.

@@ -3,7 +3,7 @@
 Status: in source, not accepted  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-2-permission-skip-for-in-box-bash)  
-Related logs: [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`2026-08-16-related-urgent-window-first.md`](./2026-08-16-related-urgent-window-first.md), [`2026-08-16-related-urgent-agent-stop.md`](./2026-08-16-related-urgent-agent-stop.md)
+Related logs: [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`2026-08-16-related-urgent-window-first.md`](./2026-08-16-related-urgent-window-first.md), [`2026-08-16-related-urgent-agent-stop.md`](./2026-08-16-related-urgent-agent-stop.md)
 
 ## Intent
 

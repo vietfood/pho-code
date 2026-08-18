@@ -1,11 +1,11 @@
 # Settings Sandbox section
 
-Kind: change  
-Status: accepted (feature Milestones 0–1; add-on not accepted)  
-Surface: floating Settings dialog  
-Owner: features/sandbox (policy); ui/settings chrome (section host)  
-Owning plan: [`../../features/sandbox/implementation-plan.md`](../../features/sandbox/implementation-plan.md)  
-Related logs: [`../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../features/sandbox/logs/2026-08-16-m1-settings.md), [`../../features/sandbox/logs/2026-08-16-m0-engine-pin.md`](../../features/sandbox/logs/2026-08-16-m0-engine-pin.md), [`../../features/sandbox/logs/2026-08-17-m1-acceptance-review.md`](../../features/sandbox/logs/2026-08-17-m1-acceptance-review.md), [`../../features/sandbox/logs/2026-08-17-m2-permission-skip.md`](../../features/sandbox/logs/2026-08-17-m2-permission-skip.md), [`../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md`](../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md), [`../../features/sandbox/logs/2026-08-17-m4-packaged-macos.md`](../../features/sandbox/logs/2026-08-17-m4-packaged-macos.md), [`../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md`](../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md), [`2026-08-17-change-sandbox-honesty.md`](./2026-08-17-change-sandbox-honesty.md), [`2026-08-17-feedback-sandbox-tmp-write.md`](./2026-08-17-feedback-sandbox-tmp-write.md)
+Kind: change
+Status: accepted (feature Milestones 0–1; add-on not accepted)
+Surface: floating Settings dialog
+Owner: features/sandbox (policy); ui/settings chrome (section host)
+Owning plan: [`../../features/sandbox/implementation-plan.md`](../../archive/features/sandbox/implementation-plan.md)
+Related logs: [`../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../archive/features/sandbox/logs/2026-08-16-m1-settings.md), [`../../features/sandbox/logs/2026-08-16-m0-engine-pin.md`](../../archive/features/sandbox/logs/2026-08-16-m0-engine-pin.md), [`../../features/sandbox/logs/2026-08-17-m1-acceptance-review.md`](../../archive/features/sandbox/logs/2026-08-17-m1-acceptance-review.md), [`../../features/sandbox/logs/2026-08-17-m2-permission-skip.md`](../../archive/features/sandbox/logs/2026-08-17-m2-permission-skip.md), [`../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md`](../../archive/features/sandbox/logs/2026-08-17-m3-file-tool-policy.md), [`../../features/sandbox/logs/2026-08-17-m4-packaged-macos.md`](../../archive/features/sandbox/logs/2026-08-17-m4-packaged-macos.md), [`../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md`](../../archive/features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md), [`2026-08-17-change-sandbox-honesty.md`](./2026-08-17-change-sandbox-honesty.md), [`2026-08-17-feedback-sandbox-tmp-write.md`](./2026-08-17-feedback-sandbox-tmp-write.md)
 
 ## Intended change
 
@@ -13,7 +13,7 @@ Add a Settings section **Sandbox** after Permissions so the owner can enable the
 
 ## Expected / actual (before)
 
-Expected: a reviewable in-app control for agent-tool sandbox.  
+Expected: a reviewable in-app control for agent-tool sandbox.
 Actual: Milestone 0 wrap existed only in runtime tests.
 
 ## Changes and decisions
@@ -27,7 +27,7 @@ Actual: Milestone 0 wrap existed only in runtime tests.
 ## Verification
 
 - **unit verified:** `bun test packages/ui/test/sandbox-settings.test.ts packages/ui/test/settings-section.test.ts` — Sandbox after Permissions; honesty copy; idle-pending copy.
-- **desktop verified:** `cd apps/desktop && bunx playwright test tests/sandbox.spec.ts` — Settings section visible, enable → Healthy, wrap/deny/disable journey. See [`../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../features/sandbox/logs/2026-08-16-m1-settings.md).
+- **desktop verified:** `cd apps/desktop && bunx playwright test tests/sandbox.spec.ts` — Settings section visible, enable → Healthy, wrap/deny/disable journey. See [`../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../archive/features/sandbox/logs/2026-08-16-m1-settings.md).
 
 ## Mistakes / corrections
 

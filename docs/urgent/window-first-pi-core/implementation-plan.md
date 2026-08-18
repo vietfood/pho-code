@@ -6,7 +6,7 @@ Proposed urgent-track plan, queued 2026-08-16. This is the implementation contra
 
 Read [`product.md`](./product.md), [`../../architecture/desktop-shell.md`](../../architecture/desktop-shell.md), [`../../architecture/overview.md`](../../architecture/overview.md), and [`../../architecture/protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md) before editing Electron main or runtime construction.
 
-Do not put this work in `archive/v3/`, `features/sandbox/`, or `features/terminal/` source ownership. Do not treat a shell rewrite as in scope.
+Do not put this work in `archive/v3/`, `archive/features/sandbox/`, or `features/terminal/` source ownership. Do not treat a shell rewrite as in scope.
 
 ## Global acceptance rules
 
@@ -19,7 +19,7 @@ Every milestone must:
 - show a window without waiting on `ModelRuntime.create` once Milestone 1 is in source;
 - fail honestly if Pi boot fails; never delete sessions as recovery;
 - leave `node-pty` / `TerminalHost` in the Electron adapter even if Pi moves to a child;
-- leave agent-tool Seatbelt work to [`features/sandbox`](../../features/sandbox/README.md);
+- leave agent-tool Seatbelt work to [`archive/features/sandbox`](../../archive/features/sandbox/README.md);
 - distinguish unit, integration, desktop, packaged, and unverified evidence;
 - update architecture, development, current-state, and attribution only when the corresponding milestone lands, and mark accepted behavior only after the gate.
 
@@ -172,7 +172,7 @@ Sequence:
 
 - Deno sidecar (see product). Requires Milestone 3 plus a real-session prototype.
 - Tauri/GPUI shell change (see [`desktop-shell.md`](../../architecture/desktop-shell.md) “When to revisit”).
-- OS/container jail for the whole Pi process (roadmap Phase F; distinct from [`features/sandbox`](../../features/sandbox/README.md)).
+- OS/container jail for the whole Pi process (roadmap Phase F; distinct from [`archive/features/sandbox`](../../archive/features/sandbox/README.md)).
 
 ## Pins and packaging
 

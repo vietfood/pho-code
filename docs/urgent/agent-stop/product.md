@@ -26,7 +26,7 @@ Do not use “isolation” or “sandbox” without naming which boundary. Copie
 | --- | --- | --- | --- |
 | Cooperative abort | A run that still observes `AbortSignal` / `session.abort()` | Partial. Stop exists; IPC waits for idle | Milestone 1 |
 | Crash / process isolation | A hung or crashed Pi taking down the window | **Not done.** Pi runs inside Electron main | Out of scope here. [`window-first-pi-core`](../window-first-pi-core/product.md) Milestone 3 |
-| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Not done.** [`features/sandbox`](../../features/sandbox/README.md) | Out of scope |
+| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Accepted.** [`archive/features/sandbox`](../../archive/features/sandbox/README.md) | Out of scope |
 | Renderer isolation | The chat page reading disk or seeing tokens | **Done** | Unchanged |
 
 ## What exists today
@@ -85,7 +85,7 @@ Allowed: “Stop cancels the current run.” Required if a tool child outlives t
 This track will not:
 
 - extract Pi into `utilityProcess` (that is window-first Milestone 3);
-- wrap agent `bash` in Seatbelt (that is [`features/sandbox`](../../features/sandbox/README.md));
+- wrap agent `bash` in Seatbelt (that is [`archive/features/sandbox`](../../archive/features/sandbox/README.md));
 - change the accepted Electron shell;
 - replace Pi’s agent loop;
 - add a generic “kill process” control in the renderer;

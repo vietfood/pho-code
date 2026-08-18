@@ -1,11 +1,11 @@
 # Settings Sandbox: shorter copy and default on
 
-Kind: change  
-Status: accepted with the sandbox add-on  
-Surface: floating Settings dialog, Sandbox section  
-Owner: features/sandbox (policy); ui/settings chrome (copy host)  
-Owning plan: [`../../features/sandbox/implementation-plan.md`](../../features/sandbox/implementation-plan.md)  
-Related logs: [`../../features/sandbox/logs/2026-08-17-acceptance-review.md`](../../features/sandbox/logs/2026-08-17-acceptance-review.md), [`2026-08-16-change-sandbox-settings.md`](./2026-08-16-change-sandbox-settings.md), [`2026-08-17-change-sandbox-honesty.md`](./2026-08-17-change-sandbox-honesty.md), [`2026-08-17-feedback-sandbox-tmp-write.md`](./2026-08-17-feedback-sandbox-tmp-write.md)
+Kind: change
+Status: accepted with the sandbox add-on
+Surface: floating Settings dialog, Sandbox section
+Owner: features/sandbox (policy); ui/settings chrome (copy host)
+Owning plan: [`../../features/sandbox/implementation-plan.md`](../../archive/features/sandbox/implementation-plan.md)
+Related logs: [`../../features/sandbox/logs/2026-08-17-acceptance-review.md`](../../archive/features/sandbox/logs/2026-08-17-acceptance-review.md), [`2026-08-16-change-sandbox-settings.md`](./2026-08-16-change-sandbox-settings.md), [`2026-08-17-change-sandbox-honesty.md`](./2026-08-17-change-sandbox-honesty.md), [`2026-08-17-feedback-sandbox-tmp-write.md`](./2026-08-17-feedback-sandbox-tmp-write.md)
 
 ## Intended change
 
@@ -13,7 +13,7 @@ Owner asked to wrap the add-on, shorten Settings copy, make the text boxes more 
 
 ## Expected / actual (before)
 
-Expected: a short honesty paragraph, compact path/domain fields, sandbox on for a new userData root.  
+Expected: a short honesty paragraph, compact path/domain fields, sandbox on for a new userData root.
 Actual: a long disclosure, tall textareas, default off.
 
 ## Changes and decisions
@@ -29,7 +29,7 @@ Settings keeps a Sandbox section after Permissions. Archived remains archived ch
 
 ## Verification
 
-Recorded in [`../../features/sandbox/logs/2026-08-17-acceptance-review.md`](../../features/sandbox/logs/2026-08-17-acceptance-review.md).
+Recorded in [`../../features/sandbox/logs/2026-08-17-acceptance-review.md`](../../archive/features/sandbox/logs/2026-08-17-acceptance-review.md).
 
 ## Mistakes / corrections
 

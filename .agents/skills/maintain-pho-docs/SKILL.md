@@ -14,7 +14,7 @@ Read `AGENTS.md`, then route the change:
 - `docs/features/` — standalone add-ons that can ship, fail, and retire independently.
 - `docs/urgent/` — owner-priority defects, safety, startup, and prerequisites to do before more capability; not a fourth product owner.
 - `docs/ui/` — conversation/UI design, implementation, ideas, changes, feedback, and defects.
-- `docs/archive/` — immutable closed versions and retired/superseded/abandoned add-ons.
+- `docs/archive/` — immutable closed versions and closed/retired/superseded/abandoned add-ons.
 - `docs/current-state.md` — concise dated statement of what exists and each workstream's status.
 - `docs/development.md` — current commands, environment, isolation, debugging, and verification procedure.
 
@@ -105,7 +105,7 @@ One integrator performs acceptance updates:
 
 Move a numbered version to `docs/archive/vN/` when it closes.
 
-Keep an accepted add-on under `docs/features/` while it remains current. Move it to `docs/archive/features/` only when retired, superseded, or abandoned, with its product, plan, logs, and closure record.
+Keep an accepted add-on under `docs/features/` while its workstream is open. When the owner closes an accepted add-on, move it to `docs/archive/features/` with its product, plan, logs, and closure record. Living behavior stays in `architecture/` and `current-state.md`. Retired, superseded, or abandoned add-ons also move there, with a pointer to any replacement.
 
 ## Documentation verification
 

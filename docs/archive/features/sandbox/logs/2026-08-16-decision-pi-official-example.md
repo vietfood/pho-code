@@ -14,7 +14,7 @@ Record the owner request to treat the Pi team’s sandbox extension as a first-c
 - Product: [`../product.md`](../product.md) (harness table, wrap take/leave, references)
 - Plan: [`../implementation-plan.md`](../implementation-plan.md) (`Pi wrap pattern`)
 - Research: [`../research.md`](../research.md)
-- Attribution inventory: [`../../../references-and-attribution.md`](../../../references-and-attribution.md)
+- Attribution inventory: [`../../../references-and-attribution.md`](../../../../references-and-attribution.md)
 
 ## Changes and decisions
 

@@ -1,15 +1,15 @@
 # Settings Sandbox: `/tmp` write asked during owner M3 test
 
-Kind: feedback  
-Status: clarified; implicit-temp copy added  
-Surface: Settings → Sandbox, permission dock on file write  
-Owner: features/sandbox (policy); ui/settings chrome (hint)  
-Owning plan: [`../../features/sandbox/implementation-plan.md`](../../features/sandbox/implementation-plan.md)  
-Related logs: [`../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md`](../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md), [`../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md`](../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md), [`2026-08-16-change-sandbox-settings.md`](./2026-08-16-change-sandbox-settings.md)
+Kind: feedback
+Status: clarified; implicit-temp copy added
+Surface: Settings → Sandbox, permission dock on file write
+Owner: features/sandbox (policy); ui/settings chrome (hint)
+Owning plan: [`../../features/sandbox/implementation-plan.md`](../../archive/features/sandbox/implementation-plan.md)
+Related logs: [`../../features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md`](../../archive/features/sandbox/logs/2026-08-17-owner-m3-tmp-ask.md), [`../../features/sandbox/logs/2026-08-17-m3-file-tool-policy.md`](../../archive/features/sandbox/logs/2026-08-17-m3-file-tool-policy.md), [`2026-08-16-change-sandbox-settings.md`](./2026-08-16-change-sandbox-settings.md)
 
 ## Expected / actual
 
-Expected (bad probe): write `/tmp/pho-code-sandbox-should-deny.txt` with Healthy sandbox → no dock, tool error, file not created.  
+Expected (bad probe): write `/tmp/pho-code-sandbox-should-deny.txt` with Healthy sandbox → no dock, tool error, file not created.
 Actual: permission dock; owner Allowed; write succeeded.
 
 ## Reproduction

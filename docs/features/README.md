@@ -4,7 +4,7 @@
 
 This directory tracks **add-on capabilities**: owner-approved product work that is not a numbered product version (v1 / v2 / v3) and is not merely a conversation-chrome slice.
 
-Closed V3 stays in [`archive/v3`](../archive/v3/product.md). Conversation chrome stays in [`ui/`](../ui/README.md). Unpromoted later-version work stays in [`version/roadmap-vnext.md`](../version/roadmap-vnext.md). Canonical layer boundaries stay in [`architecture/`](../architecture/README.md).
+Closed V3 stays in [`archive/v3`](../archive/v3/product.md). Closed sandbox stays in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Conversation chrome stays in [`ui/`](../ui/README.md). Unpromoted later-version work stays in [`version/roadmap-vnext.md`](../version/roadmap-vnext.md). Canonical layer boundaries stay in [`architecture/`](../architecture/README.md).
 
 An add-on may still change protocol, Electron, or UI, but it must be able to ship or fail without blocking v3, and v3 must be able to ship or fail without blocking the add-on.
 
@@ -14,7 +14,8 @@ An add-on may still change protocol, Electron, or UI, but it must be able to shi
 | --- | --- | --- |
 | Research / proposed | one markdown file, e.g. `compaction.md` | Design only. Not an implementation contract. |
 | Promoted add-on | a folder with `product.md` and `implementation-plan.md` | Owner-approved product boundary plus the real plan. Status is **In implementation** until acceptance. |
-| Accepted add-on | same folder, plus a record in [`current-state.md`](../current-state.md) | Implemented and verified to the stated level. |
+| Accepted add-on | same folder, plus a record in [`current-state.md`](../current-state.md) | Implemented and verified to the stated level. Stays here while the workstream is open. |
+| Closed add-on | moved to [`archive/features/`](../archive/features/README.md) | Workstream closed. Living behavior stays in architecture and current-state. |
 
 Do not keep a promoted add-on as a single “proposed” note. When the owner approves, create the folder, close selected product decisions, and write milestones with verification gates.
 
@@ -37,11 +38,12 @@ A document may contain both current and planned sections. Each claim must make t
 | Integrated terminal | In implementation; owner-approved 2026-08-16 | Owner-visible login shell in the selected workspace, ghostty-web in the right sidebar, PTY in Electron main | [`terminal/product.md`](./terminal/product.md), [`terminal/implementation-plan.md`](./terminal/implementation-plan.md) |
 | Compaction | Proposed; Pi-native automatic behavior exists today | Long conversations retain useful continuity, expose when context is summarized, and remain portable across supported providers | [`compaction.md`](./compaction.md) |
 | Plan / Agent and ask-user | In implementation; owner-approved 2026-08-16. Milestones 0–2 are in source, not accepted | Per-chat Plan vs Agent, juicesharp-style ask-back, session todos in both modes, Plan document on the right sidebar | [`plan-agent/product.md`](./plan-agent/product.md), [`plan-agent/implementation-plan.md`](./plan-agent/implementation-plan.md) |
-| Agent-tool sandbox | Accepted 2026-08-17 | OS-enforced agent `bash` plus matching in-process file-tool policy; Settings-owned network; default on; no Phase F wait | [`sandbox/product.md`](./sandbox/product.md), [`sandbox/implementation-plan.md`](./sandbox/implementation-plan.md) |
+
+Closed add-ons live under [`archive/features`](../archive/features/README.md). Agent-tool sandbox was accepted 2026-08-17 and archived 2026-08-18; see [`archive/features/sandbox`](../archive/features/sandbox/README.md).
 
 ## What does not belong here
 
-Session tree/fork, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Plan / Agent modes with structured ask-back are the owner-approved [`plan-agent`](./plan-agent/README.md) add-on; those documents are the contract, not acceptance evidence. Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md). Extracting the Pi Node runtime into another process remains Phase F, except the owner-priority **window-first** slice (create the window before `ModelRuntime.create`) which is queued under [`urgent/window-first-pi-core`](../urgent/window-first-pi-core/README.md) and is not an add-on. Bounded Stop of a stuck run is queued under [`urgent/agent-stop`](../urgent/agent-stop/README.md) and is not an add-on; it does not wait on window-first. OS-level wrapping of agent `bash` plus in-process file-tool policy is the accepted [`sandbox`](./sandbox/README.md) add-on; it is not Phase F and must not wait on window-first or agent-stop.
+Session tree/fork, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Plan / Agent modes with structured ask-back are the owner-approved [`plan-agent`](./plan-agent/README.md) add-on; those documents are the contract, not acceptance evidence. Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md). Extracting the Pi Node runtime into another process remains Phase F, except the owner-priority **window-first** slice (create the window before `ModelRuntime.create`) which is queued under [`urgent/window-first-pi-core`](../urgent/window-first-pi-core/README.md) and is not an add-on. Bounded Stop of a stuck run is queued under [`urgent/agent-stop`](../urgent/agent-stop/README.md) and is not an add-on; it does not wait on window-first. OS-level wrapping of agent `bash` plus in-process file-tool policy is the accepted, archived [`sandbox`](../archive/features/sandbox/README.md) add-on; it is not Phase F and must not wait on window-first or agent-stop.
 
 Do not use this directory as a general competitor research catalog. A capability belongs here only when it can be specified, implemented, accepted, degraded, and retired independently of the active numbered version.
 

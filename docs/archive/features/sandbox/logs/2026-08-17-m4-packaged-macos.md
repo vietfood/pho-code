@@ -3,7 +3,7 @@
 Status: in source, not accepted  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-4-packaged-macos-docs-honesty)  
-Related logs: [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-deny-copy.md`](./2026-08-17-deny-copy.md), [`2026-08-17-owner-m3-tmp-ask.md`](./2026-08-17-owner-m3-tmp-ask.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`../../../ui/logs/2026-08-17-change-sandbox-honesty.md`](../../../ui/logs/2026-08-17-change-sandbox-honesty.md)
+Related logs: [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-deny-copy.md`](./2026-08-17-deny-copy.md), [`2026-08-17-owner-m3-tmp-ask.md`](./2026-08-17-owner-m3-tmp-ask.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`../../../ui/logs/2026-08-17-change-sandbox-honesty.md`](../../../../ui/logs/2026-08-17-change-sandbox-honesty.md)
 
 ## Intent
 
@@ -47,7 +47,7 @@ None yet. Owner will test Milestones 2, 3, and 4 manually.
 
 ## UI impact
 
-Settings disclosure no longer says skip-ask is future work. See [`../../../ui/logs/2026-08-17-change-sandbox-honesty.md`](../../../ui/logs/2026-08-17-change-sandbox-honesty.md).
+Settings disclosure no longer says skip-ask is future work. See [`../../../ui/logs/2026-08-17-change-sandbox-honesty.md`](../../../../ui/logs/2026-08-17-change-sandbox-honesty.md).
 
 ## Blockers and handoff
 

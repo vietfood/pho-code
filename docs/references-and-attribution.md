@@ -21,7 +21,7 @@ Reading an implementation for architectural understanding does not require a row
 - Package: [`@anthropic-ai/sandbox-runtime`](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime) `0.0.73`
 - Upstream: [anthropic-experimental/sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)
 - License: Apache-2.0
-- Role: OS wrap of agent `bash` children (`sandbox-exec` on macOS). Runtime dependency of the [`features/sandbox`](./features/sandbox/README.md) add-on. Not a renderer import. Packaged macOS flattens the pin into production `node_modules` with nested `zod` 3 so it does not collide with top-level `zod` 4.
+- Role: OS wrap of agent `bash` children (`sandbox-exec` on macOS). Runtime dependency of the [`archive/features/sandbox`](./archive/features/sandbox/README.md) add-on. Not a renderer import. Packaged macOS flattens the pin into production `node_modules` with nested `zod` 3 so it does not collide with top-level `zod` 4.
 
 ### ripgrep
 

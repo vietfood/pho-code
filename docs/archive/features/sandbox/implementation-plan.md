@@ -2,9 +2,9 @@
 
 ## Status and use
 
-Owner-approved implementation plan for the **agent-tool sandbox** add-on (2026-08-16). This is the implementation contract. Status is **Accepted**. Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md). Earlier milestone evidence: [`logs/2026-08-17-m1-acceptance-review.md`](./logs/2026-08-17-m1-acceptance-review.md), [`logs/2026-08-17-m2-permission-skip.md`](./logs/2026-08-17-m2-permission-skip.md), [`logs/2026-08-17-m3-file-tool-policy.md`](./logs/2026-08-17-m3-file-tool-policy.md), [`logs/2026-08-17-deny-copy.md`](./logs/2026-08-17-deny-copy.md), [`logs/2026-08-17-m4-packaged-macos.md`](./logs/2026-08-17-m4-packaged-macos.md).
+Owner-approved implementation plan for the **agent-tool sandbox** add-on (2026-08-16). This is the implementation contract. Status is **Accepted and archived** (workstream closed 2026-08-18). Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md). Closure: [`logs/2026-08-18-workstream-closure.md`](./logs/2026-08-18-workstream-closure.md). Earlier milestone evidence: [`logs/2026-08-17-m1-acceptance-review.md`](./logs/2026-08-17-m1-acceptance-review.md), [`logs/2026-08-17-m2-permission-skip.md`](./logs/2026-08-17-m2-permission-skip.md), [`logs/2026-08-17-m3-file-tool-policy.md`](./logs/2026-08-17-m3-file-tool-policy.md), [`logs/2026-08-17-deny-copy.md`](./logs/2026-08-17-deny-copy.md), [`logs/2026-08-17-m4-packaged-macos.md`](./logs/2026-08-17-m4-packaged-macos.md).
 
-Read the product contract in [`product.md`](./product.md), the research note in [`research.md`](./research.md), accepted architecture in [`../../architecture/overview.md`](../../architecture/overview.md), and the extension model in [`../../architecture/extension-model.md`](../../architecture/extension-model.md) before implementation.
+Read the product contract in [`product.md`](./product.md), the research note in [`research.md`](./research.md), accepted architecture in [`../../../architecture/overview.md`](../../../architecture/overview.md), and the extension model in [`../../../architecture/extension-model.md`](../../../architecture/extension-model.md) before implementation.
 
 This add-on is independent of archived V3, the terminal add-on, and Phase F. Do not put sandbox work in `archive/v3/` or treat process extraction as a prerequisite.
 

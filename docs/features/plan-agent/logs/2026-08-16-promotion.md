@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/plan-agent  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../sandbox/logs/2026-08-16-promotion.md`](../../sandbox/logs/2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`2026-08-16-decision-milestone-order.md`](./2026-08-16-decision-milestone-order.md)
+Related logs: [`../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md`](../../../ui/logs/2026-08-16-decision-plan-sidebar-surface.md), [`../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md`](../../../ui/logs/2026-08-16-change-right-sidebar-surface-toggle.md), [`../../../archive/features/sandbox/logs/2026-08-16-promotion.md`](../../../archive/features/sandbox/logs/2026-08-16-promotion.md), [`2026-08-16-decision-session-todos.md`](./2026-08-16-decision-session-todos.md), [`2026-08-16-decision-milestone-order.md`](./2026-08-16-decision-milestone-order.md)
 
 ## Intent
 

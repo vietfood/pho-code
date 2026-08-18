@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: urgent/window-first-pi-core  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md`](../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-window-first.md`](../../../features/sandbox/logs/2026-08-16-related-urgent-window-first.md), [`../../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../../features/sandbox/logs/2026-08-16-m1-settings.md), [`../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md`](../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md)
+Related logs: [`../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md`](../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-window-first.md`](../../../archive/features/sandbox/logs/2026-08-16-related-urgent-window-first.md), [`../../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../../archive/features/sandbox/logs/2026-08-16-m1-settings.md), [`../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md`](../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md)
 
 ## Intent
 

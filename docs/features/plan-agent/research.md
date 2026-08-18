@@ -270,5 +270,5 @@ Recorded in [`logs/2026-08-16-promotion.md`](./logs/2026-08-16-promotion.md). Th
 - Backlog item: [`version/research-backlog.md`](../../version/research-backlog.md)
 - Conversation chrome: [`ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
 - Host UI contract: [`architecture/extension-model.md`](../../architecture/extension-model.md)
-- Sandbox (separate): [`../sandbox/product.md`](../sandbox/product.md)
+- Sandbox (separate): [`../../archive/features/sandbox/product.md`](../../archive/features/sandbox/product.md)
 - Attribution inventory: [`../../references-and-attribution.md`](../../references-and-attribution.md)

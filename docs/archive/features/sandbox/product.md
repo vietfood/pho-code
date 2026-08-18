@@ -4,7 +4,7 @@
 
 Owner-approved add-on product boundary, 2026-08-16. This is **not** v3, **not** the integrated terminal, and **not** Phase F runtime extraction.
 
-Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Accepted**. Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md).
+Personal v1–v3 remain accepted. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **Accepted and archived** (workstream closed 2026-08-18). Review: [`logs/2026-08-17-acceptance-review.md`](./logs/2026-08-17-acceptance-review.md). Closure: [`logs/2026-08-18-workstream-closure.md`](./logs/2026-08-18-workstream-closure.md).
 
 Earlier candidate research lives in [`research.md`](./research.md). This file is the product contract.
 
@@ -32,7 +32,7 @@ Honest disclosure is required in Settings where the feature is introduced:
 - Domain allowlists are not traffic inspection. Allowing `github.com` still allows push or exfil to any repo on that host.
 - The owner PTY is not sandboxed.
 - V3 Undo still covers tracked `write`/`edit` only. Sandboxed `bash` can mutate the workspace without a ledger entry.
-- Process separation (Phase F) is not this feature. Window-first app launch (create the Electron window before Pi `ModelRuntime.create`) is also not this feature; it lives under [`urgent/window-first-pi-core`](../../urgent/window-first-pi-core/README.md).
+- Process separation (Phase F) is not this feature. Window-first app launch (create the Electron window before Pi `ModelRuntime.create`) is also not this feature; it lives under [`urgent/window-first-pi-core`](../../../urgent/window-first-pi-core/README.md).
 
 ## Why this does not wait on process extraction
 
@@ -214,10 +214,11 @@ Diagnostics may report status, platform, redacted error class, domain count, and
 
 - Implementation contract: [`implementation-plan.md`](./implementation-plan.md)
 - Research: [`research.md`](./research.md)
-- Add-on tracker: [`../README.md`](../README.md)
-- Architecture: [`../../architecture/overview.md`](../../architecture/overview.md), [`../../architecture/extension-model.md`](../../architecture/extension-model.md)
-- Terminal honesty: [`../terminal/product.md`](../terminal/product.md)
-- Phase F: [`../../version/roadmap-vnext.md`](../../version/roadmap-vnext.md)
+- Closed-feature index: [`../README.md`](../README.md)
+- Active add-ons: [`../../../features/README.md`](../../../features/README.md)
+- Architecture: [`../../../architecture/overview.md`](../../../architecture/overview.md), [`../../../architecture/extension-model.md`](../../../architecture/extension-model.md)
+- Terminal honesty: [`../../../features/terminal/product.md`](../../../features/terminal/product.md)
+- Phase F: [`../../../version/roadmap-vnext.md`](../../../version/roadmap-vnext.md)
 - Pi official sandbox example: [earendil-works/pi `examples/extensions/sandbox/index.ts`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts) (read against pinned `0.84.1`)
 - [Cursor Run Modes / sandboxing](https://cursor.com/docs/agent/security/run-modes)
 - [Claude Code sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing)

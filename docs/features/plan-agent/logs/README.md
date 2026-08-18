@@ -28,4 +28,4 @@ Related logs: <relative links or none>
 ## Blockers and handoff
 ```
 
-Use the repository verification vocabulary and record only checks that ran. When this work touches shared protocol, Electron, accepted architecture, host dialogs, or the right-sidebar host, scan and cross-link related logs under `../../../version/*/logs/`, `../../../ui/logs/`, `../../terminal/logs/`, and `../../sandbox/logs/`.
+Use the repository verification vocabulary and record only checks that ran. When this work touches shared protocol, Electron, accepted architecture, host dialogs, or the right-sidebar host, scan and cross-link related logs under `../../../version/*/logs/`, `../../../ui/logs/`, `../../terminal/logs/`, and `../../../archive/features/sandbox/logs/`.

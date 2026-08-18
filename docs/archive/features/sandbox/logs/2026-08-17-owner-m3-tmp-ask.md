@@ -3,7 +3,7 @@
 Status: owner-verified clarification; add-on not accepted  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-3-in-process-file-tool-policy)  
-Related logs: [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`../../../ui/logs/2026-08-17-feedback-sandbox-tmp-write.md`](../../../ui/logs/2026-08-17-feedback-sandbox-tmp-write.md)
+Related logs: [`2026-08-17-m3-file-tool-policy.md`](./2026-08-17-m3-file-tool-policy.md), [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../../ui/logs/2026-08-16-change-sandbox-settings.md), [`../../../ui/logs/2026-08-17-feedback-sandbox-tmp-write.md`](../../../../ui/logs/2026-08-17-feedback-sandbox-tmp-write.md)
 
 ## Intent
 

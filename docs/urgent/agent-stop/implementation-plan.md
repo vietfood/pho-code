@@ -6,7 +6,7 @@ Proposed urgent-track plan, queued 2026-08-16. This is the implementation contra
 
 Read [`product.md`](./product.md), [`../../architecture/runtime-and-data.md`](../../architecture/runtime-and-data.md), [`../../architecture/protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md), and [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md) before editing `abortRun` or the composer Stop control.
 
-Do not put this work in `archive/v3/`, `features/sandbox/`, or [`window-first-pi-core`](../window-first-pi-core/README.md) source ownership. Do not treat `utilityProcess` as in scope.
+Do not put this work in `archive/v3/`, `archive/features/sandbox/`, or [`window-first-pi-core`](../window-first-pi-core/README.md) source ownership. Do not treat `utilityProcess` as in scope.
 
 ## Global acceptance rules
 
@@ -127,7 +127,7 @@ Only start if Milestone 1 still leaves background chats or test close hanging.
 ## Deferred on this track
 
 - `utilityProcess` / hard-kill of Pi: [`window-first-pi-core`](../window-first-pi-core/implementation-plan.md) Milestone 3.
-- OS Seatbelt for agent `bash`: [`features/sandbox`](../../features/sandbox/README.md).
+- OS Seatbelt for agent `bash`: [`archive/features/sandbox`](../../archive/features/sandbox/README.md).
 - Switching the product to `pi --mode rpc`.
 
 ## Pins and packaging

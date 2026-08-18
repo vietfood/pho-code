@@ -30,7 +30,7 @@ The target is **tool-process containment**, not a public-distribution threat mod
 
 ## Why this can be a standalone add-on
 
-[`roadmap-vnext.md` Phase F](../../version/roadmap-vnext.md) already names runtime isolation. That phase is the larger job: extract the Pi Node runtime, then later evaluate containers/VMs, signing, and a public threat model.
+[`roadmap-vnext.md` Phase F](../../../version/roadmap-vnext.md) already names runtime isolation. That phase is the larger job: extract the Pi Node runtime, then later evaluate containers/VMs, signing, and a public threat model.
 
 OS-level wrapping of **agent `bash` children** can ship or fail independently of that extraction, the same way the terminal add-on is independent of V3:
 
@@ -41,11 +41,11 @@ OS-level wrapping of **agent `bash` children** can ship or fail independently of
 It must **not** be described as:
 
 - a sandbox for Pi extensions, skills, or MCP adapters;
-- a sandbox for the owner PTY ([`terminal/product.md`](../terminal/product.md) already forbids that claim);
+- a sandbox for the owner PTY ([`terminal/product.md`](../../../features/terminal/product.md) already forbids that claim);
 - a substitute for V3 recovery (the ledger is not a security boundary);
 - a substitute for `@gotgenes/pi-permission-system` unless a later product decision explicitly replaces that gate for named tools.
 
-Architecture already defers "tool policy sandbox" and "containment of the Pi runtime or extension code" in [`overview.md`](../../architecture/overview.md). Promoting this add-on would implement the first of those, not the second.
+Architecture already defers "tool policy sandbox" and "containment of the Pi runtime or extension code" in [`overview.md`](../../../architecture/overview.md). Promoting this add-on would implement the first of those, not the second.
 
 ## What exists today (no OS sandbox)
 
@@ -249,10 +249,10 @@ Closed into [`product.md`](./product.md) and [`implementation-plan.md`](./implem
 ## References
 
 - Promoted contract: [`product.md`](./product.md)
-- Pho Code [`architecture/overview.md`](../../architecture/overview.md) security posture
-- Pho Code [`architecture/extension-model.md`](../../architecture/extension-model.md)
-- Pho Code [`version/roadmap-vnext.md`](../../version/roadmap-vnext.md) Phase F
-- Pho Code [`features/terminal/product.md`](../terminal/product.md)
+- Pho Code [`architecture/overview.md`](../../../architecture/overview.md) security posture
+- Pho Code [`architecture/extension-model.md`](../../../architecture/extension-model.md)
+- Pho Code [`version/roadmap-vnext.md`](../../../version/roadmap-vnext.md) Phase F
+- Pho Code [`features/terminal/product.md`](../../../features/terminal/product.md)
 - [Pi official sandbox example on `main`](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/examples/extensions/sandbox/index.ts)
 - Pinned Pi `0.84.1` copy of the same example
 - [Anthropic sandbox-runtime](https://github.com/anthropic-experimental/sandbox-runtime)

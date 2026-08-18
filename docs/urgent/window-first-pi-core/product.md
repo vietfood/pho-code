@@ -26,7 +26,7 @@ Do not use “isolation” or “sandbox” without naming which boundary.
 | --- | --- | --- | --- |
 | Renderer isolation | The chat page reading disk, spawning shells, or seeing tokens | **Done.** `contextIsolation`, `nodeIntegration: false`, `sandbox: true`, typed `window.phoCode` | Unchanged |
 | Crash / process isolation | A hung or crashed Pi taking down the window | **Not done.** Pi runs inside Electron main | Milestone 3 (`utilityProcess`) |
-| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Not done.** Owner-approved as [`features/sandbox`](../../features/sandbox/README.md) | Out of scope here |
+| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Accepted.** [`archive/features/sandbox`](../../archive/features/sandbox/README.md) | Out of scope here |
 | Workspace trust | Project permission files becoming ambient authority | Partial (trust dialog/banner; baked features only) | Unchanged |
 
 Renderer isolation is a Chromium UI boundary. Process isolation is a crash boundary. The sandbox add-on is an OS box for **agent `bash` children**. None of those three is the others. Settings, docs, and UI copy must stay honest.
@@ -89,7 +89,7 @@ These close the 2026-08-16 research. They are product decisions for this track, 
 | First slice | **Window and metadata chrome before `ModelRuntime.create`.** |
 | Crash isolation | **Electron `utilityProcess` (or a Node child using the same JSON protocol)** after window-first is accepted. Same Pi SDK, same OS user. |
 | Deno wrap of Pi | **Deferred.** Allowed only as a later *child* behind the same protocol, after Node `utilityProcess` works. Not a first-paint fix. |
-| Agent `bash` OS box | **[`features/sandbox`](../../features/sandbox/README.md).** Independent. Must not wait on this track. |
+| Agent `bash` OS box | **[`archive/features/sandbox`](../../archive/features/sandbox/README.md).** Independent. Must not wait on this track. |
 | Owner PTY | **[`features/terminal`](../../features/terminal/README.md).** `node-pty` stays in the Electron adapter, not inside the Pi child. |
 | Public distribution | **Still roadmap Phase F.** Signing, notarization, Linux installers, and a public threat model are not this track. |
 | Pi embedding | **Keep the pinned TypeScript SDK.** Do not fork Pi, do not switch to `pi --mode rpc` as the product runtime, do not require a user Pi CLI. |
@@ -141,7 +141,7 @@ This track will not:
 - Architecture (accepted): [`desktop-shell.md`](../../architecture/desktop-shell.md), [`overview.md`](../../architecture/overview.md), [`protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md)
 - Phase F (public distribution + process extraction as a later numbered-version phase): [`roadmap-vnext.md`](../../version/roadmap-vnext.md)
 - Native-code / no Rust rewrite: [`research-backlog.md`](../../version/research-backlog.md)
-- Sandbox add-on: [`features/sandbox/product.md`](../../features/sandbox/product.md)
+- Sandbox add-on: [`archive/features/sandbox/product.md`](../../archive/features/sandbox/product.md)
 - Terminal add-on: [`features/terminal/product.md`](../../features/terminal/product.md)
 - Research log: [`logs/2026-08-16-research-handoff.md`](./logs/2026-08-16-research-handoff.md)
 - Bounded Stop (separate urgent track): [`../agent-stop/product.md`](../agent-stop/product.md)

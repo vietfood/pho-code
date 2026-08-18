@@ -3,7 +3,7 @@
 Status: in source, not accepted  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-3-in-process-file-tool-policy)  
-Related logs: [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-deny-copy.md`](./2026-08-17-deny-copy.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`2026-08-17-owner-m3-tmp-ask.md`](./2026-08-17-owner-m3-tmp-ask.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../ui/logs/2026-08-16-change-sandbox-settings.md)
+Related logs: [`2026-08-17-m2-permission-skip.md`](./2026-08-17-m2-permission-skip.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`2026-08-17-m1-acceptance-review.md`](./2026-08-17-m1-acceptance-review.md), [`2026-08-17-deny-copy.md`](./2026-08-17-deny-copy.md), [`2026-08-17-m4-packaged-macos.md`](./2026-08-17-m4-packaged-macos.md), [`2026-08-17-owner-m3-tmp-ask.md`](./2026-08-17-owner-m3-tmp-ask.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../../ui/logs/2026-08-16-change-sandbox-settings.md)
 
 ## Intent
 

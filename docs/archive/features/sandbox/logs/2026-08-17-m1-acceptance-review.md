@@ -3,7 +3,7 @@
 Status: accepted  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md#milestone-1-settings--bash-wrap-in-electron)  
-Related logs: [`2026-08-16-m0-engine-pin.md`](./2026-08-16-m0-engine-pin.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../ui/logs/2026-08-16-change-sandbox-settings.md)
+Related logs: [`2026-08-16-m0-engine-pin.md`](./2026-08-16-m0-engine-pin.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md), [`../../../ui/logs/2026-08-16-change-sandbox-settings.md`](../../../../ui/logs/2026-08-16-change-sandbox-settings.md)
 
 ## Decision
 
