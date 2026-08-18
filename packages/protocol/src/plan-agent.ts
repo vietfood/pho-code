@@ -101,6 +101,32 @@ export function inProgressPlanTodo(todos: readonly PlanTodoItem[]): PlanTodoItem
   return todos.find((item) => item.status === "in_progress");
 }
 
+export function parsePlanTodosFromToolPreview(preview: string): PlanTodoItem[] | undefined {
+  const trimmed = preview.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as { todos?: unknown };
+    const result = parsePlanTodoList(parsed.todos);
+    return result.ok ? result.todos : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function withLivePlanTodos(
+  plan: SessionPlanSnapshot | undefined,
+  todos: readonly PlanTodoItem[],
+): SessionPlanSnapshot {
+  const base = plan ?? emptySessionPlanSnapshot();
+  return {
+    ...base,
+    todos: [...todos],
+    remainingCount: remainingPlanTodoCount(todos),
+  };
+}
+
 export function parsePlanTodoList(value: unknown):
   | { ok: true; todos: PlanTodoItem[] }
   | { ok: false; error: PlanTodoErrorCode; message: string } {

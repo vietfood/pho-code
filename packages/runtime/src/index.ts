@@ -144,7 +144,13 @@ export {
   emptyStoredSandboxSettings,
 } from "./sandbox-settings";
 export { PLAN_AGENT_CUSTOM_TYPE, PLAN_EXECUTE_PROMPT, isPlanForbiddenTool, intersectPlanActiveTools } from "./plan-agent-state";
-export { reconstructPlanTodos, remainingPlanTodos } from "./todo-tool";
+export {
+  reconstructPlanTodos,
+  remainingPlanTodos,
+  todosFromToolArgs,
+  todosFromToolDetails,
+  todosFromToolResult,
+} from "./todo-tool";
 export { ASK_USER_DECLINE_MESSAGE, ASK_USER_HOST_FAILURE_MESSAGE } from "./ask-user-question";
 export { CHANGE_CAPTURE_FEATURE_ID, CHANGE_CAPTURE_FEATURE_VERSION } from "./change-feature";
 export { hashBytes, hashUtf8 } from "./change-hash";

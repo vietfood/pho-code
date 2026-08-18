@@ -1,5 +1,4 @@
 import { useId, useState, type CSSProperties } from "react";
-import { InfoIcon } from "lucide-react";
 import type { ContextUsageSummary, SessionUsageSummary } from "@pho-code/protocol";
 import { contextBarFillColor } from "./lib/context-bar-color";
 import { formatContextPercent, formatTokenCount, formatUsd } from "./lib/format-tokens";
@@ -39,22 +38,14 @@ export function ComposerUsage({
 
   return (
     <div className={cn("composer-usage relative min-w-0", className)}>
-      {contextUsage ? (
-        <ContextUsageMeter
-          className="context-usage-meter"
-          percent={percent}
-          tokens={contextUsage.tokens}
-          contextWindow={windowSize}
-        />
-      ) : null}
       <button
         type="button"
-        data-testid="composer-usage-info"
-        className={cn("composer-usage-info", open && "is-open")}
+        data-testid="composer-usage-trigger"
+        className={cn("composer-usage-trigger", open && "is-open")}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={`More session usage details. ${detailLabel}`}
-        title={`More session usage details. ${detailLabel}`}
+        aria-label={detailLabel}
+        title={detailLabel}
         onClick={() => setOpen((value) => !value)}
         onBlur={(event) => {
           if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
@@ -67,7 +58,17 @@ export function ComposerUsage({
           }
         }}
       >
-        <InfoIcon className="size-3" aria-hidden="true" />
+        {contextUsage ? (
+          <ContextUsageMeter
+            className="context-usage-meter"
+            percent={percent}
+            tokens={contextUsage.tokens}
+            contextWindow={windowSize}
+            decorative
+          />
+        ) : (
+          <span className="context-usage-meter__label tabular-nums">{formatUsd(costUsd)}</span>
+        )}
       </button>
       {open ? (
         <div

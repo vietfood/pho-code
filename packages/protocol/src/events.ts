@@ -5,6 +5,7 @@ import { changeScopeEquals, MAX_CHANGE_REVIEWS_ON_SNAPSHOT } from "./change-revi
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type { PromptAdmission, RunState, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
+import { parsePlanTodosFromToolPreview, TODO_TOOL_NAME, withLivePlanTodos } from "./plan-agent";
 import type { ExtensionNotification, FeatureSnapshot, HostDialogRequest } from "./resources";
 import type { HarnessSettingsSnapshot, PermissionStatusPayload } from "./settings";
 import type { ProtocolVersion } from "./version";
@@ -433,6 +434,8 @@ export function applyRuntimeEvent(
         return { ...state, lastSequence: event.sequence };
       }
       const payload = event.payload as ToolEventPayload;
+      const liveTodos =
+        payload.name === TODO_TOOL_NAME ? parsePlanTodosFromToolPreview(payload.inputPreview) : undefined;
       return {
         lastSequence: event.sequence,
         snapshot: {
@@ -448,6 +451,7 @@ export function applyRuntimeEvent(
               outputPreview: payload.outputPreview,
             }),
           },
+          ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
         },
         dialog: state.dialog,
         notification: state.notification,

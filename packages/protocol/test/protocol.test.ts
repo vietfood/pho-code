@@ -388,6 +388,73 @@ describe("protocol serialization", () => {
     ]);
   });
 
+  test("todo tool events update the session plan list from that call's input", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    snapshot.plan = {
+      mode: "plan",
+      executing: true,
+      documentMarkdown: "# Commit",
+      todos: [
+        { id: "1", content: "Inspect", status: "completed" },
+        { id: "2", content: "Group", status: "in_progress" },
+        { id: "3", content: "Commit", status: "pending" },
+        { id: "4", content: "Verify", status: "pending" },
+      ],
+      remainingCount: 3,
+    };
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-18T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    const nextTodos = [
+      { id: "1", content: "Inspect", status: "completed" },
+      { id: "2", content: "Group", status: "completed" },
+      { id: "3", content: "Commit", status: "completed" },
+      { id: "4", content: "Verify", status: "in_progress" },
+    ];
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "todo-1",
+        name: "todo",
+        status: "running",
+        inputPreview: JSON.stringify({ todos: nextTodos }),
+        outputPreview: "",
+      },
+      occurredAt: "2026-08-18T00:00:01.000Z",
+      runId: "run-a",
+    });
+    expect(state.snapshot?.plan?.todos).toEqual(nextTodos);
+    expect(state.snapshot?.plan?.remainingCount).toBe(1);
+    expect(state.snapshot?.plan?.mode).toBe("plan");
+    expect(state.snapshot?.plan?.documentMarkdown).toBe("# Commit");
+
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 3,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "todo-1",
+        name: "todo",
+        status: "completed",
+        inputPreview: "",
+        outputPreview: "3/4 completed",
+      },
+      occurredAt: "2026-08-18T00:00:02.000Z",
+      runId: "run-a",
+    });
+    expect(state.snapshot?.plan?.todos).toEqual(nextTodos);
+  });
+
   test("mid-run session snapshots preserve live work and streaming text", () => {
     const snapshot = sampleSessionSnapshot("run-a");
     let state = applyRuntimeEvent(emptyConversationState(), {

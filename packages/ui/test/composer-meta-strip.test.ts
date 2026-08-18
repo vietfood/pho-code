@@ -22,8 +22,9 @@ describe("ComposerMetaStrip", () => {
     expect(markup).toContain('data-testid="composer-meta-strip"');
     expect(markup).toContain("piui");
     expect(markup).not.toContain('data-testid="composer-meta-todo"');
-    expect(markup).toContain('data-testid="composer-usage-info"');
+    expect(markup).toContain('data-testid="composer-usage-trigger"');
     expect(markup).toContain('data-testid="composer-context-ring"');
+    expect(markup).not.toContain('data-testid="composer-usage-info"');
     expect(markup).toContain("context-usage-meter__label");
     expect(markup).not.toContain("composer-usage-input");
     expect(markup).not.toContain("composer-usage-cost");

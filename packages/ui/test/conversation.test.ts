@@ -199,11 +199,12 @@ describe("empty session hero", () => {
       }),
     );
     expect(markup).toContain('data-testid="composer-meta-strip"');
-    expect(markup).toContain('data-testid="composer-usage-info"');
+    expect(markup).toContain('data-testid="composer-usage-trigger"');
     expect(markup).toContain('data-testid="composer-context-ring"');
+    expect(markup).not.toContain('data-testid="composer-usage-info"');
     expect(markup).not.toContain("composer-usage-input");
     expect(markup).not.toContain("composer-usage-cost");
-    expect(markup).toContain('aria-label="More session usage details. Session usage 6.2%/200k, $0.042"');
+    expect(markup).toContain('aria-label="Session usage 6.2%/200k, $0.042"');
     expect(markup).toContain('data-testid="composer-context-button"');
     expect(markup).toContain("composer-context-button is-agent");
     expect(markup).toContain('data-testid="model-selector"');

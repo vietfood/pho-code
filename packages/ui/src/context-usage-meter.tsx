@@ -16,12 +16,14 @@ export function ContextUsageMeter({
   contextWindow,
   size = 16,
   className,
+  decorative = false,
 }: {
   percent: number | null;
   tokens: number | null | undefined;
   contextWindow: number;
   size?: number;
   className?: string;
+  decorative?: boolean;
 }) {
   const fill = clampPercent(percent);
   const fillColor = contextBarFillColor(percent);
@@ -33,9 +35,10 @@ export function ContextUsageMeter({
     <span
       className={className}
       data-testid="composer-context-ring"
-      role="img"
-      aria-label={`Context ${detail}`}
-      title={`Context ${detail}`}
+      role={decorative ? undefined : "img"}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : `Context ${detail}`}
+      title={decorative ? undefined : `Context ${detail}`}
       style={{ "--context-meter-accent": fillColor } as CSSProperties}
     >
       <span className="context-usage-meter__label tabular-nums" aria-hidden="true">

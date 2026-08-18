@@ -112,6 +112,7 @@ import {
   isSessionAgentMode,
   planDocumentTooLarge,
   parseSandboxSettingsPatch,
+  type PlanTodoItem,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -134,7 +135,7 @@ import type {
 import { validateSessionArtifact } from "./session-artifact";
 import { displayToolName } from "./tool-display";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
-import { reconstructPlanTodos } from "./todo-tool";
+import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
 import {
@@ -262,6 +263,7 @@ interface LiveSession {
   activeRun?: ActiveRun;
   unsubscribe?: Unsubscribe;
   extensionHost?: ExtensionHost;
+  planTodos: PlanTodoItem[];
 }
 
 function liveSessionProtected(session: LiveSession): boolean {
@@ -588,6 +590,7 @@ export async function createPhoCodeRuntime(
       githubBindingRevision,
       selectedAt: Date.now(),
       disposing: false,
+      planTodos: [],
     };
     reportDiagnostics(next.diagnostics);
     next.setBeforeSessionInvalidate(() => {
@@ -597,9 +600,11 @@ export async function createPhoCodeRuntime(
     next.setRebindSession(async () => {
       bindSession(live);
       await bindHostUi(live);
+      hydratePlanTodos(live);
     });
     bindSession(live);
     await bindHostUi(live);
+    hydratePlanTodos(live);
     await retrieval.bind(cwd);
     return live;
   }
@@ -1206,6 +1211,9 @@ export async function createPhoCodeRuntime(
             outputPreview: "",
           },
         });
+        if (event.toolName === TODO_TOOL_NAME && rememberPlanTodos(live, todosFromToolArgs(event.args))) {
+          await emitSessionPlanSnapshot(live, sessionId, runId);
+        }
         return;
       case "tool_execution_update":
         if (!runId) {
@@ -1243,9 +1251,9 @@ export async function createPhoCodeRuntime(
           },
         });
         if (event.toolName === TODO_TOOL_NAME) {
+          rememberPlanTodos(live, todosFromToolResult(event.result));
           const record = readPlanAgent(live);
-          const todos = reconstructPlanTodos(live.runtime.session.sessionManager.getBranch());
-          if (planExecuteFinishedByTodos(record, todos)) {
+          if (planExecuteFinishedByTodos(record, live.planTodos)) {
             persistPlanAgent(live, { executing: false });
           }
         }
@@ -1254,12 +1262,7 @@ export async function createPhoCodeRuntime(
           event.toolName === TODO_TOOL_NAME ||
           event.toolName === EXECUTE_PLAN_TOOL_NAME
         ) {
-          emitFor(live, {
-            type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-            sessionId,
-            runId,
-            payload: await buildSnapshot({ refreshCatalog: false, live }),
-          });
+          await emitSessionPlanSnapshot(live, sessionId, runId);
         }
         return;
       case "queue_update": {
@@ -1449,11 +1452,35 @@ export async function createPhoCodeRuntime(
   }
 
   function projectPlan(live: LiveSession) {
-    const sessionManager = live.runtime.session.sessionManager;
     return projectSessionPlan(
-      collectPlanAgentRecord(sessionManager.getEntries()),
-      reconstructPlanTodos(sessionManager.getBranch()),
+      collectPlanAgentRecord(live.runtime.session.sessionManager.getEntries()),
+      live.planTodos,
     );
+  }
+
+  function hydratePlanTodos(live: LiveSession): void {
+    live.planTodos = reconstructPlanTodos(live.runtime.session.sessionManager.getBranch());
+  }
+
+  function rememberPlanTodos(live: LiveSession, todos: PlanTodoItem[] | undefined): boolean {
+    if (todos === undefined) {
+      return false;
+    }
+    live.planTodos = todos;
+    return true;
+  }
+
+  async function emitSessionPlanSnapshot(
+    live: LiveSession,
+    sessionId: string,
+    runId: string | undefined,
+  ): Promise<void> {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      sessionId,
+      runId,
+      payload: await buildSnapshot({ refreshCatalog: false, live }),
+    });
   }
 
   function readPlanAgent(live: LiveSession): PlanAgentRecord {

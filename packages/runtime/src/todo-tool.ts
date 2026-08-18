@@ -54,6 +54,33 @@ export function formatTodoList(todos: readonly PlanTodoItem[]): string {
   return `${todos.length - remaining}/${todos.length} completed\n${lines.join("\n")}`;
 }
 
+export function todosFromToolArgs(args: unknown): PlanTodoItem[] | undefined {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    return undefined;
+  }
+  const parsed = parsePlanTodoList((args as { todos?: unknown }).todos);
+  return parsed.ok ? parsed.todos : undefined;
+}
+
+export function todosFromToolDetails(details: unknown): PlanTodoItem[] | undefined {
+  if (!details || typeof details !== "object" || Array.isArray(details)) {
+    return undefined;
+  }
+  const record = details as TodoToolDetails;
+  if (record.error !== undefined) {
+    return undefined;
+  }
+  const parsed = parsePlanTodoList(record.todos);
+  return parsed.ok ? parsed.todos : undefined;
+}
+
+export function todosFromToolResult(result: unknown): PlanTodoItem[] | undefined {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return undefined;
+  }
+  return todosFromToolDetails((result as { details?: unknown }).details);
+}
+
 export function reconstructPlanTodos(entries: readonly unknown[]): PlanTodoItem[] {
   let current: PlanTodoItem[] = [];
   for (const entry of entries) {
@@ -68,13 +95,9 @@ export function reconstructPlanTodos(entries: readonly unknown[]): PlanTodoItem[
     if (!message || message.role !== "toolResult" || message.toolName !== TODO_TOOL_NAME) {
       continue;
     }
-    const details = message.details as TodoToolDetails | undefined;
-    if (!details || details.error !== undefined) {
-      continue;
-    }
-    const parsed = parsePlanTodoList(details.todos);
-    if (parsed.ok) {
-      current = parsed.todos;
+    const next = todosFromToolDetails(message.details);
+    if (next) {
+      current = next;
     }
   }
   return current;

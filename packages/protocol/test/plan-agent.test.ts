@@ -12,7 +12,9 @@ import {
   parseAskUserAnswers,
   parseAskUserQuestions,
   parsePlanTodoList,
+  parsePlanTodosFromToolPreview,
   planDocumentTooLarge,
+  withLivePlanTodos,
   utf8ByteLength,
   type AskUserQuestion,
   type HostDialogRequest,
@@ -119,6 +121,28 @@ describe("plan-agent session protocol", () => {
       ok: false,
       error: "invalid_list",
       message: "todos must be an array. Use todos: [] to clear the list.",
+    });
+  });
+
+  test("parses live todo tool previews onto the session plan snapshot", () => {
+    const todos = [
+      { id: "1", content: "Inspect", status: "completed" as const },
+      { id: "2", content: "Verify", status: "in_progress" as const },
+    ];
+    expect(parsePlanTodosFromToolPreview(JSON.stringify({ todos }))).toEqual(todos);
+    expect(parsePlanTodosFromToolPreview("")).toBeUndefined();
+    expect(parsePlanTodosFromToolPreview("{")).toBeUndefined();
+    expect(
+      withLivePlanTodos(
+        { mode: "plan", executing: true, documentMarkdown: "# Plan", todos: [], remainingCount: 0 },
+        todos,
+      ),
+    ).toMatchObject({
+      mode: "plan",
+      executing: true,
+      documentMarkdown: "# Plan",
+      todos,
+      remainingCount: 1,
     });
   });
 });

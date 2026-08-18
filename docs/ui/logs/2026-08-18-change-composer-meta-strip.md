@@ -3,7 +3,7 @@
 **Date:** 2026-08-18  
 **Status:** implemented  
 **Owner:** conversation UI track  
-**Related:** prior thinking-chip adaptive-width work; plan-agent todos
+**Related:** prior thinking-chip adaptive-width work; plan-agent todos; follow-up [`2026-08-18-feedback-composer-usage-meter-button.md`](./2026-08-18-feedback-composer-usage-meter-button.md)
 
 ## Intent
 
