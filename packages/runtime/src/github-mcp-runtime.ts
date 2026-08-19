@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   createHarnessError,
+  failCommand,
   githubMcpSecretStoreNotice,
   isHarnessError,
   GITHUB_MCP_DISCLOSURE,
@@ -224,7 +225,6 @@ export function createGitHubMcpRuntime(options: GitHubMcpRuntimeOptions): GitHub
       } catch (caught) {
         bound = [];
         await stop("failed");
-        status = "failed";
         error = boundErrorMessage(caught, secrets);
         throw caught;
       }
@@ -253,7 +253,6 @@ export function createGitHubMcpRuntime(options: GitHubMcpRuntimeOptions): GitHub
       enabled = nextEnabled;
       if (!nextEnabled) {
         await stop("stopped");
-        status = "disabled";
         error = undefined;
         return snapshot();
       }
@@ -264,12 +263,7 @@ export function createGitHubMcpRuntime(options: GitHubMcpRuntimeOptions): GitHub
     async importPat(raw) {
       const next = raw.trim();
       if (next.length === 0 || next.length > MAX_GITHUB_PAT_CHARS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "A GitHub personal access token is required.",
-          operation: "importGitHubPat",
-          recoverable: true,
-        });
+        failCommand("importGitHubPat", "A GitHub personal access token is required.");
       }
       await options.secretStore.set(GITHUB_MCP_SECRET_SERVICE, GITHUB_MCP_SECRET_ACCOUNT, next);
       secrets.length = 0;

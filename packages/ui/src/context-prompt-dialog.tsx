@@ -64,29 +64,31 @@ export function ContextPromptDialog({
   );
   const groups = useMemo(() => groupSections(sections), [sections]);
 
-  function toggleSection(id: string) {
+  function mutateDisabledIds(mutate: (next: Set<string>) => void) {
     if (!editable) {
       return;
     }
     setDisabledIds((current) => {
       const next = new Set(current);
+      mutate(next);
+      return next;
+    });
+  }
+
+  function toggleSection(id: string) {
+    mutateDisabledIds((next) => {
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
-      return next;
     });
   }
 
   function toggleGroup(kind: ContextPromptSectionKind) {
-    if (!editable) {
-      return;
-    }
     const ids = sections.filter((section) => section.kind === kind).map((section) => section.id);
     const allEnabled = ids.every((id) => !disabledIds.has(id));
-    setDisabledIds((current) => {
-      const next = new Set(current);
+    mutateDisabledIds((next) => {
       for (const id of ids) {
         if (allEnabled) {
           next.add(id);
@@ -94,7 +96,6 @@ export function ContextPromptDialog({
           next.delete(id);
         }
       }
-      return next;
     });
   }
 
@@ -125,21 +126,15 @@ export function ContextPromptDialog({
           <h2 id="context-prompt-heading" className="min-w-0 text-[13px] font-medium tracking-tight">
             Context prompt
           </h2>
-          {contextPrompt.customized ? (
-            <span
-              className="shrink-0 rounded-full bg-accent px-1.5 py-px text-[10px] font-medium tracking-wide"
-              data-testid="context-prompt-customized"
-            >
-              Custom
-            </span>
-          ) : (
-            <span
-              className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] font-medium tracking-wide text-muted-foreground"
-              data-testid="context-prompt-default"
-            >
-              Default
-            </span>
-          )}
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium tracking-wide",
+              contextPrompt.customized ? "bg-accent" : "bg-muted text-muted-foreground",
+            )}
+            data-testid={contextPrompt.customized ? "context-prompt-customized" : "context-prompt-default"}
+          >
+            {contextPrompt.customized ? "Custom" : "Default"}
+          </span>
         </div>
         <label className="grid shrink-0 gap-1 px-3.5 pt-2.5">
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Preamble</span>
@@ -357,31 +352,17 @@ interface ContextPromptGroup {
   sections: ContextPromptSection[];
 }
 
-function groupSections(sections: readonly ContextPromptSection[]): ContextPromptGroup[] {
-  const groups: ContextPromptGroup[] = [];
-  for (const kind of CONTEXT_PROMPT_SECTION_KINDS) {
-    const grouped = sections.filter((section) => section.kind === kind);
-    if (grouped.length === 0) {
-      continue;
-    }
-    groups.push({ kind, label: sectionGroupLabel(kind), sections: grouped });
-  }
-  return groups;
-}
+const SECTION_GROUP_LABELS: Record<ContextPromptSectionKind, string> = {
+  agents: "Context files",
+  tool: "Tools",
+  optional: "Optional",
+};
 
-function sectionGroupLabel(kind: ContextPromptSectionKind): string {
-  switch (kind) {
-    case "agents":
-      return "Context files";
-    case "tool":
-      return "Tools";
-    case "optional":
-      return "Optional";
-    default: {
-      const exhaustive: never = kind;
-      return exhaustive;
-    }
-  }
+function groupSections(sections: readonly ContextPromptSection[]): ContextPromptGroup[] {
+  return CONTEXT_PROMPT_SECTION_KINDS.flatMap((kind) => {
+    const grouped = sections.filter((section) => section.kind === kind);
+    return grouped.length === 0 ? [] : [{ kind, label: SECTION_GROUP_LABELS[kind], sections: grouped }];
+  });
 }
 
 function sectionSecondary(section: ContextPromptSection): string | undefined {

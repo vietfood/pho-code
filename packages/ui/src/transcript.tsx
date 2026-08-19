@@ -70,16 +70,7 @@ export function Transcript({
     };
   }, []);
 
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller || !stickToBottomRef.current) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      scroller.scrollTop = scroller.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [snapshot.messages]);
+  useStickScroll(scrollerRef, stickToBottomRef, [snapshot.messages]);
 
   return (
     <div
@@ -120,27 +111,19 @@ const SettledTurns = memo(function SettledTurns({
   const segments = useMemo(() => groupTranscriptSegments(messages), [messages]);
   return (
     <>
-      {segments.map((segment) => {
-        switch (segment.kind) {
-          case "user":
-            return <UserMessageRow key={segment.message.id} message={segment.message} />;
-          case "assistantTurn": {
-            return (
-              <AssistantTurn
-                key={segment.key}
-                messages={segment.messages}
-                changeReviews={changeReviews}
-                {...(onRewrite ? { onRewrite } : {})}
-                {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
-              />
-            );
-          }
-          default: {
-            const exhaustive: never = segment;
-            return exhaustive;
-          }
-        }
-      })}
+      {segments.map((segment) =>
+        segment.kind === "user" ? (
+          <UserMessageRow key={segment.message.id} message={segment.message} />
+        ) : (
+          <AssistantTurn
+            key={segment.key}
+            messages={segment.messages}
+            changeReviews={changeReviews}
+            {...(onRewrite ? { onRewrite } : {})}
+            {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+          />
+        ),
+      )}
     </>
   );
 });
@@ -175,16 +158,7 @@ function LiveRunTail({
     wasRunningRef.current = running;
   }, [running, stickToBottomRef]);
 
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller || !stickToBottomRef.current) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      scroller.scrollTop = scroller.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [liveWorkExpanded, run.streamingText, run.work, scrollerRef, stickToBottomRef]);
+  useStickScroll(scrollerRef, stickToBottomRef, [liveWorkExpanded, run.streamingText, run.work]);
 
   return (
     <>
@@ -232,17 +206,26 @@ function LiveRunTail({
   );
 }
 
-function liveWorkKey(entry: RunWorkEntry, index: number): string {
-  switch (entry.type) {
-    case "thinking":
-      return `thinking:${index}`;
-    case "tool":
-      return `tool:${entry.callId}`;
-    default: {
-      const exhaustive: never = entry;
-      return exhaustive;
+function useStickScroll(
+  scrollerRef: RefObject<HTMLDivElement | null>,
+  stickToBottomRef: RefObject<boolean>,
+  deps: readonly unknown[],
+): void {
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !stickToBottomRef.current) {
+      return;
     }
-  }
+    const frame = window.requestAnimationFrame(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- callers pass the reactive deps
+  }, deps);
+}
+
+function liveWorkKey(entry: RunWorkEntry, index: number): string {
+  return entry.type === "thinking" ? `thinking:${index}` : `tool:${entry.callId}`;
 }
 
 function WorkEntryView({
@@ -256,21 +239,14 @@ function WorkEntryView({
   changeReviews?: readonly ChangeReviewSetSummary[];
   onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
-  switch (entry.type) {
-    case "thinking":
-      return <ThinkingBlock text={entry.text} open={live} live={live} />;
-    case "tool":
-      return (
-        <ToolRow
-          block={entry}
-          {...toolReviewProps(entry, changeReviews, onOpenChangeReview)}
-        />
-      );
-    default: {
-      const exhaustive: never = entry;
-      return exhaustive;
-    }
-  }
+  return entry.type === "thinking" ? (
+    <ThinkingBlock text={entry.text} open={live} live={live} />
+  ) : (
+    <ToolRow
+      block={entry}
+      {...toolReviewProps(entry, changeReviews, onOpenChangeReview)}
+    />
+  );
 }
 
 function toolReviewProps(
@@ -463,31 +439,21 @@ const AssistantTurn = memo(function AssistantTurn({
           />
           {workExpanded
             ? blocks.map((block, index) => {
-                switch (block.type) {
-                  case "thinking":
-                  case "tool":
-                    return (
-                      <WorkEntryView
-                        key={`${messages[0]?.id ?? "turn"}:work:${index}`}
-                        entry={block}
-                        changeReviews={changeReviews}
-                        {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
-                      />
-                    );
-                  case "text":
-                    return isTurnOutputText(blocks, index) ? null : (
-                      <WorkNarration
-                        key={`${messages[0]?.id ?? "turn"}:work-text:${index}`}
-                        text={block.text}
-                      />
-                    );
-                  case "image":
-                    return null;
-                  default: {
-                    const exhaustive: never = block;
-                    return exhaustive;
-                  }
+                const key = `${messages[0]?.id ?? "turn"}:work:${index}`;
+                if (block.type === "thinking" || block.type === "tool") {
+                  return (
+                    <WorkEntryView
+                      key={key}
+                      entry={block}
+                      changeReviews={changeReviews}
+                      {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+                    />
+                  );
                 }
+                if (block.type === "text" && !isTurnOutputText(blocks, index)) {
+                  return <WorkNarration key={`${key}-text`} text={block.text} />;
+                }
+                return null;
               })
             : null}
         </div>

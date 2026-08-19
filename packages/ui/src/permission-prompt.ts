@@ -20,12 +20,19 @@ const ASK_PATTERN =
   /^(Current agent|Agent '(?<agent>[^']+)') requested (?<kind>bash command|tool|MCP target|skill|access to skill) '(?<name>[^']+)'(?<rest>.*)$/su;
 
 export function presentPermissionMessage(message: string): PermissionPromptPresentation {
+  const plain = (summary: string, rawDetail = summary): PermissionPromptPresentation => ({
+    summary,
+    target: null,
+    caution: null,
+    showRaw: false,
+    rawDetail,
+  });
   const trimmed = message.trim();
   if (!trimmed) {
-    return { summary: "", target: null, caution: null, showRaw: false, rawDetail: "" };
+    return plain("", "");
   }
   if (isFollowUpPrompt(trimmed)) {
-    return { summary: trimmed, target: null, caution: null, showRaw: false, rawDetail: trimmed };
+    return plain(trimmed);
   }
 
   const parsed = parsePermissionAsk(trimmed);
@@ -40,7 +47,7 @@ export function presentPermissionMessage(message: string): PermissionPromptPrese
         rawDetail: prettyRawDetail(json, trimmed),
       };
     }
-    return { summary: trimmed, target: null, caution: null, showRaw: false, rawDetail: trimmed };
+    return plain(trimmed);
   }
 
   return {
@@ -96,9 +103,6 @@ function parsePermissionAsk(message: string): {
 }
 
 function asAskKind(value: string | undefined): AskKind | null {
-  if (!value) {
-    return null;
-  }
   return ASK_KINDS.includes(value as AskKind) ? (value as AskKind) : null;
 }
 
@@ -189,17 +193,11 @@ function summarizeAsk(input: {
   target: PermissionPromptTarget | null;
 }): string {
   const action = summarizeAction(input);
-  if (input.agent) {
-    return `Agent '${input.agent}' wants to ${action}`;
-  }
-  return capitalizeSentence(action);
+  return input.agent ? `Agent '${input.agent}' wants to ${action}` : capitalizeSentence(action);
 }
 
 function capitalizeSentence(value: string): string {
-  if (value.length === 0) {
-    return value;
-  }
-  return value[0]!.toUpperCase() + value.slice(1);
+  return value.length === 0 ? value : value[0]!.toUpperCase() + value.slice(1);
 }
 
 function summarizeAction(input: {
@@ -281,10 +279,10 @@ function summarizeFetchAction(key: string, target: PermissionPromptTarget | null
 function fetchOrigin(url: string): string | null {
   try {
     const host = new URL(url).hostname.replace(/^www\./u, "");
-    if (host === "github.com" || host === "raw.githubusercontent.com" || host === "gist.github.com") {
+    if (["github.com", "raw.githubusercontent.com", "gist.github.com"].includes(host)) {
       return "GitHub";
     }
-    if (host === "youtube.com" || host === "youtu.be") {
+    if (["youtube.com", "youtu.be"].includes(host)) {
       return "YouTube";
     }
     return host || null;
@@ -346,8 +344,5 @@ export function permissionSelectResolution(
   selected: string,
   reason: string,
 ): { selected: string; value?: string } {
-  if (selected === PERMISSION_DENY_WITH_REASON) {
-    return { selected, value: reason };
-  }
-  return { selected };
+  return selected === PERMISSION_DENY_WITH_REASON ? { selected, value: reason } : { selected };
 }

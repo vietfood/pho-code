@@ -1,4 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import {
   DndContext,
   PointerSensor,
@@ -346,32 +352,38 @@ export function CollapsedSidebarActions({
     </>
   );
 
-  switch (layout) {
-    case "header":
-      return (
-        <nav
-          className="flex shrink-0 items-center gap-0.5"
-          aria-label="Projects"
-          data-testid="app-sidebar-header-actions"
-        >
-          {buttons}
-        </nav>
-      );
-    case "pill":
-      return (
-        <nav
-          className="pointer-events-auto absolute start-2 top-14 flex flex-col items-center gap-0.5 rounded-2xl border border-border bg-sidebar p-1 shadow-sm"
-          aria-label="Projects"
-          data-testid="app-sidebar-pill"
-        >
-          {buttons}
-        </nav>
-      );
-    default: {
-      const exhaustive: never = layout;
-      return exhaustive;
-    }
-  }
+  const pill = layout === "pill";
+  return (
+    <nav
+      className={
+        pill
+          ? "pointer-events-auto absolute start-2 top-14 flex flex-col items-center gap-0.5 rounded-2xl border border-border bg-sidebar p-1 shadow-sm"
+          : "flex shrink-0 items-center gap-0.5"
+      }
+      aria-label="Projects"
+      data-testid={pill ? "app-sidebar-pill" : "app-sidebar-header-actions"}
+    >
+      {buttons}
+    </nav>
+  );
+}
+
+function contextMenuHandlers(onOpenMenu: (point: { x: number; y: number }) => void) {
+  return {
+    onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onOpenMenu({ x: event.clientX, y: event.clientY });
+    },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = event.currentTarget.getBoundingClientRect();
+        onOpenMenu({ x: rect.left, y: rect.bottom });
+      }
+    },
+  };
 }
 
 function SidebarGlyphButton({
@@ -457,19 +469,7 @@ function SortableProjectRow({
           "grid h-8 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-md px-2 hover:bg-sidebar-row-hover",
           active ? "text-sidebar-foreground" : "text-sidebar-foreground/80",
         )}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onOpenProjectMenu({ x: event.clientX, y: event.clientY });
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-            event.preventDefault();
-            event.stopPropagation();
-            const rect = event.currentTarget.getBoundingClientRect();
-            onOpenProjectMenu({ x: rect.left, y: rect.bottom });
-          }
-        }}
+        {...contextMenuHandlers(onOpenProjectMenu)}
       >
         <button
           type="button"
@@ -550,19 +550,7 @@ function SessionRow({
             ? "bg-sidebar-row-selected text-sidebar-foreground"
             : "text-sidebar-foreground/90 hover:bg-sidebar-row-hover hover:text-sidebar-foreground",
         )}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onOpenMenu({ x: event.clientX, y: event.clientY });
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-            event.preventDefault();
-            event.stopPropagation();
-            const rect = event.currentTarget.getBoundingClientRect();
-            onOpenMenu({ x: rect.left, y: rect.bottom });
-          }
-        }}
+        {...contextMenuHandlers(onOpenMenu)}
       >
         <button
           type="button"

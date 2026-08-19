@@ -115,6 +115,14 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
     return id;
   }
 
+  function storedCursor(context: WorkspaceRetrievalContext, cursor: string | undefined): GrepCursor | null {
+    return (cursor ? context.grepCursors.get(cursor) : undefined) ?? null;
+  }
+
+  function withContinueCursor(context: WorkspaceRetrievalContext, output: string, nextCursor: GrepCursor | null | undefined): string {
+    return nextCursor ? `${output}\n\n[Continue with cursor="${storeCursor(context, nextCursor)}"]` : output;
+  }
+
   return {
     async bind(nextWorkspacePath) {
       const canonical = canonicalKey(nextWorkspacePath);
@@ -189,10 +197,7 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
       const suggestions: PathSuggestion[] = [];
       for (const entry of result.value.items) {
         const suggestion = toSuggestion(entry);
-        if (!suggestion || !kinds.has(suggestion.kind)) {
-          continue;
-        }
-        if (isSensitiveWorkspaceRelative(suggestion.path)) {
+        if (!suggestion || !kinds.has(suggestion.kind) || isSensitiveWorkspaceRelative(suggestion.path)) {
           continue;
         }
         suggestions.push(suggestion);
@@ -234,7 +239,7 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
         smartCase: input.caseSensitive !== true,
         maxMatchesPerFile: Math.min(limit, 50),
         pageSize: limit,
-        cursor: (input.cursor ? context.grepCursors.get(input.cursor) : undefined) ?? null,
+        cursor: storedCursor(context, input.cursor),
         beforeContext: input.context ?? 0,
         afterContext: input.context ?? 0,
       });
@@ -256,14 +261,8 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
           result = fuzzy.value;
         }
       }
-      let output = formatGrepOutput(result.items);
-      if (result.nextCursor) {
-        output += `\n\n[Continue with cursor="${storeCursor(context, result.nextCursor)}"]`;
-      }
-      if (fuzzyNotice) {
-        output = `[${fuzzyNotice}]\n${output}`;
-      }
-      return output;
+      const output = withContinueCursor(context, formatGrepOutput(result.items), result.nextCursor);
+      return fuzzyNotice ? `[${fuzzyNotice}]\n${output}` : output;
     },
     async multiGrep(input) {
       const context = requireContext();
@@ -278,18 +277,14 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
         ...(input.constraints ? { constraints: input.constraints } : {}),
         pageSize: limit,
         maxMatchesPerFile: Math.min(limit, 50),
-        cursor: (input.cursor ? context.grepCursors.get(input.cursor) : undefined) ?? null,
+        cursor: storedCursor(context, input.cursor),
         beforeContext: input.context ?? 0,
         afterContext: input.context ?? 0,
       });
       if (!result.ok) {
         throw new Error(result.error);
       }
-      let output = formatGrepOutput(result.value.items);
-      if (result.value.nextCursor) {
-        output += `\n\n[Continue with cursor="${storeCursor(context, result.value.nextCursor)}"]`;
-      }
-      return output;
+      return withContinueCursor(context, formatGrepOutput(result.value.items), result.value.nextCursor);
     },
     getSnapshot(workspacePath) {
       const context = contextFor(workspacePath);
@@ -305,14 +300,13 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
     diagnostics() {
       const items: Array<{ type: "warning" | "error"; message: string; path: string }> = [];
       for (const context of contexts.values()) {
-        if (!context.diagnostic) {
-          continue;
+        if (context.diagnostic) {
+          items.push({
+            type: context.status === "unavailable" ? "error" : "warning",
+            message: context.diagnostic,
+            path: "local-retrieval",
+          });
         }
-        items.push({
-          type: context.status === "unavailable" ? "error" : "warning",
-          message: context.diagnostic,
-          path: "local-retrieval",
-        });
       }
       return items;
     },
@@ -388,6 +382,6 @@ function unavailableResult(diagnostic: string | undefined): SearchWorkspaceRefer
   return {
     suggestions: [],
     status: "unavailable",
-    ...(diagnostic ? { diagnostic } : { diagnostic: "Local retrieval is not ready." }),
+    diagnostic: diagnostic ?? "Local retrieval is not ready.",
   };
 }

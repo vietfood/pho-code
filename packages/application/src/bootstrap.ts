@@ -2,8 +2,8 @@ import {
   INTENDED_PI_SDK,
   PINNED_ELECTRON,
   PROTOCOL_VERSION,
-  assertJsonSafe,
   createHarnessError,
+  failCommand,
   HARNESS_ERROR_CODES,
   isHarnessError,
   isAppearanceMode,
@@ -83,8 +83,6 @@ import {
   type SessionActivitySummary,
   type SessionSnapshot,
   type SessionSummary,
-  type AppearanceMode,
-  type AppearancePalette,
   type AppearanceSettings,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
@@ -235,6 +233,36 @@ export interface ApplicationService {
 const MAX_PROMPT_LENGTH = 100_000;
 const REMOVAL_TOKEN_TTL_MS = 30_000;
 
+/** Single-use, expiring confirmation tokens for destructive removals. */
+function createPendingRemovalStore<T>(expiredMessage: string) {
+  const pending = new Map<string, { value: T; expiresAt: number }>();
+  return {
+    mint(value: T): { confirmationToken: string; expiresAt: string } {
+      const confirmationToken = crypto.randomUUID();
+      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
+      pending.set(confirmationToken, { value, expiresAt });
+      return { confirmationToken, expiresAt: new Date(expiresAt).toISOString() };
+    },
+    redeem(token: string, operation: string, matches: (value: T) => boolean): T {
+      const entry = pending.get(token);
+      pending.delete(token);
+      if (!entry || Date.now() > entry.expiresAt || !matches(entry.value)) {
+        failCommand(operation, expiredMessage);
+      }
+      return entry.value;
+    },
+    clear(): void {
+      pending.clear();
+    },
+  };
+}
+
+type PendingSessionRemoval = { key: SessionKey; fingerprint: string };
+type PendingBulkRemoval = {
+  workspaceId: string;
+  sessions: Array<{ sessionId: string; fingerprint: string }>;
+};
+
 export function createApplicationService(input: {
   runtime: HarnessRuntime;
   versions: ApplicationHostVersions;
@@ -252,23 +280,15 @@ export function createApplicationService(input: {
   input.runtime.setEnabledSkillSources(metadata.enabledSkillSources);
   let workspace: WorkspaceSnapshot | undefined;
   let session: SessionSnapshot | undefined;
-  const pendingRemovals = new Map<string, { key: SessionKey; fingerprint: string; expiresAt: number }>();
-  const pendingProjectRemovals = new Map<
-    string,
-    {
-      workspaceId: string;
-      sessions: Array<{ sessionId: string; fingerprint: string }>;
-      expiresAt: number;
-    }
-  >();
-  const pendingArchivedRemovals = new Map<
-    string,
-    {
-      workspaceId: string;
-      sessions: Array<{ sessionId: string; fingerprint: string }>;
-      expiresAt: number;
-    }
-  >();
+  const sessionRemovals = createPendingRemovalStore<PendingSessionRemoval>(
+    "That removal confirmation expired. Prepare the chat again.",
+  );
+  const projectRemovals = createPendingRemovalStore<PendingBulkRemoval>(
+    "That removal confirmation expired. Prepare the project again.",
+  );
+  const archivedRemovals = createPendingRemovalStore<PendingBulkRemoval>(
+    "That removal confirmation expired. Prepare the archived chats again.",
+  );
 
   function assertActive(): void {
     if (shutdownAttempt) {
@@ -285,14 +305,62 @@ export function createApplicationService(input: {
     await input.metadataStore.save(next);
   }
 
+  async function selectWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<WorkspaceSnapshot> {
+    workspace = snapshot;
+    session = undefined;
+    await persist(
+      selectSession(
+        rememberWorkspace(metadata, {
+          id: snapshot.workspace.id,
+          path: snapshot.workspace.path,
+          displayName: snapshot.workspace.displayName,
+          lastOpenedAt: snapshot.workspace.lastOpenedAt,
+        }),
+        undefined,
+      ),
+    );
+    return snapshot;
+  }
+
+  function requireRecentWorkspace(workspaceId: string, operation: string): RecentWorkspaceRecord {
+    const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
+    if (!record) {
+      failCommand(operation, "That project is not in the recent list.", HARNESS_ERROR_CODES.workspaceInaccessible);
+    }
+    return record;
+  }
+
+  async function collectRemovableSessions(
+    workspaceId: string,
+    scope: ListSessionCatalogInput["scope"],
+  ): Promise<PendingBulkRemoval["sessions"]> {
+    const entries = await loadSessionCatalog(workspaceId, scope);
+    const sessions: PendingBulkRemoval["sessions"] = [];
+    for (const entry of entries) {
+      const inspected = await input.runtime.inspectRemovableSession({ workspaceId, sessionId: entry.sessionId });
+      sessions.push({ sessionId: entry.sessionId, fingerprint: inspected.fingerprint });
+    }
+    return sessions;
+  }
+
+  async function removeValidatedBulk(pending: PendingBulkRemoval): Promise<string> {
+    let method = "macos-trash";
+    for (const target of pending.sessions) {
+      const removed = await input.runtime.removeValidatedSession({
+        workspaceId: pending.workspaceId,
+        sessionId: target.sessionId,
+        fingerprint: target.fingerprint,
+      });
+      method = removed.method;
+      await persist(forgetSessionLifecycle(metadata, { workspaceId: pending.workspaceId, sessionId: target.sessionId }));
+    }
+    return method;
+  }
+
   return {
     getBootstrapState() {
       assertActive();
       const capabilities = input.runtime.getCapabilities();
-      const embeddedNodeCompatible = nodeVersionMeetsMinimum(
-        input.versions.embeddedNode,
-        PINNED_ELECTRON.minimumEmbeddedNode,
-      );
       const state: BootstrapState = {
         protocolVersion: PROTOCOL_VERSION,
         appName: "Pho Code",
@@ -305,7 +373,10 @@ export function createApplicationService(input: {
           electron: input.versions.electron,
           embeddedNode: input.versions.embeddedNode,
         },
-        embeddedNodeCompatible,
+        embeddedNodeCompatible: nodeVersionMeetsMinimum(
+          input.versions.embeddedNode,
+          PINNED_ELECTRON.minimumEmbeddedNode,
+        ),
         intendedPiSdk: {
           packageName: INTENDED_PI_SDK.packageName,
           version: INTENDED_PI_SDK.version,
@@ -315,130 +386,70 @@ export function createApplicationService(input: {
         models: workspace?.models ?? session?.models ?? [],
         sessions: ordinarySessions(workspace?.sessions ?? session?.sessions ?? []),
       };
-      if (workspace?.features) {
-        state.features = workspace.features;
-      } else if (session?.features) {
-        state.features = session.features;
+      const features = workspace?.features ?? session?.features;
+      if (features) {
+        state.features = features;
       }
       if (workspace) {
         state.selectedWorkspace = workspace.workspace;
       }
-      if (workspace?.modelError) {
-        state.modelError = workspace.modelError;
-      }
-      if (session?.modelError) {
-        state.modelError = session.modelError;
+      const modelError = session?.modelError ?? workspace?.modelError;
+      if (modelError) {
+        state.modelError = modelError;
       }
       if (session) {
         state.activeSession = session;
       }
-      assertJsonSafe(state, "getBootstrapState");
       return state;
     },
     async openPickedWorkspace(path: string) {
       assertActive();
       requireNonEmptyString(path, "path", "openPickedWorkspace");
-      const snapshot = await input.runtime.inspectWorkspace({
-        path,
-        approveProjectResources: true,
-      });
-      workspace = snapshot;
-      session = undefined;
-      await persist(
-        selectSession(
-          rememberWorkspace(metadata, {
-            id: snapshot.workspace.id,
-            path: snapshot.workspace.path,
-            displayName: snapshot.workspace.displayName,
-            lastOpenedAt: snapshot.workspace.lastOpenedAt,
-          }),
-          undefined,
-        ),
+      return selectWorkspaceSnapshot(
+        await input.runtime.inspectWorkspace({ path, approveProjectResources: true }),
       );
-      assertJsonSafe(snapshot, "openPickedWorkspace");
-      return snapshot;
     },
     async openRecentWorkspace(command: OpenRecentWorkspaceInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "openRecentWorkspace");
       const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
       if (!record) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceInaccessible,
-          message: "That workspace is not in the recent list.",
-          operation: "openRecentWorkspace",
-          recoverable: true,
-        });
+        failCommand("openRecentWorkspace", "That workspace is not in the recent list.", HARNESS_ERROR_CODES.workspaceInaccessible);
       }
-      const snapshot = await input.runtime.inspectWorkspace({
-        path: record.path,
-        approveProjectResources: isPermissionWorkspaceTrusted(metadata, record.id),
-      });
-      workspace = snapshot;
-      session = undefined;
-      await persist(
-        selectSession(
-          rememberWorkspace(metadata, {
-            id: snapshot.workspace.id,
-            path: snapshot.workspace.path,
-            displayName: snapshot.workspace.displayName,
-            lastOpenedAt: snapshot.workspace.lastOpenedAt,
-          }),
-          undefined,
-        ),
+      return selectWorkspaceSnapshot(
+        await input.runtime.inspectWorkspace({
+          path: record.path,
+          approveProjectResources: isPermissionWorkspaceTrusted(metadata, record.id),
+        }),
       );
-      assertJsonSafe(snapshot, "openRecentWorkspace");
-      return snapshot;
     },
     async reorderRecentWorkspaces(command: ReorderRecentWorkspacesInput) {
       assertActive();
       if (!Array.isArray(command.workspaceIds) || command.workspaceIds.some((id) => typeof id !== "string" || id.trim() === "")) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "workspaceIds must be a non-empty list of workspace ids.",
-          operation: "reorderRecentWorkspaces",
-          recoverable: true,
-        });
+        failCommand("reorderRecentWorkspaces", "workspaceIds must be a non-empty list of workspace ids.");
       }
       const next = applyRecentWorkspaceOrder(
         metadata,
         command.workspaceIds.map((id) => id.trim()),
       );
       if (next === metadata) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "workspaceIds must be a permutation of the current recent workspaces.",
-          operation: "reorderRecentWorkspaces",
-          recoverable: true,
-        });
+        failCommand("reorderRecentWorkspaces", "workspaceIds must be a permutation of the current recent workspaces.");
       }
       await persist(next);
-      const records = next.recentWorkspaces;
-      assertJsonSafe(records, "reorderRecentWorkspaces");
-      return records;
+      return next.recentWorkspaces;
     },
     async listWorkspaceSessions(command: ListWorkspaceSessionsInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "listWorkspaceSessions");
-      const path = resolveWorkspacePath(workspaceId);
-      const sessions = ordinarySessions(await input.runtime.listWorkspaceSessions(path));
-      assertJsonSafe(sessions, "listWorkspaceSessions");
-      return sessions;
+      return ordinarySessions(await input.runtime.listWorkspaceSessions(resolveWorkspacePath(workspaceId)));
     },
     async listSessionCatalog(command: ListSessionCatalogInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "listSessionCatalog");
       if (!isSessionCatalogScope(command.scope)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "scope must be active, archived, or all.",
-          operation: "listSessionCatalog",
-          recoverable: true,
-        });
+        failCommand("listSessionCatalog", "scope must be active, archived, or all.");
       }
-      const entries = await loadSessionCatalog(workspaceId, command.scope);
-      assertJsonSafe(entries, "listSessionCatalog");
-      return entries;
+      return loadSessionCatalog(workspaceId, command.scope);
     },
     async getSessionSnapshot(command: GetSessionSnapshotInput) {
       assertActive();
@@ -447,7 +458,6 @@ export function createApplicationService(input: {
       if (isSelectedSession(selectedSessionKey(session), key)) {
         adoptSelectedSnapshot(snapshot);
       }
-      assertJsonSafe(snapshot, "getSessionSnapshot");
       return snapshot;
     },
     async createSession(command: CreateSessionInput = {}) {
@@ -456,12 +466,7 @@ export function createApplicationService(input: {
         await ensureWorkspaceSelected(command.workspaceId.trim(), "createSession");
       }
       if (!workspace) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceNotSelected,
-          message: "Select a workspace before creating a session.",
-          operation: "createSession",
-          recoverable: true,
-        });
+        failCommand("createSession", "Select a workspace before creating a session.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
       const snapshot = await input.runtime.createSession(workspace.workspace.id);
       replaceSelectedSnapshot(snapshot);
@@ -471,7 +476,6 @@ export function createApplicationService(input: {
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
       );
-      assertJsonSafe(snapshot, "createSession");
       return snapshot;
     },
     async openSession(command: OpenSessionInput) {
@@ -481,12 +485,7 @@ export function createApplicationService(input: {
         await ensureWorkspaceSelected(command.workspaceId.trim(), "openSession");
       }
       if (!workspace) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceNotSelected,
-          message: "Select a workspace before opening a session.",
-          operation: "openSession",
-          recoverable: true,
-        });
+        failCommand("openSession", "Select a workspace before opening a session.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
       const snapshot = await input.runtime.openSession(workspace.workspace.id, sessionId);
       replaceSelectedSnapshot(snapshot);
@@ -496,145 +495,76 @@ export function createApplicationService(input: {
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
       );
-      assertJsonSafe(snapshot, "openSession");
       return snapshot;
     },
     async archiveSession(command: ArchiveSessionInput) {
       assertActive();
       const key = requireSessionKey(command, "archiveSession");
       await persist(archiveSessionMetadata(metadata, key, new Date().toISOString()));
-      const entry = await loadCatalogEntry(key);
-      assertJsonSafe(entry, "archiveSession");
-      return entry;
+      return loadCatalogEntry(key);
     },
     async restoreSession(command: RestoreSessionInput) {
       assertActive();
       const key = requireSessionKey(command, "restoreSession");
       await persist(restoreSessionMetadata(metadata, key));
-      const entry = await loadCatalogEntry(key);
-      assertJsonSafe(entry, "restoreSession");
-      return entry;
+      return loadCatalogEntry(key);
     },
     async prepareRemoveSession(command: PrepareRemoveSessionInput) {
       assertActive();
       const key = requireSessionKey(command, "prepareRemoveSession");
       const inspected = await input.runtime.inspectRemovableSession(key);
       const entry = await loadCatalogEntry(key);
-      const confirmationToken = crypto.randomUUID();
-      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
-      pendingRemovals.set(confirmationToken, {
-        key,
-        fingerprint: inspected.fingerprint,
-        expiresAt,
-      });
-      const result: PrepareRemoveSessionResult = {
+      const { confirmationToken, expiresAt } = sessionRemovals.mint({ key, fingerprint: inspected.fingerprint });
+      return {
         workspaceId: key.workspaceId,
         sessionId: key.sessionId,
         title: inspected.title || entry.title,
         workspaceDisplayName: workspaceDisplayName(key.workspaceId),
         confirmationToken,
         sharedAgentDir: input.runtime.getPermissionSettings().appliesToSharedPiAgentDir === true,
-        expiresAt: new Date(expiresAt).toISOString(),
+        expiresAt,
       };
-      assertJsonSafe(result, "prepareRemoveSession");
-      return result;
     },
     async removeSession(command: RemoveSessionInput) {
       assertActive();
       const key = requireSessionKey(command, "removeSession");
-      const confirmationToken = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeSession");
-      const pending = pendingRemovals.get(confirmationToken);
-      pendingRemovals.delete(confirmationToken);
-      if (!pending || Date.now() > pending.expiresAt || !sessionKeyEquals(pending.key, key)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That removal confirmation expired. Prepare the chat again.",
-          operation: "removeSession",
-          recoverable: true,
-        });
-      }
-      const removed = await input.runtime.removeValidatedSession({
-        ...key,
-        fingerprint: pending.fingerprint,
-      });
+      const token = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeSession");
+      const pending = sessionRemovals.redeem(token, "removeSession", (value) => sessionKeyEquals(value.key, key));
+      const removed = await input.runtime.removeValidatedSession({ ...key, fingerprint: pending.fingerprint });
       await persist(forgetSessionLifecycle(metadata, key));
       if (session && session.session.id === key.sessionId && session.workspace.id === key.workspaceId) {
         session = undefined;
       }
-      const result: RemoveSessionResult = {
+      return {
         workspaceId: key.workspaceId,
         sessionId: key.sessionId,
         title: removed.title,
         method: removed.method,
         recoverable: true,
       };
-      assertJsonSafe(result, "removeSession");
-      return result;
     },
     async prepareRemoveProject(command: PrepareRemoveProjectInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "prepareRemoveProject");
-      const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
-      if (!record) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceInaccessible,
-          message: "That project is not in the recent list.",
-          operation: "prepareRemoveProject",
-          recoverable: true,
-        });
-      }
-      const entries = await loadSessionCatalog(workspaceId, "all");
-      const sessions: Array<{ sessionId: string; fingerprint: string }> = [];
-      for (const entry of entries) {
-        const inspected = await input.runtime.inspectRemovableSession({
-          workspaceId,
-          sessionId: entry.sessionId,
-        });
-        sessions.push({ sessionId: entry.sessionId, fingerprint: inspected.fingerprint });
-      }
-      const confirmationToken = crypto.randomUUID();
-      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
-      pendingProjectRemovals.set(confirmationToken, {
-        workspaceId,
-        sessions,
-        expiresAt,
-      });
-      const result: PrepareRemoveProjectResult = {
+      const record = requireRecentWorkspace(workspaceId, "prepareRemoveProject");
+      const sessions = await collectRemovableSessions(workspaceId, "all");
+      const { confirmationToken, expiresAt } = projectRemovals.mint({ workspaceId, sessions });
+      return {
         workspaceId,
         displayName: record.displayName,
         path: record.path,
         sessionCount: sessions.length,
         confirmationToken,
         sharedAgentDir: input.runtime.getPermissionSettings().appliesToSharedPiAgentDir === true,
-        expiresAt: new Date(expiresAt).toISOString(),
+        expiresAt,
       };
-      assertJsonSafe(result, "prepareRemoveProject");
-      return result;
     },
     async removeProject(command: RemoveProjectInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "removeProject");
-      const confirmationToken = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeProject");
-      const pending = pendingProjectRemovals.get(confirmationToken);
-      pendingProjectRemovals.delete(confirmationToken);
-      if (!pending || Date.now() > pending.expiresAt || pending.workspaceId !== workspaceId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That removal confirmation expired. Prepare the project again.",
-          operation: "removeProject",
-          recoverable: true,
-        });
-      }
-      let method = "macos-trash";
-      for (const target of pending.sessions) {
-        const removed = await input.runtime.removeValidatedSession({
-          workspaceId,
-          sessionId: target.sessionId,
-          fingerprint: target.fingerprint,
-        });
-        method = removed.method;
-        await persist(forgetSessionLifecycle(metadata, { workspaceId, sessionId: target.sessionId }));
-      }
+      const token = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeProject");
+      const pending = projectRemovals.redeem(token, "removeProject", (value) => value.workspaceId === workspaceId);
+      const method = await removeValidatedBulk(pending);
       await persist(forgetWorkspace(metadata, workspaceId));
       if (session?.workspace.id === workspaceId) {
         session = undefined;
@@ -642,115 +572,59 @@ export function createApplicationService(input: {
       if (workspace?.workspace.id === workspaceId) {
         workspace = undefined;
       }
-      const result: RemoveProjectResult = {
+      return {
         workspaceId,
         removedSessionCount: pending.sessions.length,
         method,
         recoverable: true,
         recentWorkspaces: metadata.recentWorkspaces,
       };
-      assertJsonSafe(result, "removeProject");
-      return result;
     },
     async prepareRemoveArchivedSessions(command: PrepareRemoveArchivedSessionsInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "prepareRemoveArchivedSessions");
-      const record = metadata.recentWorkspaces.find((entry) => entry.id === workspaceId);
-      if (!record) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceInaccessible,
-          message: "That project is not in the recent list.",
-          operation: "prepareRemoveArchivedSessions",
-          recoverable: true,
-        });
-      }
-      const entries = await loadSessionCatalog(workspaceId, "archived");
-      const sessions: Array<{ sessionId: string; fingerprint: string }> = [];
-      for (const entry of entries) {
-        const inspected = await input.runtime.inspectRemovableSession({
-          workspaceId,
-          sessionId: entry.sessionId,
-        });
-        sessions.push({ sessionId: entry.sessionId, fingerprint: inspected.fingerprint });
-      }
+      const record = requireRecentWorkspace(workspaceId, "prepareRemoveArchivedSessions");
+      const sessions = await collectRemovableSessions(workspaceId, "archived");
       if (sessions.length === 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That project has no archived chats to delete.",
-          operation: "prepareRemoveArchivedSessions",
-          recoverable: true,
-        });
+        failCommand("prepareRemoveArchivedSessions", "That project has no archived chats to delete.");
       }
-      const confirmationToken = crypto.randomUUID();
-      const expiresAt = Date.now() + REMOVAL_TOKEN_TTL_MS;
-      pendingArchivedRemovals.set(confirmationToken, {
-        workspaceId,
-        sessions,
-        expiresAt,
-      });
-      const result: PrepareRemoveArchivedSessionsResult = {
+      const { confirmationToken, expiresAt } = archivedRemovals.mint({ workspaceId, sessions });
+      return {
         workspaceId,
         displayName: record.displayName,
         path: record.path,
         sessionCount: sessions.length,
         confirmationToken,
         sharedAgentDir: input.runtime.getPermissionSettings().appliesToSharedPiAgentDir === true,
-        expiresAt: new Date(expiresAt).toISOString(),
+        expiresAt,
       };
-      assertJsonSafe(result, "prepareRemoveArchivedSessions");
-      return result;
     },
     async removeArchivedSessions(command: RemoveArchivedSessionsInput) {
       assertActive();
       const workspaceId = requireNonEmptyString(command.workspaceId, "workspaceId", "removeArchivedSessions");
-      const confirmationToken = requireNonEmptyString(
-        command.confirmationToken,
-        "confirmationToken",
-        "removeArchivedSessions",
-      );
-      const pending = pendingArchivedRemovals.get(confirmationToken);
-      pendingArchivedRemovals.delete(confirmationToken);
-      if (!pending || Date.now() > pending.expiresAt || pending.workspaceId !== workspaceId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That removal confirmation expired. Prepare the archived chats again.",
-          operation: "removeArchivedSessions",
-          recoverable: true,
-        });
+      const token = requireNonEmptyString(command.confirmationToken, "confirmationToken", "removeArchivedSessions");
+      const pending = archivedRemovals.redeem(token, "removeArchivedSessions", (value) => value.workspaceId === workspaceId);
+      const method = await removeValidatedBulk(pending);
+      if (
+        session &&
+        session.workspace.id === workspaceId &&
+        pending.sessions.some((target) => target.sessionId === session?.session.id)
+      ) {
+        session = undefined;
       }
-      let method = "macos-trash";
-      for (const target of pending.sessions) {
-        const removed = await input.runtime.removeValidatedSession({
-          workspaceId,
-          sessionId: target.sessionId,
-          fingerprint: target.fingerprint,
-        });
-        method = removed.method;
-        await persist(forgetSessionLifecycle(metadata, { workspaceId, sessionId: target.sessionId }));
-        if (session?.session.id === target.sessionId && session.workspace.id === workspaceId) {
-          session = undefined;
-        }
-      }
-      const result: RemoveArchivedSessionsResult = {
+      return {
         workspaceId,
         removedSessionCount: pending.sessions.length,
         method,
         recoverable: true,
       };
-      assertJsonSafe(result, "removeArchivedSessions");
-      return result;
     },
     async sendPrompt(command: SendPromptInput) {
       assertActive();
       const scope = sessionCommandScope(command, "sendPrompt");
       const payload = parsePromptPayload(command, "sendPrompt");
       try {
-        const admission = await input.runtime.sendPrompt({
-          ...scope,
-          ...payload,
-        });
-        assertJsonSafe(admission, "sendPrompt");
-        return admission;
+        return await input.runtime.sendPrompt({ ...scope, ...payload });
       } catch (error) {
         throw normalizeCommandError(error, "sendPrompt");
       }
@@ -761,13 +635,7 @@ export function createApplicationService(input: {
       const runId = requireNonEmptyString(command.runId, "runId", "steerRun");
       const payload = parsePromptPayload(command, "steerRun");
       try {
-        const admission = await input.runtime.steerRun({
-          ...scope,
-          runId,
-          ...payload,
-        });
-        assertJsonSafe(admission, "steerRun");
-        return admission;
+        return await input.runtime.steerRun({ ...scope, runId, ...payload });
       } catch (error) {
         throw normalizeCommandError(error, "steerRun");
       }
@@ -778,13 +646,7 @@ export function createApplicationService(input: {
       const runId = requireNonEmptyString(command.runId, "runId", "queueFollowUp");
       const payload = parsePromptPayload(command, "queueFollowUp");
       try {
-        const admission = await input.runtime.queueFollowUp({
-          ...scope,
-          runId,
-          ...payload,
-        });
-        assertJsonSafe(admission, "queueFollowUp");
-        return admission;
+        return await input.runtime.queueFollowUp({ ...scope, runId, ...payload });
       } catch (error) {
         throw normalizeCommandError(error, "queueFollowUp");
       }
@@ -792,14 +654,12 @@ export function createApplicationService(input: {
     async prepareImage(command: PrepareImageInput) {
       assertActive();
       try {
-        const summary = await input.runtime.prepareImage({
+        return await input.runtime.prepareImage({
           ...command,
           ...(command.sessionId
             ? sessionCommandScope(command as { sessionId: string; workspaceId?: string }, "prepareImage")
             : {}),
         });
-        assertJsonSafe(summary, "prepareImage");
-        return summary;
       } catch (error) {
         throw normalizeCommandError(error, "prepareImage");
       }
@@ -829,40 +689,27 @@ export function createApplicationService(input: {
       const id = requireNonEmptyString(command.id, "id", "setSessionModel");
       const snapshot = await input.runtime.setSessionModel({ ...scope, provider, id });
       adoptSelectedSnapshot(snapshot);
-      assertJsonSafe(snapshot, "setSessionModel");
       return snapshot;
     },
     async setThinkingLevel(command: SetThinkingLevelInput) {
       assertActive();
       const scope = sessionCommandScope(command, "setThinkingLevel");
       if (!isThinkingLevel(command.level)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown thinking level.",
-          operation: "setThinkingLevel",
-          recoverable: true,
-        });
+        failCommand("setThinkingLevel", "Unknown thinking level.");
       }
       const snapshot = await input.runtime.setThinkingLevel({ ...scope, level: command.level });
       adoptSelectedSnapshot(snapshot);
-      assertJsonSafe(snapshot, "setThinkingLevel");
       return snapshot;
     },
     async setSessionMode(command: SetSessionModeInput) {
       assertActive();
       const scope = sessionCommandScope(command, "setSessionMode");
       if (!isSessionAgentMode(command.mode)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown session mode.",
-          operation: "setSessionMode",
-          recoverable: true,
-        });
+        failCommand("setSessionMode", "Unknown session mode.");
       }
       try {
         const snapshot = await input.runtime.setSessionMode({ ...scope, mode: command.mode });
         adoptSelectedSnapshot(snapshot);
-        assertJsonSafe(snapshot, "setSessionMode");
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "setSessionMode");
@@ -872,20 +719,10 @@ export function createApplicationService(input: {
       assertActive();
       const scope = sessionCommandScope(command, "updateSessionPlanDocument");
       if (typeof command.documentMarkdown !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Plan document markdown is required.",
-          operation: "updateSessionPlanDocument",
-          recoverable: true,
-        });
+        failCommand("updateSessionPlanDocument", "Plan document markdown is required.");
       }
       if (planDocumentTooLarge(command.documentMarkdown)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The Plan document is too large.",
-          operation: "updateSessionPlanDocument",
-          recoverable: true,
-        });
+        failCommand("updateSessionPlanDocument", "The Plan document is too large.");
       }
       try {
         const snapshot = await input.runtime.updateSessionPlanDocument({
@@ -893,7 +730,6 @@ export function createApplicationService(input: {
           documentMarkdown: command.documentMarkdown,
         });
         adoptSelectedSnapshot(snapshot);
-        assertJsonSafe(snapshot, "updateSessionPlanDocument");
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "updateSessionPlanDocument");
@@ -905,7 +741,6 @@ export function createApplicationService(input: {
       try {
         const snapshot = await input.runtime.executeSessionPlan(scope);
         adoptSelectedSnapshot(snapshot);
-        assertJsonSafe(snapshot, "executeSessionPlan");
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "executeSessionPlan");
@@ -916,29 +751,14 @@ export function createApplicationService(input: {
       const scope = sessionCommandScope(command, "rewriteAssistantOutput");
       const messageId = requireNonEmptyString(command.messageId, "messageId", "rewriteAssistantOutput");
       if (typeof command.text !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Rewritten text is required.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
+        failCommand("rewriteAssistantOutput", "Rewritten text is required.");
       }
       if (command.text.length > MAX_ASSISTANT_REWRITE_CHARS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The rewritten text is too long.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
+        failCommand("rewriteAssistantOutput", "The rewritten text is too long.");
       }
       try {
-        const snapshot = await input.runtime.rewriteAssistantOutput({
-          ...scope,
-          messageId,
-          text: command.text,
-        });
+        const snapshot = await input.runtime.rewriteAssistantOutput({ ...scope, messageId, text: command.text });
         adoptSelectedSnapshot(snapshot);
-        assertJsonSafe(snapshot, "rewriteAssistantOutput");
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "rewriteAssistantOutput");
@@ -947,52 +767,31 @@ export function createApplicationService(input: {
     async updateSessionContextPrompt(command: UpdateSessionContextPromptInput) {
       assertActive();
       const scope = sessionCommandScope(command, "updateSessionContextPrompt");
-      if (command.reset === true) {
-        try {
+      try {
+        if (command.reset === true) {
           const snapshot = await input.runtime.updateSessionContextPrompt({ ...scope, reset: true });
           adoptSelectedSnapshot(snapshot);
-          assertJsonSafe(snapshot, "updateSessionContextPrompt");
           return snapshot;
-        } catch (error) {
-          throw normalizeCommandError(error, "updateSessionContextPrompt");
         }
-      }
-      if (typeof command.preamble !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "A context prompt preamble is required.",
-          operation: "updateSessionContextPrompt",
-          recoverable: true,
-        });
-      }
-      if (command.preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The context prompt preamble is too long.",
-          operation: "updateSessionContextPrompt",
-          recoverable: true,
-        });
-      }
-      const disabledSectionIds: string[] = [];
-      for (const id of command.disabledSectionIds ?? []) {
-        if (typeof id !== "string" || id.trim() === "") {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Each disabled section id must be a non-empty string.",
-            operation: "updateSessionContextPrompt",
-            recoverable: true,
-          });
+        if (typeof command.preamble !== "string") {
+          failCommand("updateSessionContextPrompt", "A context prompt preamble is required.");
         }
-        disabledSectionIds.push(id);
-      }
-      try {
+        if (command.preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
+          failCommand("updateSessionContextPrompt", "The context prompt preamble is too long.");
+        }
+        const disabledSectionIds: string[] = [];
+        for (const id of command.disabledSectionIds ?? []) {
+          if (typeof id !== "string" || id.trim() === "") {
+            failCommand("updateSessionContextPrompt", "Each disabled section id must be a non-empty string.");
+          }
+          disabledSectionIds.push(id);
+        }
         const snapshot = await input.runtime.updateSessionContextPrompt({
           ...scope,
           preamble: command.preamble,
           disabledSectionIds,
         });
         adoptSelectedSnapshot(snapshot);
-        assertJsonSafe(snapshot, "updateSessionContextPrompt");
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "updateSessionContextPrompt");
@@ -1003,12 +802,7 @@ export function createApplicationService(input: {
       const requestId = requireNonEmptyString(command.requestId, "requestId", "resolveHostDialog");
       const answers = command.answers !== undefined ? parseAskUserAnswers(command.answers) : undefined;
       if (command.answers !== undefined && answers === null) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Questionnaire answers are invalid.",
-          operation: "resolveHostDialog",
-          recoverable: true,
-        });
+        failCommand("resolveHostDialog", "Questionnaire answers are invalid.");
       }
       await input.runtime.resolveHostDialog({
         requestId,
@@ -1024,100 +818,35 @@ export function createApplicationService(input: {
     },
     getSettings() {
       assertActive();
-      const snapshot = settingsSnapshot();
-      assertJsonSafe(snapshot, "getSettings");
-      return snapshot;
+      return settingsSnapshot();
     },
     async updateAppearanceSettings(command: UpdateAppearanceSettingsInput) {
       assertActive();
-      const patch: {
-        palette?: AppearancePalette;
-        mode?: AppearanceMode;
-        glassEnabled?: boolean;
-        glassStrength?: number;
-        uiFontSize?: number;
-        chatFontSize?: number;
-      } = {};
-      if (command.palette !== undefined) {
-        if (!isAppearancePalette(command.palette)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Unknown appearance palette.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
+      const patch: UpdateAppearanceSettingsInput = {};
+      const guarded = [
+        ["palette", isAppearancePalette, "Unknown appearance palette."],
+        ["mode", isAppearanceMode, "Unknown appearance mode."],
+        ["glassStrength", isGlassStrength, "Glass strength must be an integer between 0 and 100."],
+        ["uiFontSize", isUiFontSize, "UI font size must be an integer between 12 and 20."],
+        ["chatFontSize", isChatFontSize, "Chat font size must be an integer between 12 and 20."],
+      ] as const;
+      for (const [field, isValid, message] of guarded) {
+        const value = command[field];
+        if (value !== undefined) {
+          if (!isValid(value)) {
+            failCommand("updateAppearanceSettings", message);
+          }
+          (patch as Record<string, unknown>)[field] = value;
         }
-        patch.palette = command.palette;
-      }
-      if (command.mode !== undefined) {
-        if (!isAppearanceMode(command.mode)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Unknown appearance mode.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
-        }
-        patch.mode = command.mode;
       }
       if (command.glassEnabled !== undefined) {
         if (typeof command.glassEnabled !== "boolean") {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "glassEnabled must be a boolean.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
+          failCommand("updateAppearanceSettings", "glassEnabled must be a boolean.");
         }
         patch.glassEnabled = command.glassEnabled;
       }
-      if (command.glassStrength !== undefined) {
-        if (!isGlassStrength(command.glassStrength)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Glass strength must be an integer between 0 and 100.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
-        }
-        patch.glassStrength = command.glassStrength;
-      }
-      if (command.uiFontSize !== undefined) {
-        if (!isUiFontSize(command.uiFontSize)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "UI font size must be an integer between 12 and 20.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
-        }
-        patch.uiFontSize = command.uiFontSize;
-      }
-      if (command.chatFontSize !== undefined) {
-        if (!isChatFontSize(command.chatFontSize)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "Chat font size must be an integer between 12 and 20.",
-            operation: "updateAppearanceSettings",
-            recoverable: true,
-          });
-        }
-        patch.chatFontSize = command.chatFontSize;
-      }
-      if (
-        patch.palette === undefined &&
-        patch.mode === undefined &&
-        patch.glassEnabled === undefined &&
-        patch.glassStrength === undefined &&
-        patch.uiFontSize === undefined &&
-        patch.chatFontSize === undefined
-      ) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "No appearance settings were provided.",
-          operation: "updateAppearanceSettings",
-          recoverable: true,
-        });
+      if (Object.keys(patch).length === 0) {
+        failCommand("updateAppearanceSettings", "No appearance settings were provided.");
       }
       await persist(setAppearance(metadata, patch));
       input.appearanceHost?.applyAppearance({
@@ -1126,75 +855,45 @@ export function createApplicationService(input: {
         glassEnabled: metadata.glassEnabled,
         glassStrength: metadata.glassStrength,
       });
-      const snapshot = settingsSnapshot();
-      assertJsonSafe(snapshot, "updateAppearanceSettings");
-      return snapshot;
+      return settingsSnapshot();
     },
     async updatePermissionSettings(command: UpdatePermissionSettingsInput) {
       assertActive();
       const patch: UpdatePermissionSettingsInput = {};
       if (command.profile !== undefined) {
         if (!isManagedPermissionProfileId(command.profile)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message:
-              "Choose baby (strict), okay, you got it, or with great power comes great responsibility to replace a custom permission policy.",
-            operation: "updatePermissionSettings",
-            recoverable: true,
-          });
+          failCommand(
+            "updatePermissionSettings",
+            "Choose baby (strict), okay, you got it, or with great power comes great responsibility to replace a custom permission policy.",
+          );
         }
         patch.profile = command.profile;
       }
-      if (command.yoloMode !== undefined) {
-        if (typeof command.yoloMode !== "boolean") {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "yoloMode must be a boolean.",
-            operation: "updatePermissionSettings",
-            recoverable: true,
-          });
+      for (const field of ["yoloMode", "permissionReviewLog"] as const) {
+        const value = command[field];
+        if (value !== undefined) {
+          if (typeof value !== "boolean") {
+            failCommand("updatePermissionSettings", `${field} must be a boolean.`);
+          }
+          patch[field] = value;
         }
-        patch.yoloMode = command.yoloMode;
       }
-      if (command.permissionReviewLog !== undefined) {
-        if (typeof command.permissionReviewLog !== "boolean") {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "permissionReviewLog must be a boolean.",
-            operation: "updatePermissionSettings",
-            recoverable: true,
-          });
-        }
-        patch.permissionReviewLog = command.permissionReviewLog;
-      }
-      if (patch.profile === undefined && patch.yoloMode === undefined && patch.permissionReviewLog === undefined) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "No permission settings were provided.",
-          operation: "updatePermissionSettings",
-          recoverable: true,
-        });
+      if (Object.keys(patch).length === 0) {
+        failCommand("updatePermissionSettings", "No permission settings were provided.");
       }
       const permission = decoratePermissionSettings(await input.runtime.updatePermissionSettings(patch));
-      const snapshot: HarnessSettingsSnapshot = {
+      return {
         appearance: appearanceFromMetadata(metadata),
         permission,
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
         sandbox: input.runtime.getSandboxSettings(),
       };
-      assertJsonSafe(snapshot, "updatePermissionSettings");
-      return snapshot;
     },
     async trustProjectPermissionRules() {
       assertActive();
       if (!workspace) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Select a workspace before trusting its project permission rules.",
-          operation: "trustProjectPermissionRules",
-          recoverable: true,
-        });
+        failCommand("trustProjectPermissionRules", "Select a workspace before trusting its project permission rules.");
       }
       const permission = await input.runtime.trustProjectPermissionRules(workspace.workspace.path);
       await persist(trustPermissionWorkspace(metadata, workspace.workspace.id));
@@ -1208,28 +907,23 @@ export function createApplicationService(input: {
           workspace: { ...session.workspace, projectResourcesApproved: true },
         };
       }
-      const snapshot: HarnessSettingsSnapshot = {
+      return {
         appearance: appearanceFromMetadata(metadata),
         permission: { ...permission, projectPermissionRulesRemembered: true },
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
         sandbox: input.runtime.getSandboxSettings(),
       };
-      assertJsonSafe(snapshot, "trustProjectPermissionRules");
-      return snapshot;
     },
     async listCredentialProviders() {
       assertActive();
-      const providers = await input.runtime.listCredentialProviders();
-      assertJsonSafe(providers, "listCredentialProviders");
-      return providers;
+      return input.runtime.listCredentialProviders();
     },
     async importProviderApiKey(command: ImportProviderApiKeyInput) {
       assertActive();
       const providerId = requireNonEmptyString(command.providerId, "providerId", "importProviderApiKey");
       const apiKey = requireNonEmptyString(command.apiKey, "apiKey", "importProviderApiKey");
       const result = await input.runtime.importProviderApiKey({ providerId, apiKey });
-      assertJsonSafe(result, "importProviderApiKey");
       if (JSON.stringify(result).includes(apiKey)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidSnapshot,
@@ -1241,51 +935,31 @@ export function createApplicationService(input: {
     },
     async listProviderAccounts() {
       assertActive();
-      const result = await input.runtime.listProviderAccounts();
-      assertJsonSafe(result, "listProviderAccounts");
-      return result;
+      return input.runtime.listProviderAccounts();
     },
     async startProviderLogin(command: StartProviderLoginInput) {
       assertActive();
       const providerId = requireNonEmptyString(command.providerId, "providerId", "startProviderLogin");
       if (!isProviderAuthMethod(command.method)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "method must be api_key or oauth.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "method must be api_key or oauth.");
       }
-      const snapshot = await input.runtime.startProviderLogin({ providerId, method: command.method });
-      assertJsonSafe(snapshot, "startProviderLogin");
-      return snapshot;
+      return input.runtime.startProviderLogin({ providerId, method: command.method });
     },
     async respondProviderAuthPrompt(command: RespondProviderAuthPromptInput) {
       assertActive();
       const flowId = requireNonEmptyString(command.flowId, "flowId", "respondProviderAuthPrompt");
       const promptId = requireNonEmptyString(command.promptId, "promptId", "respondProviderAuthPrompt");
       if (typeof command.value !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "value is required.",
-          operation: "respondProviderAuthPrompt",
-          recoverable: true,
-        });
+        failCommand("respondProviderAuthPrompt", "value is required.");
       }
       if (command.value.length > MAX_PROVIDER_AUTH_VALUE) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That response is too long.",
-          operation: "respondProviderAuthPrompt",
-          recoverable: true,
-        });
+        failCommand("respondProviderAuthPrompt", "That response is too long.");
       }
       const snapshot = await input.runtime.respondProviderAuthPrompt({
         flowId,
         promptId,
         value: command.value,
       });
-      assertJsonSafe(snapshot, "respondProviderAuthPrompt");
       if (command.value.length >= 8 && JSON.stringify(snapshot).includes(command.value)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidSnapshot,
@@ -1304,99 +978,64 @@ export function createApplicationService(input: {
     async cancelProviderLogin(command: CancelProviderLoginInput) {
       assertActive();
       const flowId = requireNonEmptyString(command.flowId, "flowId", "cancelProviderLogin");
-      const snapshot = await input.runtime.cancelProviderLogin({ flowId });
-      assertJsonSafe(snapshot, "cancelProviderLogin");
-      return snapshot;
+      return input.runtime.cancelProviderLogin({ flowId });
     },
     async logoutProvider(command: LogoutProviderInput) {
       assertActive();
       const providerId = requireNonEmptyString(command.providerId, "providerId", "logoutProvider");
-      const result = await input.runtime.logoutProvider({ providerId });
-      assertJsonSafe(result, "logoutProvider");
-      return result;
+      return input.runtime.logoutProvider({ providerId });
     },
     async searchWorkspaceReferences(command: SearchWorkspaceReferencesInput) {
       assertActive();
       if (!workspace) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceNotSelected,
-          message: "Select a workspace before searching files.",
-          operation: "searchWorkspaceReferences",
-          recoverable: true,
-        });
+        failCommand("searchWorkspaceReferences", "Select a workspace before searching files.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
       const query = typeof command.query === "string" ? command.query.slice(0, MAX_WORKSPACE_REFERENCE_QUERY) : "";
       const limit =
         typeof command.limit === "number" && Number.isFinite(command.limit)
           ? Math.max(1, Math.min(Math.floor(command.limit), MAX_WORKSPACE_REFERENCE_RESULTS))
           : undefined;
-      const result = await input.runtime.searchWorkspaceReferences({
+      return input.runtime.searchWorkspaceReferences({
         query,
         ...(command.kinds ? { kinds: command.kinds } : {}),
         ...(limit !== undefined ? { limit } : {}),
       });
-      assertJsonSafe(result, "searchWorkspaceReferences");
-      return result;
     },
     async updateSkillSourceSettings(command: UpdateSkillSourceSettingsInput) {
       assertActive();
       const skills = await input.runtime.updateSkillSourceSettings(command);
       await persist(setEnabledSkillSources(metadata, skills.sources.filter((source) => source.enabled && source.sourceId !== "pho-code").map((source) => source.sourceId)));
-      const snapshot = settingsSnapshot();
-      assertJsonSafe(snapshot, "updateSkillSourceSettings");
-      return snapshot;
+      return settingsSnapshot();
     },
     async refreshSkills() {
       assertActive();
-      const skills = await input.runtime.refreshSkills();
-      assertJsonSafe(skills, "refreshSkills");
-      return skills;
+      return input.runtime.refreshSkills();
     },
     async updateGitHubMcpSettings(command: UpdateGitHubMcpSettingsInput) {
       assertActive();
       if (command.enabled === true && command.acknowledgedDisclosure !== true) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Confirm the GitHub read-only disclosure before enabling GitHub MCP.",
-          operation: "updateGitHubMcpSettings",
-          recoverable: true,
-        });
+        failCommand("updateGitHubMcpSettings", "Confirm the GitHub read-only disclosure before enabling GitHub MCP.");
       }
       const githubMcp = await input.runtime.updateGitHubMcpSettings({ enabled: command.enabled === true });
       await persistGitHubMetadata(githubMcp);
-      const snapshot = settingsSnapshot();
-      assertJsonSafe(snapshot, "updateGitHubMcpSettings");
-      return snapshot;
+      return settingsSnapshot();
     },
     async updateSandboxSettings(command: UpdateSandboxSettingsInput) {
       assertActive();
       const parsed = parseSandboxSettingsPatch(command);
       if (!parsed.ok) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: parsed.message,
-          operation: "updateSandboxSettings",
-          recoverable: true,
-        });
+        failCommand("updateSandboxSettings", parsed.message);
       }
       await input.runtime.updateSandboxSettings(parsed.patch);
-      const snapshot = settingsSnapshot();
-      assertJsonSafe(snapshot, "updateSandboxSettings");
-      return snapshot;
+      return settingsSnapshot();
     },
     async importGitHubPat(command: ImportGitHubPatInput) {
       assertActive();
       const token = requireNonEmptyString(command.token, "token", "importGitHubPat");
       if (token.length > MAX_GITHUB_PAT_CHARS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That GitHub token is too long.",
-          operation: "importGitHubPat",
-          recoverable: true,
-        });
+        failCommand("importGitHubPat", "That GitHub token is too long.");
       }
       const githubMcp = await input.runtime.importGitHubPat({ token });
-      assertJsonSafe(githubMcp, "importGitHubPat");
       if (JSON.stringify(githubMcp).includes(token)) {
         throw createHarnessError({
           code: HARNESS_ERROR_CODES.invalidSnapshot,
@@ -1411,85 +1050,65 @@ export function createApplicationService(input: {
       assertActive();
       const githubMcp = await input.runtime.removeGitHubPat();
       await persistGitHubMetadata(githubMcp);
-      assertJsonSafe(githubMcp, "removeGitHubPat");
       return githubMcp;
     },
     async getChangeReviewSet(command: GetChangeReviewSetInput) {
       assertActive();
-      const scope = requireChangeScope(command, "getChangeReviewSet");
-      const snapshot = await input.runtime.getChangeReviewSet(scope);
-      assertJsonSafe(snapshot, "getChangeReviewSet");
-      return snapshot;
+      return input.runtime.getChangeReviewSet(requireChangeScope(command, "getChangeReviewSet"));
     },
     async getChangeDiff(command: GetChangeDiffInput) {
       assertActive();
       const scope = requireChangeScope(command, "getChangeDiff");
-      const relativePath = requireChangeRelativePath(command.relativePath, "getChangeDiff");
-      const cursor = optionalDiffCursor(command.cursor, "getChangeDiff");
+      const cursor = optionalCursor(command.cursor, "getChangeDiff", parseChangeDiffCursor);
       const contextLines = requireChangeContextLines(command.contextLines, "getChangeDiff");
-      const page = await input.runtime.getChangeDiff({
+      return input.runtime.getChangeDiff({
         ...scope,
-        relativePath,
+        relativePath: requireChangeRelativePath(command.relativePath, "getChangeDiff"),
         ...(cursor !== undefined ? { cursor } : {}),
         ...(contextLines !== undefined ? { contextLines } : {}),
       });
-      assertJsonSafe(page, "getChangeDiff");
-      return page;
     },
     async getChangeFileView(command: GetChangeFileViewInput) {
       assertActive();
       const scope = requireChangeScope(command, "getChangeFileView");
       if (!isChangeFileVersion(command.version)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "File version must be before, agent, or current.",
-          operation: "getChangeFileView",
-          recoverable: true,
-        });
+        failCommand("getChangeFileView", "File version must be before, agent, or current.");
       }
-      const cursor = optionalFileViewCursor(command.cursor, "getChangeFileView");
-      const page = await input.runtime.getChangeFileView({
+      const cursor = optionalCursor(command.cursor, "getChangeFileView", parseChangeFileViewCursor);
+      return input.runtime.getChangeFileView({
         ...scope,
         relativePath: requireChangeRelativePath(command.relativePath, "getChangeFileView"),
         version: command.version,
         ...(cursor !== undefined ? { cursor } : {}),
       });
-      assertJsonSafe(page, "getChangeFileView");
-      return page;
     },
     async approveChanges(command: ApproveChangesInput) {
       assertActive();
       const scope = requireChangeScope(command, "approveChanges");
-      const snapshot = await input.runtime.approveChanges({
+      return input.runtime.approveChanges({
         ...scope,
         expectedRevision: requireChangeRevision(command.expectedRevision, "approveChanges"),
         ...(command.relativePaths !== undefined
           ? { relativePaths: requireChangeRelativePaths(command.relativePaths, "approveChanges") }
           : {}),
       });
-      assertJsonSafe(snapshot, "approveChanges");
-      return snapshot;
     },
     async prepareUndoChanges(command: PrepareUndoChangesInput) {
       assertActive();
       const scope = requireChangeScope(command, "prepareUndoChanges");
-      const preview = await input.runtime.prepareUndoChanges({
+      return input.runtime.prepareUndoChanges({
         ...scope,
         relativePath: requireChangeRelativePath(command.relativePath, "prepareUndoChanges"),
         expectedRevision: requireChangeRevision(command.expectedRevision, "prepareUndoChanges"),
       });
-      assertJsonSafe(preview, "prepareUndoChanges");
-      return preview;
     },
     async applyUndoChanges(command: ApplyUndoChangesInput) {
       assertActive();
       const scope = requireChangeScope(command, "applyUndoChanges");
-      const snapshot = await input.runtime.applyUndoChanges({
+      return input.runtime.applyUndoChanges({
         ...scope,
         previewToken: requireChangePreviewToken(command.previewToken, "applyUndoChanges"),
       });
-      assertJsonSafe(snapshot, "applyUndoChanges");
-      return snapshot;
     },
     subscribe(listener) {
       return input.runtime.subscribe((event) => {
@@ -1551,7 +1170,9 @@ export function createApplicationService(input: {
     },
     shutdown() {
       if (!shutdownAttempt) {
-        pendingRemovals.clear();
+        sessionRemovals.clear();
+        projectRemovals.clear();
+        archivedRemovals.clear();
         shutdownAttempt = input.runtime.dispose();
       }
       return shutdownAttempt;
@@ -1620,22 +1241,11 @@ export function createApplicationService(input: {
     }
     const path = resolveWorkspacePath(workspaceId);
     try {
-      const snapshot = await input.runtime.inspectWorkspace({
-        path,
-        approveProjectResources: isPermissionWorkspaceTrusted(metadata, workspaceId),
-      });
-      workspace = snapshot;
-      session = undefined;
-      await persist(
-        selectSession(
-          rememberWorkspace(metadata, {
-            id: snapshot.workspace.id,
-            path: snapshot.workspace.path,
-            displayName: snapshot.workspace.displayName,
-            lastOpenedAt: snapshot.workspace.lastOpenedAt,
-          }),
-          undefined,
-        ),
+      await selectWorkspaceSnapshot(
+        await input.runtime.inspectWorkspace({
+          path,
+          approveProjectResources: isPermissionWorkspaceTrusted(metadata, workspaceId),
+        }),
       );
     } catch (error) {
       if (isHarnessError(error)) {
@@ -1709,24 +1319,14 @@ export function createApplicationService(input: {
     const entries = await loadSessionCatalog(key.workspaceId, "all");
     const entry = entries.find((candidate) => sessionKeyEquals(candidate, key));
     if (!entry) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionNotFound,
-        message: "The selected session was not found.",
-        operation: "sessionCatalog",
-        recoverable: true,
-      });
+      failCommand("sessionCatalog", "The selected session was not found.", HARNESS_ERROR_CODES.sessionNotFound);
     }
     return entry;
   }
 
   function requireSessionKey(value: Partial<SessionKey>, operation: string): SessionKey {
     if (!isSessionKey(value)) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: `${operation} requires workspaceId and sessionId.`,
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, `${operation} requires workspaceId and sessionId.`);
     }
     return value;
   }
@@ -1755,38 +1355,22 @@ export function untrustedSenderError(operation: string) {
 
 function requireNonEmptyString(value: unknown, field: string, operation: string): string {
   if (typeof value !== "string" || value.trim() === "") {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message: `${field} is required.`,
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, `${field} is required.`);
   }
   return value.trim();
 }
 
-function optionalDiffCursor(value: unknown, operation: string): string | undefined {
+function optionalCursor(
+  value: unknown,
+  operation: string,
+  parse: (cursor: string, operation: string) => unknown,
+): string | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value !== "string") {
-    parseChangeDiffCursor("invalid", operation);
-    return undefined;
-  }
-  parseChangeDiffCursor(value, operation);
-  return value;
-}
-
-function optionalFileViewCursor(value: unknown, operation: string): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "string") {
-    parseChangeFileViewCursor("invalid", operation);
-    return undefined;
-  }
-  parseChangeFileViewCursor(value, operation);
-  return value;
+  // The parser throws a HarnessError for anything malformed.
+  parse(typeof value === "string" ? value : "invalid", operation);
+  return value as string;
 }
 
 function parseWorkspaceReferences(
@@ -1797,29 +1381,18 @@ function parseWorkspaceReferences(
     return [];
   }
   if (!Array.isArray(value)) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
-      message: "Workspace references must be an array.",
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, "Workspace references must be an array.", HARNESS_ERROR_CODES.invalidWorkspaceReference);
   }
   if (value.length > MAX_WORKSPACE_REFERENCES_PER_PROMPT) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
-      message: `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`,
+    failCommand(
       operation,
-      recoverable: true,
-    });
+      `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`,
+      HARNESS_ERROR_CODES.invalidWorkspaceReference,
+    );
   }
   return value.map((entry) => {
     if (!isWorkspaceReferenceToken(entry)) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
-        message: "Each workspace reference must include a relative path.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "Each workspace reference must include a relative path.", HARNESS_ERROR_CODES.invalidWorkspaceReference);
     }
     return { path: entry.path.trim(), kind: entry.kind };
   });
@@ -1830,29 +1403,14 @@ function parseImageIds(value: unknown, operation: string): string[] {
     return [];
   }
   if (!Array.isArray(value)) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidImage,
-      message: "Image ids must be an array.",
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, "Image ids must be an array.", HARNESS_ERROR_CODES.invalidImage);
   }
   if (value.length > MAX_PREPARED_IMAGES) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidImage,
-      message: `A prompt can include at most ${MAX_PREPARED_IMAGES} images.`,
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, `A prompt can include at most ${MAX_PREPARED_IMAGES} images.`, HARNESS_ERROR_CODES.invalidImage);
   }
   return value.map((entry) => {
     if (typeof entry !== "string" || entry.trim() === "") {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidImage,
-        message: "Each image id must be a non-empty string.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "Each image id must be a non-empty string.", HARNESS_ERROR_CODES.invalidImage);
     }
     return entry.trim();
   });
@@ -1866,20 +1424,10 @@ function parsePromptPayload(
   const references = parseWorkspaceReferences(command.references, operation);
   const imageIds = parseImageIds(command.imageIds, operation);
   if (text.trim() === "" && references.length === 0 && imageIds.length === 0) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message: "A prompt, workspace reference, or image is required.",
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, "A prompt, workspace reference, or image is required.");
   }
   if (text.length > MAX_PROMPT_LENGTH) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message: "The prompt is too long.",
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, "The prompt is too long.");
   }
   return {
     text,

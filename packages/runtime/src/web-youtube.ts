@@ -1,7 +1,7 @@
 import { parseHTML } from "linkedom";
-import { MAX_WEB_EXTRACTED_CHARS, MAX_WEB_RESPONSE_BYTES } from "@pho-code/protocol";
+import { MAX_WEB_EXTRACTED_CHARS } from "@pho-code/protocol";
 import type { WebPageRequest } from "./web-url";
-import { WebResearchError } from "./web-url";
+import { isHttpUrl, isPlainRecord, readBoundedResponseText, readString, WebResearchError } from "./web-url";
 
 export const YOUTUBE_WATCH_ORIGIN = "https://www.youtube.com";
 export const YOUTUBE_OEMBED_ENDPOINT = "https://www.youtube.com/oembed";
@@ -197,7 +197,7 @@ async function fetchYouTubeOEmbed(
     if (!response.ok) {
       return null;
     }
-    const parsed: unknown = JSON.parse(await readText(response, "fetch_content/youtube"));
+    const parsed: unknown = JSON.parse(await readBoundedResponseText(response, "fetch_content/youtube"));
     if (!isPlainRecord(parsed)) {
       return null;
     }
@@ -228,7 +228,7 @@ async function fetchYouTubePlayer(
     if (!response.ok) {
       return { title: "", author: "", description: "", durationSeconds: null, captionUrl: null };
     }
-    const html = await readText(response, "fetch_content/youtube");
+    const html = await readBoundedResponseText(response, "fetch_content/youtube");
     return parseYouTubePlayerResponse(html);
   } catch {
     return { title: "", author: "", description: "", durationSeconds: null, captionUrl: null };
@@ -253,7 +253,7 @@ async function fetchYouTubeCaptions(
     if (!response.ok) {
       return "";
     }
-    return parseYouTubeCaptionBody(await readText(response, "fetch_content/youtube"));
+    return parseYouTubeCaptionBody(await readBoundedResponseText(response, "fetch_content/youtube"));
   } catch {
     return "";
   }
@@ -309,55 +309,4 @@ function formatDuration(seconds: number): string {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
   }
   return `${minutes}:${String(rest).padStart(2, "0")}`;
-}
-
-async function readText(response: Response, stage: string): Promise<string> {
-  if (!response.body) {
-    return "";
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const next = await reader.read();
-    if (next.done) {
-      break;
-    }
-    total += next.value.byteLength;
-    if (total > MAX_WEB_RESPONSE_BYTES) {
-      await reader.cancel();
-      throw new WebResearchError(stage, "Response exceeded the size limit.", false);
-    }
-    chunks.push(next.value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-}
-
-function readString(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

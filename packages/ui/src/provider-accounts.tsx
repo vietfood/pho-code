@@ -9,6 +9,7 @@ import {
   type ProviderAuthPrompt,
 } from "@pho-code/protocol";
 import {
+  isActiveProviderAuthFlow,
   matchesProviderAccountQuery,
   partitionProviderAccounts,
   providerStatusLabel,
@@ -42,25 +43,32 @@ export function ProviderAccountsSection({
 }) {
   const [query, setQuery] = useState("");
   const [addingKeyFor, setAddingKeyFor] = useState<string | null>(null);
-  const flowActive = isActiveFlow(flow);
+  const flowActive = isActiveProviderAuthFlow(flow);
   const flowProvider = flow ? accounts.providers.find((provider) => provider.id === flow.providerId) : undefined;
 
-  const { connected, available } = useMemo(
-    () => partitionProviderAccounts(accounts.providers),
-    [accounts.providers],
-  );
-  const visibleConnected = useMemo(
-    () => connected.filter((provider) => matchesProviderAccountQuery(provider, query)),
-    [connected, query],
-  );
-  const visibleAvailable = useMemo(
-    () => available.filter((provider) => matchesProviderAccountQuery(provider, query)),
-    [available, query],
-  );
+  const { connected, available, visibleConnected, visibleAvailable } = useMemo(() => {
+    const partitioned = partitionProviderAccounts(accounts.providers);
+    return {
+      ...partitioned,
+      visibleConnected: partitioned.connected.filter((provider) => matchesProviderAccountQuery(provider, query)),
+      visibleAvailable: partitioned.available.filter((provider) => matchesProviderAccountQuery(provider, query)),
+    };
+  }, [accounts.providers, query]);
 
   function toggleAddKey(providerId: string): void {
     setAddingKeyFor((current) => (current === providerId ? null : providerId));
   }
+
+  const groupProps = {
+    addingKeyFor,
+    flowActive,
+    running,
+    disabled,
+    onImportApiKey,
+    onStartOAuth,
+    onLogout,
+    onToggleAddKey: toggleAddKey,
+  };
 
   return (
     <section className="grid gap-3" aria-labelledby="credentials-heading" data-testid="credential-settings">
@@ -97,14 +105,7 @@ export function ProviderAccountsSection({
           headingId="connected-providers-heading"
           testId="configured-providers"
           providers={visibleConnected}
-          addingKeyFor={addingKeyFor}
-          flowActive={flowActive}
-          running={running}
-          disabled={disabled}
-          onImportApiKey={onImportApiKey}
-          onStartOAuth={onStartOAuth}
-          onLogout={onLogout}
-          onToggleAddKey={toggleAddKey}
+          {...groupProps}
         />
       )}
       <div className="grid gap-2">
@@ -142,14 +143,7 @@ export function ProviderAccountsSection({
             headingClassName="sr-only"
             testId="available-providers"
             providers={visibleAvailable}
-            addingKeyFor={addingKeyFor}
-            flowActive={flowActive}
-            running={running}
-            disabled={disabled}
-            onImportApiKey={onImportApiKey}
-            onStartOAuth={onStartOAuth}
-            onLogout={onLogout}
-            onToggleAddKey={toggleAddKey}
+            {...groupProps}
           />
         )}
       </div>
@@ -244,24 +238,21 @@ function ProviderAccountRow({
   const rowDisabled = disabled || busy || flowActive;
   const showOAuth = hasOAuth && !addingKey;
 
-  async function startOAuth(): Promise<void> {
+  async function withBusy(work: () => Promise<void>): Promise<void> {
     setBusy(true);
     try {
-      await onStartOAuth(provider.id);
+      await work();
     } finally {
       setBusy(false);
     }
   }
 
-  async function logout(): Promise<void> {
-    setBusy(true);
-    try {
+  const startOAuth = () => withBusy(() => onStartOAuth(provider.id));
+  const logout = () =>
+    withBusy(async () => {
       await onLogout(provider.id);
       setConfirmLogout(false);
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
 
   return (
     <article className="grid gap-2 px-3 py-2.5" data-testid={`provider-account-${provider.id}`}>
@@ -604,15 +595,5 @@ function AuthPromptFields({
         Continue
       </Button>
     </form>
-  );
-}
-
-function isActiveFlow(flow: ProviderAuthFlowSnapshot | null): boolean {
-  return (
-    flow !== null &&
-    flow.phase !== "idle" &&
-    flow.phase !== "completed" &&
-    flow.phase !== "failed" &&
-    flow.phase !== "cancelled"
   );
 }

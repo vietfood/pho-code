@@ -151,32 +151,33 @@ export function projectSessionContextPrompt(input: {
   editable: boolean;
 }): SessionContextPrompt {
   const liveSections = liveContextPromptSections(input.cwd, input.tools, input.agentsFiles);
+  const defaults = { defaultPreamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE };
   if (!input.record) {
     return {
+      ...defaults,
       customized: false,
       editable: input.editable,
       preamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE,
-      defaultPreamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE,
       sections: liveSections,
       compiled: input.liveSystemPrompt.trim() || DEFAULT_CONTEXT_PROMPT_PREAMBLE,
     };
   }
   if (!input.editable) {
     return {
+      ...defaults,
       customized: true,
       editable: false,
       preamble: input.record.preamble,
-      defaultPreamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE,
       sections: input.record.sections,
       compiled: input.record.compiled,
     };
   }
   const sections = applyDisabledSectionIds(liveSections, input.record.disabledSectionIds);
   return {
+    ...defaults,
     customized: true,
     editable: true,
     preamble: input.record.preamble,
-    defaultPreamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE,
     sections,
     compiled: compileContextPrompt({
       preamble: input.record.preamble,
@@ -229,7 +230,7 @@ export function enabledToolNames(sections: readonly ContextPromptSection[]): str
     if (section.kind !== "tool" || !section.enabled) {
       continue;
     }
-    const name = section.id.startsWith("tool:") ? section.id.slice("tool:".length) : section.title;
+    const name = parseToolTitle(section);
     if (name) {
       names.push(name);
     }

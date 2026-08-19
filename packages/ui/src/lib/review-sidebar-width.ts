@@ -1,3 +1,5 @@
+import { readStoredValue, writeStoredValue } from "./storage";
+
 const STORAGE_KEY = "pho-code.reviewSidebarWidth";
 
 /** Icon rail for FileDiff, Context prompt, and later terminal surfaces, matching settings-nav density. */
@@ -26,21 +28,10 @@ export function clampReviewSidebarWidth(widthPx: number): number {
 }
 
 export function readReviewSidebarWidth(): number {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (raw == null || raw === "") {
-      return DEFAULT_REVIEW_SIDEBAR_WIDTH_PX;
-    }
-    return clampReviewSidebarWidth(Number.parseInt(raw, 10));
-  } catch {
-    return DEFAULT_REVIEW_SIDEBAR_WIDTH_PX;
-  }
+  const raw = readStoredValue(STORAGE_KEY);
+  return raw == null || raw === "" ? DEFAULT_REVIEW_SIDEBAR_WIDTH_PX : clampReviewSidebarWidth(Number.parseInt(raw, 10));
 }
 
 export function writeReviewSidebarWidth(widthPx: number): void {
-  try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, String(clampReviewSidebarWidth(widthPx)));
-  } catch {
-    // Ignore quota / private-mode failures; in-memory state still works.
-  }
+  writeStoredValue(STORAGE_KEY, String(clampReviewSidebarWidth(widthPx)));
 }

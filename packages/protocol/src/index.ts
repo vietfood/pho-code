@@ -1,7 +1,7 @@
 export { PROTOCOL_COMMANDS, PROTOCOL_VERSION, INTENDED_PI_SDK, PINNED_ELECTRON, isSupportedProtocolVersion } from "./version";
 export type { ProtocolCommandName, ProtocolVersion } from "./version";
 
-export { createHarnessError, HARNESS_ERROR_CODES, isHarnessError } from "./errors";
+export { createHarnessError, failCommand, HARNESS_ERROR_CODES, isHarnessError } from "./errors";
 export type { HarnessError } from "./errors";
 
 export { commandFail, commandOk, isCommandResult, unwrapCommandResult } from "./command-result";

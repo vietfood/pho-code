@@ -1,3 +1,5 @@
+import { readStoredValue, writeStoredValue } from "./storage";
+
 const STORAGE_KEY = "pho-code.sidebarWidth";
 
 /** Matches `--sidebar-width: 18.25rem` at the 16px UI root. */
@@ -15,21 +17,10 @@ export function clampSidebarWidth(widthPx: number): number {
 }
 
 export function readSidebarWidth(): number {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (raw == null || raw === "") {
-      return DEFAULT_SIDEBAR_WIDTH_PX;
-    }
-    return clampSidebarWidth(Number.parseInt(raw, 10));
-  } catch {
-    return DEFAULT_SIDEBAR_WIDTH_PX;
-  }
+  const raw = readStoredValue(STORAGE_KEY);
+  return raw == null || raw === "" ? DEFAULT_SIDEBAR_WIDTH_PX : clampSidebarWidth(Number.parseInt(raw, 10));
 }
 
 export function writeSidebarWidth(widthPx: number): void {
-  try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, String(clampSidebarWidth(widthPx)));
-  } catch {
-    // Ignore quota / private-mode failures; in-memory state still works.
-  }
+  writeStoredValue(STORAGE_KEY, String(clampSidebarWidth(widthPx)));
 }

@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { open } from "node:fs/promises";
 import {
   blockingReviewStatuses,
-  createHarnessError,
+  failCommand,
   HARNESS_ERROR_CODES,
   MAX_CHANGE_BLOB_BYTES_PER_RUN,
   MAX_CHANGE_FILES_ON_SUMMARY,
@@ -103,22 +103,13 @@ export function createChangeCaptureService(input: {
   ): Promise<ChangeReviewSetSummary> {
     return withLock(scopeKey(scope), async () => {
       const existing = await input.store.load(scope);
+      const operation = options?.operation ?? "changeReviewTransact";
       if (!existing && options?.createIfMissing === false) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewNotFound,
-          message: "No tracked write/edit review exists for that run.",
-          operation: options.operation ?? "changeReviewTransact",
-          recoverable: true,
-        });
+        failCommand(operation, "No tracked write/edit review exists for that run.", HARNESS_ERROR_CODES.changeReviewNotFound);
       }
       const current = existing ?? createEmptyManifest(scope, now());
       if (options?.expectedRevision !== undefined && options.expectedRevision !== current.revision) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewRevisionMismatch,
-          message: "The review set changed. Refresh and try again.",
-          operation: options.operation ?? "changeReviewTransact",
-          recoverable: true,
-        });
+        failCommand(operation, "The review set changed. Refresh and try again.", HARNESS_ERROR_CODES.changeReviewRevisionMismatch);
       }
       const next = await work(current);
       if (next === null) {
@@ -157,10 +148,7 @@ export function createChangeCaptureService(input: {
             relativePath: resolved.relativePath,
             at: now(),
           });
-          if (resolved.limitation || resolved.kind === "directory" || resolved.kind === "symlink" || resolved.kind === "other") {
-            return commitOrCap(manifest, previous);
-          }
-          if (resolved.kind === "absent") {
+          if (resolved.limitation || resolved.kind !== "regular-file") {
             return commitOrCap(manifest, previous);
           }
           const current = manifest.files.find((entry) => entry.relativePath === resolved.relativePath);
@@ -208,17 +196,15 @@ export function createChangeCaptureService(input: {
           let afterBlobId: string | undefined;
           let byteLengthAfter: number | undefined;
           let limitation = existing.limitation ?? resolved.limitation;
-          if (!limitation && (resolved.kind === "regular-file" || resolved.kind === "absent")) {
-            if (resolved.kind === "regular-file") {
-              try {
-                const snapshot = await snapshotFile(resolved.canonicalPath, manifest, input.store);
-                afterHash = snapshot.hash;
-                afterBlobId = snapshot.blobId;
-                byteLengthAfter = snapshot.byteLength;
-                limitation = snapshot.limitation ?? limitation;
-              } catch {
-                limitation = "capture-failed";
-              }
+          if (!limitation && resolved.kind === "regular-file") {
+            try {
+              const snapshot = await snapshotFile(resolved.canonicalPath, manifest, input.store);
+              afterHash = snapshot.hash;
+              afterBlobId = snapshot.blobId;
+              byteLengthAfter = snapshot.byteLength;
+              limitation = snapshot.limitation ?? limitation;
+            } catch {
+              limitation = "capture-failed";
             }
           } else if (resolved.limitation) {
             limitation = resolved.limitation;

@@ -1,13 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { ContextUsageSummary, ModelSummary } from "@pho-code/protocol";
-import { handleDialogTab } from "./lib/dialog-focus";
 import { formatRatePerMillion, formatTokenCount } from "./lib/format-tokens";
+import { ModelDialogShell, modelLabel } from "./model-dialog-shell";
 import { ProviderIcon } from "./provider-icon";
 import { Button } from "./ui/button";
-
-function modelLabel(model: ModelSummary): string {
-  return model.name || `${model.provider}/${model.id}`;
-}
 
 export function CursorModelWarningDialog({
   model,
@@ -26,132 +22,98 @@ export function CursorModelWarningDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const nextLabel = modelLabel(model);
   const currentLabel = currentModel ? modelLabel(currentModel) : null;
   const contextTokens = contextUsage?.tokens;
 
-  useEffect(() => {
-    confirmRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (!busy) {
-          onCancel();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [busy, onCancel, model.provider, model.id]);
-
   return (
-    <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4"
-      data-testid="cursor-model-warning-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) {
-          onCancel();
-        }
-      }}
+    <ModelDialogShell
+      testId="cursor-model-warning"
+      busy={busy}
+      onCancel={onCancel}
+      focusKey={`${model.provider}:${model.id}`}
+      confirmRef={confirmRef}
     >
-      <section
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cursor-model-warning-heading"
-        data-testid="cursor-model-warning-dialog"
-        className="grid w-[min(30rem,calc(100dvw-2rem))] gap-3 rounded-xl border border-border bg-background p-4 shadow-lg"
-        onKeyDown={(event) => {
-          if (dialogRef.current) {
-            handleDialogTab(event.nativeEvent, dialogRef.current);
-          }
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <span
-            className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning"
-            aria-hidden="true"
-          >
-            <ProviderIcon provider="cursor" className="size-4 text-warning" />
-          </span>
-          <div className="grid min-w-0 gap-2">
-            <h2 id="cursor-model-warning-heading" className="text-sm font-medium">
-              Use a Cursor model in this chat?
-            </h2>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {currentLabel ? (
-                <>
-                  Switch from <span className="text-foreground">{currentLabel}</span> to{" "}
-                  <span className="text-foreground">{nextLabel}</span>.
-                </>
-              ) : (
-                <>
-                  Select <span className="text-foreground">{nextLabel}</span>.
-                </>
-              )}{" "}
-              Cursor models run through the baked{" "}
-              <span className="text-foreground">pi-cursor-sdk</span> provider: Cursor&apos;s local agent loop owns
-              shell, edit, and search tools. Pho Code tools stay available over the local bridge, but Cursor may prefer
-              its own tools.
-            </p>
-          </div>
-        </div>
-        <ul
-          className="grid list-disc gap-1.5 pl-4 text-xs leading-relaxed text-muted-foreground"
-          data-testid="cursor-model-warning-details"
+      <div className="flex items-start gap-3">
+        <span
+          className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning"
+          aria-hidden="true"
         >
-          <li>
-            Cursor host tools are not gated by Pho Code&apos;s permission-system feature. Bridged Pho Code tools still
-            go through normal permission prompts.
-          </li>
-          <li>
-            This build keeps Cursor local-only and does not load ambient Cursor MCP, plugins, or rules from{" "}
-            <span className="text-foreground">~/.cursor</span>. Cloud Cursor agents are not enabled.
-          </li>
-          <li>
-            Auth is a Cursor SDK API key (Settings → Accounts), not Cursor Desktop or Agent CLI login. Extensions still
-            run with the app process permissions.
-          </li>
-          {midChat ? (
-            <li>
-              Provider prompt-cache entries are keyed to the previous model. The next turn will miss cache reads; expect
-              a cold prefix
-              {typeof contextTokens === "number" && contextTokens > 0
-                ? ` (~${formatTokenCount(contextTokens)}${
-                    contextUsage?.contextWindow ? ` / ${formatTokenCount(contextUsage.contextWindow)}` : ""
-                  } projected context)`
-                : ""}
-              .
-            </li>
-          ) : null}
-        </ul>
-        {midChat ? (
-          <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="cursor-model-warning-rates">
-            Rate card: {formatRatePerMillion(model.cost.input)} in / {formatRatePerMillion(model.cost.output)} out ·{" "}
-            {formatTokenCount(model.contextWindow)} ctx. The Pi JSONL transcript stays as-is; only the live session
-            model binding changes.
+          <ProviderIcon provider="cursor" className="size-4 text-warning" />
+        </span>
+        <div className="grid min-w-0 gap-2">
+          <h2 id="cursor-model-warning-heading" className="text-sm font-medium">
+            Use a Cursor model in this chat?
+          </h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {currentLabel ? (
+              <>
+                Switch from <span className="text-foreground">{currentLabel}</span> to{" "}
+                <span className="text-foreground">{nextLabel}</span>.
+              </>
+            ) : (
+              <>
+                Select <span className="text-foreground">{nextLabel}</span>.
+              </>
+            )}{" "}
+            Cursor models run through the baked <span className="text-foreground">pi-cursor-sdk</span> provider:
+            Cursor&apos;s local agent loop owns shell, edit, and search tools. Pho Code tools stay available over
+            the local bridge, but Cursor may prefer its own tools.
           </p>
-        ) : null}
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            ref={confirmRef}
-            type="button"
-            size="sm"
-            data-testid="cursor-model-warning-confirm"
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            Use Cursor model
-          </Button>
         </div>
-      </section>
-    </div>
+      </div>
+      <ul
+        className="grid list-disc gap-1.5 pl-4 text-xs leading-relaxed text-muted-foreground"
+        data-testid="cursor-model-warning-details"
+      >
+        <li>
+          Cursor host tools are not gated by Pho Code&apos;s permission-system feature. Bridged Pho Code tools still
+          go through normal permission prompts.
+        </li>
+        <li>
+          This build keeps Cursor local-only and does not load ambient Cursor MCP, plugins, or rules from{" "}
+          <span className="text-foreground">~/.cursor</span>. Cloud Cursor agents are not enabled.
+        </li>
+        <li>
+          Auth is a Cursor SDK API key (Settings → Accounts), not Cursor Desktop or Agent CLI login. Extensions still
+          run with the app process permissions.
+        </li>
+        {midChat ? (
+          <li>
+            Provider prompt-cache entries are keyed to the previous model. The next turn will miss cache reads; expect
+            a cold prefix
+            {typeof contextTokens === "number" && contextTokens > 0
+              ? ` (~${formatTokenCount(contextTokens)}${
+                  contextUsage?.contextWindow ? ` / ${formatTokenCount(contextUsage.contextWindow)}` : ""
+                } projected context)`
+              : ""}
+            .
+          </li>
+        ) : null}
+      </ul>
+      {midChat ? (
+        <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="cursor-model-warning-rates">
+          Rate card: {formatRatePerMillion(model.cost.input)} in / {formatRatePerMillion(model.cost.output)} out ·{" "}
+          {formatTokenCount(model.contextWindow)} ctx. The Pi JSONL transcript stays as-is; only the live session
+          model binding changes.
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          ref={confirmRef}
+          type="button"
+          size="sm"
+          data-testid="cursor-model-warning-confirm"
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          Use Cursor model
+        </Button>
+      </div>
+    </ModelDialogShell>
   );
 }

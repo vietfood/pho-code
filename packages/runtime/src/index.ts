@@ -1,7 +1,4 @@
-export {
-  createDisposableStubHarnessRuntime,
-  createStubHarnessRuntime,
-} from "./harness-runtime";
+export { createDisposableStubHarnessRuntime } from "./harness-runtime";
 export type {
   HarnessRuntime,
   InspectWorkspaceInput,
@@ -77,9 +74,6 @@ export {
 } from "./resource-locator";
 export type { ResourceLocator } from "./resource-locator";
 export {
-  BALANCED_PERMISSION,
-  DEVELOPER_PERMISSION,
-  GUARDED_PERMISSION,
   PERMISSION_PRESET_VERSION,
   applyPermissionSettingsPatch,
   detectPermissionProfile,

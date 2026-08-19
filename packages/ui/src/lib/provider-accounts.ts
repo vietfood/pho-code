@@ -1,4 +1,10 @@
-import type { ProviderAccountSummary, ProviderAuthMethod } from "@pho-code/protocol";
+import type { ProviderAccountSummary, ProviderAuthFlowSnapshot, ProviderAuthMethod } from "@pho-code/protocol";
+
+const INACTIVE_FLOW_PHASES = new Set(["idle", "completed", "failed", "cancelled"]);
+
+export function isActiveProviderAuthFlow(flow: ProviderAuthFlowSnapshot | null): boolean {
+  return flow !== null && !INACTIVE_FLOW_PHASES.has(flow.phase);
+}
 
 export function matchesProviderAccountQuery(
   provider: Pick<ProviderAccountSummary, "id" | "name">,

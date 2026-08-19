@@ -335,6 +335,18 @@ export function Composer({
     syncComposerTokensFromEditor();
   }
 
+  function focusEditorAt(cursor: number): void {
+    requestAnimationFrame(() => {
+      const field = editorRef.current;
+      if (!field) {
+        return;
+      }
+      field.focus();
+      setComposerCaretOffset(field, cursor);
+      syncComposerTokensFromEditor();
+    });
+  }
+
   function selectSuggestion(suggestion: PathSuggestion): void {
     const editor = editorRef.current;
     const cursor = editor ? getComposerCaretOffset(editor) : value.length;
@@ -348,15 +360,7 @@ export function Composer({
     pendingCaretRef.current = next.cursor;
     onChange(next.text);
     dismissMention();
-    requestAnimationFrame(() => {
-      const field = editorRef.current;
-      if (!field) {
-        return;
-      }
-      field.focus();
-      setComposerCaretOffset(field, next.cursor);
-      syncComposerTokensFromEditor();
-    });
+    focusEditorAt(next.cursor);
   }
 
   function insertSelectedSkill(entry: SkillInventoryEntry, slash: { start: number; query: string }, cursor: number): void {
@@ -364,15 +368,7 @@ export function Composer({
     pendingCaretRef.current = next.cursor;
     onChange(next.text);
     dismissSlash();
-    requestAnimationFrame(() => {
-      const field = editorRef.current;
-      if (!field) {
-        return;
-      }
-      field.focus();
-      setComposerCaretOffset(field, next.cursor);
-      syncComposerTokensFromEditor();
-    });
+    focusEditorAt(next.cursor);
   }
 
   function selectSkill(entry: SkillInventoryEntry): void {
@@ -420,42 +416,47 @@ export function Composer({
     </>
   );
 
+  const queueActions = [
+    {
+      id: "steer",
+      label: "Steer",
+      ariaLabel: "Steer current run",
+      title: "Steer current run — changes the next model step after current tools",
+      icon: WaypointsIcon,
+      action: onSteer,
+    },
+    {
+      id: "follow-up",
+      label: "Follow-up",
+      ariaLabel: "Add follow-up",
+      title: "Add follow-up — waits until the agent becomes idle",
+      icon: ListPlusIcon,
+      action: onFollowUp,
+    },
+  ];
+
   const submit = running ? (
     <div className="flex shrink-0 items-center gap-1">
-      <button
-        type="button"
-        className="composer-queue-action"
-        data-testid="steer-button"
-        aria-label="Steer current run"
-        title="Steer current run — changes the next model step after current tools"
-        disabled={disabled || !canSend}
-        onClick={() => {
-          if (!disabled && canSend) {
-            closeComposerMenus();
-            onSteer?.();
-          }
-        }}
-      >
-        <WaypointsIcon className="size-3.5" aria-hidden="true" />
-        Steer
-      </button>
-      <button
-        type="button"
-        className="composer-queue-action"
-        data-testid="follow-up-button"
-        aria-label="Add follow-up"
-        title="Add follow-up — waits until the agent becomes idle"
-        disabled={disabled || !canSend}
-        onClick={() => {
-          if (!disabled && canSend) {
-            closeComposerMenus();
-            onFollowUp?.();
-          }
-        }}
-      >
-        <ListPlusIcon className="size-3.5" aria-hidden="true" />
-        Follow-up
-      </button>
+      {queueActions.map(({ id, label, ariaLabel, title, icon: Icon, action }) => (
+        <button
+          key={id}
+          type="button"
+          className="composer-queue-action"
+          data-testid={`${id}-button`}
+          aria-label={ariaLabel}
+          title={title}
+          disabled={disabled || !canSend}
+          onClick={() => {
+            if (!disabled && canSend) {
+              closeComposerMenus();
+              action?.();
+            }
+          }}
+        >
+          <Icon className="size-3.5" aria-hidden="true" />
+          {label}
+        </button>
+      ))}
       <button
         type="button"
         className="relative isolate flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive enabled:cursor-pointer hover:bg-destructive/25 disabled:opacity-30"
@@ -495,14 +496,12 @@ export function Composer({
       </label>
       {queue && (queue.steering.length > 0 || queue.followUp.length > 0) ? (
         <div className="composer-queue" data-testid="composer-queue">
-          {queue.steering.map((item, index) => (
-            <span key={`steer:${index}`} className="composer-queue-chip is-steer">
-              Steer · {item.text || "Image"}
-            </span>
-          ))}
-          {queue.followUp.map((item, index) => (
-            <span key={`follow:${index}`} className="composer-queue-chip is-follow-up">
-              Follow-up · {item.text || "Image"}
+          {[
+            ...queue.steering.map((item, index) => ({ key: `steer:${index}`, className: "is-steer", label: "Steer", text: item.text })),
+            ...queue.followUp.map((item, index) => ({ key: `follow:${index}`, className: "is-follow-up", label: "Follow-up", text: item.text })),
+          ].map((chip) => (
+            <span key={chip.key} className={cn("composer-queue-chip", chip.className)}>
+              {chip.label} · {chip.text || "Image"}
             </span>
           ))}
         </div>
@@ -574,53 +573,46 @@ export function Composer({
                 onChange(next.text);
               }}
               onKeyDown={(event) => {
-                if (slashOpen) {
+                // Returns true when the key was consumed by the open menu. Enter
+                // with no selection dismisses the menu and falls through to submit.
+                const menuKeys = <T,>(
+                  open: boolean,
+                  items: readonly T[],
+                  select: (item: T) => void,
+                  dismiss: () => void,
+                ): boolean => {
+                  if (!open) {
+                    return false;
+                  }
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
-                    if (skillChoices.length > 0) {
+                    if (items.length > 0) {
                       setActiveIndex((index) =>
-                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, skillChoices.length),
+                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, items.length),
                       );
                     }
-                    return;
+                    return true;
                   }
                   if (event.key === "Enter" || event.key === "Tab") {
-                    const selected = skillChoices[activeIndex];
+                    const selected = items[activeIndex];
                     if (selected) {
                       event.preventDefault();
-                      selectSkill(selected);
-                      return;
+                      select(selected);
+                      return true;
                     }
-                    dismissSlash();
+                    dismiss();
                     if (event.key === "Tab") {
                       event.preventDefault();
-                      return;
+                      return true;
                     }
                   }
+                  return false;
+                };
+                if (menuKeys(slashOpen, skillChoices, selectSkill, dismissSlash)) {
+                  return;
                 }
-                if (menuOpen) {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    if (suggestions.length > 0) {
-                      setActiveIndex((index) =>
-                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, suggestions.length),
-                      );
-                    }
-                    return;
-                  }
-                  if (event.key === "Enter" || event.key === "Tab") {
-                    const selected = suggestions[activeIndex];
-                    if (selected) {
-                      event.preventDefault();
-                      selectSuggestion(selected);
-                      return;
-                    }
-                    dismissMention();
-                    if (event.key === "Tab") {
-                      event.preventDefault();
-                      return;
-                    }
-                  }
+                if (menuKeys(menuOpen, suggestions, selectSuggestion, dismissMention)) {
+                  return;
                 }
                 if (event.key === "Escape" && (menuOpen || slashOpen)) {
                   event.preventDefault();

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { useResolvedAppearance } from "./lib/use-resolved-appearance";
+import { useDocumentAppearance } from "./lib/use-resolved-appearance";
 import { MarkdownCodeBlock } from "./markdown-codeblock";
 
 type MermaidThemeName = "dark" | "default";
@@ -22,8 +22,7 @@ function preferredMermaidTheme(prefersDark: boolean): MermaidThemeName {
 }
 
 function useMermaidTheme(): MermaidThemeName {
-  const appearance = useResolvedAppearance();
-  return preferredMermaidTheme(appearance === "dark");
+  return preferredMermaidTheme(useDocumentAppearance().appearance === "dark");
 }
 
 async function renderMermaidSvg(source: string, theme: MermaidThemeName, renderId: string): Promise<string> {

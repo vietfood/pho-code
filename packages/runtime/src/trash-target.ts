@@ -1,6 +1,7 @@
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { isPathInside } from "./path-containment";
 
 export const TRASH_TOOL_NAME = "move_to_trash";
 export const REFERENCE_SUBMODULE_SEGMENTS = ["refs/pi-gui", "refs/pi-web", "refs/t3code"] as const;
@@ -52,7 +53,7 @@ export async function validateTrashTarget(
   if (canonicalPath === workspace) {
     throw new TrashTargetError("The workspace root cannot be moved to Trash.");
   }
-  if (!isStrictlyInside(canonicalPath, workspace)) {
+  if (!isPathInside(workspace, canonicalPath)) {
     throw new TrashTargetError("The path is outside the selected workspace.");
   }
 
@@ -69,7 +70,7 @@ export async function validateTrashTarget(
     if (canonicalPath === protectedRoot.path) {
       throw new TrashTargetError("This path is protected and cannot be moved to Trash.");
     }
-    if (protectedRoot.mode === "tree" && isStrictlyInside(canonicalPath, protectedRoot.path)) {
+    if (protectedRoot.mode === "tree" && isPathInside(protectedRoot.path, canonicalPath)) {
       throw new TrashTargetError("This path is protected and cannot be moved to Trash.");
     }
   }
@@ -120,9 +121,4 @@ async function canonicalizeExistingDirectory(directory: string, label: string): 
     }
     throw new TrashTargetError(`The ${label} directory is missing or inaccessible.`);
   }
-}
-
-function isStrictlyInside(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }

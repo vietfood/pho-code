@@ -91,6 +91,79 @@ export function createDeterministicTestProvider(): FauxProviderHandle {
   return faux;
 }
 
+// Order matters: tokens are matched with `includes`, so prefixed tokens
+// (USE_WRITE_FAIL/USE_WRITE_OUTSIDE) must precede USE_WRITE.
+const TOOL_USE_RESPONSES: [token: string, thinking: string, tool: string, args: Record<string, unknown>, callId: string][] = [
+  [TEST_PROMPT.useTool, "Calling the mark tool.", TEST_TOOL_NAME, { note: "ok" }, "call_harness_mark"],
+  [TEST_PROMPT.useSafeShell, "Inspecting the repository.", "bash", { command: "git status" }, "call_safe_shell"],
+  [TEST_PROMPT.useDangerousShell, "Attempting a permanent removal.", "bash", { command: "rm -rf disposable-fixture.txt" }, "call_dangerous_shell"],
+  [TEST_PROMPT.useCompoundSafe, "Running a compound inspection.", "bash", { command: "pwd && git status" }, "call_compound_safe"],
+  [TEST_PROMPT.useCompoundDangerous, "Mixing inspection with removal.", "bash", { command: "pwd && rm -rf disposable-fixture.txt" }, "call_compound_dangerous"],
+  [TEST_PROMPT.useWrapper, "Hiding a command behind a wrapper.", "bash", { command: "bash -c 'pwd'" }, "call_wrapper"],
+  [
+    TEST_PROMPT.useTodo,
+    "Writing a session checklist.",
+    "todo",
+    {
+      todos: [
+        { id: "inspect", content: "Inspect the workspace", status: "completed" },
+        { id: "group", content: "Group remaining work", status: "in_progress" },
+        { id: "verify", content: "Verify the result", status: "pending" },
+      ],
+    },
+    "call_todo",
+  ],
+  [
+    TEST_PROMPT.usePlanDoc,
+    "Writing the Plan document.",
+    "update_plan_document",
+    { markdown: "# Packaged plan\n\nWrite `agent-note.txt` with hello from agent.\n" },
+    "call_plan_doc",
+  ],
+  [
+    TEST_PROMPT.useAskUser,
+    "Asking the owner before guessing.",
+    "ask_user_question",
+    {
+      questions: [
+        {
+          question: "Which approach should we use?",
+          header: "Approach",
+          options: [
+            { label: "Rewrite", description: "Replace the module." },
+            { label: "Patch", description: "Minimal surgical edits." },
+            { label: "Defer", description: "Leave it for later." },
+          ],
+        },
+        {
+          question: "What should the commit message emphasize?",
+          header: "Commit",
+          options: [
+            { label: "Fix", description: "Bugfix wording." },
+            { label: "Refactor", description: "Structure-only wording." },
+          ],
+        },
+      ],
+    },
+    "call_ask_user",
+  ],
+  [TEST_PROMPT.useSandboxTouch, "Writing a sandbox probe file.", "bash", { command: "touch sandbox-allowed.txt" }, "call_sandbox_touch"],
+  [TEST_PROMPT.useSandboxPwd, "Printing the workspace path.", "bash", { command: "pwd" }, "call_sandbox_pwd"],
+  [TEST_PROMPT.useSandboxCurl, "Trying a public HTTP fetch.", "bash", { command: "curl -sS -o /dev/null --max-time 5 https://example.com" }, "call_sandbox_curl"],
+  [TEST_PROMPT.useSandboxWriteEnv, "Writing a dotenv file.", "write", { path: ".env", content: "SECRET=1\n" }, "call_sandbox_write_env"],
+  [TEST_PROMPT.useSandboxWriteMcp, "Writing an MCP config file.", "write", { path: ".mcp.json", content: "{}\n" }, "call_sandbox_write_mcp"],
+  [TEST_PROMPT.useSandboxWriteSsh, "Writing an SSH private key.", "write", { path: path.join(homedir(), ".ssh", "id_rsa"), content: "sandbox-must-not-write\n" }, "call_sandbox_write_ssh"],
+  [TEST_PROMPT.useTrash, "Moving the fixture to Trash.", "move_to_trash", { path: "disposable-fixture.txt" }, "call_move_to_trash"],
+  [TEST_PROMPT.useWriteFail, "Writing over a directory.", "write", { path: "blocked-dir", content: "should fail\n" }, "call_write_fail"],
+  [TEST_PROMPT.useWriteOutside, "Writing outside the workspace.", "write", { path: "/tmp/pho-code-outside-note.txt", content: "outside\n" }, "call_write_outside"],
+  [TEST_PROMPT.useWrite, "Creating a tracked file.", "write", { path: "agent-note.txt", content: "hello from agent\n" }, "call_write"],
+  [TEST_PROMPT.useEdit, "Editing the tracked file.", "edit", { path: "tracked.txt", edits: [{ oldText: "before\n", newText: "after from agent\n" }] }, "call_edit"],
+];
+
+function toolUseResponse(thinking: string, tool: string, args: Record<string, unknown>, callId: string) {
+  return fauxAssistantMessage([fauxThinking(thinking), fauxToolCall(tool, args, { id: callId })], { stopReason: "toolUse" });
+}
+
 function buildTestResponse(context: Context) {
   if (hasToolResult(context)) {
     return fauxAssistantMessage(fauxText("Tool completed."));
@@ -98,13 +171,7 @@ function buildTestResponse(context: Context) {
 
   const prompt = lastUserText(context);
   if (prompt.includes(PLAN_EXECUTE_PROMPT) || prompt.includes("[EXECUTING PLAN]")) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing the first Execute step."),
-        fauxToolCall("write", { path: "agent-note.txt", content: "hello from agent\n" }, { id: "call_write" }),
-      ],
-      { stopReason: "toolUse" },
-    );
+    return toolUseResponse("Writing the first Execute step.", "write", { path: "agent-note.txt", content: "hello from agent\n" }, "call_write");
   }
   if (prompt.includes(TEST_PROMPT.failAfter)) {
     return fauxAssistantMessage("synthetic failure after admission", {
@@ -115,218 +182,16 @@ function buildTestResponse(context: Context) {
   if (prompt.includes(TEST_PROMPT.abortMe)) {
     return fauxAssistantMessage(ABORT_TEXT);
   }
-  if (prompt.includes(TEST_PROMPT.useTool)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Calling the mark tool."),
-        fauxToolCall(TEST_TOOL_NAME, { note: "ok" }, { id: "call_harness_mark" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSafeShell)) {
-    return fauxAssistantMessage(
-      [fauxThinking("Inspecting the repository."), fauxToolCall("bash", { command: "git status" }, { id: "call_safe_shell" })],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useDangerousShell)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Attempting a permanent removal."),
-        fauxToolCall("bash", { command: "rm -rf disposable-fixture.txt" }, { id: "call_dangerous_shell" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useCompoundSafe)) {
-    return fauxAssistantMessage(
-      [fauxThinking("Running a compound inspection."), fauxToolCall("bash", { command: "pwd && git status" }, { id: "call_compound_safe" })],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useCompoundDangerous)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Mixing inspection with removal."),
-        fauxToolCall("bash", { command: "pwd && rm -rf disposable-fixture.txt" }, { id: "call_compound_dangerous" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useWrapper)) {
-    return fauxAssistantMessage(
-      [fauxThinking("Hiding a command behind a wrapper."), fauxToolCall("bash", { command: "bash -c 'pwd'" }, { id: "call_wrapper" })],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useTodo)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing a session checklist."),
-        fauxToolCall(
-          "todo",
-          {
-            todos: [
-              { id: "inspect", content: "Inspect the workspace", status: "completed" },
-              { id: "group", content: "Group remaining work", status: "in_progress" },
-              { id: "verify", content: "Verify the result", status: "pending" },
-            ],
-          },
-          { id: "call_todo" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.usePlanDoc)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing the Plan document."),
-        fauxToolCall(
-          "update_plan_document",
-          { markdown: "# Packaged plan\n\nWrite `agent-note.txt` with hello from agent.\n" },
-          { id: "call_plan_doc" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useAskUser)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Asking the owner before guessing."),
-        fauxToolCall(
-          "ask_user_question",
-          {
-            questions: [
-              {
-                question: "Which approach should we use?",
-                header: "Approach",
-                options: [
-                  { label: "Rewrite", description: "Replace the module." },
-                  { label: "Patch", description: "Minimal surgical edits." },
-                  { label: "Defer", description: "Leave it for later." },
-                ],
-              },
-              {
-                question: "What should the commit message emphasize?",
-                header: "Commit",
-                options: [
-                  { label: "Fix", description: "Bugfix wording." },
-                  { label: "Refactor", description: "Structure-only wording." },
-                ],
-              },
-            ],
-          },
-          { id: "call_ask_user" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxTouch)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing a sandbox probe file."),
-        fauxToolCall("bash", { command: "touch sandbox-allowed.txt" }, { id: "call_sandbox_touch" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxPwd)) {
-    return fauxAssistantMessage(
-      [fauxThinking("Printing the workspace path."), fauxToolCall("bash", { command: "pwd" }, { id: "call_sandbox_pwd" })],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxCurl)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Trying a public HTTP fetch."),
-        fauxToolCall(
-          "bash",
-          { command: "curl -sS -o /dev/null --max-time 5 https://example.com" },
-          { id: "call_sandbox_curl" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxWriteEnv)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing a dotenv file."),
-        fauxToolCall("write", { path: ".env", content: "SECRET=1\n" }, { id: "call_sandbox_write_env" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxWriteMcp)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing an MCP config file."),
-        fauxToolCall("write", { path: ".mcp.json", content: "{}\n" }, { id: "call_sandbox_write_mcp" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useSandboxWriteSsh)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing an SSH private key."),
-        fauxToolCall(
-          "write",
-          { path: path.join(homedir(), ".ssh", "id_rsa"), content: "sandbox-must-not-write\n" },
-          { id: "call_sandbox_write_ssh" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
   if (prompt.includes(TEST_PROMPT.useSandboxWriteAbs)) {
     const absolutePath = prompt
       .slice(prompt.indexOf(TEST_PROMPT.useSandboxWriteAbs) + TEST_PROMPT.useSandboxWriteAbs.length)
       .trim()
       .split(/\s+/u)[0];
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing an absolute path."),
-        fauxToolCall(
-          "write",
-          { path: absolutePath || "/tmp/pho-code-sandbox-missing-abs.txt", content: "extra-write\n" },
-          { id: "call_sandbox_write_abs" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useTrash)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Moving the fixture to Trash."),
-        fauxToolCall("move_to_trash", { path: "disposable-fixture.txt" }, { id: "call_move_to_trash" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-
-  if (prompt.includes(TEST_PROMPT.useWriteFail)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing over a directory."),
-        fauxToolCall("write", { path: "blocked-dir", content: "should fail\n" }, { id: "call_write_fail" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useWriteOutside)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Writing outside the workspace."),
-        fauxToolCall("write", { path: "/tmp/pho-code-outside-note.txt", content: "outside\n" }, { id: "call_write_outside" }),
-      ],
-      { stopReason: "toolUse" },
+    return toolUseResponse(
+      "Writing an absolute path.",
+      "write",
+      { path: absolutePath || "/tmp/pho-code-sandbox-missing-abs.txt", content: "extra-write\n" },
+      "call_sandbox_write_abs",
     );
   }
   if (prompt.includes(TEST_PROMPT.useWriteCap)) {
@@ -340,27 +205,10 @@ function buildTestResponse(context: Context) {
       { stopReason: "toolUse" },
     );
   }
-  if (prompt.includes(TEST_PROMPT.useWrite)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Creating a tracked file."),
-        fauxToolCall("write", { path: "agent-note.txt", content: "hello from agent\n" }, { id: "call_write" }),
-      ],
-      { stopReason: "toolUse" },
-    );
-  }
-  if (prompt.includes(TEST_PROMPT.useEdit)) {
-    return fauxAssistantMessage(
-      [
-        fauxThinking("Editing the tracked file."),
-        fauxToolCall(
-          "edit",
-          { path: "tracked.txt", edits: [{ oldText: "before\n", newText: "after from agent\n" }] },
-          { id: "call_edit" },
-        ),
-      ],
-      { stopReason: "toolUse" },
-    );
+  for (const [token, thinking, tool, args, callId] of TOOL_USE_RESPONSES) {
+    if (prompt.includes(token)) {
+      return toolUseResponse(thinking, tool, args, callId);
+    }
   }
 
   return fauxAssistantMessage([

@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   CHANGE_UNREADABLE_RUN_ID,
   createHarnessError,
+  failCommand,
   HARNESS_ERROR_CODES,
   MAX_CHANGE_FILES_ON_SUMMARY,
   isChangeFileVersion,
@@ -88,30 +89,76 @@ export function createChangeReviewRuntime(input: {
 }): ChangeReviewRuntime {
   const previews = new Map<string, StoredUndoPreview>();
   const now = () => (input.now ?? (() => new Date()))();
-  function requireRelativePath(relativePath: string, operation: string): string {
-    return requireChangeRelativePath(relativePath, operation);
-  }
 
   async function requireRecord(scope: ChangeScope, relativePath: string, operation: string) {
     const manifest = await input.capture.loadManifest(scope);
     if (!manifest) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.changeReviewNotFound,
-        message: "No tracked write/edit review exists for that run.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "No tracked write/edit review exists for that run.", HARNESS_ERROR_CODES.changeReviewNotFound);
     }
     const record = manifest.files.find((file) => file.relativePath === relativePath);
     if (!record) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.changeReviewNotFound,
-        message: "That path is not in the selected review set.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "That path is not in the selected review set.", HARNESS_ERROR_CODES.changeReviewNotFound);
     }
     return { manifest, record };
+  }
+
+  type ManifestRecord = Awaited<ReturnType<typeof requireRecord>>["record"];
+
+  function markProbeMismatch(
+    record: ManifestRecord,
+    probe: Awaited<ReturnType<ChangeCaptureService["probeWorkspaceFile"]>>,
+  ): void {
+    record.status = probe.state === "limited" ? "unavailable" : "conflict";
+    if (probe.state === "limited") {
+      record.limitation = probe.limitation;
+    }
+    record.updatedAt = now().toISOString();
+  }
+
+  async function reconcileUndoingRecord(
+    record: ManifestRecord,
+    workspacePath: string,
+  ): Promise<ReturnType<typeof reconcileUndoingStatus>> {
+    if (record.undoTempName) {
+      const removed = await trashJournaledUndoTemp(
+        input.removal,
+        { ...input.trashContext, workspacePath },
+        record.relativePath,
+        record.undoTempName,
+      );
+      if (removed) {
+        delete record.undoTempName;
+      }
+    }
+    const probe = await input.capture.probeWorkspaceFile(workspacePath, record.relativePath);
+    const status = reconcileUndoingStatus(record, probe);
+    record.status = status;
+    record.updatedAt = now().toISOString();
+    return status;
+  }
+
+  async function reconcileFailedUndo(
+    scope: ChangeScope,
+    preview: StoredUndoPreview,
+    workspacePath: string,
+    expectedRevision: number,
+  ): Promise<void> {
+    try {
+      await input.capture.transact(
+        scope,
+        async (manifest) => {
+          const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
+          if (!record || record.status !== "undoing") {
+            return null;
+          }
+          await reconcileUndoingRecord(record, workspacePath);
+          return manifest;
+        },
+        { expectedRevision, createIfMissing: false, operation: "applyUndoChanges" },
+      );
+    } catch {
+      // The persisted undoing state is reconciled the next time the review set opens.
+    }
   }
 
   async function refreshCurrentHash(scope: ChangeScope, relativePath: string, operation: string): Promise<void> {
@@ -166,6 +213,11 @@ export function createChangeReviewRuntime(input: {
         async (manifest) => {
           let changed = false;
           for (const file of manifest.files) {
+            if (file.status === "undoing") {
+              await reconcileUndoingRecord(file, workspacePath);
+              changed = true;
+              continue;
+            }
             if (file.undoTempName) {
               const removed = await trashJournaledUndoTemp(
                 input.removal,
@@ -177,14 +229,6 @@ export function createChangeReviewRuntime(input: {
                 delete file.undoTempName;
                 changed = true;
               }
-            }
-            if (file.status === "undoing") {
-              const probe = await input.capture.probeWorkspaceFile(workspacePath, file.relativePath);
-              const status = reconcileUndoingStatus(file, probe);
-              file.status = status;
-              file.updatedAt = now().toISOString();
-              changed = true;
-              continue;
             }
             if (file.status !== "pending" && file.status !== "conflict") {
               continue;
@@ -203,14 +247,9 @@ export function createChangeReviewRuntime(input: {
     },
     async getFileView(command) {
       if (!isChangeFileVersion(command.version)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "File version must be before, agent, or current.",
-          operation: "getChangeFileView",
-          recoverable: true,
-        });
+        failCommand("getChangeFileView", "File version must be before, agent, or current.");
       }
-      const relativePath = requireRelativePath(command.relativePath, "getChangeFileView");
+      const relativePath = requireChangeRelativePath(command.relativePath, "getChangeFileView");
       parseChangeFileViewCursor(command.cursor, "getChangeFileView");
       if (command.version === "current") {
         await refreshCurrentHash(command, relativePath, "getChangeFileView");
@@ -219,21 +258,9 @@ export function createChangeReviewRuntime(input: {
         const current = await input.capture.readWorkspaceFile(workspacePath, relativePath);
         switch (current.state) {
           case "absent":
-            return {
-              relativePath,
-              version: command.version,
-              status: record.status,
-              truncated: false,
-              limitation: "capture-failed",
-            };
+            return limitedFileView(relativePath, command.version, record.status, "capture-failed");
           case "limited":
-            return {
-              relativePath,
-              version: command.version,
-              status: record.status,
-              truncated: false,
-              limitation: current.limitation,
-            };
+            return limitedFileView(relativePath, command.version, record.status, current.limitation);
           case "bytes":
             return fileViewFromBytes(relativePath, command.version, record.status, current.bytes, command.cursor);
           default: {
@@ -254,39 +281,21 @@ export function createChangeReviewRuntime(input: {
         };
       }
       if (!blobId) {
-        return {
-          relativePath,
-          version: command.version,
-          status: record.status,
-          truncated: false,
-          limitation: record.limitation ?? "capture-failed",
-        };
+        return limitedFileView(relativePath, command.version, record.status, record.limitation ?? "capture-failed");
       }
       const stored = await verifiedBlob(input.capture, blobId, command.version === "before" ? record.beforeHash : record.afterHash);
       if (!stored) {
-        return {
-          relativePath,
-          version: command.version,
-          status: record.status,
-          truncated: false,
-          limitation: "capture-failed",
-        };
+        return limitedFileView(relativePath, command.version, record.status, "capture-failed");
       }
       return fileViewFromBytes(relativePath, command.version, record.status, stored, command.cursor);
     },
     async getDiff(command) {
-      const relativePath = requireRelativePath(command.relativePath, "getChangeDiff");
+      const relativePath = requireChangeRelativePath(command.relativePath, "getChangeDiff");
       parseChangeDiffCursor(command.cursor, "getChangeDiff");
       await refreshCurrentHash(command, relativePath, "getChangeDiff");
       const { record } = await requireRecord(command, relativePath, "getChangeDiff");
       if (record.limitation) {
-        return {
-          relativePath,
-          status: record.status,
-          hunks: [],
-          truncated: false,
-          limitation: record.limitation,
-        };
+        return limitedDiff(relativePath, record.status, record.limitation);
       }
       const beforeBytes = record.beforeBlobId
         ? await verifiedBlob(input.capture, record.beforeBlobId, record.beforeHash)
@@ -295,24 +304,12 @@ export function createChangeReviewRuntime(input: {
         ? await verifiedBlob(input.capture, record.afterBlobId, record.afterHash)
         : undefined;
       if (beforeBytes === undefined || !afterBytes) {
-        return {
-          relativePath,
-          status: record.status,
-          hunks: [],
-          truncated: false,
-          limitation: "capture-failed",
-        };
+        return limitedDiff(relativePath, record.status, "capture-failed");
       }
       const beforeClass = classifyBytes(beforeBytes);
       const afterClass = classifyBytes(afterBytes);
       if (beforeClass.kind !== "text" || afterClass.kind !== "text" || beforeClass.text === undefined || afterClass.text === undefined) {
-        return {
-          relativePath,
-          status: record.status,
-          hunks: [],
-          truncated: false,
-          limitation: "binary",
-        };
+        return limitedDiff(relativePath, record.status, "binary");
       }
       const paged = buildUnifiedDiffPage({
         relativePath,
@@ -323,30 +320,17 @@ export function createChangeReviewRuntime(input: {
         operation: "getChangeDiff",
       });
       if (paged.limitation) {
-        return {
-          relativePath,
-          status: record.status,
-          hunks: [],
-          truncated: false,
-          limitation: paged.limitation,
-        };
+        return limitedDiff(relativePath, record.status, paged.limitation);
       }
-      const page: ChangeDiffPage = {
+      return {
         relativePath,
         status: record.status,
         hunks: paged.hunks,
         truncated: paged.truncated,
+        ...(paged.nextCursor ? { nextCursor: paged.nextCursor } : {}),
+        ...(paged.language ? { language: paged.language } : {}),
+        ...(afterClass.lineEnding ? { lineEnding: afterClass.lineEnding } : {}),
       };
-      if (paged.nextCursor) {
-        page.nextCursor = paged.nextCursor;
-      }
-      if (paged.language) {
-        page.language = paged.language;
-      }
-      if (afterClass.lineEnding) {
-        page.lineEnding = afterClass.lineEnding;
-      }
-      return page;
     },
     async approve(command) {
       const workspacePath = await input.resolveWorkspacePath(command.workspaceId);
@@ -357,12 +341,7 @@ export function createChangeReviewRuntime(input: {
         async (manifest) => {
           const omitted = command.relativePaths === undefined;
           if (omitted && manifest.files.length > MAX_CHANGE_FILES_ON_SUMMARY) {
-            throw createHarnessError({
-              code: HARNESS_ERROR_CODES.invalidCommand,
-              message: "Approve all requires the visible pending paths when the file list is truncated.",
-              operation: "approveChanges",
-              recoverable: true,
-            });
+            failCommand("approveChanges", "Approve all requires the visible pending paths when the file list is truncated.");
           }
           const selected =
             command.relativePaths?.map((path) => requireChangeRelativePath(path, "approveChanges")) ??
@@ -372,16 +351,11 @@ export function createChangeReviewRuntime(input: {
           for (const relativePath of selected) {
             const record = manifest.files.find((file) => file.relativePath === relativePath);
             if (!record) {
-              throw createHarnessError({
-                code: HARNESS_ERROR_CODES.changeReviewNotFound,
-                message: "That path is not in the selected review set.",
-                operation: "approveChanges",
-                recoverable: true,
-              });
+              failCommand("approveChanges", "That path is not in the selected review set.", HARNESS_ERROR_CODES.changeReviewNotFound);
             }
             const probe = await input.capture.probeWorkspaceFile(workspacePath, relativePath);
             const next = applyApproveTransition(record, probe);
-            Object.assign(record, next, { updatedAt: new Date().toISOString() });
+            Object.assign(record, next, { updatedAt: now().toISOString() });
             if (next.status === "approved") {
               approved += 1;
             } else if (next.status === "conflict") {
@@ -393,18 +367,17 @@ export function createChangeReviewRuntime(input: {
         { expectedRevision: command.expectedRevision, createIfMissing: false, operation: "approveChanges" },
       );
       if (approved === 0 && conflicted > 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewConflict,
-          message: "The file no longer matches the recorded agent result, so Approve is unavailable.",
-          operation: "approveChanges",
-          recoverable: true,
-        });
+        failCommand(
+          "approveChanges",
+          "The file no longer matches the recorded agent result, so Approve is unavailable.",
+          HARNESS_ERROR_CODES.changeReviewConflict,
+        );
       }
       return snapshot;
     },
     async prepareUndo(command) {
       expireUndoPreviews(previews, now().getTime());
-      const relativePath = requireRelativePath(command.relativePath, "prepareUndoChanges");
+      const relativePath = requireChangeRelativePath(command.relativePath, "prepareUndoChanges");
       const workspacePath = await input.resolveWorkspacePath(command.workspaceId);
       let prepared: StoredUndoPreview | undefined;
       let conflict = false;
@@ -413,27 +386,23 @@ export function createChangeReviewRuntime(input: {
         async (manifest) => {
           const record = manifest.files.find((file) => file.relativePath === relativePath);
           if (!record) {
-            throw undoUnavailable("That path is not in the selected review set.", "prepareUndoChanges");
+            failCommand("prepareUndoChanges", "That path is not in the selected review set.", HARNESS_ERROR_CODES.changeUndoUnavailable);
           }
           if (record.status !== "pending" || record.limitation || !record.afterHash) {
-            throw undoUnavailable("Undo is available only for a complete pending write/edit change.", "prepareUndoChanges");
+            failCommand("prepareUndoChanges", "Undo is available only for a complete pending write/edit change.", HARNESS_ERROR_CODES.changeUndoUnavailable);
           }
           if (record.kind === "modified" && (!record.beforeHash || !record.beforeBlobId)) {
-            throw undoUnavailable("The before-image required for Undo is unavailable.", "prepareUndoChanges");
+            failCommand("prepareUndoChanges", "The before-image required for Undo is unavailable.", HARNESS_ERROR_CODES.changeUndoUnavailable);
           }
           const probe = await input.capture.probeWorkspaceFile(workspacePath, relativePath);
           if (probe.state !== "hashed" || probe.hash !== record.afterHash) {
-            record.status = probe.state === "limited" ? "unavailable" : "conflict";
-            if (probe.state === "limited") {
-              record.limitation = probe.limitation;
-            }
-            record.updatedAt = now().toISOString();
+            markProbeMismatch(record, probe);
             conflict = true;
             return manifest;
           }
           const resolved = await resolveCapturePath(relativePath, workspacePath);
           if (resolved.kind !== "regular-file" || resolved.limitation) {
-            throw undoUnavailable("The tracked path is no longer a safe regular file.", "prepareUndoChanges");
+            failCommand("prepareUndoChanges", "The tracked path is no longer a safe regular file.", HARNESS_ERROR_CODES.changeUndoUnavailable);
           }
           let file;
           try {
@@ -473,12 +442,11 @@ export function createChangeReviewRuntime(input: {
         { expectedRevision: command.expectedRevision, createIfMissing: false, operation: "prepareUndoChanges" },
       );
       if (conflict || !prepared) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewConflict,
-          message: "The file no longer matches the recorded agent result, so Undo is unavailable.",
-          operation: "prepareUndoChanges",
-          recoverable: true,
-        });
+        failCommand(
+          "prepareUndoChanges",
+          "The file no longer matches the recorded agent result, so Undo is unavailable.",
+          HARNESS_ERROR_CODES.changeReviewConflict,
+        );
       }
       const previewToken = (input.randomId ?? randomUUID)();
       previews.set(previewToken, prepared);
@@ -499,12 +467,11 @@ export function createChangeReviewRuntime(input: {
       const preview = previews.get(command.previewToken);
       previews.delete(command.previewToken);
       if (!preview || preview.expiresAtMs <= now().getTime() || !sameScope(preview.scope, command)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeUndoTokenInvalid,
-          message: "That Undo preview expired or does not belong to this review set.",
-          operation: "applyUndoChanges",
-          recoverable: true,
-        });
+        failCommand(
+          "applyUndoChanges",
+          "That Undo preview expired or does not belong to this review set.",
+          HARNESS_ERROR_CODES.changeUndoTokenInvalid,
+        );
       }
       return input.capture.runExclusive(command, async () => {
         const workspacePath = await input.resolveWorkspacePath(command.workspaceId);
@@ -518,12 +485,11 @@ export function createChangeReviewRuntime(input: {
           workspacePath !== preview.workspacePath ||
           !sameFilesystemIdentity(workspaceIdentity, preview.workspaceIdentity)
         ) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.changeReviewConflict,
-            message: "The workspace identity changed after the Undo preview.",
-            operation: "applyUndoChanges",
-            recoverable: true,
-          });
+          failCommand(
+            "applyUndoChanges",
+            "The workspace identity changed after the Undo preview.",
+            HARNESS_ERROR_CODES.changeReviewConflict,
+          );
         }
         const undoTempName = preview.action === "restore" ? createUndoTempName() : undefined;
         const undoing = await input.capture.transact(
@@ -536,15 +502,11 @@ export function createChangeReviewRuntime(input: {
               record.kind !== preview.kind ||
               record.afterHash !== preview.expectedCurrentHash
             ) {
-              throw undoUnavailable("The pending change no longer matches the Undo preview.", "applyUndoChanges");
+              failCommand("applyUndoChanges", "The pending change no longer matches the Undo preview.", HARNESS_ERROR_CODES.changeUndoUnavailable);
             }
             const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
             if (probe.state !== "hashed" || probe.hash !== preview.expectedCurrentHash) {
-              record.status = probe.state === "limited" ? "unavailable" : "conflict";
-              if (probe.state === "limited") {
-                record.limitation = probe.limitation;
-              }
-              record.updatedAt = now().toISOString();
+              markProbeMismatch(record, probe);
               return manifest;
             }
             record.status = "undoing";
@@ -558,23 +520,18 @@ export function createChangeReviewRuntime(input: {
         );
         const undoingRecord = undoing.files.find((file) => file.relativePath === preview.relativePath);
         if (undoingRecord?.status !== "undoing") {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.changeReviewConflict,
-            message: "The file changed after the Undo preview.",
-            operation: "applyUndoChanges",
-            recoverable: true,
-          });
+          failCommand("applyUndoChanges", "The file changed after the Undo preview.", HARNESS_ERROR_CODES.changeReviewConflict);
         }
 
         const abort = new AbortController();
         try {
           if (preview.action === "restore") {
             if (!preview.beforeBlobId || !preview.beforeHash || !undoTempName) {
-              throw undoUnavailable("The before-image required for Undo is unavailable.", "applyUndoChanges");
+              failCommand("applyUndoChanges", "The before-image required for Undo is unavailable.", HARNESS_ERROR_CODES.changeUndoUnavailable);
             }
             const bytes = await input.capture.getBlob(preview.beforeBlobId);
             if (!bytes || hashBytes(bytes) !== preview.beforeHash) {
-              throw undoUnavailable("The before-image required for Undo is missing.", "applyUndoChanges");
+              failCommand("applyUndoChanges", "The before-image required for Undo is missing.", HARNESS_ERROR_CODES.changeUndoUnavailable);
             }
             const resolved = await resolveCapturePath(preview.relativePath, workspacePath);
             if (resolved.kind !== "regular-file" || resolved.limitation) {
@@ -613,16 +570,7 @@ export function createChangeReviewRuntime(input: {
             await waitForCreatedFileAbsence(input.capture, workspacePath, preview.relativePath, abort.signal);
           }
         } catch (error) {
-          await reconcileFailedUndo(
-            input.capture,
-            input.removal,
-            { ...input.trashContext, workspacePath },
-            command,
-            preview,
-            workspacePath,
-            undoing.revision,
-            now,
-          );
+          await reconcileFailedUndo(command, preview, workspacePath, undoing.revision);
           throw normalizeUndoError(error);
         }
 
@@ -632,35 +580,15 @@ export function createChangeReviewRuntime(input: {
           async (manifest) => {
             const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
             if (!record || record.status !== "undoing") {
-              throw undoUnavailable("Undo state changed before it could be finalized.", "applyUndoChanges");
+              failCommand("applyUndoChanges", "Undo state changed before it could be finalized.", HARNESS_ERROR_CODES.changeUndoUnavailable);
             }
-            if (record.undoTempName) {
-              const removed = await trashJournaledUndoTemp(
-                input.removal,
-                { ...input.trashContext, workspacePath },
-                record.relativePath,
-                record.undoTempName,
-              );
-              if (removed) {
-                delete record.undoTempName;
-              }
-            }
-            const probe = await input.capture.probeWorkspaceFile(workspacePath, preview.relativePath);
-            const status = reconcileUndoingStatus(record, probe);
-            record.status = status;
-            record.updatedAt = now().toISOString();
-            finalized = status === "undone";
+            finalized = (await reconcileUndoingRecord(record, workspacePath)) === "undone";
             return manifest;
           },
           { expectedRevision: undoing.revision, createIfMissing: false, operation: "applyUndoChanges" },
         );
         if (!finalized) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.changeUndoFailed,
-            message: "Undo completed with an unexpected filesystem state.",
-            operation: "applyUndoChanges",
-            recoverable: true,
-          });
+          failCommand("applyUndoChanges", "Undo completed with an unexpected filesystem state.", HARNESS_ERROR_CODES.changeUndoFailed);
         }
         return finalSnapshot;
       });
@@ -685,56 +613,6 @@ function reconcileUndoingStatus(
     return "pending";
   }
   return "conflict";
-}
-
-async function reconcileFailedUndo(
-  capture: ChangeCaptureService,
-  removal: RecoverableRemovalService,
-  trashContext: TrashTargetContext,
-  scope: ChangeScope,
-  preview: StoredUndoPreview,
-  workspacePath: string,
-  expectedRevision: number,
-  now: () => Date,
-): Promise<void> {
-  try {
-    await capture.transact(
-      scope,
-      async (manifest) => {
-        const record = manifest.files.find((file) => file.relativePath === preview.relativePath);
-        if (!record || record.status !== "undoing") {
-          return null;
-        }
-        if (record.undoTempName) {
-          const removed = await trashJournaledUndoTemp(
-            removal,
-            trashContext,
-            record.relativePath,
-            record.undoTempName,
-          );
-          if (removed) {
-            delete record.undoTempName;
-          }
-        }
-        const probe = await capture.probeWorkspaceFile(workspacePath, preview.relativePath);
-        record.status = reconcileUndoingStatus(record, probe);
-        record.updatedAt = now().toISOString();
-        return manifest;
-      },
-      { expectedRevision, createIfMissing: false, operation: "applyUndoChanges" },
-    );
-  } catch {
-    // The persisted undoing state is reconciled the next time the review set opens.
-  }
-}
-
-function undoUnavailable(message: string, operation: string) {
-  return createHarnessError({
-    code: HARNESS_ERROR_CODES.changeUndoUnavailable,
-    message,
-    operation,
-    recoverable: true,
-  });
 }
 
 function expireUndoPreviews(previews: Map<string, StoredUndoPreview>, timestamp: number): void {
@@ -847,6 +725,23 @@ async function verifiedBlob(
   return stored;
 }
 
+function limitedFileView(
+  relativePath: string,
+  version: ChangeFileViewPage["version"],
+  status: ChangeFileViewPage["status"],
+  limitation: NonNullable<ChangeFileViewPage["limitation"]>,
+): ChangeFileViewPage {
+  return { relativePath, version, status, truncated: false, limitation };
+}
+
+function limitedDiff(
+  relativePath: string,
+  status: ChangeDiffPage["status"],
+  limitation: NonNullable<ChangeDiffPage["limitation"]>,
+): ChangeDiffPage {
+  return { relativePath, status, hunks: [], truncated: false, limitation };
+}
+
 function fileViewFromBytes(
   relativePath: string,
   version: ChangeFileViewPage["version"],
@@ -856,30 +751,17 @@ function fileViewFromBytes(
 ): ChangeFileViewPage {
   const classified = classifyBytes(bytes);
   if (classified.kind !== "text" || classified.text === undefined) {
-    return {
-      relativePath,
-      version,
-      status,
-      truncated: false,
-      limitation: "binary",
-    };
+    return limitedFileView(relativePath, version, status, "binary");
   }
   const paged = pageFileText(relativePath, classified.text, cursor);
-  const page: ChangeFileViewPage = {
+  return {
     relativePath,
     version,
     status,
     truncated: paged.truncated,
     text: paged.text,
+    ...(paged.nextCursor ? { nextCursor: paged.nextCursor } : {}),
+    ...(paged.language ? { language: paged.language } : {}),
+    ...(classified.lineEnding ? { lineEnding: classified.lineEnding } : {}),
   };
-  if (paged.nextCursor) {
-    page.nextCursor = paged.nextCursor;
-  }
-  if (paged.language) {
-    page.language = paged.language;
-  }
-  if (classified.lineEnding) {
-    page.lineEnding = classified.lineEnding;
-  }
-  return page;
 }

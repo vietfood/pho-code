@@ -3,6 +3,7 @@ import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createHarnessError, HARNESS_ERROR_CODES, isHarnessError } from "@pho-code/protocol";
+import { isPathInside } from "./path-containment";
 
 export interface SessionArtifactContext {
   agentDir: string;
@@ -55,7 +56,7 @@ export async function validateSessionArtifact(
   if (canonicalPath === agentDir) {
     throw artifactError("The agent data directory cannot be moved to Trash.");
   }
-  if (!isStrictlyInside(canonicalPath, agentDir)) {
+  if (!isPathInside(agentDir, canonicalPath)) {
     throw artifactError("The session transcript is outside the agent data directory.");
   }
   if (path.dirname(canonicalPath) === agentDir) {
@@ -63,7 +64,7 @@ export async function validateSessionArtifact(
   }
 
   const workspace = await canonicalizeExistingDirectory(context.workspacePath, "workspace");
-  if (canonicalPath === workspace || isStrictlyInside(canonicalPath, workspace)) {
+  if (canonicalPath === workspace || isPathInside(workspace, canonicalPath)) {
     throw artifactError("A workspace path cannot be moved as a session transcript.");
   }
 
@@ -153,9 +154,4 @@ async function canonicalizeExistingDirectory(directory: string, label: string): 
     }
     throw artifactError(`The ${label} directory is missing or inaccessible.`);
   }
-}
-
-function isStrictlyInside(target: string, root: string): boolean {
-  const relative = path.relative(root, target);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }

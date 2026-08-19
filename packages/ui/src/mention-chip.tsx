@@ -1,7 +1,6 @@
 import { FileIcon, FolderIcon } from "lucide-react";
 import type { WorkspaceReferenceKind } from "@pho-code/protocol";
-import { InlineChipShell } from "./inline-chip-shell";
-import { cn } from "./lib/cn";
+import { InlineChip } from "./inline-chip-shell";
 import { mentionLabel } from "./lib/at-mention";
 
 // Cursor-inspired file/folder mention chip (visual reference only; harness-owned).
@@ -15,20 +14,15 @@ export function MentionChip({
   kind?: WorkspaceReferenceKind;
   className?: string;
 }) {
-  const label = mentionLabel(path);
   const Icon = kind === "folder" ? FolderIcon : FileIcon;
   return (
-    <InlineChipShell>
-      <span
-        className={cn("mention-chip", className)}
-        data-mention-path={path}
-        data-mention-kind={kind}
-        title={path}
-        aria-label={path}
-      >
-        <Icon className="mention-chip-icon" aria-hidden="true" />
-        <span className="mention-chip-label">{label}</span>
-      </span>
-    </InlineChipShell>
+    <InlineChip
+      className={className}
+      data={{ "data-mention-path": path, "data-mention-kind": kind }}
+      title={path}
+      ariaLabel={path}
+      icon={<Icon className="mention-chip-icon" aria-hidden="true" />}
+      label={mentionLabel(path)}
+    />
   );
 }

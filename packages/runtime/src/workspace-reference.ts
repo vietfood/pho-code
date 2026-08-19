@@ -1,5 +1,6 @@
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { isPathInside } from "./path-containment";
 import {
   createHarnessError,
   extractAtMentionPaths,
@@ -107,7 +108,7 @@ export async function validateWorkspaceReference(
     });
   }
   const canonicalPath = stats.isSymbolicLink() ? resolved : await realpath(resolved);
-  const inside = canonicalPath === workspace || isInside(canonicalPath, workspace);
+  const inside = canonicalPath === workspace || isPathInside(workspace, canonicalPath);
   if (!inside) {
     throw createHarnessError({
       code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
@@ -180,8 +181,3 @@ export function stripWorkspaceReferenceAppendix(text: string): string {
 
 const WORKSPACE_REFERENCE_APPENDIX =
   /(?:\n\n)?Referenced workspace paths:\n(?:- (?:file|folder) `[^`\n]+`(?: \(names the folder; do not expand its contents unless asked\))?\n?)+$/u;
-
-function isInside(candidate: string, root: string): boolean {
-  const relative = path.relative(root, candidate);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
-}

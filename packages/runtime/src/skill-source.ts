@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import path from "node:path";
+import { isPathInsideOrEqual } from "./path-containment";
 import {
   EXTERNAL_SKILL_SOURCE_IDS,
   MAX_SKILL_DESCRIPTION_CHARS,
@@ -78,21 +78,15 @@ interface DiscoveredSkill {
   markdown?: string;
 }
 
+const EXTERNAL_SKILL_ROOTS: Record<ExternalSkillSourceId, string> = {
+  codex: ".codex/skills",
+  cursor: ".cursor/skills",
+  claude: ".claude/skills",
+  pi: ".pi/agent/skills",
+};
+
 export function defaultExternalSkillRoot(sourceId: ExternalSkillSourceId, home = homedir()): string {
-  switch (sourceId) {
-    case "codex":
-      return path.join(home, ".codex", "skills");
-    case "cursor":
-      return path.join(home, ".cursor", "skills");
-    case "claude":
-      return path.join(home, ".claude", "skills");
-    case "pi":
-      return path.join(home, ".pi", "agent", "skills");
-    default: {
-      const exhaustive: never = sourceId;
-      return exhaustive;
-    }
-  }
+  return path.join(home, EXTERNAL_SKILL_ROOTS[sourceId]);
 }
 
 export function createSkillSourceRegistry(options: SkillSourceRegistryOptions): SkillSourceRegistry {
@@ -314,12 +308,7 @@ function discoverSource(
     }
     for (const entry of entries) {
       if (entry.name.startsWith(".") && !(layout.system && entry.name === ".system")) {
-        if (layout.relative === "." && entry.name === ".system") {
-          continue;
-        }
-        if (entry.name.startsWith(".")) {
-          continue;
-        }
+        continue;
       }
       if (!entry.isDirectory() && !entry.isSymbolicLink()) {
         continue;
@@ -343,15 +332,18 @@ function discoverSource(
   return skills;
 }
 
+function incompatible(sourceId: SkillSourceId, directoryName: string, skillDir: string, reason: string): DiscoveredSkill {
+  return { sourceId, skillName: directoryName, displayName: directoryName, compatibility: "incompatible", reason, skillDir };
+}
+
 function admitSkill(
   sourceId: SkillSourceId,
   rootReal: string,
   skillDir: string,
   directoryName: string,
 ): DiscoveredSkill | undefined {
-  let dirStat;
   try {
-    dirStat = lstatSync(skillDir);
+    lstatSync(skillDir);
   } catch {
     return undefined;
   }
@@ -359,34 +351,10 @@ function admitSkill(
   try {
     resolvedDir = realpathSync(skillDir);
   } catch {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "The skill directory could not be resolved.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "The skill directory could not be resolved.");
   }
-  if (!isInsideRoot(rootReal, resolvedDir)) {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "The skill path escapes the enabled source root.",
-      skillDir,
-    };
-  }
-  if (dirStat.isSymbolicLink() && !isInsideRoot(rootReal, resolvedDir)) {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "The skill path escapes the enabled source root.",
-      skillDir,
-    };
+  if (!isPathInsideOrEqual(rootReal, resolvedDir)) {
+    return incompatible(sourceId, directoryName, skillDir, "The skill path escapes the enabled source root.");
   }
 
   const skillFile = path.join(skillDir, "SKILL.md");
@@ -403,24 +371,10 @@ function admitSkill(
   try {
     resolvedFile = realpathSync(skillFile);
   } catch {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md could not be resolved.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md could not be resolved.");
   }
-  if (fileStat.isSymbolicLink() && !isInsideRoot(rootReal, resolvedFile)) {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md escapes the enabled source root.",
-      skillDir,
-    };
+  if (fileStat.isSymbolicLink() && !isPathInsideOrEqual(rootReal, resolvedFile)) {
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md escapes the enabled source root.");
   }
   if (!fileStat.isFile() && !fileStat.isSymbolicLink()) {
     return undefined;
@@ -429,64 +383,29 @@ function admitSkill(
   try {
     resolvedFileStat = statSync(resolvedFile);
   } catch {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md could not be inspected.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md could not be inspected.");
   }
   if (!resolvedFileStat.isFile()) {
     return undefined;
   }
   if (resolvedFileStat.size > MAX_SKILL_MARKDOWN_BYTES) {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md is larger than 64 KiB.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md is larger than 64 KiB.");
   }
 
   let markdown: string;
   try {
     const bytes = readFileSync(skillFile);
     if (bytes.includes(0)) {
-      return {
-        sourceId,
-        skillName: directoryName,
-        displayName: directoryName,
-        compatibility: "incompatible",
-        reason: "SKILL.md is not UTF-8 text.",
-        skillDir,
-      };
+      return incompatible(sourceId, directoryName, skillDir, "SKILL.md is not UTF-8 text.");
     }
     markdown = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md could not be read.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md could not be read.");
   }
 
   const parsed = parseSkillFrontmatter(markdown);
   if (!parsed) {
-    return {
-      sourceId,
-      skillName: directoryName,
-      displayName: directoryName,
-      compatibility: "incompatible",
-      reason: "SKILL.md needs YAML frontmatter with name and description.",
-      skillDir,
-    };
+    return incompatible(sourceId, directoryName, skillDir, "SKILL.md needs YAML frontmatter with name and description.");
   }
 
   const auxiliary = skillRequiresAuxiliaryAssets(skillDir);
@@ -569,11 +488,6 @@ function scalarField(frontmatter: string, field: string): string | undefined {
   return value.length > 0 ? value : undefined;
 }
 
-function isInsideRoot(rootReal: string, candidate: string): boolean {
-  const relative = path.relative(rootReal, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
 export function sanitizeEnabledSources(values: readonly string[]): ExternalSkillSourceId[] {
   const seen = new Set<ExternalSkillSourceId>();
   for (const value of values) {
@@ -582,8 +496,4 @@ export function sanitizeEnabledSources(values: readonly string[]): ExternalSkill
     }
   }
   return EXTERNAL_SKILL_SOURCE_IDS.filter((sourceId) => seen.has(sourceId));
-}
-
-export function skillIdentityHash(sourceId: SkillSourceId, skillName: string, canonicalPath: string): string {
-  return createHash("sha256").update(`${sourceId}\0${skillName}\0${canonicalPath}`).digest("hex").slice(0, 16);
 }

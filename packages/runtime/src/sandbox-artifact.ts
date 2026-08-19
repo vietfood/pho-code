@@ -40,13 +40,8 @@ export function ripgrepPlatformId(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): RipgrepPlatformId | undefined {
-  if (platform === "darwin" && arch === "arm64") {
-    return "darwin-arm64";
-  }
-  if (platform === "darwin" && arch === "x64") {
-    return "darwin-x64";
-  }
-  return undefined;
+  const id = `${platform}-${arch}`;
+  return RIPGREP_RELEASE_ASSETS.some((entry) => entry.platform === id) ? (id as RipgrepPlatformId) : undefined;
 }
 
 export function ripgrepReleaseAsset(

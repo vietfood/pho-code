@@ -90,21 +90,15 @@ export class AgentBashUnavailableError extends Error {
   }
 }
 
+const UNAVAILABLE_REASONS: Record<SandboxStatusReason, string> = {
+  "rg-missing": "ripgrep is missing",
+  "sandbox-exec": "sandbox-exec is missing",
+  "unsupported-platform": "this platform does not support the OS sandbox",
+  init: "the sandbox failed to start",
+};
+
 export function agentBashUnavailableMessage(reason: SandboxStatusReason): string {
-  switch (reason) {
-    case "rg-missing":
-      return `Agent bash is unavailable because ripgrep is missing. ${SANDBOX_UNAVAILABLE_OWNER_ACTION}`;
-    case "sandbox-exec":
-      return `Agent bash is unavailable because sandbox-exec is missing. ${SANDBOX_UNAVAILABLE_OWNER_ACTION}`;
-    case "unsupported-platform":
-      return `Agent bash is unavailable because this platform does not support the OS sandbox. ${SANDBOX_UNAVAILABLE_OWNER_ACTION}`;
-    case "init":
-      return `Agent bash is unavailable because the sandbox failed to start. ${SANDBOX_UNAVAILABLE_OWNER_ACTION}`;
-    default: {
-      const exhaustive: never = reason;
-      return exhaustive;
-    }
-  }
+  return `Agent bash is unavailable because ${UNAVAILABLE_REASONS[reason]}. ${SANDBOX_UNAVAILABLE_OWNER_ACTION}`;
 }
 
 export function sandboxPlatformSupported(platform: NodeJS.Platform = process.platform): boolean {
@@ -189,15 +183,12 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
   }
 
   function snapshot(): SandboxRuntimeSnapshot {
-    const result: SandboxRuntimeSnapshot = {
+    return {
       enabled,
       status: enabled ? status : "off",
       platformSupported: platformSupported(),
+      ...(enabled && statusReason ? { statusReason } : {}),
     };
-    if (enabled && statusReason) {
-      result.statusReason = statusReason;
-    }
-    return result;
   }
 
   function fail(reason: SandboxStatusReason): SandboxRuntimeSnapshot {
@@ -260,8 +251,6 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
     }
 
     if (!live.workspacePath) {
-      status = "starting";
-      statusReason = undefined;
       initialized = false;
       return snapshot();
     }
@@ -301,27 +290,13 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
   }
 
   async function initialize(input: AgentSandboxInitInput = {}): Promise<SandboxRuntimeSnapshot> {
-    if (input.enabled !== undefined) {
-      enabled = input.enabled;
-    }
-    if (input.workspacePath) {
-      workspacePath = input.workspacePath;
-    }
-    if (input.networkMode) {
-      networkMode = input.networkMode;
-    }
-    if (input.allowedDomains) {
-      allowedDomains = input.allowedDomains;
-    }
-    if (input.additionalReadPaths) {
-      additionalReadPaths = input.additionalReadPaths;
-    }
-    if (input.additionalWritePaths) {
-      additionalWritePaths = input.additionalWritePaths;
-    }
-    if (input.includePackageRegistryDefaults !== undefined) {
-      includePackageRegistryDefaults = input.includePackageRegistryDefaults;
-    }
+    if (input.enabled !== undefined) enabled = input.enabled;
+    if (input.workspacePath) workspacePath = input.workspacePath;
+    if (input.networkMode) networkMode = input.networkMode;
+    if (input.allowedDomains) allowedDomains = input.allowedDomains;
+    if (input.additionalReadPaths) additionalReadPaths = input.additionalReadPaths;
+    if (input.additionalWritePaths) additionalWritePaths = input.additionalWritePaths;
+    if (input.includePackageRegistryDefaults !== undefined) includePackageRegistryDefaults = input.includePackageRegistryDefaults;
     generation += 1;
     if (!inFlight) {
       inFlight = (async () => {
@@ -442,12 +417,8 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
 }
 
 function uniqueAllowWrite(roots: readonly string[], cwd?: string): string[] | undefined {
-  if (!cwd) {
-    return roots.length > 0 ? [...roots] : undefined;
-  }
-  const resolved = path.resolve(cwd);
-  const seen = new Set(roots);
-  if (seen.has(resolved)) {
+  const resolved = cwd ? path.resolve(cwd) : undefined;
+  if (!resolved || new Set(roots).has(resolved)) {
     return roots.length > 0 ? [...roots] : undefined;
   }
   return [...roots, resolved];

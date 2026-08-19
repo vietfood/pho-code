@@ -1,12 +1,10 @@
 import {
   createHarnessError,
   HARNESS_ERROR_CODES,
-  emptyFeatureSnapshot,
   emptySettingsSnapshot,
   type AbortRunInput,
   type CancelProviderLoginInput,
   type CredentialProviderSummary,
-  type FeatureSnapshot,
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
   type LogoutProviderInput,
@@ -138,10 +136,6 @@ export interface HarnessRuntime {
   dispose(): Promise<void>;
 }
 
-export function createStubHarnessRuntime(): HarnessRuntime {
-  return createDisposableStubHarnessRuntime();
-}
-
 export function createDisposableStubHarnessRuntime(options?: {
   onDispose?: () => Promise<void> | void;
   blockDispose?: Promise<void>;
@@ -150,6 +144,7 @@ export function createDisposableStubHarnessRuntime(options?: {
   readonly disposeCount: number;
 } {
   const state = { disposed: false, disposeCount: 0 };
+  const reject = (operation: string) => () => Promise.reject(unavailable(operation));
   return {
     get disposed() {
       return state.disposed;
@@ -157,165 +152,61 @@ export function createDisposableStubHarnessRuntime(options?: {
     get disposeCount() {
       return state.disposeCount;
     },
-    getCapabilities() {
-      return { piRuntime: false };
-    },
+    getCapabilities: () => ({ piRuntime: false }),
     getAgentDir() {
       throw unavailable("getAgentDir");
     },
-    inspectWorkspace() {
-      return Promise.reject(unavailable("inspectWorkspace"));
-    },
-    listWorkspaceSessions() {
-      return Promise.reject(unavailable("listWorkspaceSessions"));
-    },
-    listSessionActivity() {
-      return [];
-    },
-    getSessionSnapshot() {
-      return Promise.reject(unavailable("getSessionSnapshot"));
-    },
-    createSession() {
-      return Promise.reject(unavailable("createSession"));
-    },
-    openSession() {
-      return Promise.reject(unavailable("openSession"));
-    },
-    inspectRemovableSession() {
-      return Promise.reject(unavailable("inspectRemovableSession"));
-    },
-    removeValidatedSession() {
-      return Promise.reject(unavailable("removeValidatedSession"));
-    },
-    sendPrompt() {
-      return Promise.reject(unavailable("sendPrompt"));
-    },
-    steerRun() {
-      return Promise.reject(unavailable("steerRun"));
-    },
-    queueFollowUp() {
-      return Promise.reject(unavailable("queueFollowUp"));
-    },
-    prepareImage() {
-      return Promise.reject(unavailable("prepareImage"));
-    },
-    removePreparedImage() {
-      return Promise.reject(unavailable("removePreparedImage"));
-    },
-    abortRun() {
-      return Promise.reject(unavailable("abortRun"));
-    },
-    setSessionModel() {
-      return Promise.reject(unavailable("setSessionModel"));
-    },
-    setThinkingLevel() {
-      return Promise.reject(unavailable("setThinkingLevel"));
-    },
-    setSessionMode() {
-      return Promise.reject(unavailable("setSessionMode"));
-    },
-    updateSessionPlanDocument() {
-      return Promise.reject(unavailable("updateSessionPlanDocument"));
-    },
-    executeSessionPlan() {
-      return Promise.reject(unavailable("executeSessionPlan"));
-    },
-    rewriteAssistantOutput() {
-      return Promise.reject(unavailable("rewriteAssistantOutput"));
-    },
-    updateSessionContextPrompt() {
-      return Promise.reject(unavailable("updateSessionContextPrompt"));
-    },
-    resolveHostDialog() {
-      return Promise.reject(unavailable("resolveHostDialog"));
-    },
-    getPermissionSettings() {
-      return emptySettingsSnapshot().permission;
-    },
-    updatePermissionSettings() {
-      return Promise.reject(unavailable("updatePermissionSettings"));
-    },
-    trustProjectPermissionRules() {
-      return Promise.reject(unavailable("trustProjectPermissionRules"));
-    },
-    listCredentialProviders() {
-      return Promise.reject(unavailable("listCredentialProviders"));
-    },
-    importProviderApiKey() {
-      return Promise.reject(unavailable("importProviderApiKey"));
-    },
-    listProviderAccounts() {
-      return Promise.reject(unavailable("listProviderAccounts"));
-    },
-    startProviderLogin() {
-      return Promise.reject(unavailable("startProviderLogin"));
-    },
-    respondProviderAuthPrompt() {
-      return Promise.reject(unavailable("respondProviderAuthPrompt"));
-    },
-    openProviderAuthLink() {
-      return Promise.reject(unavailable("openProviderAuthLink"));
-    },
-    cancelProviderLogin() {
-      return Promise.reject(unavailable("cancelProviderLogin"));
-    },
-    logoutProvider() {
-      return Promise.reject(unavailable("logoutProvider"));
-    },
-    searchWorkspaceReferences() {
-      return Promise.reject(unavailable("searchWorkspaceReferences"));
-    },
-    getSkillSettings() {
-      return emptySettingsSnapshot().skills;
-    },
-    setEnabledSkillSources() {
-      return emptySettingsSnapshot().skills;
-    },
-    updateSkillSourceSettings() {
-      return Promise.resolve(emptySettingsSnapshot().skills);
-    },
-    refreshSkills() {
-      return Promise.resolve(emptySettingsSnapshot().skills);
-    },
-    getGitHubMcpSettings() {
-      return emptySettingsSnapshot().githubMcp;
-    },
-    updateGitHubMcpSettings() {
-      return Promise.resolve(emptySettingsSnapshot().githubMcp);
-    },
-    getSandboxSettings() {
-      return emptySettingsSnapshot().sandbox;
-    },
-    updateSandboxSettings() {
-      return Promise.resolve(emptySettingsSnapshot().sandbox);
-    },
-    importGitHubPat() {
-      return Promise.resolve(emptySettingsSnapshot().githubMcp);
-    },
-    removeGitHubPat() {
-      return Promise.resolve(emptySettingsSnapshot().githubMcp);
-    },
-    getChangeReviewSet() {
-      return Promise.reject(unavailable("getChangeReviewSet"));
-    },
-    getChangeDiff() {
-      return Promise.reject(unavailable("getChangeDiff"));
-    },
-    getChangeFileView() {
-      return Promise.reject(unavailable("getChangeFileView"));
-    },
-    approveChanges() {
-      return Promise.reject(unavailable("approveChanges"));
-    },
-    prepareUndoChanges() {
-      return Promise.reject(unavailable("prepareUndoChanges"));
-    },
-    applyUndoChanges() {
-      return Promise.reject(unavailable("applyUndoChanges"));
-    },
-    subscribe() {
-      return () => undefined;
-    },
+    inspectWorkspace: reject("inspectWorkspace"),
+    listWorkspaceSessions: reject("listWorkspaceSessions"),
+    listSessionActivity: () => [],
+    getSessionSnapshot: reject("getSessionSnapshot"),
+    createSession: reject("createSession"),
+    openSession: reject("openSession"),
+    inspectRemovableSession: reject("inspectRemovableSession"),
+    removeValidatedSession: reject("removeValidatedSession"),
+    sendPrompt: reject("sendPrompt"),
+    steerRun: reject("steerRun"),
+    queueFollowUp: reject("queueFollowUp"),
+    prepareImage: reject("prepareImage"),
+    removePreparedImage: reject("removePreparedImage"),
+    abortRun: reject("abortRun"),
+    setSessionModel: reject("setSessionModel"),
+    setThinkingLevel: reject("setThinkingLevel"),
+    setSessionMode: reject("setSessionMode"),
+    updateSessionPlanDocument: reject("updateSessionPlanDocument"),
+    executeSessionPlan: reject("executeSessionPlan"),
+    rewriteAssistantOutput: reject("rewriteAssistantOutput"),
+    updateSessionContextPrompt: reject("updateSessionContextPrompt"),
+    resolveHostDialog: reject("resolveHostDialog"),
+    getPermissionSettings: () => emptySettingsSnapshot().permission,
+    updatePermissionSettings: reject("updatePermissionSettings"),
+    trustProjectPermissionRules: reject("trustProjectPermissionRules"),
+    listCredentialProviders: reject("listCredentialProviders"),
+    importProviderApiKey: reject("importProviderApiKey"),
+    listProviderAccounts: reject("listProviderAccounts"),
+    startProviderLogin: reject("startProviderLogin"),
+    respondProviderAuthPrompt: reject("respondProviderAuthPrompt"),
+    openProviderAuthLink: reject("openProviderAuthLink"),
+    cancelProviderLogin: reject("cancelProviderLogin"),
+    logoutProvider: reject("logoutProvider"),
+    searchWorkspaceReferences: reject("searchWorkspaceReferences"),
+    getSkillSettings: () => emptySettingsSnapshot().skills,
+    setEnabledSkillSources: () => emptySettingsSnapshot().skills,
+    updateSkillSourceSettings: () => Promise.resolve(emptySettingsSnapshot().skills),
+    refreshSkills: () => Promise.resolve(emptySettingsSnapshot().skills),
+    getGitHubMcpSettings: () => emptySettingsSnapshot().githubMcp,
+    updateGitHubMcpSettings: () => Promise.resolve(emptySettingsSnapshot().githubMcp),
+    getSandboxSettings: () => emptySettingsSnapshot().sandbox,
+    updateSandboxSettings: () => Promise.resolve(emptySettingsSnapshot().sandbox),
+    importGitHubPat: () => Promise.resolve(emptySettingsSnapshot().githubMcp),
+    removeGitHubPat: () => Promise.resolve(emptySettingsSnapshot().githubMcp),
+    getChangeReviewSet: reject("getChangeReviewSet"),
+    getChangeDiff: reject("getChangeDiff"),
+    getChangeFileView: reject("getChangeFileView"),
+    approveChanges: reject("approveChanges"),
+    prepareUndoChanges: reject("prepareUndoChanges"),
+    applyUndoChanges: reject("applyUndoChanges"),
+    subscribe: () => () => undefined,
     async dispose() {
       if (state.disposed) {
         return;
@@ -330,10 +221,6 @@ export function createDisposableStubHarnessRuntime(options?: {
       await options?.onDispose?.();
     },
   };
-}
-
-export function emptyStubFeatures(): FeatureSnapshot {
-  return emptyFeatureSnapshot();
 }
 
 function unavailable(operation: string) {
