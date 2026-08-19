@@ -95,7 +95,7 @@ export function PlanDocumentPanel({
 
   return (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+      className="plan-document-panel flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
       aria-labelledby="plan-document-heading"
       data-testid="plan-document-panel"
       data-mode={plan.mode}

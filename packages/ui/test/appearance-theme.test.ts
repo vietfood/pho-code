@@ -56,11 +56,11 @@ describe("appearance theme helpers", () => {
     expect(root.style.properties.get("--glass-blur")).toBe(`${tokens.blurPx}px`);
     expect(root.style.properties.get("--sidebar-glass-blur")).toBe(`${tokens.sidebarBlurPx}px`);
     expect(root.style.properties.get("--composer-glass-opacity")).toBe(`${tokens.composerOpacityPercent}%`);
-    expect(Number.parseInt(root.style.properties.get("--sidebar-glass-opacity") ?? "100", 10)).toBeLessThan(
-      Number.parseInt(root.style.properties.get("--glass-opacity") ?? "100", 10),
-    );
-    expect(Number.parseInt(root.style.properties.get("--glass-opacity") ?? "100", 10)).toBeLessThan(
+    expect(Number.parseInt(root.style.properties.get("--sidebar-glass-opacity") ?? "100", 10)).toBeLessThanOrEqual(
       Number.parseInt(root.style.properties.get("--composer-glass-opacity") ?? "100", 10),
+    );
+    expect(Number.parseInt(root.style.properties.get("--composer-glass-opacity") ?? "100", 10)).toBeLessThanOrEqual(
+      Number.parseInt(root.style.properties.get("--glass-opacity") ?? "100", 10),
     );
   });
 
@@ -91,6 +91,7 @@ describe("appearance theme helpers", () => {
     expect(css).toContain(".right-sidebar-host {\n  border-left: 1px solid var(--shell-divider);");
     expect(css).toContain(".transcript-scroller,\n.transcript-scroller * {");
     expect(css).toContain(".chat-column {");
+    expect(css).toContain(".empty-session-column {\n  width: 100%;\n  min-width: 0;\n  margin-inline: auto;\n  max-width: 42rem;");
     expect(css).toContain('[data-chat-fill="true"] .chat-column,\n[data-chat-fill="true"] .empty-session-column {');
     expect(css).toContain("max-width: none;");
     expect(css).toContain(".composer-context-button.is-agent {\n  color: var(--destructive-foreground);");
@@ -99,6 +100,17 @@ describe("appearance theme helpers", () => {
     expect(css).toContain(".composer-model-picker-list {\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow: auto;\n  margin: 0;\n  padding: 0 0.35rem 0.4rem;");
     expect(css).toContain(".composer-model-picker-group-title {\n  position: sticky;\n  top: 0;\n  z-index: 1;");
     expect(css).toContain("background: var(--popover);");
+  });
+
+  test("glass chrome tints chat, composer, and right bar without extra CSS blur", async () => {
+    const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
+    expect(css).toContain("html[data-glass=\"on\"] .app-shell-chat {");
+    expect(css).toContain("html[data-glass=\"on\"] .app-sidebar-panel,\nhtml[data-glass=\"on\"] .right-sidebar-host {");
+    expect(css).toContain("html[data-glass=\"on\"] .right-sidebar-host > nav,");
+    expect(css).toContain("html[data-glass=\"on\"] .plan-document-panel,");
+    expect(css).toContain(".empty-session[data-left-overlay=\"true\"] .empty-session-center {");
+    expect(css).not.toContain("html[data-glass=\"on\"] .chat-composer-shell::before {");
+    expect(css).toContain("html[data-glass=\"on\"] .chat-composer-host {\n  box-shadow: 0 10px 28px -20px rgb(0 0 0 / 28%);\n}");
   });
 
   test("readAppearancePalette falls back to default", () => {

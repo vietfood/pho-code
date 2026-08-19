@@ -196,7 +196,11 @@ export function Conversation({
         />
         {notice}
         {empty ? (
-          <EmptySessionStage workspaceName={snapshot.workspace.displayName}>
+          <EmptySessionStage
+            workspaceName={snapshot.workspace.displayName}
+            leftOverlay={Boolean(sidebarCollapsed && !paneFill)}
+            rightOverlay={!paneFill}
+          >
             {hostDialog}
             {composer}
           </EmptySessionStage>

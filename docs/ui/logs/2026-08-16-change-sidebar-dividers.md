@@ -5,7 +5,7 @@ Status: implemented
 Surface: shell sidebar / right-sidebar host chrome  
 Owner: ui/conversation chrome  
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)  
-Related logs: [`2026-08-16-change-codeblock-chrome.md`](./2026-08-16-change-codeblock-chrome.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`2026-08-16-change-sidebar-shortcuts-scrollbar.md`](./2026-08-16-change-sidebar-shortcuts-scrollbar.md)
+Related logs: [`2026-08-16-change-codeblock-chrome.md`](./2026-08-16-change-codeblock-chrome.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`2026-08-16-change-sidebar-shortcuts-scrollbar.md`](./2026-08-16-change-sidebar-shortcuts-scrollbar.md), [`2026-08-19-change-glass-composer-right-bar.md`](./2026-08-19-change-glass-composer-right-bar.md)
 
 ## Intended change
 

@@ -75,6 +75,32 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="composer"');
     expect(markup).not.toContain('data-testid="transcript"');
     expect(markup).not.toContain("Start this session");
+    expect(markup).toContain('data-right-overlay="true"');
+    expect(markup).not.toContain("data-left-overlay");
+  });
+
+  test("insets the hero composer for collapsed overlay pills", () => {
+    const bothPills = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot(),
+        sidebarCollapsed: true,
+        ...handlers,
+      }),
+    );
+    expect(bothPills).toContain('data-left-overlay="true"');
+    expect(bothPills).toContain('data-right-overlay="true"');
+
+    const split = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot(),
+        sidebarCollapsed: true,
+        paneFill: true,
+        onToggleSidebar: () => undefined,
+        ...handlers,
+      }),
+    );
+    expect(split).not.toContain("data-left-overlay");
+    expect(split).not.toContain("data-right-overlay");
   });
 
   test("does not put Context prompt or changes controls in the chat header", () => {

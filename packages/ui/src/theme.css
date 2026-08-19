@@ -107,9 +107,23 @@
   max-width: 48rem;
 }
 
+.empty-session-center {
+  padding-inline: 1rem;
+}
+
 .empty-session-column {
   width: 100%;
+  min-width: 0;
+  margin-inline: auto;
   max-width: 42rem;
+}
+
+.empty-session[data-left-overlay="true"] .empty-session-center {
+  padding-inline-start: 3rem;
+}
+
+.empty-session[data-right-overlay="true"] .empty-session-center {
+  padding-inline-end: 3rem;
 }
 
 [data-chat-fill="true"] .chat-column,
@@ -1420,11 +1434,6 @@ html[data-appearance="dark"] .approval-card {
   content: "";
 }
 
-html[data-glass="on"] .chat-composer-shell::before {
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-}
-
 .chat-composer-host {
   position: relative;
   z-index: 10;
@@ -1447,8 +1456,16 @@ html[data-appearance="dark"] .chat-composer-shell::before {
   background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
 }
 
+html[data-glass="on"] .chat-composer-host {
+  box-shadow: 0 10px 28px -20px rgb(0 0 0 / 28%);
+}
+
 html[data-appearance="dark"] .chat-composer-host {
   box-shadow: 0 18px 40px -24px rgb(0 0 0 / 70%);
+}
+
+html[data-glass="on"][data-appearance="dark"] .chat-composer-host {
+  box-shadow: 0 12px 32px -22px rgb(0 0 0 / 45%);
 }
 
 html[data-appearance="dark"] .chat-composer-host::after {
@@ -2191,24 +2208,38 @@ html[data-appearance="dark"] .composer-model-picker-panel {
   }
 }
 
-/* Frosted window chrome: root stays clear so vibrancy/wallpaper show through panels.
-   Main pane uses a translucent fill only — extra CSS blur here double-frosts macOS
-   vibrancy and flattens nested composer/settings glass into opaque cards. */
+/* Frosted window chrome: root stays clear so vibrancy/wallpaper show through.
+   Large panes use a translucent fill only. Extra CSS backdrop-filter is expensive
+   (offscreen snapshot per layer) and double-frosts macOS vibrancy; keep it on the
+   narrow left sidebar and small overlay cards, not the composer, transcript, or
+   right bar. Chat and right bar are siblings so their fills do not stack. */
 html[data-glass="on"] body,
 html[data-glass="on"] #root,
-html[data-glass="on"] .app-shell-root {
+html[data-glass="on"] .app-shell-root,
+html[data-glass="on"] .app-shell-main {
   background: transparent !important;
 }
 
-html[data-glass="on"] .app-shell-main {
+html[data-glass="on"] .app-shell-chat {
   background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent) !important;
 }
 
-html[data-glass="on"] .app-sidebar-panel {
+html[data-glass="on"] .app-sidebar-panel,
+html[data-glass="on"] .right-sidebar-host {
   background: color-mix(in srgb, var(--sidebar) var(--sidebar-glass-opacity), transparent) !important;
+}
+
+html[data-glass="on"] .app-sidebar-panel {
   -webkit-backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--sidebar-glass-blur)) saturate(var(--glass-saturation));
   border-right: 1px solid var(--shell-divider);
+}
+
+html[data-glass="on"] .right-sidebar-host > nav,
+html[data-glass="on"] .plan-document-panel,
+html[data-glass="on"] .context-prompt-dialog,
+html[data-glass="on"] .right-sidebar-host footer {
+  background: transparent !important;
 }
 
 html[data-glass="on"] .workspace-topbar {
@@ -2230,8 +2261,7 @@ html[data-glass="on"] .glass-field {
 @media (prefers-reduced-motion: reduce) {
   html[data-glass="on"] .app-sidebar-panel,
   html[data-glass="on"] .glass-panel,
-  html[data-glass="on"] .glass-field,
-  html[data-glass="on"] .chat-composer-shell::before {
+  html[data-glass="on"] .glass-field {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -2755,7 +2785,6 @@ html[data-appearance="dark"] .session-context-menu {
   .chat-composer-shell::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background: var(--card);
   }
 
   .streaming-caret {

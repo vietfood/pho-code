@@ -572,13 +572,13 @@ describe("protocol serialization", () => {
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
   });
 
-  test("glassCssTokens keep chrome readable and frost the composer more than the pane", () => {
+  test("glassCssTokens keep chrome readable and tint the composer between sidebar and pane", () => {
     const mid = glassCssTokens(55);
     expect(mid.opacityPercent).toBeGreaterThanOrEqual(70);
     expect(mid.sidebarOpacityPercent).toBeGreaterThanOrEqual(52);
     expect(mid.sidebarOpacityPercent).toBeLessThan(mid.opacityPercent);
-    expect(mid.composerOpacityPercent).toBeGreaterThan(mid.opacityPercent);
-    expect(mid.composerOpacityPercent).toBeLessThanOrEqual(90);
+    expect(mid.composerOpacityPercent).toBeGreaterThanOrEqual(mid.sidebarOpacityPercent);
+    expect(mid.composerOpacityPercent).toBeLessThanOrEqual(mid.opacityPercent);
     expect(mid.sidebarBlurPx).toBeGreaterThanOrEqual(mid.blurPx);
     expect(mid.blurPx).toBeLessThanOrEqual(20);
 

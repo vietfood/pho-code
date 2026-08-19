@@ -211,13 +211,14 @@ export function glassCssTokens(strength: number): {
   const clamped = clampGlassStrength(strength);
   const t = clamped / 100;
   // Mild frost: macOS vibrancy already blurs the desktop. Keep fills readable so
-  // wallpaper tints chrome instead of dominating it. Composer sits between the
-  // main pane and a solid card so the input block visibly frosts.
+  // wallpaper tints chrome instead of dominating it. Sidebars are the most open;
+  // the composer sits between sidebar and pane so the input stays a control, not
+  // a solid card. Extra CSS blur is not applied to composer or the right bar.
   const blurPx = Math.round(8 + t * 16);
   const sidebarBlurPx = Math.round(blurPx * 1.2);
   const opacityPercent = Math.round(84 - t * 20);
   const sidebarOpacityPercent = Math.max(52, Math.round(opacityPercent - 12));
-  const composerOpacityPercent = Math.min(90, opacityPercent + 10);
+  const composerOpacityPercent = Math.round((opacityPercent + sidebarOpacityPercent) / 2);
   return { blurPx, sidebarBlurPx, opacityPercent, sidebarOpacityPercent, composerOpacityPercent };
 }
 
