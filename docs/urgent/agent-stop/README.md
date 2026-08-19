@@ -8,7 +8,7 @@ Urgent track for cancelling a stuck agent run without waiting forever, and for k
 | [`implementation-plan.md`](./implementation-plan.md) | Slices, files, acceptance, verification |
 | [`logs/`](./logs/README.md) | Research evidence, later implementation records |
 
-Status: **Proposed; queued as urgent 2026-08-16.** Implementation has not started. Do not describe bounded abort or “Stop always works” as current architecture until a slice is accepted and [`current-state.md`](../../current-state.md) records it.
+Status: **Milestone 1 accepted 2026-08-19** ([review](./logs/2026-08-19-m1-acceptance-review.md)); bounded Stop is current architecture. **Milestone 2 (Stop-all and test teardown) is in implementation** with the automated gate green per [`logs/2026-08-19-m2-stop-all-and-teardown.md`](./logs/2026-08-19-m2-stop-all-and-teardown.md); owner manual acceptance is the remaining step. A dead or busy-looping main-process Pi still freezes Stop; that case stays with [`../window-first-pi-core/`](../window-first-pi-core/README.md) Milestone 3.
 
 A hung or crashed Pi that freezes the whole window is a **different** job: [`../window-first-pi-core/`](../window-first-pi-core/README.md) Milestone 3 (`utilityProcess`). This track cannot hard-kill an in-process busy-loop. The two tracks must not wait on each other.
 

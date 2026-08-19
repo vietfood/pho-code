@@ -44,7 +44,7 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
-| 1 | [Agent stop](./agent-stop/README.md) | safety | Proposed; queued 2026-08-16; not in source | Stop cancels a stuck run within a deadline; permission/ask-user dismiss; Send returns. Does not survive a dead main-process Pi. |
+| 1 | [Agent stop](./agent-stop/README.md) | safety | Milestone 1 accepted 2026-08-19; Milestone 2 (Stop-all, test teardown) gate green, owner acceptance pending | Stop cancels a stuck run within a deadline; permission/ask-user dismiss; Send returns. Does not survive a dead main-process Pi. |
 | 2 | [Window-first Pi core](./window-first-pi-core/README.md) | startup + crash isolation | Proposed; queued 2026-08-16; not in source | Window and recents appear before `ModelRuntime.create`; later, Pi can live in `utilityProcess` without claiming a sandbox |
 
 ## Already in flight (not this queue)

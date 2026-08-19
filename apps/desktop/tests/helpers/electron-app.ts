@@ -82,6 +82,33 @@ export async function removeTestDirectory(directory: string): Promise<void> {
   await recoverablyRemoveOwnedTempFixture(directory);
 }
 
+/**
+ * Agent-stop Milestone 2 teardown: leave no live run before close so the
+ * bounded shutdown path is what the spec exercises. Fails with
+ * "run did not cancel" when Send does not return inside the abort deadline.
+ */
+export async function stopRunsAndClose(page: Page, harness: DesktopHarness): Promise<void> {
+  const stop = page.getByTestId("stop-button");
+  if (await stop.isVisible().catch(() => false)) {
+    await stop.click();
+    try {
+      await expect(page.getByRole("button", { name: "Send" })).toBeVisible({ timeout: 15_000 });
+    } catch (cause) {
+      throw new Error("run did not cancel", { cause });
+    }
+  }
+  const stopAll = page.getByTestId("stop-all");
+  if (await stopAll.isVisible().catch(() => false)) {
+    await stopAll.click();
+    try {
+      await expect(stopAll).toHaveCount(0, { timeout: 15_000 });
+    } catch (cause) {
+      throw new Error("run did not cancel", { cause });
+    }
+  }
+  await harness.close();
+}
+
 export async function allowOnceIfPrompted(page: Page): Promise<void> {
   const dialog = page.getByTestId("extension-dialog");
   await expect(dialog).toBeVisible({ timeout: 20_000 });

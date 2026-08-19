@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Proposed urgent-track plan, queued 2026-08-16. This is the implementation contract **after** the owner promotes a milestone. It is not acceptance evidence. No milestone is accepted until its stated evidence exists.
+Urgent-track plan, queued 2026-08-16. Milestone 1 is **accepted 2026-08-19** ([review](./logs/2026-08-19-m1-acceptance-review.md)); Milestone 2 is in implementation. This is the implementation contract **after** the owner promotes a milestone. It is not acceptance evidence. No milestone is accepted until its stated evidence exists.
 
 Read [`product.md`](./product.md), [`../../architecture/runtime-and-data.md`](../../architecture/runtime-and-data.md), [`../../architecture/protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md), and [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md) before editing `abortRun` or the composer Stop control.
 

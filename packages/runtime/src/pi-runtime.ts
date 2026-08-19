@@ -252,6 +252,32 @@ interface ActiveRun {
   startedAt: string;
 }
 
+// Stop must return the chat to Send even when Pi ignores the abort signal.
+// The value is recorded in docs/urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md.
+const ABORT_IDLE_DEADLINE_MS = 1_000;
+
+// Resolves true when Pi idled within the deadline; false when the deadline
+// fired or abort threw (the session state is then unknown and recovered by
+// reopening the controller).
+async function abortSessionWithDeadline(session: AgentSession): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      session.abort().then(
+        () => true,
+        () => false,
+      ),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), ABORT_IDLE_DEADLINE_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 interface LiveSession {
   key: SessionKey;
   runtime: AgentSessionRuntime;
@@ -648,9 +674,17 @@ export async function createPhoCodeRuntime(
     session.extensionHost?.cancelPending();
     if (session.activeRun && !session.activeRun.settled) {
       session.activeRun.abortRequested = true;
+      const piSession = session.runtime.session;
+      // Bounded like abortRun: a stuck session must not hold shutdown or
+      // controller eviction hostage to waitForIdle/promptDone.
+      piSession.clearQueue();
+      if (piSession.isBashRunning) {
+        piSession.abortBash();
+      }
+      piSession.abortRetry();
+      piSession.abortCompaction();
       try {
-        await session.runtime.session.abort();
-        await session.activeRun.promptDone.catch(() => undefined);
+        await abortSessionWithDeadline(piSession);
       } catch {
         // Best-effort abort during eviction or shutdown.
       }
@@ -671,6 +705,26 @@ export async function createPhoCodeRuntime(
       selected = undefined;
     }
     await releaseWorkspaceIfUnused(session.workspace.path);
+  }
+
+  // Recovery after a forced Stop: the run is already settled, so disposal
+  // skips the cooperative abort wait, and the controller is reconstructed
+  // from the authoritative Pi JSONL under the same session id.
+  async function reopenStuckController(live: LiveSession): Promise<void> {
+    const key = live.key;
+    const wasSelected = selected === live;
+    try {
+      await registry.remove(key);
+      const reopened = await registry.open(key);
+      if (wasSelected) {
+        await selectLiveSession(reopened);
+      } else {
+        emitActivity();
+      }
+    } catch (error) {
+      console.error("Failed to reopen a stuck session after Stop:", error);
+      emitActivity();
+    }
   }
 
   function workspaceHasResidentController(workspacePath: string): boolean {
@@ -1511,7 +1565,12 @@ export async function createPhoCodeRuntime(
     promptDone: Promise<unknown>,
     ignoreError?: () => boolean,
   ): void {
-    run.promptDone = promptDone.then(() => undefined);
+    // run.promptDone is observed, never awaited on a command path, so it must
+    // not reject into an unhandled rejection when the prompt fails.
+    run.promptDone = promptDone.then(
+      () => undefined,
+      () => undefined,
+    );
     void promptDone.then(
       () => finishRun(live, run),
       (error: unknown) => {
@@ -1778,13 +1837,30 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "abortRun");
       const session = live.runtime.session;
-      if (!live.activeRun || live.activeRun.runId !== input.runId) {
+      const run = live.activeRun;
+      if (!run || run.runId !== input.runId) {
         return;
       }
-      live.activeRun.abortRequested = true;
+      run.abortRequested = true;
       session.clearQueue();
-      await session.abort();
-      await live.activeRun.promptDone.catch(() => undefined);
+      live.extensionHost?.cancelPending();
+      if (session.isBashRunning) {
+        session.abortBash();
+      }
+      session.abortRetry();
+      session.abortCompaction();
+      const idled = await abortSessionWithDeadline(session);
+      if (run.settled || idled) {
+        // Settlement is observed by the watchPromptDone observer; the IPC
+        // path never awaits promptDone.
+        return;
+      }
+      // The deadline fired: publish cancelled so Send returns, then recover a
+      // still-busy Pi session by reopening the controller from Pi JSONL.
+      await finishRun(live, run);
+      if (!session.isIdle) {
+        await reopenStuckController(live);
+      }
     },
     async setSessionModel(input: SetSessionModelInput) {
       assertNotDisposed();

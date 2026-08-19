@@ -23,6 +23,7 @@ import {
   HouseIcon,
   InfoIcon,
   SettingsIcon,
+  SquareIcon,
   SquarePenIcon,
 } from "lucide-react";
 import type { BootstrapState, RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
@@ -66,6 +67,8 @@ export function AppSidebar({
   overlay = true,
   onToggleCollapsed,
   busy,
+  stopAllCount = 0,
+  onStopAll,
 }: {
   projects: readonly RecentWorkspaceRecord[];
   activeWorkspaceId?: string;
@@ -87,6 +90,8 @@ export function AppSidebar({
   overlay?: boolean;
   onToggleCollapsed: () => void;
   busy: boolean;
+  stopAllCount?: number;
+  onStopAll?: () => void;
 }) {
   const { width, resizing, handle: resizeHandle } = useSidebarResize();
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
@@ -231,6 +236,19 @@ export function AppSidebar({
           <FolderPlusIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
           <span className="min-w-0 truncate">Open folder</span>
         </button>
+        {stopAllCount > 0 && onStopAll ? (
+          <button
+            type="button"
+            className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-destructive hover:bg-sidebar-row-hover"
+            data-testid="stop-all"
+            onClick={onStopAll}
+          >
+            <SquareIcon className="size-3 shrink-0 fill-current" aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              {stopAllCount > 1 ? `Stop all (${stopAllCount})` : "Stop all"}
+            </span>
+          </button>
+        ) : null}
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">

@@ -110,6 +110,10 @@ export function App() {
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
   const conversation = selectedConversation(cache);
+  // Live runs across every workspace, for the sidebar Stop-all control.
+  const liveRuns = cache.activity.filter(
+    (entry) => entry.runId !== undefined && (entry.phase === "working" || entry.phase === "attention"),
+  );
   const changeReview = useChangeReview(cache);
 
   const toggleSidebar = useCallback(() => {
@@ -1088,6 +1092,21 @@ export function App() {
                 });
             }}
             onOpenSettings={openSettings}
+            stopAllCount={liveRuns.length}
+            onStopAll={() => {
+              const targets = liveRuns;
+              void runCommand(async () => {
+                await Promise.allSettled(
+                  targets.map((entry) =>
+                    getDesktopBridge().abortRun({
+                      workspaceId: entry.workspaceId,
+                      sessionId: entry.sessionId,
+                      runId: entry.runId as string,
+                    }),
+                  ),
+                );
+              }, { busy: false });
+            }}
             {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
             {...(selectedSessionId ? { selectedSessionId } : {})}
           />
@@ -1197,7 +1216,7 @@ export function App() {
                       workspaceId: snapshot.workspace.id,
                       runId,
                     });
-                  });
+                  }, { busy: false });
                 }}
                 onModelChange={(model: ModelSummary) => {
                   const previous = snapshot.model;

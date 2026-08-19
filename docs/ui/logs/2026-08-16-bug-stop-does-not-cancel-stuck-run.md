@@ -1,10 +1,10 @@
 # Stop does not cancel a stuck run
 
-Status: open  
+Status: fixed 2026-08-19  
 Surface: composer Stop / live run  
 Owner: [`urgent/agent-stop`](../../urgent/agent-stop/README.md)  
 Owning plan: [`../../urgent/agent-stop/implementation-plan.md`](../../urgent/agent-stop/implementation-plan.md)  
-Related logs: [`../../urgent/agent-stop/logs/2026-08-16-research-handoff.md`](../../urgent/agent-stop/logs/2026-08-16-research-handoff.md)
+Related logs: [`../../urgent/agent-stop/logs/2026-08-16-research-handoff.md`](../../urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md`](../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md), [`../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md`](../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)
 
 ## Expected
 
@@ -40,4 +40,4 @@ Do not treat “Stop exists in the composer” as “Stop cancels stuck work.”
 
 ## Fix or handoff
 
-Implement Milestone 1 in the urgent plan. Do not wait on window-first first paint.
+Fixed by Milestone 1, accepted 2026-08-19 ([review](../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)): bounded `abortRun` (1 s idle deadline), `cancelPending` on Stop, `abortBash` when running, early `cancelled` publish, controller reopen from Pi JSONL, and `onStop` without the global `busy` flag. Evidence is in [`../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md`](../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md): runtime integration tests plus desktop Stop-click specs (Stop on `ABORT_ME` returns Send before `END_ABORT_STREAM`; Stop on a visible permission card dismisses it and returns Send; sidebar New session stays enabled). Remaining known limit: a dead or busy-looping main-process Pi still freezes Stop — owned by window-first Milestone 3, not this bug.

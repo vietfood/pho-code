@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type InlineExtension } from "@earendil-works/pi-coding-agent";
 import { HARNESS_ERROR_CODES, RUNTIME_EVENT_TYPES, PI_DOCS_SECTION_ID, toolSectionId, type RuntimeEvent } from "@pho-code/protocol";
 import {
   ASK_USER_DECLINE_MESSAGE,
@@ -362,7 +362,172 @@ describe("Pi harness runtime", () => {
     }
   }, 30_000);
 
-  test("steers an active run through Pi's native queue and rejects a stale run id", async () => {
+  test("abort cancels a pending host dialog and admits a second prompt", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    const runtime = await createTestRuntime(agentDir, { testHostUi: true });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+
+      const first = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      const dialog = await waitForEvent(events, RUNTIME_EVENT_TYPES.extensionDialogRequest);
+      const requestId = (dialog.payload as { requestId: string }).requestId;
+
+      await runtime.abortRun({ sessionId: created.session.id, runId: first.runId });
+      expect(
+        events.some(
+          (event) =>
+            event.type === RUNTIME_EVENT_TYPES.extensionDialogSettled &&
+            (event.payload as { requestId?: string }).requestId === requestId,
+        ),
+      ).toBe(true);
+      const settled = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === first.runId);
+      expect(settled.payload).toMatchObject({ run: { status: "cancelled" } });
+
+      const second = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: "hello",
+      });
+      expect(second.admitted).toBe(true);
+      const completed = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === second.runId);
+      expect(completed.payload).toMatchObject({ run: { status: "settled" } });
+      stop();
+    } finally {
+      await runtime.dispose();
+    }
+  }, 30_000);
+
+  test("abort returns within the deadline and reopens a session stuck in a tool gate", async () => {
+    const { agentDir, workspaceDir } = await makeIsolatedDirs();
+    let markToolGateEntered: () => void = () => undefined;
+    const gateEntered = new Promise<void>((resolve) => {
+      markToolGateEntered = resolve;
+    });
+    const hungGateExtension: InlineExtension = {
+      name: "harness-hung-gate",
+      factory(pi) {
+        pi.on("tool_call", async (event) => {
+          if (event.toolName !== TEST_TOOL_NAME) {
+            return undefined;
+          }
+          markToolGateEntered();
+          // Never settles: a stuck tool gate that ignores the abort signal.
+          await new Promise<void>(() => undefined);
+        });
+      },
+    };
+    const runtime = await createPhoCodeRuntime({
+      agentDir,
+      deterministicTestModel: true,
+      featureManifest: {
+        features: [
+          {
+            id: "harness-hung-gate",
+            version: "test",
+            extensionFactories: [hungGateExtension],
+          },
+        ],
+      },
+    });
+    const events: RuntimeEvent[] = [];
+
+    try {
+      const workspace = await runtime.inspectWorkspace({
+        path: workspaceDir,
+        approveProjectResources: true,
+      });
+      const created = await runtime.createSession(workspace.workspace.id);
+      const stop = runtime.subscribe((event) => {
+        events.push(event);
+      });
+
+      const first = await runtime.sendPrompt({
+        sessionId: created.session.id,
+        text: TEST_PROMPT.useTool,
+      });
+      await gateEntered;
+
+      const started = Date.now();
+      await runtime.abortRun({ sessionId: created.session.id, runId: first.runId });
+      expect(Date.now() - started).toBeLessThan(10_000);
+      const settled = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === first.runId);
+      expect(settled.payload).toMatchObject({ run: { status: "cancelled" } });
+
+    const second = await runtime.sendPrompt({
+      sessionId: created.session.id,
+      text: "hello",
+    });
+    expect(second.admitted).toBe(true);
+    const completed = await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled, (event) => event.runId === second.runId);
+    expect(completed.payload).toMatchObject({ run: { status: "settled" } });
+    stop();
+  } finally {
+    await runtime.dispose();
+  }
+}, 30_000);
+
+test("dispose returns within the deadline with a run stuck in a tool gate", async () => {
+  const { agentDir, workspaceDir } = await makeIsolatedDirs();
+  let markToolGateEntered: () => void = () => undefined;
+  const gateEntered = new Promise<void>((resolve) => {
+    markToolGateEntered = resolve;
+  });
+  const hungGateExtension: InlineExtension = {
+    name: "harness-hung-gate",
+    factory(pi) {
+      pi.on("tool_call", async (event) => {
+        if (event.toolName !== TEST_TOOL_NAME) {
+          return undefined;
+        }
+        markToolGateEntered();
+        // Never settles: a stuck tool gate that ignores the abort signal.
+        await new Promise<void>(() => undefined);
+      });
+    },
+  };
+  const runtime = await createPhoCodeRuntime({
+    agentDir,
+    deterministicTestModel: true,
+    featureManifest: {
+      features: [
+        {
+          id: "harness-hung-gate",
+          version: "test",
+          extensionFactories: [hungGateExtension],
+        },
+      ],
+    },
+  });
+
+  const workspace = await runtime.inspectWorkspace({
+    path: workspaceDir,
+    approveProjectResources: true,
+  });
+  const created = await runtime.createSession(workspace.workspace.id);
+  await runtime.sendPrompt({
+    sessionId: created.session.id,
+    text: TEST_PROMPT.useTool,
+  });
+  await gateEntered;
+
+  // Shutdown must not wait on waitForIdle/promptDone for the stuck run.
+  const started = Date.now();
+  await runtime.dispose();
+  expect(Date.now() - started).toBeLessThan(10_000);
+}, 30_000);
+
+test("steers an active run through Pi's native queue and rejects a stale run id", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     const runtime = await createTestRuntime(agentDir);
     const events: RuntimeEvent[] = [];
