@@ -72,11 +72,8 @@ function PermissionApprovalCard({
 
   useEffect(() => {
     selectedRef.current = selected;
-  }, [selected]);
-
-  useEffect(() => {
     draftRef.current = draft;
-  }, [draft]);
+  }, [selected, draft]);
 
   useEffect(() => {
     if (permissionDock && selected === PERMISSION_DENY_WITH_REASON) {
@@ -146,11 +143,7 @@ function PermissionApprovalCard({
   }, [request.kind, request.options, request.requestId]);
 
   const cancel = () => {
-    if (request.kind === "confirm") {
-      onResolve({ cancelled: true, confirmed: false });
-      return;
-    }
-    onResolve({ cancelled: true });
+    onResolve(request.kind === "confirm" ? { cancelled: true, confirmed: false } : { cancelled: true });
   };
 
   const eyebrow = request.kind === "input" ? "Input required" : "Pending approval";
@@ -176,25 +169,14 @@ function PermissionApprovalCard({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          switch (request.kind) {
-            case "confirm":
-              onResolve({ confirmed: true });
-              return;
-            case "select":
-              if (selected.length === 0) {
-                return;
-              }
+          if (request.kind === "confirm") {
+            onResolve({ confirmed: true });
+          } else if (request.kind === "select") {
+            if (selected.length > 0) {
               onResolve(permissionSelectResolution(selected, draft));
-              return;
-            case "input":
-              onResolve({ value: draft });
-              return;
-            case "questionnaire":
-              return;
-            default: {
-              const exhaustive: never = request.kind;
-              return exhaustive;
             }
+          } else if (request.kind === "input") {
+            onResolve({ value: draft });
           }
         }}
       >

@@ -68,19 +68,9 @@ function cursorSdkPlatformPackageName(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): string | undefined {
-  if (platform === "darwin" && arch === "arm64") {
-    return "@cursor/sdk-darwin-arm64";
-  }
-  if (platform === "darwin" && arch === "x64") {
-    return "@cursor/sdk-darwin-x64";
-  }
-  if (platform === "linux" && arch === "arm64") {
-    return "@cursor/sdk-linux-arm64";
-  }
-  if (platform === "linux" && arch === "x64") {
-    return "@cursor/sdk-linux-x64";
-  }
-  return undefined;
+  const known = ["darwin/arm64", "darwin/x64", "linux/arm64", "linux/x64"];
+  const id = `${platform}/${arch}`;
+  return known.includes(id) ? `@cursor/sdk-${platform}-${arch}` : undefined;
 }
 
 export function resolveWorkspacePackageRoot(packageName: string, fromPackageJson = path.join(DESKTOP_DIR, "package.json")): string {
@@ -163,9 +153,7 @@ function replaceGeneratedTree(prepared: string, destination: string): void {
   }
 }
 
-function stagePermissionPackage(featuresRoot: string): string {
-  const packageRoot = path.join(featuresRoot, ...PERMISSION_PACKAGE_NAME.split("/"));
-  const source = resolveWorkspacePackageRoot(PERMISSION_PACKAGE_NAME);
+function copyPackagePruned(source: string, packageRoot: string, keep: ReadonlySet<string>): void {
   mkdirSync(packageRoot, { recursive: true });
   cpSync(source, packageRoot, {
     recursive: true,
@@ -176,9 +164,25 @@ function stagePermissionPackage(featuresRoot: string): string {
         return true;
       }
       const [top] = relative.split(path.sep);
-      return PERMISSION_KEEP.has(top ?? "");
+      return keep.has(top ?? "");
     },
   });
+}
+
+function verifyStagedManifest(packageRoot: string, expectedName: string, expectedVersion: string): void {
+  const manifest = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as {
+    name?: string;
+    version?: string;
+  };
+  if (manifest.name !== expectedName || manifest.version !== expectedVersion) {
+    throw new Error(`Staged ${expectedName} is ${manifest.name}@${manifest.version}, expected ${expectedVersion}.`);
+  }
+}
+
+function stagePermissionPackage(featuresRoot: string): string {
+  const packageRoot = path.join(featuresRoot, ...PERMISSION_PACKAGE_NAME.split("/"));
+  const source = resolveWorkspacePackageRoot(PERMISSION_PACKAGE_NAME);
+  copyPackagePruned(source, packageRoot, PERMISSION_KEEP);
 
   const nestedModules = path.join(packageRoot, "node_modules");
   const permissionManifest = path.join(source, "package.json");
@@ -186,13 +190,7 @@ function stagePermissionPackage(featuresRoot: string): string {
     copyResolvedPackage(dependency, path.join(nestedModules, dependency), permissionManifest);
   }
 
-  const manifestPath = path.join(packageRoot, "package.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { name?: string; version?: string };
-  if (manifest.name !== PERMISSION_PACKAGE_NAME || manifest.version !== PERMISSION_FEATURE_VERSION) {
-    throw new Error(
-      `Staged ${PERMISSION_PACKAGE_NAME} is ${manifest.name}@${manifest.version}, expected ${PERMISSION_FEATURE_VERSION}.`,
-    );
-  }
+  verifyStagedManifest(packageRoot, PERMISSION_PACKAGE_NAME, PERMISSION_FEATURE_VERSION);
   return packageRoot;
 }
 
@@ -222,19 +220,7 @@ function ensureNestedPackage(packageName: string, nestedModules: string, fromPac
 function stageCursorSdkPackage(featuresRoot: string): string {
   const packageRoot = path.join(featuresRoot, CURSOR_SDK_PACKAGE_NAME);
   const source = resolveWorkspacePackageRoot(CURSOR_SDK_PACKAGE_NAME);
-  mkdirSync(packageRoot, { recursive: true });
-  cpSync(source, packageRoot, {
-    recursive: true,
-    dereference: true,
-    filter: (src) => {
-      const relative = path.relative(source, src);
-      if (!relative) {
-        return true;
-      }
-      const [top] = relative.split(path.sep);
-      return CURSOR_SDK_KEEP.has(top ?? "");
-    },
-  });
+  copyPackagePruned(source, packageRoot, CURSOR_SDK_KEEP);
 
   const nestedModules = path.join(packageRoot, "node_modules");
   mkdirSync(nestedModules, { recursive: true });
@@ -254,13 +240,7 @@ function stageCursorSdkPackage(featuresRoot: string): string {
     ensureNestedPackage(platformPackage, nestedModules, sdkSourceManifest);
   }
 
-  const manifestPath = path.join(packageRoot, "package.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { name?: string; version?: string };
-  if (manifest.name !== CURSOR_SDK_PACKAGE_NAME || manifest.version !== CURSOR_SDK_FEATURE_VERSION) {
-    throw new Error(
-      `Staged ${CURSOR_SDK_PACKAGE_NAME} is ${manifest.name}@${manifest.version}, expected ${CURSOR_SDK_FEATURE_VERSION}.`,
-    );
-  }
+  verifyStagedManifest(packageRoot, CURSOR_SDK_PACKAGE_NAME, CURSOR_SDK_FEATURE_VERSION);
   return packageRoot;
 }
 
@@ -290,73 +270,19 @@ export function sha256File(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
-export function stageGitHubMcpServer(
-  featuresRoot: string,
-  options: { required?: boolean; fetchIfMissing?: boolean; cacheDir?: string; archivePath?: string } = {},
-): string | undefined {
-  const asset = githubMcpReleaseAsset();
-  const relative = githubMcpPackagedRelativePath();
-  const platform = githubMcpPlatformId();
-  if (!asset || !relative || !platform) {
-    if (options.required) {
-      throw new Error(`No pinned GitHub MCP server asset for ${process.platform}/${process.arch}.`);
-    }
-    return undefined;
-  }
-  const cacheDir = options.cacheDir ?? githubMcpCacheDir();
-  mkdirSync(cacheDir, { recursive: true });
-  const archivePath = options.archivePath ?? path.join(cacheDir, asset.asset);
-  if (!existsSync(archivePath) && options.fetchIfMissing) {
-    const downloaded = spawnSync("curl", ["-fsSL", "-o", archivePath, githubMcpReleaseUrl(asset.asset)], {
-      encoding: "utf8",
-    });
-    if (downloaded.status !== 0) {
-      throw new Error(`Failed to fetch GitHub MCP archive (${downloaded.stderr?.trim() || downloaded.status}).`);
-    }
-  }
-  if (!existsSync(archivePath)) {
-    if (!options.required) {
-      return undefined;
-    }
-    throw new Error(
-      `Missing GitHub MCP archive ${archivePath}. Fetch ${githubMcpReleaseUrl(asset.asset)} into the cache during a reviewed build action.`,
-    );
-  }
-  const digest = sha256File(archivePath);
-  if (digest !== asset.sha256) {
-    throw new Error(`GitHub MCP archive SHA-256 mismatch for ${asset.asset}. Expected ${asset.sha256}, got ${digest}.`);
-  }
-  const scratch = mkdtempSync(path.join(tmpdir(), "pho-code-github-mcp-"));
-  const extract = spawnSync("tar", ["-xzf", archivePath, "-C", scratch], { encoding: "utf8" });
-  if (extract.status !== 0) {
-    throw new Error(`Failed to extract GitHub MCP archive (${extract.stderr?.trim() || extract.status}).`);
-  }
-  const binary = path.join(scratch, GITHUB_MCP_SERVER_EXECUTABLE);
-  if (!existsSync(binary)) {
-    throw new Error(`GitHub MCP archive did not contain ${GITHUB_MCP_SERVER_EXECUTABLE}.`);
-  }
-  const destination = path.join(featuresRoot, relative);
-  mkdirSync(path.dirname(destination), { recursive: true });
-  cpSync(binary, destination);
-  chmodSync(destination, 0o755);
-  writeFileSync(
-    path.join(path.dirname(destination), "PIN.json"),
-    `${JSON.stringify(
-      {
-        version: GITHUB_MCP_SERVER_VERSION,
-        tag: `v${GITHUB_MCP_SERVER_VERSION}`,
-        platform,
-        asset: asset.asset,
-        sha256: asset.sha256,
-      },
-      null,
-      2,
-    )}\n`,
-  );
-  return destination;
+interface PinnedBinarySpec {
+  label: string;
+  asset(): { asset: string; sha256: string } | undefined;
+  relativePath(): string | undefined;
+  platformId(): string | undefined;
+  defaultCacheDir(): string;
+  releaseUrl(asset: string): string;
+  executable: string;
+  findBinary(scratch: string): string | undefined;
+  pin: { version: string; tag: string };
 }
 
-function findExtractedRipgrep(root: string): string | undefined {
+function findExtractedBinary(root: string, executable: string): string | undefined {
   const stack = [root];
   while (stack.length > 0) {
     const current = stack.pop();
@@ -365,7 +291,7 @@ function findExtractedRipgrep(root: string): string | undefined {
     }
     for (const entry of readdirSync(current)) {
       const candidate = path.join(current, entry);
-      if (entry === RIPGREP_EXECUTABLE) {
+      if (entry === executable) {
         return candidate;
       }
       if (statSync(candidate).isDirectory()) {
@@ -376,28 +302,29 @@ function findExtractedRipgrep(root: string): string | undefined {
   return undefined;
 }
 
-export function stageRipgrep(
+function stagePinnedBinary(
+  spec: PinnedBinarySpec,
   featuresRoot: string,
   options: { required?: boolean; fetchIfMissing?: boolean; cacheDir?: string; archivePath?: string } = {},
 ): string | undefined {
-  const asset = ripgrepReleaseAsset();
-  const relative = ripgrepPackagedRelativePath();
-  const platform = ripgrepPlatformId();
+  const asset = spec.asset();
+  const relative = spec.relativePath();
+  const platform = spec.platformId();
   if (!asset || !relative || !platform) {
     if (options.required) {
-      throw new Error(`No pinned ripgrep asset for ${process.platform}/${process.arch}.`);
+      throw new Error(`No pinned ${spec.label} asset for ${process.platform}/${process.arch}.`);
     }
     return undefined;
   }
-  const cacheDir = options.cacheDir ?? ripgrepCacheDir();
+  const cacheDir = options.cacheDir ?? spec.defaultCacheDir();
   mkdirSync(cacheDir, { recursive: true });
   const archivePath = options.archivePath ?? path.join(cacheDir, asset.asset);
   if (!existsSync(archivePath) && options.fetchIfMissing) {
-    const downloaded = spawnSync("curl", ["-fsSL", "-o", archivePath, ripgrepReleaseUrl(asset.asset)], {
+    const downloaded = spawnSync("curl", ["-fsSL", "-o", archivePath, spec.releaseUrl(asset.asset)], {
       encoding: "utf8",
     });
     if (downloaded.status !== 0) {
-      throw new Error(`Failed to fetch ripgrep archive (${downloaded.stderr?.trim() || downloaded.status}).`);
+      throw new Error(`Failed to fetch ${spec.label} archive (${downloaded.stderr?.trim() || downloaded.status}).`);
     }
   }
   if (!existsSync(archivePath)) {
@@ -405,21 +332,21 @@ export function stageRipgrep(
       return undefined;
     }
     throw new Error(
-      `Missing ripgrep archive ${archivePath}. Fetch ${ripgrepReleaseUrl(asset.asset)} into the cache during a reviewed build action.`,
+      `Missing ${spec.label} archive ${archivePath}. Fetch ${spec.releaseUrl(asset.asset)} into the cache during a reviewed build action.`,
     );
   }
   const digest = sha256File(archivePath);
   if (digest !== asset.sha256) {
-    throw new Error(`Ripgrep archive SHA-256 mismatch for ${asset.asset}. Expected ${asset.sha256}, got ${digest}.`);
+    throw new Error(`${spec.label} archive SHA-256 mismatch for ${asset.asset}. Expected ${asset.sha256}, got ${digest}.`);
   }
-  const scratch = mkdtempSync(path.join(tmpdir(), "pho-code-ripgrep-"));
+  const scratch = mkdtempSync(path.join(tmpdir(), "pho-code-bin-"));
   const extract = spawnSync("tar", ["-xzf", archivePath, "-C", scratch], { encoding: "utf8" });
   if (extract.status !== 0) {
-    throw new Error(`Failed to extract ripgrep archive (${extract.stderr?.trim() || extract.status}).`);
+    throw new Error(`Failed to extract ${spec.label} archive (${extract.stderr?.trim() || extract.status}).`);
   }
-  const binary = findExtractedRipgrep(scratch);
+  const binary = spec.findBinary(scratch);
   if (!binary) {
-    throw new Error(`Ripgrep archive did not contain ${RIPGREP_EXECUTABLE}.`);
+    throw new Error(`${spec.label} archive did not contain ${spec.executable}.`);
   }
   const destination = path.join(featuresRoot, relative);
   mkdirSync(path.dirname(destination), { recursive: true });
@@ -428,18 +355,57 @@ export function stageRipgrep(
   writeFileSync(
     path.join(path.dirname(destination), "PIN.json"),
     `${JSON.stringify(
-      {
-        version: RIPGREP_VERSION,
-        tag: RIPGREP_TAG,
-        platform,
-        asset: asset.asset,
-        sha256: asset.sha256,
-      },
+      { version: spec.pin.version, tag: spec.pin.tag, platform, asset: asset.asset, sha256: asset.sha256 },
       null,
       2,
     )}\n`,
   );
   return destination;
+}
+
+export function stageGitHubMcpServer(
+  featuresRoot: string,
+  options: { required?: boolean; fetchIfMissing?: boolean; cacheDir?: string; archivePath?: string } = {},
+): string | undefined {
+  return stagePinnedBinary(
+    {
+      label: "GitHub MCP",
+      asset: githubMcpReleaseAsset,
+      relativePath: githubMcpPackagedRelativePath,
+      platformId: githubMcpPlatformId,
+      defaultCacheDir: githubMcpCacheDir,
+      releaseUrl: githubMcpReleaseUrl,
+      executable: GITHUB_MCP_SERVER_EXECUTABLE,
+      findBinary: (scratch) => {
+        const binary = path.join(scratch, GITHUB_MCP_SERVER_EXECUTABLE);
+        return existsSync(binary) ? binary : undefined;
+      },
+      pin: { version: GITHUB_MCP_SERVER_VERSION, tag: `v${GITHUB_MCP_SERVER_VERSION}` },
+    },
+    featuresRoot,
+    options,
+  );
+}
+
+export function stageRipgrep(
+  featuresRoot: string,
+  options: { required?: boolean; fetchIfMissing?: boolean; cacheDir?: string; archivePath?: string } = {},
+): string | undefined {
+  return stagePinnedBinary(
+    {
+      label: "ripgrep",
+      asset: ripgrepReleaseAsset,
+      relativePath: ripgrepPackagedRelativePath,
+      platformId: ripgrepPlatformId,
+      defaultCacheDir: ripgrepCacheDir,
+      releaseUrl: ripgrepReleaseUrl,
+      executable: RIPGREP_EXECUTABLE,
+      findBinary: (scratch) => findExtractedBinary(scratch, RIPGREP_EXECUTABLE),
+      pin: { version: RIPGREP_VERSION, tag: RIPGREP_TAG },
+    },
+    featuresRoot,
+    options,
+  );
 }
 
 export function stageBakedFeatureResources(

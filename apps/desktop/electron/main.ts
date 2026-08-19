@@ -7,7 +7,6 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, session, s
 import { installApplicationMenu } from "./application-menu";
 import { createApplicationService, type ApplicationService } from "@pho-code/application";
 import {
-  type CancelProviderLoginInput,
   commandFail,
   commandOk,
   createHarnessError,
@@ -19,57 +18,13 @@ import {
   nativeThemeSourceForAppearance,
   resolveAppearanceMode,
   windowBackgroundForAppearance,
-  type AbortRunInput,
   type AppearanceSettings,
-  type ArchiveSessionInput,
   type CommandResult,
-  type CreateSessionInput,
-  type GetSessionSnapshotInput,
-  type ImportProviderApiKeyInput,
-  type ListSessionCatalogInput,
-  type ListWorkspaceSessionsInput,
-  type LogoutProviderInput,
-  type OpenProviderAuthLinkInput,
-  type OpenRecentWorkspaceInput,
-  type OpenSessionInput,
   type PasteImagesInput,
   type PickImagesInput,
   type PickImagesResult,
-  type PrepareRemoveArchivedSessionsInput,
-  type PrepareRemoveProjectInput,
-  type PrepareRemoveSessionInput,
-  type QueueFollowUpInput,
-  type RemovePreparedImageInput,
-  type RemoveArchivedSessionsInput,
-  type RemoveProjectInput,
-  type RemoveSessionInput,
-  type ReorderRecentWorkspacesInput,
-  type ResolveHostDialogInput,
-  type RespondProviderAuthPromptInput,
-  type RestoreSessionInput,
-  type RewriteAssistantOutputInput,
-  type UpdateSessionContextPromptInput,
-  type SearchWorkspaceReferencesInput,
-  type SendPromptInput,
-  type SetSessionModelInput,
-  type SetThinkingLevelInput,
-  type SetSessionModeInput,
-  type UpdateSessionPlanDocumentInput,
-  type ExecuteSessionPlanInput,
-  type StartProviderLoginInput,
-  type SteerRunInput,
-  type UpdateAppearanceSettingsInput,
-  type UpdatePermissionSettingsInput,
-  type UpdateSkillSourceSettingsInput,
-  type UpdateGitHubMcpSettingsInput,
-  type UpdateSandboxSettingsInput,
-  type ImportGitHubPatInput,
-  type GetChangeReviewSetInput,
-  type GetChangeDiffInput,
-  type GetChangeFileViewInput,
-  type ApproveChangesInput,
-  type ApplyUndoChangesInput,
-  type PrepareUndoChangesInput,
+  type PrepareImageInput,
+  type PreparedImageSummary,
 } from "@pho-code/protocol";
 import { decodePastedImageBase64 } from "./image-base64";
 import {
@@ -139,11 +94,9 @@ function resolveDesktopResourceLocator(): ResourceLocator {
 
 function applyUserDataOverride(): void {
   const override = process.env.PHO_CODE_USER_DATA_DIR?.trim();
-  if (!override) {
-    return;
+  if (override) {
+    app.setPath("userData", path.resolve(override));
   }
-
-  app.setPath("userData", path.resolve(override));
 }
 
 const openedAuthUrls: string[] | undefined = testMode ? [] : undefined;
@@ -312,13 +265,83 @@ async function handleCommand<T>(operation: string, run: () => Promise<T>): Promi
   }
 }
 
-function registerIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.getBootstrapState, (event) =>
-    handleCommand("getBootstrapState", async () => {
+type CommandName = keyof ApplicationService & keyof typeof IPC_CHANNELS;
+
+// Pass-through commands share one shape: trusted sender, payload record
+// forwarded to the same-named ApplicationService method.
+function registerCommand(name: CommandName, nullResult = false): void {
+  ipcMain.handle(IPC_CHANNELS[name], (event, payload: unknown) =>
+    handleCommand(name, async () => {
       assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getBootstrapState();
+      const method = requireApplication()[name] as unknown as (
+        input: Record<string, unknown>,
+      ) => Promise<unknown>;
+      const value = await method(asRecord(payload));
+      return nullResult ? null : value;
     }),
   );
+}
+
+function registerIpc(): void {
+  const commands = [
+    "getBootstrapState",
+    "openRecentWorkspace",
+    "reorderRecentWorkspaces",
+    "listWorkspaceSessions",
+    "listSessionCatalog",
+    "getSessionSnapshot",
+    "createSession",
+    "openSession",
+    "archiveSession",
+    "restoreSession",
+    "prepareRemoveSession",
+    "removeSession",
+    "prepareRemoveProject",
+    "removeProject",
+    "prepareRemoveArchivedSessions",
+    "removeArchivedSessions",
+    "sendPrompt",
+    "steerRun",
+    "queueFollowUp",
+    "setSessionModel",
+    "setThinkingLevel",
+    "setSessionMode",
+    "updateSessionPlanDocument",
+    "executeSessionPlan",
+    "rewriteAssistantOutput",
+    "updateSessionContextPrompt",
+    "getSettings",
+    "updateAppearanceSettings",
+    "updatePermissionSettings",
+    "trustProjectPermissionRules",
+    "listCredentialProviders",
+    "importProviderApiKey",
+    "listProviderAccounts",
+    "startProviderLogin",
+    "respondProviderAuthPrompt",
+    "openProviderAuthLink",
+    "cancelProviderLogin",
+    "logoutProvider",
+    "searchWorkspaceReferences",
+    "updateSkillSourceSettings",
+    "refreshSkills",
+    "updateGitHubMcpSettings",
+    "updateSandboxSettings",
+    "importGitHubPat",
+    "removeGitHubPat",
+    "getChangeReviewSet",
+    "getChangeDiff",
+    "getChangeFileView",
+    "approveChanges",
+    "prepareUndoChanges",
+    "applyUndoChanges",
+  ] as const satisfies readonly CommandName[];
+  for (const name of commands) {
+    registerCommand(name);
+  }
+  for (const name of ["removePreparedImage", "abortRun", "resolveHostDialog"] as const) {
+    registerCommand(name, true);
+  }
 
   ipcMain.handle(IPC_CHANNELS.pickWorkspace, async (event) =>
     handleCommand("pickWorkspace", async () => {
@@ -334,161 +357,27 @@ function registerIpc(): void {
     }),
   );
 
-  ipcMain.handle(IPC_CHANNELS.openRecentWorkspace, async (event, payload: unknown) =>
-    handleCommand("openRecentWorkspace", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().openRecentWorkspace(asRecord(payload) as unknown as OpenRecentWorkspaceInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.reorderRecentWorkspaces, async (event, payload: unknown) =>
-    handleCommand("reorderRecentWorkspaces", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().reorderRecentWorkspaces(
-        asRecord(payload) as unknown as ReorderRecentWorkspacesInput,
-      );
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.listWorkspaceSessions, async (event, payload: unknown) =>
-    handleCommand("listWorkspaceSessions", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().listWorkspaceSessions(asRecord(payload) as unknown as ListWorkspaceSessionsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.listSessionCatalog, async (event, payload: unknown) =>
-    handleCommand("listSessionCatalog", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().listSessionCatalog(asRecord(payload) as unknown as ListSessionCatalogInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.getSessionSnapshot, async (event, payload: unknown) =>
-    handleCommand("getSessionSnapshot", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getSessionSnapshot(asRecord(payload) as unknown as GetSessionSnapshotInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.createSession, async (event, payload: unknown) =>
-    handleCommand("createSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().createSession(asRecord(payload) as unknown as CreateSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.openSession, async (event, payload: unknown) =>
-    handleCommand("openSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().openSession(asRecord(payload) as unknown as OpenSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.archiveSession, async (event, payload: unknown) =>
-    handleCommand("archiveSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().archiveSession(asRecord(payload) as unknown as ArchiveSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.restoreSession, async (event, payload: unknown) =>
-    handleCommand("restoreSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().restoreSession(asRecord(payload) as unknown as RestoreSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.prepareRemoveSession, async (event, payload: unknown) =>
-    handleCommand("prepareRemoveSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().prepareRemoveSession(asRecord(payload) as unknown as PrepareRemoveSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.removeSession, async (event, payload: unknown) =>
-    handleCommand("removeSession", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().removeSession(asRecord(payload) as unknown as RemoveSessionInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.prepareRemoveProject, async (event, payload: unknown) =>
-    handleCommand("prepareRemoveProject", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().prepareRemoveProject(asRecord(payload) as unknown as PrepareRemoveProjectInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.removeProject, async (event, payload: unknown) =>
-    handleCommand("removeProject", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().removeProject(asRecord(payload) as unknown as RemoveProjectInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.prepareRemoveArchivedSessions, async (event, payload: unknown) =>
-    handleCommand("prepareRemoveArchivedSessions", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().prepareRemoveArchivedSessions(
-        asRecord(payload) as unknown as PrepareRemoveArchivedSessionsInput,
-      );
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.removeArchivedSessions, async (event, payload: unknown) =>
-    handleCommand("removeArchivedSessions", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().removeArchivedSessions(asRecord(payload) as unknown as RemoveArchivedSessionsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.sendPrompt, async (event, payload: unknown) =>
-    handleCommand("sendPrompt", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().sendPrompt(asRecord(payload) as unknown as SendPromptInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.steerRun, async (event, payload: unknown) =>
-    handleCommand("steerRun", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().steerRun(asRecord(payload) as unknown as SteerRunInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.queueFollowUp, async (event, payload: unknown) =>
-    handleCommand("queueFollowUp", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().queueFollowUp(asRecord(payload) as unknown as QueueFollowUpInput);
-    }),
-  );
-
   ipcMain.handle(IPC_CHANNELS.pickImages, async (event, payload: unknown) =>
     handleCommand("pickImages", async () => {
       assertTrustedSender(event, trustedRenderer);
       const scope = imageSessionScope(asRecord(payload) as PickImagesInput);
       const window = BrowserWindow.fromWebContents(event.sender);
+      const options: Electron.OpenDialogOptions = {
+        properties: ["openFile", "multiSelections"],
+        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }],
+      };
       const result = window
-        ? await dialog.showOpenDialog(window, imageOpenDialogOptions())
-        : await dialog.showOpenDialog(imageOpenDialogOptions());
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options);
       if (result.canceled || result.filePaths.length === 0) {
         return { images: [] };
       }
-      const images = [];
-      let firstError: unknown;
-      for (const filePath of result.filePaths.slice(0, MAX_PREPARED_IMAGES)) {
-        try {
+      return collectImages(
+        result.filePaths.slice(0, MAX_PREPARED_IMAGES).map((filePath) => async () => {
           const prepared = await ingestImageFile(filePath);
-          images.push(await requireApplication().prepareImage({ ...prepared, ...scope }));
-        } catch (error) {
-          firstError ??= error;
-        }
-      }
-      if (images.length === 0 && firstError) {
-        throw firstError;
-      }
-      return { images };
+          return requireApplication().prepareImage({ ...prepared, ...scope });
+        }),
+      );
     }),
   );
 
@@ -496,258 +385,6 @@ function registerIpc(): void {
     handleCommand("pasteImages", async () => {
       assertTrustedSender(event, trustedRenderer);
       return ingestPastedImages(asRecord(payload) as unknown as PasteImagesInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.removePreparedImage, async (event, payload: unknown) =>
-    handleCommand("removePreparedImage", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      await requireApplication().removePreparedImage(asRecord(payload) as unknown as RemovePreparedImageInput);
-      return null;
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.abortRun, async (event, payload: unknown) =>
-    handleCommand("abortRun", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      await requireApplication().abortRun(asRecord(payload) as unknown as AbortRunInput);
-      return null;
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.setSessionModel, async (event, payload: unknown) =>
-    handleCommand("setSessionModel", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().setSessionModel(asRecord(payload) as unknown as SetSessionModelInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.setThinkingLevel, async (event, payload: unknown) =>
-    handleCommand("setThinkingLevel", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().setThinkingLevel(asRecord(payload) as unknown as SetThinkingLevelInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.setSessionMode, async (event, payload: unknown) =>
-    handleCommand("setSessionMode", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().setSessionMode(asRecord(payload) as unknown as SetSessionModeInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateSessionPlanDocument, async (event, payload: unknown) =>
-    handleCommand("updateSessionPlanDocument", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateSessionPlanDocument(
-        asRecord(payload) as unknown as UpdateSessionPlanDocumentInput,
-      );
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.executeSessionPlan, async (event, payload: unknown) =>
-    handleCommand("executeSessionPlan", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().executeSessionPlan(asRecord(payload) as unknown as ExecuteSessionPlanInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.rewriteAssistantOutput, async (event, payload: unknown) =>
-    handleCommand("rewriteAssistantOutput", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().rewriteAssistantOutput(asRecord(payload) as unknown as RewriteAssistantOutputInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateSessionContextPrompt, async (event, payload: unknown) =>
-    handleCommand("updateSessionContextPrompt", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateSessionContextPrompt(
-        asRecord(payload) as unknown as UpdateSessionContextPromptInput,
-      );
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.resolveHostDialog, async (event, payload: unknown) =>
-    handleCommand("resolveHostDialog", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      await requireApplication().resolveHostDialog(asRecord(payload) as unknown as ResolveHostDialogInput);
-      return null;
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.getSettings, (event) =>
-    handleCommand("getSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getSettings();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateAppearanceSettings, async (event, payload: unknown) =>
-    handleCommand("updateAppearanceSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateAppearanceSettings(asRecord(payload) as unknown as UpdateAppearanceSettingsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updatePermissionSettings, async (event, payload: unknown) =>
-    handleCommand("updatePermissionSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updatePermissionSettings(asRecord(payload) as unknown as UpdatePermissionSettingsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.trustProjectPermissionRules, async (event) =>
-    handleCommand("trustProjectPermissionRules", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().trustProjectPermissionRules();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.listCredentialProviders, (event) =>
-    handleCommand("listCredentialProviders", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().listCredentialProviders();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.importProviderApiKey, async (event, payload: unknown) =>
-    handleCommand("importProviderApiKey", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().importProviderApiKey(asRecord(payload) as unknown as ImportProviderApiKeyInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.listProviderAccounts, (event) =>
-    handleCommand("listProviderAccounts", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().listProviderAccounts();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.startProviderLogin, async (event, payload: unknown) =>
-    handleCommand("startProviderLogin", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().startProviderLogin(asRecord(payload) as unknown as StartProviderLoginInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.respondProviderAuthPrompt, async (event, payload: unknown) =>
-    handleCommand("respondProviderAuthPrompt", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().respondProviderAuthPrompt(asRecord(payload) as unknown as RespondProviderAuthPromptInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.openProviderAuthLink, async (event, payload: unknown) =>
-    handleCommand("openProviderAuthLink", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().openProviderAuthLink(asRecord(payload) as unknown as OpenProviderAuthLinkInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.cancelProviderLogin, async (event, payload: unknown) =>
-    handleCommand("cancelProviderLogin", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().cancelProviderLogin(asRecord(payload) as unknown as CancelProviderLoginInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.logoutProvider, async (event, payload: unknown) =>
-    handleCommand("logoutProvider", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().logoutProvider(asRecord(payload) as unknown as LogoutProviderInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.searchWorkspaceReferences, async (event, payload: unknown) =>
-    handleCommand("searchWorkspaceReferences", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().searchWorkspaceReferences(asRecord(payload) as unknown as SearchWorkspaceReferencesInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateSkillSourceSettings, async (event, payload: unknown) =>
-    handleCommand("updateSkillSourceSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateSkillSourceSettings(asRecord(payload) as unknown as UpdateSkillSourceSettingsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.refreshSkills, async (event) =>
-    handleCommand("refreshSkills", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().refreshSkills();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateGitHubMcpSettings, async (event, payload: unknown) =>
-    handleCommand("updateGitHubMcpSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateGitHubMcpSettings(asRecord(payload) as unknown as UpdateGitHubMcpSettingsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.updateSandboxSettings, async (event, payload: unknown) =>
-    handleCommand("updateSandboxSettings", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().updateSandboxSettings(asRecord(payload) as unknown as UpdateSandboxSettingsInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.importGitHubPat, async (event, payload: unknown) =>
-    handleCommand("importGitHubPat", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().importGitHubPat(asRecord(payload) as unknown as ImportGitHubPatInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.removeGitHubPat, async (event) =>
-    handleCommand("removeGitHubPat", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().removeGitHubPat();
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.getChangeReviewSet, async (event, payload: unknown) =>
-    handleCommand("getChangeReviewSet", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getChangeReviewSet(asRecord(payload) as unknown as GetChangeReviewSetInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.getChangeDiff, async (event, payload: unknown) =>
-    handleCommand("getChangeDiff", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getChangeDiff(asRecord(payload) as unknown as GetChangeDiffInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.getChangeFileView, async (event, payload: unknown) =>
-    handleCommand("getChangeFileView", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().getChangeFileView(asRecord(payload) as unknown as GetChangeFileViewInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.approveChanges, async (event, payload: unknown) =>
-    handleCommand("approveChanges", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().approveChanges(asRecord(payload) as unknown as ApproveChangesInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.prepareUndoChanges, async (event, payload: unknown) =>
-    handleCommand("prepareUndoChanges", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().prepareUndoChanges(asRecord(payload) as unknown as PrepareUndoChangesInput);
-    }),
-  );
-
-  ipcMain.handle(IPC_CHANNELS.applyUndoChanges, async (event, payload: unknown) =>
-    handleCommand("applyUndoChanges", async () => {
-      assertTrustedSender(event, trustedRenderer);
-      return requireApplication().applyUndoChanges(asRecord(payload) as unknown as ApplyUndoChangesInput);
     }),
   );
 }
@@ -772,9 +409,27 @@ function imageSessionScope(input: { sessionId?: string; workspaceId?: string }):
   };
 }
 
+// Run ingest/prepare tasks in order, keeping every success and surfacing the
+// first failure only when nothing succeeded.
+async function collectImages(tasks: readonly (() => Promise<PreparedImageSummary>)[]): Promise<PickImagesResult> {
+  const images = [];
+  let firstError: unknown;
+  for (const task of tasks) {
+    try {
+      images.push(await task());
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (images.length === 0 && firstError) {
+    throw firstError;
+  }
+  return { images };
+}
+
 async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesResult> {
   const supplied = Array.isArray(input.images) ? input.images : [];
-  const prepared = [];
+  const prepared: PrepareImageInput[] = [];
   if (supplied.length > 0) {
     for (const item of supplied.slice(0, MAX_PREPARED_IMAGES)) {
       const name = typeof item.name === "string" && item.name.trim() !== "" ? item.name : "pasted-image.png";
@@ -806,28 +461,9 @@ async function ingestPastedImages(input: PasteImagesInput): Promise<PickImagesRe
   }
 
   const scope = imageSessionScope(input);
-  const images = [];
-  let firstError: unknown;
-  for (const item of prepared) {
-    try {
-      images.push(await requireApplication().prepareImage({ ...item, ...scope }));
-    } catch (error) {
-      firstError ??= error;
-    }
-  }
-  if (images.length === 0 && firstError) {
-    throw firstError;
-  }
-  return { images };
-}
-
-function imageOpenDialogOptions(): Electron.OpenDialogOptions {
-  return {
-    properties: ["openFile", "multiSelections"],
-    filters: [
-      { name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] },
-    ],
-  };
+  return collectImages(
+    prepared.map((item) => () => requireApplication().prepareImage({ ...item, ...scope })),
+  );
 }
 
 function configureSession(): void {

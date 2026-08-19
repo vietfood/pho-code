@@ -53,6 +53,26 @@ export function useChangeReview(cache: ConversationCacheState) {
     [contextLines, isCurrent],
   );
 
+  const runLoadingTask = useCallback(
+    (generation: number, nextScope: ChangeScope, fallback: string, task: () => Promise<void>, done?: () => boolean) => {
+      setLoading(true);
+      void (async () => {
+        try {
+          await task();
+        } catch (cause) {
+          if (isCurrent(generation, nextScope)) {
+            setError(isHarnessError(cause) ? cause.message : fallback);
+          }
+        } finally {
+          if (isCurrent(generation, nextScope) && (done?.() ?? true)) {
+            setLoading(false);
+          }
+        }
+      })();
+    },
+    [isCurrent],
+  );
+
   const open = useCallback(
     (nextScope: ChangeScope) => {
       const generation = generationRef.current + 1;
@@ -61,35 +81,23 @@ export function useChangeReview(cache: ConversationCacheState) {
       scopeRef.current = nextScope;
       setScope(nextScope);
       setError(null);
-      setLoading(true);
       setDiff(null);
       setUndoPreview(null);
-      void (async () => {
-        try {
-          const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
-          if (generation !== generationRef.current) {
-            return;
-          }
-          setReview(snapshot);
-          const path = firstSelectablePath(snapshot);
-          setSelectedPath(path);
-          selectedPathRef.current = path;
-          if (path) {
-            await loadDiff(generation, nextScope, path);
-          }
-        } catch (cause) {
-          if (generation !== generationRef.current) {
-            return;
-          }
-          setError(isHarnessError(cause) ? cause.message : "Unable to open the review set.");
-        } finally {
-          if (generation === generationRef.current) {
-            setLoading(false);
-          }
+      runLoadingTask(generation, nextScope, "Unable to open the review set.", async () => {
+        const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
+        if (generation !== generationRef.current) {
+          return;
         }
-      })();
+        setReview(snapshot);
+        const path = firstSelectablePath(snapshot);
+        setSelectedPath(path);
+        selectedPathRef.current = path;
+        if (path) {
+          await loadDiff(generation, nextScope, path);
+        }
+      });
     },
-    [loadDiff],
+    [loadDiff, runLoadingTask],
   );
 
   const close = useCallback(() => {
@@ -115,23 +123,15 @@ export function useChangeReview(cache: ConversationCacheState) {
       setSelectedPath(relativePath);
       setUndoPreview(null);
       selectedPathRef.current = relativePath;
-      setLoading(true);
-      void (async () => {
-        try {
-          await loadDiff(generation, nextScope, relativePath);
-        } catch (cause) {
-          if (!isCurrent(generation, nextScope)) {
-            return;
-          }
-          setError(isHarnessError(cause) ? cause.message : "Unable to load that file.");
-        } finally {
-          if (isCurrent(generation, nextScope) && selectedPathRef.current === relativePath) {
-            setLoading(false);
-          }
-        }
-      })();
+      runLoadingTask(
+        generation,
+        nextScope,
+        "Unable to load that file.",
+        () => loadDiff(generation, nextScope, relativePath),
+        () => selectedPathRef.current === relativePath,
+      );
     },
-    [isCurrent, loadDiff, scope],
+    [isCurrent, loadDiff, runLoadingTask, scope],
   );
 
   const approve = useCallback(
@@ -201,22 +201,15 @@ export function useChangeReview(cache: ConversationCacheState) {
       const generation = generationRef.current;
       const nextScope = scope;
       const path = selectedPath;
-      setLoading(true);
-      void (async () => {
-        try {
-          await loadDiff(generation, nextScope, path, undefined, value);
-        } catch (cause) {
-          if (isCurrent(generation, nextScope)) {
-            setError(isHarnessError(cause) ? cause.message : "Unable to load that file.");
-          }
-        } finally {
-          if (isCurrent(generation, nextScope) && selectedPathRef.current === path) {
-            setLoading(false);
-          }
-        }
-      })();
+      runLoadingTask(
+        generation,
+        nextScope,
+        "Unable to load that file.",
+        () => loadDiff(generation, nextScope, path, undefined, value),
+        () => selectedPathRef.current === path,
+      );
     },
-    [isCurrent, loadDiff, scope, selectedPath],
+    [isCurrent, loadDiff, runLoadingTask, scope, selectedPath],
   );
 
   const prepareUndo = useCallback(
@@ -320,32 +313,20 @@ export function useChangeReview(cache: ConversationCacheState) {
     setUndoPreview(null);
     const generation = generationRef.current;
     const nextScope = scope;
-    setLoading(true);
-    void (async () => {
-      try {
-        const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
-        if (!isCurrent(generation, nextScope)) {
-          return;
-        }
-        setReview(snapshot);
-        const path = selectedPathRef.current ?? firstSelectablePath(snapshot);
-        if (path) {
-          await loadDiff(generation, nextScope, path);
-        } else {
-          setDiff(null);
-        }
-      } catch (cause) {
-        if (!isCurrent(generation, nextScope)) {
-          return;
-        }
-        setError(isHarnessError(cause) ? cause.message : "Unable to refresh the review set.");
-      } finally {
-        if (isCurrent(generation, nextScope)) {
-          setLoading(false);
-        }
+    runLoadingTask(generation, nextScope, "Unable to refresh the review set.", async () => {
+      const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
+      if (!isCurrent(generation, nextScope)) {
+        return;
       }
-    })();
-  }, [cache.byKey, isCurrent, loadDiff, review?.revision, scope]);
+      setReview(snapshot);
+      const path = selectedPathRef.current ?? firstSelectablePath(snapshot);
+      if (path) {
+        await loadDiff(generation, nextScope, path);
+      } else {
+        setDiff(null);
+      }
+    });
+  }, [cache.byKey, isCurrent, loadDiff, review?.revision, runLoadingTask, scope]);
 
   return {
     scope,

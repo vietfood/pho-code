@@ -49,15 +49,9 @@ export function AskUserCard({
 
   useEffect(() => {
     phaseRef.current = phase;
-  }, [phase]);
-
-  useEffect(() => {
     activeIndexRef.current = activeIndex;
-  }, [activeIndex]);
-
-  useEffect(() => {
     draftsRef.current = drafts;
-  }, [drafts]);
+  }, [phase, activeIndex, drafts]);
 
   useEffect(() => {
     setPhase("question");
@@ -94,11 +88,7 @@ export function AskUserCard({
             event.preventDefault();
             updateDraft(currentIndex, (draft) => selectAskUserOption(draft, option.label, question.multiSelect === true));
             if (!question.multiSelect && questions.length > 1) {
-              if (currentIndex + 1 < questions.length) {
-                setActiveIndex(currentIndex + 1);
-              } else {
-                setPhase("review");
-              }
+              advanceAfterSingleSelect(currentIndex);
             }
             return;
           }
@@ -129,17 +119,17 @@ export function AskUserCard({
   const unanswered = unansweredAskUserHeaders(questions, drafts);
   const canSubmit = canSubmitAskUserCard(questions, drafts, phase);
 
-  function submitFromRefs(
+  function advanceOrResolve(
     currentQuestions: readonly AskUserQuestion[],
     currentDrafts: AskUserDraft[],
     currentPhase: AskUserCardPhase,
     currentIndex: number,
+    resolve: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void,
   ) {
     if (currentPhase === "review") {
-      if (!canSubmitAskUserCard(currentQuestions, currentDrafts, currentPhase)) {
-        return;
+      if (canSubmitAskUserCard(currentQuestions, currentDrafts, currentPhase)) {
+        resolve({ answers: draftsToAskUserAnswers(currentQuestions, currentDrafts) });
       }
-      onResolveRef.current({ answers: draftsToAskUserAnswers(currentQuestions, currentDrafts) });
       return;
     }
     const current = currentQuestions[currentIndex];
@@ -148,7 +138,7 @@ export function AskUserCard({
       return;
     }
     if (currentQuestions.length === 1) {
-      onResolveRef.current({ answers: draftsToAskUserAnswers(currentQuestions, currentDrafts) });
+      resolve({ answers: draftsToAskUserAnswers(currentQuestions, currentDrafts) });
       return;
     }
     if (currentIndex + 1 < currentQuestions.length) {
@@ -158,6 +148,15 @@ export function AskUserCard({
     setPhase("review");
   }
 
+  function submitFromRefs(
+    currentQuestions: readonly AskUserQuestion[],
+    currentDrafts: AskUserDraft[],
+    currentPhase: AskUserCardPhase,
+    currentIndex: number,
+  ) {
+    advanceOrResolve(currentQuestions, currentDrafts, currentPhase, currentIndex, (resolution) => onResolveRef.current(resolution));
+  }
+
   function updateDraft(index: number, updater: (draft: AskUserDraft) => AskUserDraft) {
     setDrafts((current) => current.map((entry, entryIndex) => (entryIndex === index ? updater(entry) : entry)));
   }
@@ -165,35 +164,13 @@ export function AskUserCard({
   function advanceAfterSingleSelect(fromIndex: number) {
     if (fromIndex + 1 < questions.length) {
       setActiveIndex(fromIndex + 1);
-      return;
-    }
-    if (questions.length > 1) {
+    } else if (questions.length > 1) {
       setPhase("review");
     }
   }
 
   function submitOrAdvance() {
-    if (phase === "review") {
-      if (!canSubmit) {
-        return;
-      }
-      onResolve({ answers: draftsToAskUserAnswers(questions, drafts) });
-      return;
-    }
-    const current = questions[activeIndex];
-    const currentDraft = drafts[activeIndex];
-    if (!current || !currentDraft || !isAskUserDraftAnswered(current, currentDraft)) {
-      return;
-    }
-    if (questions.length === 1) {
-      onResolve({ answers: draftsToAskUserAnswers(questions, drafts) });
-      return;
-    }
-    if (activeIndex + 1 < questions.length) {
-      setActiveIndex(activeIndex + 1);
-      return;
-    }
-    setPhase("review");
+    advanceOrResolve(questions, drafts, phase, activeIndex, onResolve);
   }
 
   if (!question || !draft) {

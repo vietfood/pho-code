@@ -1,5 +1,6 @@
 import { parseHTML } from "linkedom";
 import { MAX_WEB_SEARCH_RESULTS, type WebSearchProvider, type WebSourceProvider } from "@pho-code/protocol";
+import { isHttpUrl, isPlainRecord, readString } from "./web-url";
 
 export const DUCKDUCKGO_HTML_ENDPOINT = "https://html.duckduckgo.com/html/";
 export const DUCKDUCKGO_LITE_ENDPOINT = "https://lite.duckduckgo.com/lite/";
@@ -330,15 +331,6 @@ function isBlockedHost(url: string, hosts: readonly string[]): boolean {
   }
 }
 
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function canonicalizeSearchUrl(value: string): string {
   try {
     const url = new URL(value);
@@ -396,18 +388,4 @@ function parseMarkdownSearchHits(body: string, limit: number): WebSearchHit[] {
     }
   }
   return hits;
-}
-
-function readString(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

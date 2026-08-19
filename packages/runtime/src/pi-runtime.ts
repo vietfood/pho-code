@@ -28,6 +28,7 @@ import {
   CHANGE_REVIEW_COPY,
   assertJsonSafe,
   createHarnessError,
+  failCommand,
   HARNESS_ERROR_CODES,
   idleRunState,
   isProviderAuthMethod,
@@ -484,6 +485,23 @@ export async function createPhoCodeRuntime(
     });
   }
 
+  function emitSessionSnapshot(live: LiveSession, snapshot: SessionSnapshot): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      sessionId: snapshot.session.id,
+      payload: snapshot,
+    });
+  }
+
+  function emitFullSnapshot(live: LiveSession, snapshot: SessionSnapshot): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.featureSnapshot,
+      sessionId: snapshot.session.id,
+      payload: snapshot.features,
+    });
+    emitSessionSnapshot(live, snapshot);
+  }
+
   const changeStore = createFileChangeLedgerStore(path.join(options.applicationDataDir ?? agentDir, "change-ledger", "v1"));
   const changeCapture: ChangeCaptureService = createChangeCaptureService({
     store: changeStore,
@@ -613,13 +631,7 @@ export async function createPhoCodeRuntime(
     const infos = await SessionManager.list(cwd);
     const info = infos.find((entry) => entry.id === sessionId);
     if (!info) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionNotFound,
-        message: "The selected session was not found.",
-        operation: "openSession",
-        recoverable: true,
-        details: { sessionId },
-      });
+      failCommand("openSession", "The selected session was not found.", HARNESS_ERROR_CODES.sessionNotFound, { sessionId });
     }
     return createAgentSessionRuntime(createRuntime, {
       cwd,
@@ -679,12 +691,7 @@ export async function createPhoCodeRuntime(
     if (workspaceId && workspaceId.trim() !== "") {
       const match = registry.get({ workspaceId, sessionId });
       if (!match) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The target session is not open.",
-          operation,
-          recoverable: true,
-        });
+        failCommand(operation, "The target session is not open.", HARNESS_ERROR_CODES.sessionNotFound);
       }
       return match;
     }
@@ -695,12 +702,7 @@ export async function createPhoCodeRuntime(
     if (selected?.key.sessionId === sessionId) {
       return selected;
     }
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.sessionNotFound,
-      message: "The target session is not the active session.",
-      operation,
-      recoverable: true,
-    });
+    failCommand(operation, "The target session is not the active session.", HARNESS_ERROR_CODES.sessionNotFound);
   }
 
   function hasAnyActiveRun(): boolean {
@@ -711,13 +713,7 @@ export async function createPhoCodeRuntime(
     const infos = await SessionManager.list(cwd);
     const info = infos.find((entry) => entry.id === sessionId);
     if (!info) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionNotFound,
-        message: "The selected session was not found.",
-        operation,
-        recoverable: true,
-        details: { sessionId },
-      });
+      failCommand(operation, "The selected session was not found.", HARNESS_ERROR_CODES.sessionNotFound, { sessionId });
     }
     return info;
   }
@@ -733,12 +729,7 @@ export async function createPhoCodeRuntime(
 
   function refuseBusyRemoval(live: LiveSession | undefined, operation: string): void {
     if (live && liveSessionProtected(live)) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionRemovalRefused,
-        message: "This chat is still running or waiting. Stop it first, then try again.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "This chat is still running or waiting. Stop it first, then try again.", HARNESS_ERROR_CODES.sessionRemovalRefused);
     }
   }
 
@@ -753,28 +744,13 @@ export async function createPhoCodeRuntime(
     login: async (providerId, method, interaction) => {
       const provider = modelRuntime.getProvider(providerId);
       if (!provider) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown provider.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "Unknown provider.");
       }
       if (method === "oauth" && !provider.auth.oauth) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That provider does not support OAuth login in this application.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "That provider does not support OAuth login in this application.");
       }
       if (method === "api_key" && typeof provider.auth.apiKey?.login !== "function") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That provider does not accept an API key in this application.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "That provider does not accept an API key in this application.");
       }
       await modelRuntime.login(providerId, method, {
         ...(interaction.signal ? { signal: interaction.signal } : {}),
@@ -798,12 +774,7 @@ export async function createPhoCodeRuntime(
   async function refreshModelsAfterAuth(): Promise<void> {
     clearCatalogCache();
     for (const session of registry.list()) {
-      const snapshot = await buildSnapshot({ live: session });
-      emitFor(session, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
+      emitSessionSnapshot(session, await buildSnapshot({ live: session }));
     }
   }
 
@@ -813,7 +784,6 @@ export async function createPhoCodeRuntime(
       providers,
       flow: authFlow.snapshot(),
     };
-    assertJsonSafe(result, "listProviderAccounts");
     assertNoCanaries(result, authFlow.canaries(), "listProviderAccounts");
     return result;
   }
@@ -1098,12 +1068,7 @@ export async function createPhoCodeRuntime(
 
   function requireLiveSession(): LiveSession {
     if (!selected) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionNotFound,
-        message: "No active session is open.",
-        operation: "session",
-        recoverable: true,
-      });
+      failCommand("session", "No active session is open.", HARNESS_ERROR_CODES.sessionNotFound);
     }
     return selected;
   }
@@ -1515,12 +1480,7 @@ export async function createPhoCodeRuntime(
 
   function refuseIfBusy(live: LiveSession, operation: string, message: string): void {
     if (live.activeRun && !live.activeRun.settled) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionBusy,
-        message,
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, message, HARNESS_ERROR_CODES.sessionBusy);
     }
   }
 
@@ -1528,12 +1488,7 @@ export async function createPhoCodeRuntime(
     registry.assertCanAdmitRun(operation);
     const { models, modelError } = await listModels();
     if (!live.runtime.session.model && models.length === 0) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.noAuthenticatedModel,
-        message: modelError ?? "No authenticated model is available.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, modelError ?? "No authenticated model is available.", HARNESS_ERROR_CODES.noAuthenticatedModel);
     }
   }
 
@@ -1573,11 +1528,19 @@ export async function createPhoCodeRuntime(
 
   async function publishSnapshot(live: LiveSession): Promise<SessionSnapshot> {
     const snapshot = await buildSnapshot({ refreshCatalog: false, live });
-    emitFor(live, {
-      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-      sessionId: snapshot.session.id,
-      payload: snapshot,
-    });
+    emitSessionSnapshot(live, snapshot);
+    return snapshot;
+  }
+
+  async function selectLiveSession(live: LiveSession): Promise<SessionSnapshot> {
+    selected = live;
+    lastWorkspace = live.workspace;
+    registry.select(live.key);
+    await retrieval.bind(live.workspace.path);
+    clearCatalogCache();
+    const snapshot = await buildSnapshot({ live });
+    emitSessionSnapshot(live, snapshot);
+    emitActivity();
     return snapshot;
   }
 
@@ -1660,58 +1623,22 @@ export async function createPhoCodeRuntime(
     async createSession(workspaceId: string) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(workspaceId, "createSession");
-      const live = await registry.create(cwd);
-      selected = live;
-      lastWorkspace = live.workspace;
-      registry.select(live.key);
-      await retrieval.bind(live.workspace.path);
-      clearCatalogCache();
-      const snapshot = await buildSnapshot({ live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      emitActivity();
-      return snapshot;
+      return selectLiveSession(await registry.create(cwd));
     },
     async openSession(workspaceId: string, sessionId: string) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(workspaceId, "openSession");
-      const live = await registry.open({ workspaceId: cwd, sessionId });
-      selected = live;
-      lastWorkspace = live.workspace;
-      registry.select(live.key);
-      await retrieval.bind(live.workspace.path);
-      clearCatalogCache();
-      const snapshot = await buildSnapshot({ live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      emitActivity();
-      return snapshot;
+      return selectLiveSession(await registry.open({ workspaceId: cwd, sessionId }));
     },
     async inspectRemovableSession(key: SessionKey): Promise<RemovableSessionInspection> {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(key.workspaceId, "prepareRemoveSession");
       refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: key.sessionId }), "prepareRemoveSession");
       if (await changeCapture.hasUnreadableReview(cwd, key.sessionId)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.changeReviewCorrupt,
-          message: CHANGE_REVIEW_COPY.ledgerUnreadable,
-          operation: "prepareRemoveSession",
-          recoverable: true,
-        });
+        failCommand("prepareRemoveSession", CHANGE_REVIEW_COPY.ledgerUnreadable, HARNESS_ERROR_CODES.changeReviewCorrupt);
       }
       if (await changeCapture.hasBlockingReview(cwd, key.sessionId)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionRemovalRefused,
-          message: "This chat still has pending write/edit review. Approve those changes first.",
-          operation: "prepareRemoveSession",
-          recoverable: true,
-        });
+        failCommand("prepareRemoveSession", "This chat still has pending write/edit review. Approve those changes first.", HARNESS_ERROR_CODES.sessionRemovalRefused);
       }
       const info = await resolveListedSession(cwd, key.sessionId, "prepareRemoveSession");
       const artifact = await validateListedArtifact(cwd, info);
@@ -1724,30 +1651,15 @@ export async function createPhoCodeRuntime(
       return registry.runLocked({ workspaceId: cwd, sessionId: input.sessionId }, async () => {
         refuseBusyRemoval(registry.get({ workspaceId: cwd, sessionId: input.sessionId }), "removeSession");
         if (await changeCapture.hasUnreadableReview(cwd, input.sessionId)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.changeReviewCorrupt,
-            message: CHANGE_REVIEW_COPY.ledgerUnreadable,
-            operation: "removeSession",
-            recoverable: true,
-          });
+          failCommand("removeSession", CHANGE_REVIEW_COPY.ledgerUnreadable, HARNESS_ERROR_CODES.changeReviewCorrupt);
         }
         if (await changeCapture.hasBlockingReview(cwd, input.sessionId)) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.sessionRemovalRefused,
-          message: "This chat still has pending write/edit review. Approve those changes first.",
-          operation: "removeSession",
-            recoverable: true,
-          });
+          failCommand("removeSession", "This chat still has pending write/edit review. Approve those changes first.", HARNESS_ERROR_CODES.sessionRemovalRefused);
         }
         const info = await resolveListedSession(cwd, input.sessionId, "removeSession");
         const artifact = await validateListedArtifact(cwd, info);
         if (artifact.fingerprint !== input.fingerprint) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.sessionArtifactInvalid,
-            message: "The session transcript changed before it could be moved to Trash.",
-            operation: "removeSession",
-            recoverable: true,
-          });
+          failCommand("removeSession", "The session transcript changed before it could be moved to Trash.", HARNESS_ERROR_CODES.sessionArtifactInvalid);
         }
         const summary = sessionSummaryFromInfo(cwd, info);
         await registry.remove({ workspaceId: cwd, sessionId: input.sessionId });
@@ -1783,20 +1695,10 @@ export async function createPhoCodeRuntime(
       const promptText = await resolvePromptText(input, "sendPrompt", live);
       const images = takePreparedImages(live, input.imageIds, "sendPrompt");
       if (promptText.trim() === "" && images.length === 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "A prompt, workspace reference, or image is required.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
+        failCommand("sendPrompt", "A prompt, workspace reference, or image is required.");
       }
       if (images.length > 0 && !modelSupportsImages(session.model)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.imagesUnsupported,
-          message: "The selected model does not accept images.",
-          operation: "sendPrompt",
-          recoverable: true,
-        });
+        failCommand("sendPrompt", "The selected model does not accept images.", HARNESS_ERROR_CODES.imagesUnsupported);
       }
 
       const run = createActiveRun(live);
@@ -1828,13 +1730,7 @@ export async function createPhoCodeRuntime(
       admitted = await preflight;
       if (!admitted) {
         await promptDone.catch(() => undefined);
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.promptRejected,
-          message: "The prompt was rejected before admission.",
-          operation: "sendPrompt",
-          recoverable: true,
-          details: { sessionId: session.sessionId, runId },
-        });
+        failCommand("sendPrompt", "The prompt was rejected before admission.", HARNESS_ERROR_CODES.promptRejected, { sessionId: session.sessionId, runId });
       }
       forgetPreparedImages(live, input.imageIds);
 
@@ -1864,19 +1760,13 @@ export async function createPhoCodeRuntime(
           ? locateController(input.sessionId, input.workspaceId, "prepareImage")
           : requireLiveSession();
       const summary = live.preparedImages.add(input, "prepareImage");
-      assertJsonSafe(summary, "prepareImage");
       return summary;
     },
     async removePreparedImage(input: RemovePreparedImageInput) {
       assertNotDisposed();
       const imageId = typeof input.imageId === "string" ? input.imageId.trim() : "";
       if (imageId.length === 0) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidImage,
-          message: "An image id is required.",
-          operation: "removePreparedImage",
-          recoverable: true,
-        });
+        failCommand("removePreparedImage", "An image id is required.", HARNESS_ERROR_CODES.invalidImage);
       }
       const live =
         input.sessionId !== undefined
@@ -1900,60 +1790,25 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "setSessionModel");
       const session = live.runtime.session;
-      if (live.activeRun && !live.activeRun.settled) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing the model.",
-          operation: "setSessionModel",
-          recoverable: true,
-        });
-      }
+      refuseIfBusy(live, "setSessionModel", "Wait for the current run to finish before changing the model.");
       const model = modelRuntime.getModel(input.provider, input.id);
       if (!model) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: `Model ${input.provider}/${input.id} is not available.`,
-          operation: "setSessionModel",
-          recoverable: true,
-        });
+        failCommand("setSessionModel", `Model ${input.provider}/${input.id} is not available.`);
       }
       try {
         await session.setModel(model);
       } catch (error) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: error instanceof Error ? error.message : "Unable to set the model.",
-          operation: "setSessionModel",
-          recoverable: true,
-        });
+        failCommand("setSessionModel", error instanceof Error ? error.message : "Unable to set the model.");
       }
-      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      return snapshot;
+      return publishSnapshot(live);
     },
     async setThinkingLevel(input: SetThinkingLevelInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "setThinkingLevel");
       const session = live.runtime.session;
-      if (live.activeRun && !live.activeRun.settled) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing the thinking level.",
-          operation: "setThinkingLevel",
-          recoverable: true,
-        });
-      }
+      refuseIfBusy(live, "setThinkingLevel", "Wait for the current run to finish before changing the thinking level.");
       if (!isThinkingLevel(input.level)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown thinking level.",
-          operation: "setThinkingLevel",
-          recoverable: true,
-        });
+        failCommand("setThinkingLevel", "Unknown thinking level.");
       }
       session.setThinkingLevel(input.level);
       return publishSnapshot(live);
@@ -1963,12 +1818,7 @@ export async function createPhoCodeRuntime(
       const live = locateController(input.sessionId, input.workspaceId, "setSessionMode");
       refuseIfBusy(live, "setSessionMode", "Wait for the current run to finish before changing Plan or Agent.");
       if (!isSessionAgentMode(input.mode)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown session mode.",
-          operation: "setSessionMode",
-          recoverable: true,
-        });
+        failCommand("setSessionMode", "Unknown session mode.");
       }
       persistPlanAgent(live, { mode: input.mode, executing: false });
       applySessionToolPolicy(live);
@@ -1984,28 +1834,13 @@ export async function createPhoCodeRuntime(
       );
       const current = readPlanAgent(live);
       if (current.executing) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The Plan document is inspect-only while Execute is running.",
-          operation: "updateSessionPlanDocument",
-          recoverable: true,
-        });
+        failCommand("updateSessionPlanDocument", "The Plan document is inspect-only while Execute is running.");
       }
       if (typeof input.documentMarkdown !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Plan document markdown is required.",
-          operation: "updateSessionPlanDocument",
-          recoverable: true,
-        });
+        failCommand("updateSessionPlanDocument", "Plan document markdown is required.");
       }
       if (planDocumentTooLarge(input.documentMarkdown)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The Plan document is too large.",
-          operation: "updateSessionPlanDocument",
-          recoverable: true,
-        });
+        failCommand("updateSessionPlanDocument", "The Plan document is too large.");
       }
       persistPlanAgent(live, { documentMarkdown: input.documentMarkdown });
       return publishSnapshot(live);
@@ -2017,12 +1852,7 @@ export async function createPhoCodeRuntime(
       const current = readPlanAgent(live);
       const refusal = planExecuteRefusal(current);
       if (refusal) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: planExecuteRefusalMessage(refusal),
-          operation: "executeSessionPlan",
-          recoverable: true,
-        });
+        failCommand("executeSessionPlan", planExecuteRefusalMessage(refusal));
       }
       await assertTurnAdmission(live, "executeSessionPlan");
       persistPlanAgent(live, beginPlanExecuteRecord(current));
@@ -2057,39 +1887,17 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "rewriteAssistantOutput");
       const session = live.runtime.session;
-      if (live.activeRun && !live.activeRun.settled) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before rewriting assistant output.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
-      }
+      refuseIfBusy(live, "rewriteAssistantOutput", "Wait for the current run to finish before rewriting assistant output.");
       if (typeof input.text !== "string") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Rewritten text is required.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
+        failCommand("rewriteAssistantOutput", "Rewritten text is required.");
       }
       if (input.text.length > MAX_ASSISTANT_REWRITE_CHARS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "The rewritten text is too long.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
+        failCommand("rewriteAssistantOutput", "The rewritten text is too long.");
       }
       const projected = projectSessionMessages(session);
       const target = projected.find((message) => message.id === input.messageId);
       if (!target || target.role !== "assistant") {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That assistant message is not in this session.",
-          operation: "rewriteAssistantOutput",
-          recoverable: true,
-        });
+        failCommand("rewriteAssistantOutput", "That assistant message is not in this session.");
       }
       const displayed = joinedText(target.blocks);
       if (input.text === displayed) {
@@ -2101,33 +1909,15 @@ export async function createPhoCodeRuntime(
         text: input.text === original ? null : input.text,
         rewrittenAt: new Date().toISOString(),
       });
-      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      return snapshot;
+      return publishSnapshot(live);
     },
     async updateSessionContextPrompt(input: UpdateSessionContextPromptInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "updateSessionContextPrompt");
       const session = live.runtime.session;
-      if (live.activeRun && !live.activeRun.settled) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing the context prompt.",
-          operation: "updateSessionContextPrompt",
-          recoverable: true,
-        });
-      }
+      refuseIfBusy(live, "updateSessionContextPrompt", "Wait for the current run to finish before changing the context prompt.");
       if (!contextPromptEditable(live)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Context prompt can only be customized before the first message.",
-          operation: "updateSessionContextPrompt",
-          recoverable: true,
-        });
+        failCommand("updateSessionContextPrompt", "Context prompt can only be customized before the first message.");
       }
       if (input.reset === true) {
         session.sessionManager.appendCustomEntry(CONTEXT_PROMPT_CUSTOM_TYPE, { reset: true });
@@ -2136,22 +1926,12 @@ export async function createPhoCodeRuntime(
       } else {
         const preamble = typeof input.preamble === "string" ? input.preamble : "";
         if (preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "The context prompt preamble is too long.",
-            operation: "updateSessionContextPrompt",
-            recoverable: true,
-          });
+          failCommand("updateSessionContextPrompt", "The context prompt preamble is too long.");
         }
         const disabledSectionIds = [];
         for (const id of input.disabledSectionIds ?? []) {
           if (typeof id !== "string" || id.trim() === "") {
-            throw createHarnessError({
-              code: HARNESS_ERROR_CODES.invalidCommand,
-              message: "Each disabled section id must be a non-empty string.",
-              operation: "updateSessionContextPrompt",
-              recoverable: true,
-            });
+            failCommand("updateSessionContextPrompt", "Each disabled section id must be a non-empty string.");
           }
           disabledSectionIds.push(id);
         }
@@ -2177,13 +1957,7 @@ export async function createPhoCodeRuntime(
         compiledContextPromptByKey.set(sessionKeyId(live.key), compiled);
         applySessionToolPolicy(live);
       }
-      const snapshot = await buildSnapshot({ refreshCatalog: false, live });
-      emitFor(live, {
-        type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-        sessionId: snapshot.session.id,
-        payload: snapshot,
-      });
-      return snapshot;
+      return publishSnapshot(live);
     },
     async resolveHostDialog(input: ResolveHostDialogInput) {
       assertNotDisposed();
@@ -2203,12 +1977,7 @@ export async function createPhoCodeRuntime(
     async updatePermissionSettings(input: UpdatePermissionSettingsInput) {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing permission settings.",
-          operation: "updatePermissionSettings",
-          recoverable: true,
-        });
+        failCommand("updatePermissionSettings", "Wait for the current run to finish before changing permission settings.", HARNESS_ERROR_CODES.sessionBusy);
       }
       applyPermissionSettingsPatch({
         agentDir,
@@ -2225,40 +1994,19 @@ export async function createPhoCodeRuntime(
           await bindHostUi(live);
         }
       } catch (error) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.resourceReloadFailed,
-          message: "Permission settings were saved; restart required.",
-          operation: "updatePermissionSettings",
-          recoverable: true,
-          details: {
-            detail: error instanceof Error ? error.message : "reload failed",
-          },
+        failCommand("updatePermissionSettings", "Permission settings were saved; restart required.", HARNESS_ERROR_CODES.resourceReloadFailed, {
+          detail: error instanceof Error ? error.message : "reload failed",
         });
       }
       if (selected) {
-        const snapshot = await buildSnapshot({ live: selected });
-        emitFor(selected, {
-          type: RUNTIME_EVENT_TYPES.featureSnapshot,
-          sessionId: snapshot.session.id,
-          payload: snapshot.features,
-        });
-        emitFor(selected, {
-          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-          sessionId: snapshot.session.id,
-          payload: snapshot,
-        });
+        emitFullSnapshot(selected, await buildSnapshot({ live: selected }));
       }
       return currentPermissionSettings();
     },
     async trustProjectPermissionRules(workspacePath: string) {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing project trust.",
-          operation: "trustProjectPermissionRules",
-          recoverable: true,
-        });
+        failCommand("trustProjectPermissionRules", "Wait for the current run to finish before changing project trust.", HARNESS_ERROR_CODES.sessionBusy);
       }
       const cwd = await canonicalizeWorkspaceDirectory(workspacePath, "trustProjectPermissionRules");
       approvedProjectPaths.add(cwd);
@@ -2269,17 +2017,7 @@ export async function createPhoCodeRuntime(
         live.runtime.services.settingsManager.setProjectTrusted(true);
         await live.runtime.session.reload();
         await bindHostUi(live);
-        const snapshot = await buildSnapshot({ live });
-        emitFor(live, {
-          type: RUNTIME_EVENT_TYPES.featureSnapshot,
-          sessionId: snapshot.session.id,
-          payload: snapshot.features,
-        });
-        emitFor(live, {
-          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-          sessionId: snapshot.session.id,
-          payload: snapshot,
-        });
+        emitFullSnapshot(live, await buildSnapshot({ live }));
       }
       return currentPermissionSettings();
     },
@@ -2290,12 +2028,7 @@ export async function createPhoCodeRuntime(
     async importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult> {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before importing an API key.",
-          operation: "importProviderApiKey",
-          recoverable: true,
-        });
+        failCommand("importProviderApiKey", "Wait for the current run to finish before importing an API key.", HARNESS_ERROR_CODES.sessionBusy);
       }
       const providers = await persistProviderApiKey(modelRuntime, input);
       await refreshModelsAfterAuth();
@@ -2309,26 +2042,19 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const providerId = input.providerId.trim();
       if (providerId.length === 0 || !isProviderAuthMethod(input.method)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "providerId and a supported login method are required.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "providerId and a supported login method are required.");
       }
       const snapshot = await authFlow.start({
         providerId,
         method: input.method,
         runActive: hasAnyActiveRun(),
       });
-      assertJsonSafe(snapshot, "startProviderLogin");
       assertNoCanaries(snapshot, authFlow.canaries(), "startProviderLogin");
       return snapshot;
     },
     async respondProviderAuthPrompt(input: RespondProviderAuthPromptInput): Promise<ProviderAuthFlowSnapshot> {
       assertNotDisposed();
       const snapshot = await authFlow.respond(input);
-      assertJsonSafe(snapshot, "respondProviderAuthPrompt");
       assertNoCanaries(snapshot, [...authFlow.canaries(), input.value], "respondProviderAuthPrompt");
       return snapshot;
     },
@@ -2339,19 +2065,13 @@ export async function createPhoCodeRuntime(
     async cancelProviderLogin(input: CancelProviderLoginInput): Promise<ProviderAuthFlowSnapshot> {
       assertNotDisposed();
       const snapshot = await authFlow.cancel(input);
-      assertJsonSafe(snapshot, "cancelProviderLogin");
       assertNoCanaries(snapshot, authFlow.canaries(), "cancelProviderLogin");
       return snapshot;
     },
     async logoutProvider(input: LogoutProviderInput): Promise<ProviderAccountsResult> {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing provider accounts.",
-          operation: "logoutProvider",
-          recoverable: true,
-        });
+        failCommand("logoutProvider", "Wait for the current run to finish before changing provider accounts.", HARNESS_ERROR_CODES.sessionBusy);
       }
       await logoutProviderAccount(modelRuntime, input.providerId);
       await refreshModelsAfterAuth();
@@ -2361,89 +2081,59 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
       if (!workspacePath) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.workspaceNotSelected,
-          message: "Select a workspace before searching files.",
-          operation: "searchWorkspaceReferences",
-          recoverable: true,
-        });
+        failCommand("searchWorkspaceReferences", "Select a workspace before searching files.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
       const query = typeof input.query === "string" ? input.query.slice(0, MAX_WORKSPACE_REFERENCE_QUERY) : "";
       await retrieval.bind(workspacePath);
-      const result = await retrieval.searchPaths({
+      return retrieval.searchPaths({
         query,
         workspacePath,
         ...(input.kinds ? { kinds: input.kinds } : {}),
         ...(input.limit !== undefined ? { limit: input.limit } : {}),
       });
-      assertJsonSafe(result, "searchWorkspaceReferences");
-      return result;
     },
     getSkillSettings() {
       assertNotDisposed();
-      const snapshot = skillSources.snapshot();
-      assertJsonSafe(snapshot, "getSkillSettings");
-      return snapshot;
+      return skillSources.snapshot();
     },
     setEnabledSkillSources(sourceIds) {
       assertNotDisposed();
       skillSources.setEnabledExternalSources(sourceIds);
-      const snapshot = skillSources.snapshot();
-      assertJsonSafe(snapshot, "setEnabledSkillSources");
-      return snapshot;
+      return skillSources.snapshot();
     },
     async updateSkillSourceSettings(input) {
       assertNotDisposed();
       if (!isExternalSkillSourceId(input.sourceId)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "Unknown skill source.",
-          operation: "updateSkillSourceSettings",
-          recoverable: true,
-        });
+        failCommand("updateSkillSourceSettings", "Unknown skill source.");
       }
-      const snapshot = skillSources.setSourceEnabled(input.sourceId, input.enabled === true);
-      assertJsonSafe(snapshot, "updateSkillSourceSettings");
-      return snapshot;
+      return skillSources.setSourceEnabled(input.sourceId, input.enabled === true);
     },
     async refreshSkills() {
       assertNotDisposed();
-      const snapshot = skillSources.refresh();
-      assertJsonSafe(snapshot, "refreshSkills");
-      return snapshot;
+      return skillSources.refresh();
     },
     getGitHubMcpSettings() {
       assertNotDisposed();
-      const snapshot = githubMcp.snapshot();
-      assertJsonSafe(snapshot, "getGitHubMcpSettings");
-      return snapshot;
+      return githubMcp.snapshot();
     },
     getSandboxSettings() {
       assertNotDisposed();
-      const snapshot = currentSandboxSettings();
-      assertJsonSafe(snapshot, "getSandboxSettings");
-      return snapshot;
+      return currentSandboxSettings();
     },
     async updateSandboxSettings(input: UpdateSandboxSettingsInput) {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing sandbox settings.",
-          operation: "updateSandboxSettings",
-          recoverable: true,
-        });
+        failCommand("updateSandboxSettings", "Wait for the current run to finish before changing sandbox settings.", HARNESS_ERROR_CODES.sessionBusy);
       }
       const parsed = parseSandboxSettingsPatch(input);
       if (!parsed.ok) {
-        throw invalidSandboxSettings(parsed.message);
+        failCommand("updateSandboxSettings", parsed.message);
       }
       storedSandbox = applyStoredSandboxPatch(storedSandbox, parsed.patch);
       saveSandboxSettings(sandboxDataDir, storedSandbox);
       const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
       const live = await applyStoredSandboxToEngine(workspacePath);
       const snapshot = toSandboxSettingsSnapshot(storedSandbox, live);
-      assertJsonSafe(snapshot, "updateSandboxSettings");
       await rebindIdleSandboxSessions();
       return snapshot;
     },
@@ -2452,7 +2142,6 @@ export async function createPhoCodeRuntime(
       const snapshot = await githubMcp.setEnabled(input.enabled === true);
       githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
-      assertJsonSafe(snapshot, "updateGitHubMcpSettings");
       return snapshot;
     },
     async importGitHubPat(input: ImportGitHubPatInput) {
@@ -2460,7 +2149,6 @@ export async function createPhoCodeRuntime(
       const snapshot = await githubMcp.importPat(input.token);
       githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
-      assertJsonSafe(snapshot, "importGitHubPat");
       assertNoCanaries(snapshot, [input.token], "importGitHubPat");
       return snapshot;
     },
@@ -2469,65 +2157,52 @@ export async function createPhoCodeRuntime(
       const snapshot = await githubMcp.removePat();
       githubBindingRevision += 1;
       await rebindIdleGitHubSessions();
-      assertJsonSafe(snapshot, "removeGitHubPat");
       return snapshot;
     },
     async getChangeReviewSet(scope: ChangeScope): Promise<ChangeReviewSetSnapshot> {
       assertNotDisposed();
-      const snapshot = await changeReview.getReviewSet(await canonicalizeChangeScope(scope, "getChangeReviewSet"));
-      assertJsonSafe(snapshot, "getChangeReviewSet");
-      return snapshot;
+      return changeReview.getReviewSet(await canonicalizeChangeScope(scope, "getChangeReviewSet"));
     },
     async getChangeDiff(command: GetChangeDiffInput): Promise<ChangeDiffPage> {
       assertNotDisposed();
-      const page = await changeReview.getDiff({
+      return changeReview.getDiff({
         ...(await canonicalizeChangeScope(command, "getChangeDiff")),
         relativePath: command.relativePath,
         ...(command.cursor ? { cursor: command.cursor } : {}),
         ...(command.contextLines !== undefined ? { contextLines: command.contextLines } : {}),
       });
-      assertJsonSafe(page, "getChangeDiff");
-      return page;
     },
     async getChangeFileView(command: GetChangeFileViewInput): Promise<ChangeFileViewPage> {
       assertNotDisposed();
-      const page = await changeReview.getFileView({
+      return changeReview.getFileView({
         ...(await canonicalizeChangeScope(command, "getChangeFileView")),
         relativePath: command.relativePath,
         version: command.version,
         ...(command.cursor ? { cursor: command.cursor } : {}),
       });
-      assertJsonSafe(page, "getChangeFileView");
-      return page;
     },
     async approveChanges(command: ApproveChangesInput): Promise<ChangeReviewSetSnapshot> {
       assertNotDisposed();
-      const snapshot = await changeReview.approve({
+      return changeReview.approve({
         ...(await canonicalizeChangeScope(command, "approveChanges")),
         expectedRevision: command.expectedRevision,
         ...(command.relativePaths ? { relativePaths: command.relativePaths } : {}),
       });
-      assertJsonSafe(snapshot, "approveChanges");
-      return snapshot;
     },
     async prepareUndoChanges(command: PrepareUndoChangesInput): Promise<UndoPreview> {
       assertNotDisposed();
-      const preview = await changeReview.prepareUndo({
+      return changeReview.prepareUndo({
         ...(await canonicalizeChangeScope(command, "prepareUndoChanges")),
         relativePath: command.relativePath,
         expectedRevision: command.expectedRevision,
       });
-      assertJsonSafe(preview, "prepareUndoChanges");
-      return preview;
     },
     async applyUndoChanges(command: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot> {
       assertNotDisposed();
-      const snapshot = await changeReview.applyUndo({
+      return changeReview.applyUndo({
         ...(await canonicalizeChangeScope(command, "applyUndoChanges")),
         previewToken: command.previewToken,
       });
-      assertJsonSafe(snapshot, "applyUndoChanges");
-      return snapshot;
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -2575,15 +2250,6 @@ export async function createPhoCodeRuntime(
     return toSandboxSettingsSnapshot(storedSandbox, sandbox.snapshot());
   }
 
-  function invalidSandboxSettings(message: string): HarnessError {
-    return createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message,
-      operation: "updateSandboxSettings",
-      recoverable: true,
-    });
-  }
-
   function assertNotDisposed(): void {
     if (disposed) {
       throw createHarnessError({
@@ -2612,12 +2278,7 @@ export async function createPhoCodeRuntime(
     const explicit = [];
     for (const token of input.references ?? []) {
       if (!isWorkspaceReferenceToken(token)) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
-          message: "Each workspace reference must include a relative path.",
-          operation,
-          recoverable: true,
-        });
+        failCommand(operation, "Each workspace reference must include a relative path.", HARNESS_ERROR_CODES.invalidWorkspaceReference);
       }
       explicit.push({
         path: token.path.trim(),
@@ -2626,12 +2287,7 @@ export async function createPhoCodeRuntime(
     }
     const references = collectWorkspaceReferenceTokens(text, explicit);
     if (references.length > MAX_WORKSPACE_REFERENCES_PER_PROMPT) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidWorkspaceReference,
-        message: `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`,
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, `A prompt can include at most ${MAX_WORKSPACE_REFERENCES_PER_PROMPT} workspace references.`, HARNESS_ERROR_CODES.invalidWorkspaceReference);
     }
     let resolved = text;
     if (references.length > 0) {
@@ -2676,30 +2332,15 @@ export async function createPhoCodeRuntime(
     const live = locateController(input.sessionId, input.workspaceId, operation);
     const session = live.runtime.session;
     if (!live.activeRun || live.activeRun.settled || live.activeRun.runId !== input.runId) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: operation === "steerRun" ? "Steer requires the current run." : "A follow-up requires the current run.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, operation === "steerRun" ? "Steer requires the current run." : "A follow-up requires the current run.");
     }
     const promptText = await resolvePromptText(input, operation, live);
     const records = takePreparedImages(live, input.imageIds, operation);
     if (promptText.trim() === "" && records.length === 0) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "A prompt, workspace reference, or image is required.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "A prompt, workspace reference, or image is required.");
     }
     if (records.length > 0 && !modelSupportsImages(session.model)) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.imagesUnsupported,
-        message: "The selected model does not accept images.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "The selected model does not accept images.", HARNESS_ERROR_CODES.imagesUnsupported);
     }
     try {
       await retrieval.runWithWorkspace(live.workspace.path, () =>
@@ -2727,7 +2368,6 @@ export async function createPhoCodeRuntime(
       admitted: true,
       queue: snapshot.queue ?? emptyQueueState(),
     };
-    assertJsonSafe(admission, operation);
     return admission;
   }
 

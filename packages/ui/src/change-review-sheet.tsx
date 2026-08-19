@@ -570,83 +570,43 @@ function groupFiles(files: readonly FileChangeSummary[]): { created: FileChangeS
   return { created, modified };
 }
 
-function statusLabel(status: ReviewStatus): string {
-  switch (status) {
-    case "pending":
-      return "Pending";
-    case "approved":
-      return "Approved";
-    case "conflict":
-      return "Conflict";
-    case "unavailable":
-      return "Unavailable";
-    case "capturing":
-      return "Capturing";
-    case "indeterminate":
-      return "Incomplete";
-    case "undoing":
-      return "Undoing";
-    case "undone":
-      return "Undone";
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
-}
+const STATUS_LABELS: Record<ReviewStatus, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  conflict: "Conflict",
+  unavailable: "Unavailable",
+  capturing: "Capturing",
+  indeterminate: "Incomplete",
+  undoing: "Undoing",
+  undone: "Undone",
+};
 
-function statusTone(status: ReviewStatus): string {
-  switch (status) {
-    case "approved":
-    case "undone":
-      return "bg-success/15 text-success";
-    case "conflict":
-    case "indeterminate":
-      return "bg-warning/15 text-warning";
-    case "unavailable":
-      return "bg-destructive/15 text-destructive";
-    case "pending":
-    case "capturing":
-    case "undoing":
-      return "bg-muted text-muted-foreground";
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
-}
+const STATUS_TONES: Record<ReviewStatus, string> = {
+  approved: "bg-success/15 text-success",
+  undone: "bg-success/15 text-success",
+  conflict: "bg-warning/15 text-warning",
+  indeterminate: "bg-warning/15 text-warning",
+  unavailable: "bg-destructive/15 text-destructive",
+  pending: "bg-muted text-muted-foreground",
+  capturing: "bg-muted text-muted-foreground",
+  undoing: "bg-muted text-muted-foreground",
+};
 
-function limitationLabel(limitation: NonNullable<FileChangeSummary["limitation"]>): string {
-  switch (limitation) {
-    case "too-large":
-      return "Too large to capture";
-    case "too-complex":
-      return "Diff is too complex to render";
-    case "binary":
-      return "Binary or unsupported encoding";
-    case "unsupported-kind":
-      return "Unsupported file kind";
-    case "outside-workspace":
-      return "Outside the workspace";
-    case "capture-failed":
-      return "Recovery was not captured";
-    case "sensitive":
-      return "Sensitive path skipped";
-    default: {
-      const exhaustive: never = limitation;
-      return exhaustive;
-    }
-  }
-}
+const LIMITATION_LABELS: Record<NonNullable<FileChangeSummary["limitation"]>, string> = {
+  "too-large": "Too large to capture",
+  "too-complex": "Diff is too complex to render",
+  binary: "Binary or unsupported encoding",
+  "unsupported-kind": "Unsupported file kind",
+  "outside-workspace": "Outside the workspace",
+  "capture-failed": "Recovery was not captured",
+  sensitive: "Sensitive path skipped",
+};
 
-export function isWriteOrEditTool(name: string): boolean {
-  return name === "write" || name === "edit";
-}
+const statusLabel = (status: ReviewStatus): string => STATUS_LABELS[status];
+const statusTone = (status: ReviewStatus): string => STATUS_TONES[status];
+const limitationLabel = (limitation: NonNullable<FileChangeSummary["limitation"]>): string =>
+  LIMITATION_LABELS[limitation];
 
 export function firstSelectablePath(review: ChangeReviewSetSnapshot | null): string | null {
   return review?.files[0]?.relativePath ?? null;
-}
-
-export function changeKindLabel(kind: ChangeKind): string {
-  return kind === "created" ? "Created" : "Modified";
 }

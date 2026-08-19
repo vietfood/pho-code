@@ -57,6 +57,17 @@ export function isHarnessError(value: unknown): value is HarnessError {
   );
 }
 
+// Most command rejections share one shape: recoverable HarnessError with an
+// operation name. This keeps call sites to one line.
+export function failCommand(
+  operation: string,
+  message: string,
+  code: string = HARNESS_ERROR_CODES.invalidCommand,
+  details?: Record<string, string | number | boolean | null>,
+): never {
+  throw createHarnessError({ code, message, operation, recoverable: true, details });
+}
+
 export function createHarnessError(
   error: Omit<HarnessError, "recoverable"> & { recoverable?: boolean },
 ): HarnessError {

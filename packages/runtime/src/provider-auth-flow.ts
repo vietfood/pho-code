@@ -1,5 +1,6 @@
 import {
   createHarnessError,
+  failCommand,
   HARNESS_ERROR_CODES,
   hostnameFromHttpUrl,
   isSafeHttpUrl,
@@ -116,7 +117,8 @@ export function createProviderAuthFlow(input: {
   let lastSnapshot: ProviderAuthFlowSnapshot | null = null;
 
   function snapshotOf(flow: ActiveFlow): ProviderAuthFlowSnapshot {
-    const snapshot: ProviderAuthFlowSnapshot = {
+    const links = publicLinks(flow);
+    return {
       flowId: flow.flowId,
       providerId: flow.providerId,
       method: flow.method,
@@ -124,24 +126,12 @@ export function createProviderAuthFlow(input: {
       revision: flow.revision,
       startedAt: flow.startedAt,
       updatedAt: input.host.now().toISOString(),
+      ...(flow.pendingPrompt && !flow.pendingPrompt.settled ? { prompt: publicPrompt(flow.pendingPrompt) } : {}),
+      ...(links.length > 0 ? { links } : {}),
+      ...(flow.deviceCode ? { deviceCode: { ...flow.deviceCode } } : {}),
+      ...(flow.progress ? { progress: flow.progress } : {}),
+      ...(flow.error ? { error: flow.error } : {}),
     };
-    if (flow.pendingPrompt && !flow.pendingPrompt.settled) {
-      snapshot.prompt = publicPrompt(flow.pendingPrompt);
-    }
-    const links = publicLinks(flow);
-    if (links.length > 0) {
-      snapshot.links = links;
-    }
-    if (flow.deviceCode) {
-      snapshot.deviceCode = { ...flow.deviceCode };
-    }
-    if (flow.progress) {
-      snapshot.progress = flow.progress;
-    }
-    if (flow.error) {
-      snapshot.error = flow.error;
-    }
-    return snapshot;
   }
 
   function emit(flow: ActiveFlow): ProviderAuthFlowSnapshot {
@@ -155,20 +145,10 @@ export function createProviderAuthFlow(input: {
 
   function requireActive(flowId: string, operation: string): ActiveFlow {
     if (!active || active.flowId !== flowId) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "That login flow is no longer active.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "That login flow is no longer active.");
     }
     if (active.phase === "completed" || active.phase === "failed" || active.phase === "cancelled") {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "That login flow has already finished.",
-        operation,
-        recoverable: true,
-      });
+      failCommand(operation, "That login flow has already finished.");
     }
     return active;
   }
@@ -178,7 +158,7 @@ export function createProviderAuthFlow(input: {
       return snapshotOf(flow);
     }
     rejectPending(flow, cancelledError("The login prompt is no longer available."));
-    invalidateLinks(flow);
+    flow.links.clear();
     flow.phase = phase;
     if (error) {
       flow.error = redactHarnessError(error, flow.canaries);
@@ -223,7 +203,7 @@ export function createProviderAuthFlow(input: {
       );
     }
 
-    const kind = promptKind(prompt);
+    const kind = prompt.type;
     const promptId = input.host.randomId();
     return new Promise<string>((resolve, reject) => {
       const pending: PendingPrompt = {
@@ -249,7 +229,7 @@ export function createProviderAuthFlow(input: {
           if (flow.pendingPrompt === pending) {
             flow.pendingPrompt = undefined;
             if (flow.phase === "awaiting_prompt") {
-              flow.phase = flow.deviceCode ? "polling" : flow.links.size > 0 ? "awaiting_external" : "starting";
+              flow.phase = restoredPhase(flow);
             }
             emit(flow);
           }
@@ -364,30 +344,32 @@ export function createProviderAuthFlow(input: {
   }
 
   function publicPrompt(pending: PendingPrompt): ProviderAuthPrompt {
-    const prompt: ProviderAuthPrompt = {
+    return {
       promptId: pending.promptId,
       kind: pending.kind,
       message: pending.message,
+      ...(pending.placeholder ? { placeholder: pending.placeholder } : {}),
+      ...(pending.options ? { options: pending.options } : {}),
     };
-    if (pending.placeholder) {
-      prompt.placeholder = pending.placeholder;
-    }
-    if (pending.options) {
-      prompt.options = pending.options;
-    }
-    return prompt;
   }
 
   function publicLinks(flow: ActiveFlow): ProviderAuthLink[] {
-    const links: ProviderAuthLink[] = [];
-    for (const [linkId, retained] of flow.links) {
-      const link: ProviderAuthLink = { linkId, hostname: retained.hostname };
-      if (retained.label) {
-        link.label = retained.label;
-      }
-      links.push(link);
-    }
-    return links;
+    return [...flow.links].map(([linkId, retained]) => ({
+      linkId,
+      hostname: retained.hostname,
+      ...(retained.label ? { label: retained.label } : {}),
+    }));
+  }
+
+  function restoredPhase(flow: ActiveFlow): ProviderAuthFlowPhase {
+    return flow.deviceCode ? "polling" : flow.links.size > 0 ? "awaiting_external" : "starting";
+  }
+
+  async function abortAndSettle(flow: ActiveFlow): Promise<ProviderAuthFlowSnapshot> {
+    flow.abort.abort();
+    rejectPending(flow, cancelledError("Login cancelled"));
+    await flow.loginDone.catch(() => undefined);
+    return active === flow ? settle(flow, "cancelled") : snapshotOf(flow);
   }
 
   return {
@@ -405,20 +387,14 @@ export function createProviderAuthFlow(input: {
     },
     async start(command) {
       if (command.runActive) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionBusy,
-          message: "Wait for the current run to finish before changing provider accounts.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand(
+          "startProviderLogin",
+          "Wait for the current run to finish before changing provider accounts.",
+          HARNESS_ERROR_CODES.sessionBusy,
+        );
       }
       if (active) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "A provider login is already in progress.",
-          operation: "startProviderLogin",
-          recoverable: true,
-        });
+        failCommand("startProviderLogin", "A provider login is already in progress.");
       }
       const startedAt = input.host.now().toISOString();
       const flow: ActiveFlow = {
@@ -469,27 +445,16 @@ export function createProviderAuthFlow(input: {
       const flow = requireActive(command.flowId, "respondProviderAuthPrompt");
       const pending = flow.pendingPrompt;
       if (!pending || pending.settled || pending.promptId !== command.promptId) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That login prompt is no longer waiting for a response.",
-          operation: "respondProviderAuthPrompt",
-          recoverable: true,
-        });
+        failCommand("respondProviderAuthPrompt", "That login prompt is no longer waiting for a response.");
       }
       const value = normalizePromptValue(pending, command.value);
       if (pending.kind === "secret" || pending.kind === "manual_code") {
         flow.canaries.push(value);
       }
       pending.settled = true;
-      pending.promptSignal?.removeEventListener("abort", pending.onPromptAbort ?? (() => undefined));
+      detachPromptSignal(pending);
       flow.pendingPrompt = undefined;
-      if (flow.deviceCode) {
-        flow.phase = "polling";
-      } else if (flow.links.size > 0) {
-        flow.phase = "awaiting_external";
-      } else {
-        flow.phase = "starting";
-      }
+      flow.phase = restoredPhase(flow);
       const snapshot = emit(flow);
       pending.resolve(value);
       return snapshot;
@@ -498,35 +463,17 @@ export function createProviderAuthFlow(input: {
       const flow = requireActive(command.flowId, "openProviderAuthLink");
       const retained = flow.links.get(command.linkId);
       if (!retained) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.invalidCommand,
-          message: "That login link is no longer available.",
-          operation: "openProviderAuthLink",
-          recoverable: true,
-        });
+        failCommand("openProviderAuthLink", "That login link is no longer available.");
       }
       input.host.openValidatedUrl(retained.url);
     },
     async cancel(command) {
-      const flow = requireActive(command.flowId, "cancelProviderLogin");
-      flow.abort.abort();
-      rejectPending(flow, cancelledError("Login cancelled"));
-      await flow.loginDone.catch(() => undefined);
-      if (active === flow) {
-        return settle(flow, "cancelled");
-      }
-      return snapshotOf(flow);
+      return abortAndSettle(requireActive(command.flowId, "cancelProviderLogin"));
     },
     async dispose() {
       const flow = active;
-      if (!flow) {
-        return;
-      }
-      flow.abort.abort();
-      rejectPending(flow, cancelledError("Login cancelled"));
-      await flow.loginDone.catch(() => undefined);
-      if (active === flow) {
-        await settle(flow, "cancelled");
+      if (flow) {
+        await abortAndSettle(flow);
       }
     },
   };
@@ -548,75 +495,42 @@ export function assertNoCanaries(value: unknown, canaries: readonly string[], op
   }
 }
 
-function promptKind(prompt: HarnessAuthPrompt): ProviderAuthPromptKind {
-  switch (prompt.type) {
-    case "select":
-    case "text":
-    case "secret":
-    case "manual_code":
-      return prompt.type;
-    default: {
-      const exhaustive: never = prompt;
-      return exhaustive;
-    }
-  }
-}
-
 function projectSelectOptions(options: readonly HarnessAuthSelectOption[]): ProviderAuthSelectOption[] {
-  return options.slice(0, MAX_PROVIDER_AUTH_OPTIONS).map((option) => {
-    const projected: ProviderAuthSelectOption = {
-      id: boundText(option.id, 128),
-      label: boundText(option.label, 200),
-    };
-    if (option.description) {
-      projected.description = boundText(option.description, MAX_PROVIDER_AUTH_MESSAGE);
-    }
-    return projected;
-  });
+  return options.slice(0, MAX_PROVIDER_AUTH_OPTIONS).map((option) => ({
+    id: boundText(option.id, 128),
+    label: boundText(option.label, 200),
+    ...(option.description ? { description: boundText(option.description, MAX_PROVIDER_AUTH_MESSAGE) } : {}),
+  }));
 }
 
 function normalizePromptValue(pending: PendingPrompt, raw: string): string {
   if (typeof raw !== "string") {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message: "A prompt response is required.",
-      operation: "respondProviderAuthPrompt",
-      recoverable: true,
-    });
+    failCommand("respondProviderAuthPrompt", "A prompt response is required.");
   }
   if (raw.length > MAX_PROVIDER_AUTH_VALUE) {
-    throw createHarnessError({
-      code: HARNESS_ERROR_CODES.invalidCommand,
-      message: "That response is too long.",
-      operation: "respondProviderAuthPrompt",
-      recoverable: true,
-    });
+    failCommand("respondProviderAuthPrompt", "That response is too long.");
   }
   if (pending.kind === "select") {
     const value = raw.trim();
     if (!pending.options?.some((option) => option.id === value)) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "Choose one of the listed login options.",
-        operation: "respondProviderAuthPrompt",
-        recoverable: true,
-      });
+      failCommand("respondProviderAuthPrompt", "Choose one of the listed login options.");
     }
     return value;
   }
   if (pending.kind === "text") {
     const value = raw.trim();
     if (value.length === 0) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: "A response is required.",
-        operation: "respondProviderAuthPrompt",
-        recoverable: true,
-      });
+      failCommand("respondProviderAuthPrompt", "A response is required.");
     }
     return value;
   }
   return raw;
+}
+
+function detachPromptSignal(pending: PendingPrompt): void {
+  if (pending.promptSignal && pending.onPromptAbort) {
+    pending.promptSignal.removeEventListener("abort", pending.onPromptAbort);
+  }
 }
 
 function rejectPending(flow: ActiveFlow, error: HarnessError): void {
@@ -625,13 +539,9 @@ function rejectPending(flow: ActiveFlow, error: HarnessError): void {
     return;
   }
   pending.settled = true;
-  pending.promptSignal?.removeEventListener("abort", pending.onPromptAbort ?? (() => undefined));
+  detachPromptSignal(pending);
   flow.pendingPrompt = undefined;
   pending.reject(error);
-}
-
-function invalidateLinks(flow: ActiveFlow): void {
-  flow.links.clear();
 }
 
 function boundText(value: string, max: number): string {

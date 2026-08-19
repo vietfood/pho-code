@@ -93,25 +93,7 @@ export function rememberWorkspace(metadata: AppMetadata, record: RecentWorkspace
     index >= 0
       ? metadata.recentWorkspaces.map((entry, entryIndex) => (entryIndex === index ? record : entry))
       : [...metadata.recentWorkspaces, record].slice(-MAX_RECENT_WORKSPACES);
-  return copySelection(
-    {
-      version: METADATA_VERSION,
-      recentWorkspaces,
-      palette: metadata.palette,
-      mode: metadata.mode,
-      glassEnabled: metadata.glassEnabled,
-      glassStrength: metadata.glassStrength,
-      uiFontSize: metadata.uiFontSize,
-      chatFontSize: metadata.chatFontSize,
-      trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
-      sessionLifecycle: metadata.sessionLifecycle,
-      enabledSkillSources: metadata.enabledSkillSources,
-      githubMcpEnabled: metadata.githubMcpEnabled,
-      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
-      selectedWorkspaceId: record.id,
-    },
-    metadata.selectedSessionId,
-  );
+  return { ...metadata, recentWorkspaces, selectedWorkspaceId: record.id };
 }
 
 /** Rewrite recent workspace order. `workspaceIds` must be a permutation of the current ids. */
@@ -139,29 +121,12 @@ export function reorderRecentWorkspaces(metadata: AppMetadata, workspaceIds: rea
 }
 
 export function selectSession(metadata: AppMetadata, sessionId: string | undefined): AppMetadata {
-  return copySelection(
-    {
-      version: METADATA_VERSION,
-      recentWorkspaces: metadata.recentWorkspaces,
-      palette: metadata.palette,
-      mode: metadata.mode,
-      glassEnabled: metadata.glassEnabled,
-      glassStrength: metadata.glassStrength,
-      uiFontSize: metadata.uiFontSize,
-      chatFontSize: metadata.chatFontSize,
-      trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
-      sessionLifecycle: metadata.sessionLifecycle,
-      enabledSkillSources: metadata.enabledSkillSources,
-      githubMcpEnabled: metadata.githubMcpEnabled,
-      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
-      ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
-    },
-    sessionId,
-  );
-}
-
-export function setAppearanceTheme(metadata: AppMetadata, mode: AppearanceMode): AppMetadata {
-  return setAppearance(metadata, { mode });
+  const next = { ...metadata };
+  delete next.selectedSessionId;
+  if (sessionId) {
+    next.selectedSessionId = sessionId;
+  }
+  return next;
 }
 
 export function setAppearance(
@@ -179,25 +144,15 @@ export function setAppearance(
     palette: patch.palette ?? metadata.palette,
     mode: patch.mode ?? metadata.mode,
   });
-  return copySelection(
-    {
-      version: METADATA_VERSION,
-      recentWorkspaces: metadata.recentWorkspaces,
-      palette: coerced.palette,
-      mode: coerced.mode,
-      glassEnabled: patch.glassEnabled ?? metadata.glassEnabled,
-      glassStrength: patch.glassStrength ?? metadata.glassStrength,
-      uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
-      chatFontSize: patch.chatFontSize ?? metadata.chatFontSize,
-      trustedPermissionWorkspaceIds: metadata.trustedPermissionWorkspaceIds,
-      sessionLifecycle: metadata.sessionLifecycle,
-      enabledSkillSources: metadata.enabledSkillSources,
-      githubMcpEnabled: metadata.githubMcpEnabled,
-      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
-      ...(metadata.selectedWorkspaceId ? { selectedWorkspaceId: metadata.selectedWorkspaceId } : {}),
-    },
-    metadata.selectedSessionId,
-  );
+  return {
+    ...metadata,
+    palette: coerced.palette,
+    mode: coerced.mode,
+    glassEnabled: patch.glassEnabled ?? metadata.glassEnabled,
+    glassStrength: patch.glassStrength ?? metadata.glassStrength,
+    uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
+    chatFontSize: patch.chatFontSize ?? metadata.chatFontSize,
+  };
 }
 
 export function parseMetadata(value: unknown): AppMetadata {
@@ -300,19 +255,8 @@ export function restoreSessionMetadata(metadata: AppMetadata, key: SessionKey): 
   if (!current?.archivedAt) {
     return metadata;
   }
-  const next: SessionLifecycleRecord = {
-    workspaceId: current.workspaceId,
-    sessionId: current.sessionId,
-  };
-  if (current.lastViewedAt) {
-    next.lastViewedAt = current.lastViewedAt;
-  }
-  if (current.lastOutcome) {
-    next.lastOutcome = current.lastOutcome;
-  }
-  if (current.lastOutcomeAt) {
-    next.lastOutcomeAt = current.lastOutcomeAt;
-  }
+  const next = { ...current };
+  delete next.archivedAt;
   if (!next.lastViewedAt && !next.lastOutcome && !next.lastOutcomeAt) {
     return {
       ...metadata,
@@ -504,23 +448,7 @@ function parseLifecycleRecord(value: unknown): SessionLifecycleRecord | undefine
   if (typeof candidate.lastOutcomeAt === "string" && candidate.lastOutcomeAt.trim() !== "") {
     record.lastOutcomeAt = candidate.lastOutcomeAt;
   }
-  if (
-    "title" in candidate ||
-    "preview" in candidate ||
-    "path" in candidate ||
-    "transcript" in candidate ||
-    "error" in candidate
-  ) {
-    // Drop forbidden fields by reconstructing only the allowed identity/annotation keys.
-  }
   return record;
-}
-
-function copySelection(base: AppMetadata, sessionId: string | undefined): AppMetadata {
-  if (!sessionId) {
-    return base;
-  }
-  return { ...base, selectedSessionId: sessionId };
 }
 
 function isRecentRecord(value: unknown): value is RecentWorkspaceRecord {

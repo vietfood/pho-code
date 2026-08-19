@@ -1,4 +1,4 @@
-import { findCompletedAtMentions, formatAtMentionToken } from "@pho-code/protocol";
+import { formatAtMentionToken } from "@pho-code/protocol";
 
 export { formatAtMentionToken };
 
@@ -7,10 +7,6 @@ export interface AtQuery {
   query: string;
   raw: string;
 }
-
-export type MentionSegment =
-  | { type: "text"; text: string }
-  | { type: "mention"; path: string };
 
 export interface MentionSkipRange {
   start: number;
@@ -65,38 +61,6 @@ export function mentionDirectory(path: string): string | null {
 
 export function inferMentionKind(path: string): "file" | "folder" {
   return path.endsWith("/") ? "folder" : "file";
-}
-
-export function parseMentionSegments(
-  text: string,
-  skip?: MentionSkipRange,
-): MentionSegment[] {
-  if (text === "") {
-    return [{ type: "text", text: "" }];
-  }
-
-  const segments: MentionSegment[] = [];
-  let cursor = 0;
-
-  for (const match of findCompletedAtMentions(text)) {
-    if (skip && rangesOverlap(match.start, match.end, skip.start, skip.end)) {
-      continue;
-    }
-    if (match.start > cursor) {
-      segments.push({ type: "text", text: text.slice(cursor, match.start) });
-    }
-    segments.push({ type: "mention", path: match.path });
-    cursor = match.end;
-  }
-
-  if (cursor < text.length) {
-    segments.push({ type: "text", text: text.slice(cursor) });
-  }
-
-  if (segments.length === 0) {
-    return [{ type: "text", text }];
-  }
-  return segments;
 }
 
 function startAtQuery(text: string, cursor: number): AtQuery | null {
@@ -162,8 +126,4 @@ function indexOfUnescapedQuote(value: string, from: number): number {
     }
   }
   return -1;
-}
-
-function rangesOverlap(startA: number, endA: number, startB: number, endB: number): boolean {
-  return startA < endB && startB < endA;
 }

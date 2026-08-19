@@ -1,3 +1,5 @@
+import { readStoredValue, writeStoredValue } from "./storage";
+
 export const SETTINGS_SECTIONS = [
   {
     id: "appearance",
@@ -47,38 +49,20 @@ export function isSettingsSectionId(value: unknown): value is SettingsSectionId 
 }
 
 export function readSettingsSection(): SettingsSectionId {
-  try {
-    const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (isSettingsSectionId(stored)) {
-      return stored;
-    }
-  } catch {
-    // Ignore quota / private-mode failures; in-memory state still works.
-  }
-  return DEFAULT_SETTINGS_SECTION;
+  const stored = readStoredValue(STORAGE_KEY);
+  return isSettingsSectionId(stored) ? stored : DEFAULT_SETTINGS_SECTION;
 }
 
 export function writeSettingsSection(section: SettingsSectionId): void {
-  try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, section);
-  } catch {
-    // Ignore quota / private-mode failures; in-memory state still works.
-  }
+  writeStoredValue(STORAGE_KEY, section);
 }
 
 export function initialSettingsSection(options: { flowActive?: boolean } = {}): SettingsSectionId {
-  if (options.flowActive) {
-    return "accounts";
-  }
-  return readSettingsSection();
+  return options.flowActive ? "accounts" : readSettingsSection();
 }
 
 export function adjacentSettingsSection(current: SettingsSectionId, delta: -1 | 1): SettingsSectionId {
   const index = SETTINGS_SECTIONS.findIndex((section) => section.id === current);
   const next = (index + delta + SETTINGS_SECTIONS.length) % SETTINGS_SECTIONS.length;
-  const section = SETTINGS_SECTIONS[next];
-  if (!section) {
-    return current;
-  }
-  return section.id;
+  return SETTINGS_SECTIONS[next]?.id ?? current;
 }

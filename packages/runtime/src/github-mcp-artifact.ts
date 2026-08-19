@@ -53,19 +53,8 @@ export function githubMcpPlatformId(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): GitHubMcpPlatformId | undefined {
-  if (platform === "darwin" && arch === "arm64") {
-    return "darwin-arm64";
-  }
-  if (platform === "darwin" && arch === "x64") {
-    return "darwin-x64";
-  }
-  if (platform === "linux" && arch === "arm64") {
-    return "linux-arm64";
-  }
-  if (platform === "linux" && arch === "x64") {
-    return "linux-x64";
-  }
-  return undefined;
+  const id = `${platform}-${arch}`;
+  return GITHUB_MCP_RELEASE_ASSETS.some((entry) => entry.platform === id) ? (id as GitHubMcpPlatformId) : undefined;
 }
 
 export function githubMcpReleaseAsset(

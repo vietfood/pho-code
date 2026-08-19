@@ -6,8 +6,7 @@ import type {
   Theme,
 } from "@earendil-works/pi-coding-agent";
 import {
-  createHarnessError,
-  HARNESS_ERROR_CODES,
+  failCommand,
   RUNTIME_EVENT_TYPES,
   type AskUserQuestion,
   type AskUserQuestionnaireDetails,
@@ -118,12 +117,13 @@ export function createExtensionHost(input: {
       });
     },
     commandContextActions() {
+      const cancelled = async () => ({ cancelled: true });
       return {
         waitForIdle: () => input.waitForIdle(),
         newSession: () => input.newSession(),
-        fork: async () => ({ cancelled: true }),
-        navigateTree: async () => ({ cancelled: true }),
-        switchSession: async () => ({ cancelled: true }),
+        fork: cancelled,
+        navigateTree: cancelled,
+        switchSession: cancelled,
         reload: () => input.reload(),
       };
     },
@@ -147,12 +147,7 @@ export function createExtensionHost(input: {
       const dialog = pending.get(resolution.requestId);
       if (!dialog) {
         if (resolution.sessionId) {
-          throw createHarnessError({
-            code: HARNESS_ERROR_CODES.invalidCommand,
-            message: "That permission request is not pending for this chat.",
-            operation: "resolveHostDialog",
-            recoverable: true,
-          });
+          failCommand("resolveHostDialog", "That permission request is not pending for this chat.");
         }
         return;
       }
@@ -177,7 +172,7 @@ export function createExtensionHost(input: {
     cancelPending() {
       followUpInput = undefined;
       for (const [requestId, dialog] of pending) {
-        dialog.resolve(cancelledDialogResult(dialog.kind));
+        dialog.resolve(CANCELLED_DIALOG_RESULTS[dialog.kind]);
         input.emit({
           type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
           payload: { requestId },
@@ -198,20 +193,17 @@ const INVALID_DIALOG_RESULT = Symbol("invalid-dialog-result");
 const PERMISSION_STATUS_KEY = "pi-permission-system";
 const PERMISSION_YOLO_STATUS = "yolo";
 
-function cancelledDialogResult(kind: HostDialogKind): DialogResult {
-  switch (kind) {
-    case "confirm":
-      return false;
-    case "questionnaire":
-      return { cancelled: true, answers: [] };
-    case "select":
-    case "input":
-      return undefined;
-    default: {
-      const exhaustive: never = kind;
-      return exhaustive;
-    }
-  }
+const CANCELLED_DIALOG_RESULTS: Record<HostDialogKind, DialogResult> = {
+  confirm: false,
+  questionnaire: { cancelled: true, answers: [] },
+  select: undefined,
+  input: undefined,
+};
+
+const DIALOG_RESULT_FIELDS = ["confirmed", "selected", "value", "answers"] as const;
+
+function foreignFieldsSet(resolution: ResolveHostDialogInput, allowed: readonly string[]): boolean {
+  return DIALOG_RESULT_FIELDS.some((field) => !allowed.includes(field) && resolution[field] !== undefined);
 }
 
 function dialogResult(
@@ -219,16 +211,16 @@ function dialogResult(
   resolution: ResolveHostDialogInput,
 ): DialogResult | typeof INVALID_DIALOG_RESULT {
   if (resolution.cancelled === true) {
-    return cancelledDialogResult(dialog.kind);
+    return CANCELLED_DIALOG_RESULTS[dialog.kind];
   }
   switch (dialog.kind) {
     case "confirm":
-      if (resolution.selected !== undefined || resolution.value !== undefined || resolution.answers !== undefined) {
+      if (foreignFieldsSet(resolution, ["confirmed"])) {
         return INVALID_DIALOG_RESULT;
       }
       return resolution.confirmed === true;
     case "select": {
-      if (resolution.confirmed !== undefined || resolution.answers !== undefined) {
+      if (foreignFieldsSet(resolution, ["selected", "value"])) {
         return INVALID_DIALOG_RESULT;
       }
       if (resolution.value !== undefined && typeof resolution.value !== "string") {
@@ -240,7 +232,7 @@ function dialogResult(
       return resolution.selected;
     }
     case "input":
-      if (resolution.confirmed !== undefined || resolution.selected !== undefined || resolution.answers !== undefined) {
+      if (foreignFieldsSet(resolution, ["value"])) {
         return INVALID_DIALOG_RESULT;
       }
       if (typeof resolution.value !== "string") {
@@ -248,7 +240,7 @@ function dialogResult(
       }
       return resolution.value;
     case "questionnaire": {
-      if (resolution.confirmed !== undefined || resolution.selected !== undefined || resolution.value !== undefined) {
+      if (foreignFieldsSet(resolution, ["answers"])) {
         return INVALID_DIALOG_RESULT;
       }
       if (!dialog.questions || !Array.isArray(resolution.answers)) {
@@ -360,15 +352,64 @@ function createUiContext(input: {
   };
 }
 
+interface DialogHostInput {
+  isBinding: () => boolean;
+  disposed: () => boolean;
+  emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
+  pending: Map<string, PendingDialog>;
+  takeStashedInputAnswer: () => string | undefined;
+  clearStashedInputAnswer: () => void;
+}
+
+function openPendingDialog<T extends DialogResult>(
+  input: DialogHostInput,
+  request: HostDialogRequest,
+  pendingExtras: { options?: readonly string[]; questions?: readonly AskUserQuestion[] },
+  cancelledValue: T,
+  project: (result: DialogResult) => T,
+  signal?: AbortSignal,
+  timeout?: number,
+): Promise<T> {
+  const requestId = request.requestId;
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    };
+    const finish = (result: DialogResult) => {
+      cleanup();
+      input.pending.delete(requestId);
+      input.emit({
+        type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
+        payload: { requestId },
+      });
+      resolve(project(result));
+    };
+    const onAbort = () => finish(cancelledValue);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (timeout !== undefined) {
+      timeoutId = setTimeout(() => finish(cancelledValue), timeout);
+    }
+    input.pending.set(requestId, {
+      kind: request.kind,
+      ...pendingExtras,
+      resolve: (result) => {
+        cleanup();
+        resolve(project(result));
+      },
+    });
+    input.emit({
+      type: RUNTIME_EVENT_TYPES.extensionDialogRequest,
+      payload: request,
+    });
+  });
+}
+
 function requestDialog<T extends DialogResult>(
-  input: {
-    isBinding: () => boolean;
-    disposed: () => boolean;
-    emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
-    pending: Map<string, PendingDialog>;
-    takeStashedInputAnswer: () => string | undefined;
-    clearStashedInputAnswer: () => void;
-  },
+  input: DialogHostInput,
   options: {
     kind: HostDialogKind;
     title: string;
@@ -395,67 +436,27 @@ function requestDialog<T extends DialogResult>(
     input.clearStashedInputAnswer();
   }
 
-  const requestId = randomUUID();
   const request: HostDialogRequest = {
-    requestId,
+    requestId: randomUUID(),
     kind: options.kind,
     title: options.title,
+    ...(options.message !== undefined ? { message: options.message } : {}),
+    ...(options.options ? { options: [...options.options] } : {}),
+    ...(options.placeholder !== undefined ? { placeholder: options.placeholder } : {}),
   };
-  if (options.message !== undefined) {
-    request.message = options.message;
-  }
-  if (options.options) {
-    request.options = [...options.options];
-  }
-  if (options.placeholder !== undefined) {
-    request.placeholder = options.placeholder;
-  }
-
-  return new Promise((resolve) => {
-    const cleanup = () => {
-      options.signal?.removeEventListener("abort", onAbort);
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId);
-      }
-    };
-    const finish = (result: DialogResult) => {
-      cleanup();
-      input.pending.delete(requestId);
-      input.emit({
-        type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
-        payload: { requestId },
-      });
-      resolve(result as T);
-    };
-    const onAbort = () => finish(options.cancelledValue);
-    options.signal?.addEventListener("abort", onAbort, { once: true });
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    if (options.timeout !== undefined) {
-      timeoutId = setTimeout(() => finish(options.cancelledValue), options.timeout);
-    }
-    input.pending.set(requestId, {
-      kind: options.kind,
-      ...(options.options ? { options: [...options.options] } : {}),
-      resolve: (result) => {
-        cleanup();
-        resolve(result as T);
-      },
-    });
-    input.emit({
-      type: RUNTIME_EVENT_TYPES.extensionDialogRequest,
-      payload: request,
-    });
-  });
+  return openPendingDialog(
+    input,
+    request,
+    options.options ? { options: [...options.options] } : {},
+    options.cancelledValue,
+    (result) => result as T,
+    options.signal,
+    options.timeout,
+  );
 }
 
 function requestQuestionnaire(
-  input: {
-    isBinding: () => boolean;
-    disposed: () => boolean;
-    emit: (event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">) => void;
-    pending: Map<string, PendingDialog>;
-    clearStashedInputAnswer: () => void;
-  },
+  input: DialogHostInput,
   options: {
     questions: readonly AskUserQuestion[];
     signal?: AbortSignal;
@@ -470,43 +471,20 @@ function requestQuestionnaire(
   }
   input.clearStashedInputAnswer();
 
-  const requestId = randomUUID();
-  const firstQuestion = options.questions[0]?.question ?? "The agent has a question";
   const request: HostDialogRequest = {
-    requestId,
+    requestId: randomUUID(),
     kind: "questionnaire",
-    title: firstQuestion,
+    title: options.questions[0]?.question ?? "The agent has a question",
     questions: [...options.questions],
   };
-
-  return new Promise((resolve) => {
-    const cleanup = () => {
-      options.signal?.removeEventListener("abort", onAbort);
-    };
-    const finish = (result: DialogResult) => {
-      cleanup();
-      input.pending.delete(requestId);
-      input.emit({
-        type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
-        payload: { requestId },
-      });
-      resolve(asQuestionnaireResult(result));
-    };
-    const onAbort = () => finish(cancelledValue);
-    options.signal?.addEventListener("abort", onAbort, { once: true });
-    input.pending.set(requestId, {
-      kind: "questionnaire",
-      questions: [...options.questions],
-      resolve: (result) => {
-        cleanup();
-        resolve(asQuestionnaireResult(result));
-      },
-    });
-    input.emit({
-      type: RUNTIME_EVENT_TYPES.extensionDialogRequest,
-      payload: request,
-    });
-  });
+  return openPendingDialog(
+    input,
+    request,
+    { questions: [...options.questions] },
+    cancelledValue,
+    asQuestionnaireResult,
+    options.signal,
+  );
 }
 
 function asQuestionnaireResult(result: DialogResult): AskUserQuestionnaireDetails | undefined {

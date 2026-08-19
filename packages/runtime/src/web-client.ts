@@ -4,7 +4,6 @@ import TurndownService from "turndown";
 import {
   MAX_WEB_CONCURRENT_REQUESTS,
   MAX_WEB_EXTRACTED_CHARS,
-  MAX_WEB_RESPONSE_BYTES,
   MAX_WEB_SEARCH_QUERY,
   MAX_WEB_SEARCH_RESULTS,
   type WebSearchProvider,
@@ -21,6 +20,9 @@ import { extractYouTubeContent, parseYouTubeVideoId } from "./web-youtube";
 import {
   combineAbortSignals,
   fetchPublicHttpUrl,
+  isPlainRecord,
+  readBoundedResponseText,
+  readString,
   validatePublicHttpUrl,
   WebResearchError,
   type DnsLookup,
@@ -84,7 +86,6 @@ export interface WebResearchRuntimeOptions {
 export interface WebResearchRuntime {
   search(input: { query: string; signal?: AbortSignal }): Promise<WebSearchPage>;
   fetchContent(input: { url: string; signal?: AbortSignal }): Promise<WebFetchPage>;
-  diagnostics(): Array<{ type: "warning" | "error"; message: string; path: string }>;
   dispose(): Promise<void>;
 }
 
@@ -122,9 +123,6 @@ export function createWebResearchRuntime(options: WebResearchRuntimeOptions = {}
     fetchContent(input) {
       return track(input.signal, (signal) => fetchExtractedContent(input.url, signal, fetchPage));
     },
-    diagnostics() {
-      return [];
-    },
     async dispose() {
       disposed = true;
       for (const controller of inflight) {
@@ -160,14 +158,8 @@ async function searchPublicWeb(
         },
         { stage: "web_search/provider", signal },
       );
-      if (!response.ok) {
-        throw new WebResearchError(
-          "web_search/provider",
-          `${engine.provider} returned HTTP ${response.status}.`,
-          response.status >= 500 || response.status === 429,
-        );
-      }
-      const body = await readLimitedText(response, "web_search/provider");
+      assertOk(response, "web_search/provider", `${engine.provider} returned HTTP ${response.status}.`);
+      const body = await readBoundedResponseText(response, "web_search/provider");
       return { provider: engine.provider, hits: engine.parse(body, MAX_WEB_SEARCH_RESULTS) };
     }),
   );
@@ -271,13 +263,7 @@ async function fetchExtractedContent(
     },
     { stage: "fetch_content/ssrf", signal },
   );
-  if (!response.ok) {
-    throw new WebResearchError(
-      "fetch_content/http",
-      `Fetch returned HTTP ${response.status} for ${finalUrl}.`,
-      response.status >= 500 || response.status === 429,
-    );
-  }
+  assertOk(response, "fetch_content/http", `Fetch returned HTTP ${response.status} for ${finalUrl}.`);
   const contentType =
     (response.headers.get("content-type") ?? "application/octet-stream").split(";")[0]?.trim().toLowerCase() ?? "";
   if (!isAllowedContentType(contentType)) {
@@ -287,7 +273,7 @@ async function fetchExtractedContent(
       false,
     );
   }
-  const body = await readLimitedText(response, "fetch_content/body");
+  const body = await readBoundedResponseText(response, "fetch_content/body");
   const extracted = extractReadableText(body, contentType, finalUrl);
   if (extracted && isUsefulExtract(extracted.text)) {
     return toFetchPage(extracted, finalUrl, contentType, "http");
@@ -302,17 +288,13 @@ async function fetchExtractedContent(
       if (error instanceof WebResearchError) {
         throw error;
       }
-      throw new WebResearchError(
-        "fetch_content/extract",
-        "Could not extract readable content from that page.",
-        false,
-      );
+      throw extractFailure();
     }
   }
   if (extracted) {
     return toFetchPage(extracted, finalUrl, contentType, "http");
   }
-  throw new WebResearchError("fetch_content/extract", "Could not extract readable content from that page.", false);
+  throw extractFailure();
 }
 
 async function fetchJinaReader(
@@ -335,14 +317,8 @@ async function fetchJinaReader(
     },
     { stage: "fetch_content/jina", signal },
   );
-  if (!response.ok) {
-    throw new WebResearchError(
-      "fetch_content/jina",
-      `Jina Reader returned HTTP ${response.status} for ${targetUrl}.`,
-      response.status >= 500 || response.status === 429,
-    );
-  }
-  const body = await readLimitedText(response, "fetch_content/jina");
+  assertOk(response, "fetch_content/jina", `Jina Reader returned HTTP ${response.status} for ${targetUrl}.`);
+  const body = await readBoundedResponseText(response, "fetch_content/jina");
   const extracted = parseJinaReaderBody(body, targetUrl);
   if (!extracted || extracted.text.trim() === "") {
     throw new WebResearchError("fetch_content/jina", "Jina Reader returned empty content.", true);
@@ -457,32 +433,14 @@ function isHtmlContentType(contentType: string): boolean {
   return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 }
 
-async function readLimitedText(response: Response, stage: string): Promise<string> {
-  if (!response.body) {
-    return "";
+function assertOk(response: Response, stage: string, message: string): void {
+  if (!response.ok) {
+    throw new WebResearchError(stage, message, response.status >= 500 || response.status === 429);
   }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const next = await reader.read();
-    if (next.done) {
-      break;
-    }
-    total += next.value.byteLength;
-    if (total > MAX_WEB_RESPONSE_BYTES) {
-      await reader.cancel();
-      throw new WebResearchError(stage, "Response exceeded the 5 MiB size limit.", false);
-    }
-    chunks.push(next.value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function extractFailure(): WebResearchError {
+  return new WebResearchError("fetch_content/extract", "Could not extract readable content from that page.", false);
 }
 
 function jinaReaderRecord(parsed: unknown): Record<string, unknown> {
@@ -501,20 +459,6 @@ function metaContent(document: ReturnType<typeof parseHTML>["document"], name: s
     return property;
   }
   return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content")?.trim() || undefined;
-}
-
-function readString(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function createConcurrencyGate(limit: number): { run<T>(fn: () => Promise<T>): Promise<T> } {

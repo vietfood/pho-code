@@ -9,6 +9,8 @@ import {
   GUARDED_PERMISSION,
   HARNESS_ALWAYS_ALLOW_PERMISSION,
   MANAGED_WEB_PERMISSION,
+} from "../src/permission-presets";
+import {
   applyPermissionSettingsPatch,
   detectPermissionProfile,
   patchPermissionConfig,

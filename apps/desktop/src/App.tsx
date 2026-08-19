@@ -474,6 +474,94 @@ export function App() {
     }
   }
 
+  function applySettingsCommand(action: () => Promise<HarnessSettingsSnapshot>, options: { busy?: boolean } = {}): void {
+    void runCommand(async () => {
+      applySettings(await action());
+    }, options);
+  }
+
+  function patchSettings(patch: Partial<HarnessSettingsSnapshot>): void {
+    setCache((current) =>
+      current.settings ? { ...current, settings: { ...current.settings, ...patch } } : current,
+    );
+  }
+
+  function clearSelectedNotification(): void {
+    setCache((current) => {
+      if (!current.selectedKey) {
+        return current;
+      }
+      const selected = current.byKey[current.selectedKey];
+      if (!selected) {
+        return current;
+      }
+      return {
+        ...current,
+        byKey: {
+          ...current.byKey,
+          [current.selectedKey]: { ...selected, notification: null },
+        },
+      };
+    });
+  }
+
+  function requestRemoval<T>(prepare: () => Promise<T>, set: (value: T) => void): void {
+    void runCommand(async () => {
+      set(await prepare());
+    }, { busy: false });
+  }
+
+  function optimisticSnapshotCommand(
+    apply: (current: SessionSnapshot) => SessionSnapshot,
+    rollback: (current: SessionSnapshot) => SessionSnapshot,
+    action: () => Promise<unknown>,
+  ): void {
+    patchSnapshot(apply);
+    void runCommand(async () => {
+      try {
+        await action();
+      } catch (cause) {
+        patchSnapshot(rollback);
+        throw cause;
+      }
+    }, { busy: false });
+  }
+
+  async function adoptPickedWorkspace(picked: WorkspaceSnapshot): Promise<void> {
+    setWorkspace(picked);
+    setDraft("");
+    setPreparedImages([]);
+    resetConversationChrome();
+    await refreshCatalog(picked.workspace.id);
+    await refreshBootstrap();
+  }
+
+  function pickAndAdoptWorkspace(): void {
+    void runCommand(async () => {
+      const picked = await getDesktopBridge().pickWorkspace();
+      if (picked) {
+        await adoptPickedWorkspace(picked);
+      }
+    });
+  }
+
+  async function openRecentAndAdopt(workspaceId: string): Promise<void> {
+    const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId });
+    setWorkspace(opened);
+    setDraft("");
+    setPreparedImages([]);
+    resetConversationChrome();
+    rememberSessions(opened.workspace.id, []);
+    void refreshCatalog(opened.workspace.id).catch(() => undefined);
+    await refreshBootstrap();
+  }
+
+  function openSessionEntry(workspaceId: string, sessionId: string): void {
+    void switchSession(workspaceId, sessionId, () =>
+      getDesktopBridge().openSession({ workspaceId, sessionId }),
+    );
+  }
+
   function applyAuthFlow(snapshot: ProviderAuthFlowSnapshot): void {
     setCache((current) => {
       const currentFlow = current.authFlow;
@@ -526,8 +614,7 @@ export function App() {
 
   const onRewrite = useCallback(
     async ({ messageId, text }: { messageId: string; text: string }) => {
-      const selectedKey = cacheRef.current.selectedKey;
-      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+      const snap = selectedCachedSnapshot(cacheRef.current);
       if (!snap) {
         return;
       }
@@ -550,8 +637,7 @@ export function App() {
 
   const onUpdateContextPrompt = useCallback(
     async (input: { preamble: string; disabledSectionIds: string[]; reset?: boolean }) => {
-      const selectedKey = cacheRef.current.selectedKey;
-      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+      const snap = selectedCachedSnapshot(cacheRef.current);
       if (!snap) {
         return;
       }
@@ -616,6 +702,15 @@ export function App() {
       await work();
     } finally {
       setPlanBusy(false);
+    }
+  }, []);
+
+  const withContextPromptBusy = useCallback(async (work: () => Promise<void>): Promise<void> => {
+    setContextPromptBusy(true);
+    try {
+      await work();
+    } finally {
+      setContextPromptBusy(false);
     }
   }, []);
 
@@ -748,19 +843,7 @@ export function App() {
         canNewSession={Boolean(activeWorkspaceId)}
         homeActive={!snapshot && !chatLoading}
         onGoHome={clearSelectedSession}
-        onAddProject={() => {
-          void runCommand(async () => {
-            const picked = await getDesktopBridge().pickWorkspace();
-            if (picked) {
-              setWorkspace(picked);
-              setDraft("");
-              setPreparedImages([]);
-              resetConversationChrome();
-              await refreshCatalog(picked.workspace.id);
-              await refreshBootstrap();
-            }
-          });
-        }}
+        onAddProject={pickAndAdoptWorkspace}
         onNewSession={() => {
           if (!activeWorkspaceId) {
             return;
@@ -784,26 +867,16 @@ export function App() {
                 collapseRightSidebar();
               }
             }}
-            onSave={async (input) => {
-              setContextPromptBusy(true);
-              try {
-                await onUpdateContextPrompt(input);
-              } finally {
-                setContextPromptBusy(false);
-              }
-            }}
-            onReset={async () => {
-              setContextPromptBusy(true);
-              try {
-                await onUpdateContextPrompt({
+            onSave={(input) => withContextPromptBusy(() => onUpdateContextPrompt(input))}
+            onReset={() =>
+              withContextPromptBusy(() =>
+                onUpdateContextPrompt({
                   preamble: contextPrompt.defaultPreamble,
                   disabledSectionIds: [],
                   reset: true,
-                });
-              } finally {
-                setContextPromptBusy(false);
-              }
-            }}
+                }),
+              )
+            }
           />
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
@@ -887,29 +960,17 @@ export function App() {
   }
 
   function requestRemoveSession(workspaceId: string, sessionId: string): void {
-    void runCommand(
-      async () => {
-        setPendingRemoval(await getDesktopBridge().prepareRemoveSession({ workspaceId, sessionId }));
-      },
-      { busy: false },
-    );
+    requestRemoval(() => getDesktopBridge().prepareRemoveSession({ workspaceId, sessionId }), setPendingRemoval);
   }
 
   function requestRemoveProject(workspaceId: string): void {
-    void runCommand(
-      async () => {
-        setPendingProjectRemoval(await getDesktopBridge().prepareRemoveProject({ workspaceId }));
-      },
-      { busy: false },
-    );
+    requestRemoval(() => getDesktopBridge().prepareRemoveProject({ workspaceId }), setPendingProjectRemoval);
   }
 
   function requestRemoveAllArchived(workspaceId: string): void {
-    void runCommand(
-      async () => {
-        setPendingArchivedRemoval(await getDesktopBridge().prepareRemoveArchivedSessions({ workspaceId }));
-      },
-      { busy: false },
+    requestRemoval(
+      () => getDesktopBridge().prepareRemoveArchivedSessions({ workspaceId }),
+      setPendingArchivedRemoval,
     );
   }
 
@@ -984,19 +1045,7 @@ export function App() {
           onToggleCollapsed={toggleSidebar}
             onGoHome={clearSelectedSession}
             homeActive={!snapshot && !chatLoading}
-            onAddProject={() => {
-              void runCommand(async () => {
-                const picked = await getDesktopBridge().pickWorkspace();
-                if (picked) {
-                  setWorkspace(picked);
-                  setDraft("");
-                  setPreparedImages([]);
-                  resetConversationChrome();
-                  await refreshCatalog(picked.workspace.id);
-                  await refreshBootstrap();
-                }
-              });
-            }}
+            onAddProject={pickAndAdoptWorkspace}
             onExpandProject={(workspaceId) => {
               void runCommand(
                 async () => {
@@ -1006,11 +1055,7 @@ export function App() {
               );
             }}
             onNewSession={startNewSession}
-            onOpenSession={(workspaceId, sessionId) => {
-              void switchSession(workspaceId, sessionId, () =>
-                getDesktopBridge().openSession({ workspaceId, sessionId }),
-              );
-            }}
+            onOpenSession={openSessionEntry}
             onArchiveSession={(workspaceId, sessionId) => {
               void runCommand(
                 async () => {
@@ -1156,48 +1201,36 @@ export function App() {
                 }}
                 onModelChange={(model: ModelSummary) => {
                   const previous = snapshot.model;
-                  patchSnapshot((current) => ({ ...current, model }));
-                  void runCommand(
-                    async () => {
-                      try {
-                        await getDesktopBridge().setSessionModel({
-                          sessionId: snapshot.session.id,
-                          workspaceId: snapshot.workspace.id,
-                          provider: model.provider,
-                          id: model.id,
-                        });
-                      } catch (cause) {
-                        patchSnapshot((current) => {
-                          if (previous) {
-                            return { ...current, model: previous };
-                          }
-                          const next = { ...current };
-                          delete next.model;
-                          return next;
-                        });
-                        throw cause;
+                  optimisticSnapshotCommand(
+                    (current) => ({ ...current, model }),
+                    (current) => {
+                      if (previous) {
+                        return { ...current, model: previous };
                       }
+                      const next = { ...current };
+                      delete next.model;
+                      return next;
                     },
-                    { busy: false },
+                    () =>
+                      getDesktopBridge().setSessionModel({
+                        sessionId: snapshot.session.id,
+                        workspaceId: snapshot.workspace.id,
+                        provider: model.provider,
+                        id: model.id,
+                      }),
                   );
                 }}
                 onThinkingChange={(level: ThinkingLevel) => {
                   const previous = snapshot.thinkingLevel;
-                  patchSnapshot((current) => ({ ...current, thinkingLevel: level }));
-                  void runCommand(
-                    async () => {
-                      try {
-                        await getDesktopBridge().setThinkingLevel({
-                          sessionId: snapshot.session.id,
-                          workspaceId: snapshot.workspace.id,
-                          level,
-                        });
-                      } catch (cause) {
-                        patchSnapshot((current) => ({ ...current, thinkingLevel: previous }));
-                        throw cause;
-                      }
-                    },
-                    { busy: false },
+                  optimisticSnapshotCommand(
+                    (current) => ({ ...current, thinkingLevel: level }),
+                    (current) => ({ ...current, thinkingLevel: previous }),
+                    () =>
+                      getDesktopBridge().setThinkingLevel({
+                        sessionId: snapshot.session.id,
+                        workspaceId: snapshot.workspace.id,
+                        level,
+                      }),
                   );
                 }}
                 onSessionModeChange={(mode) => {
@@ -1214,37 +1247,12 @@ export function App() {
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={toggleSidebar}
             notice={trustNotice}
-            onPick={() => {
-              void runCommand(async () => {
-                const picked = await getDesktopBridge().pickWorkspace();
-                if (picked) {
-                  setWorkspace(picked);
-                  setDraft("");
-                  setPreparedImages([]);
-                  resetConversationChrome();
-                  await refreshCatalog(picked.workspace.id);
-                  await refreshBootstrap();
-                }
-              });
-            }}
+            onPick={pickAndAdoptWorkspace}
             onOpenRecent={(workspaceId: string) => {
-              void runCommand(async () => {
-                const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId });
-                setWorkspace(opened);
-                setDraft("");
-                setPreparedImages([]);
-                resetConversationChrome();
-                rememberSessions(opened.workspace.id, []);
-                void refreshCatalog(opened.workspace.id).catch(() => undefined);
-                await refreshBootstrap();
-              });
+              void runCommand(() => openRecentAndAdopt(workspaceId));
             }}
             onNewSession={startNewSession}
-            onOpenSession={(workspaceId, sessionId) => {
-              void switchSession(workspaceId, sessionId, () =>
-                getDesktopBridge().openSession({ workspaceId, sessionId }),
-              );
-            }}
+            onOpenSession={openSessionEntry}
           />
         )}
       </div>
@@ -1272,13 +1280,7 @@ export function App() {
           sessionsByWorkspace={sessionsByWorkspace}
           onClose={() => setSettingsOpen(false)}
           onAppearanceChange={(input: UpdateAppearanceSettingsInput) => {
-            void runCommand(
-              async () => {
-                const next = await getDesktopBridge().updateAppearanceSettings(input);
-                applySettings(next);
-              },
-              { busy: false },
-            );
+            applySettingsCommand(() => getDesktopBridge().updateAppearanceSettings(input), { busy: false });
           }}
           onPermissionApply={async (input: UpdatePermissionSettingsInput) => {
             await runCommand(async () => {
@@ -1348,48 +1350,29 @@ export function App() {
           onRemoveSession={requestRemoveSession}
           onRemoveAllArchived={requestRemoveAllArchived}
           onSkillSourceChange={(input: UpdateSkillSourceSettingsInput) => {
-            void runCommand(async () => {
-              const next = await getDesktopBridge().updateSkillSourceSettings(input);
-              applySettings(next);
-            });
+            applySettingsCommand(() => getDesktopBridge().updateSkillSourceSettings(input));
           }}
           onRefreshSkills={() => {
             void runCommand(async () => {
-              const skills = await getDesktopBridge().refreshSkills();
-              setCache((current) =>
-                current.settings ? { ...current, settings: { ...current.settings, skills } } : current,
-              );
+              patchSettings({ skills: await getDesktopBridge().refreshSkills() });
             });
           }}
           onGitHubMcpChange={(input) => {
-            void runCommand(async () => {
-              const next = await getDesktopBridge().updateGitHubMcpSettings(input);
-              applySettings(next);
-            });
+            applySettingsCommand(() => getDesktopBridge().updateGitHubMcpSettings(input));
           }}
           onImportGitHubPat={async (input) => {
             await runCommand(async () => {
               const result = await getDesktopBridge().importGitHubPat(input);
-              setCache((current) =>
-                current.settings
-                  ? { ...current, settings: { ...current.settings, githubMcp: result.githubMcp } }
-                  : current,
-              );
+              patchSettings({ githubMcp: result.githubMcp });
             });
           }}
           onRemoveGitHubPat={() => {
             void runCommand(async () => {
-              const githubMcp = await getDesktopBridge().removeGitHubPat();
-              setCache((current) =>
-                current.settings ? { ...current, settings: { ...current.settings, githubMcp } } : current,
-              );
+              patchSettings({ githubMcp: await getDesktopBridge().removeGitHubPat() });
             });
           }}
           onSandboxChange={(input) => {
-            void runCommand(async () => {
-              const next = await getDesktopBridge().updateSandboxSettings(input);
-              applySettings(next);
-            });
+            applySettingsCommand(() => getDesktopBridge().updateSandboxSettings(input));
           }}
         />
       ) : null}
@@ -1410,22 +1393,7 @@ export function App() {
               const next = await getDesktopBridge().trustProjectPermissionRules();
               applySettings(next);
               await refreshBootstrap();
-              setCache((current) => {
-                if (!current.selectedKey) {
-                  return current;
-                }
-                const selected = current.byKey[current.selectedKey];
-                if (!selected) {
-                  return current;
-                }
-                return {
-                  ...current,
-                  byKey: {
-                    ...current.byKey,
-                    [current.selectedKey]: { ...selected, notification: null },
-                  },
-                };
-              });
+              clearSelectedNotification();
               setTrustDialogOpen(false);
             });
           }}
@@ -1505,14 +1473,7 @@ export function App() {
                 await refreshBootstrap();
                 return;
               }
-              const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId: nextProject.id });
-              setWorkspace(opened);
-              setDraft("");
-              setPreparedImages([]);
-              resetConversationChrome();
-              rememberSessions(opened.workspace.id, []);
-              void refreshCatalog(opened.workspace.id).catch(() => undefined);
-              await refreshBootstrap();
+              await openRecentAndAdopt(nextProject.id);
             });
           }}
         />
@@ -1520,24 +1481,7 @@ export function App() {
       {conversation.notification && !looksLikeProjectTrustNotification(conversation.notification.message) ? (
         <NotificationToast
           notification={conversation.notification}
-          onDismiss={() =>
-            setCache((current) => {
-              if (!current.selectedKey) {
-                return current;
-              }
-              const selected = current.byKey[current.selectedKey];
-              if (!selected) {
-                return current;
-              }
-              return {
-                ...current,
-                byKey: {
-                  ...current.byKey,
-                  [current.selectedKey]: { ...selected, notification: null },
-                },
-              };
-            })
-          }
+          onDismiss={clearSelectedNotification}
         />
       ) : null}
     </AppShell>

@@ -4,7 +4,7 @@ import https from "node:https";
 import net from "node:net";
 import { Readable } from "node:stream";
 import type { LookupFunction } from "node:net";
-import { MAX_WEB_REDIRECTS, WEB_REQUEST_TIMEOUT_MS } from "@pho-code/protocol";
+import { MAX_WEB_REDIRECTS, MAX_WEB_RESPONSE_BYTES, WEB_REQUEST_TIMEOUT_MS } from "@pho-code/protocol";
 
 // Public-HTTP SSRF policy informed by pi-web-access 0.22.0 ssrf-protection.ts (MIT).
 // This module is application-owned: no config file, no env-proxy trust, no allowRanges.
@@ -238,6 +238,57 @@ export function isAbortError(error: unknown): boolean {
   }
   const message = error instanceof Error ? error.message : String(error);
   return message.toLowerCase().includes("abort");
+}
+
+export async function readBoundedResponseText(response: Response, stage: string): Promise<string> {
+  if (!response.body) {
+    return "";
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const next = await reader.read();
+    if (next.done) {
+      break;
+    }
+    total += next.value.byteLength;
+    if (total > MAX_WEB_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new WebResearchError(stage, "Response exceeded the 5 MiB size limit.", false);
+    }
+    chunks.push(next.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+export function readString(record: Record<string, unknown>, keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+export function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function defaultLookup(hostname: string): Promise<LookupAddress[]> {

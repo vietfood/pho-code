@@ -149,37 +149,30 @@ function isRunEstablishingEvent(type: string): boolean {
   return type === RUNTIME_EVENT_TYPES.sessionSnapshot || type === RUNTIME_EVENT_TYPES.runAdmitted;
 }
 
+const LIVE_RUN_DELTA_TYPES: ReadonlySet<string> = new Set([
+  RUNTIME_EVENT_TYPES.textDelta,
+  RUNTIME_EVENT_TYPES.thinkingDelta,
+  RUNTIME_EVENT_TYPES.toolEvent,
+]);
+
 /** High-frequency run events. Renderer should not rebuild conversation chrome for these. */
 export function isLiveRunDeltaType(type: string): boolean {
-  switch (type) {
-    case RUNTIME_EVENT_TYPES.textDelta:
-    case RUNTIME_EVENT_TYPES.thinkingDelta:
-    case RUNTIME_EVENT_TYPES.toolEvent:
-      return true;
-    default:
-      return false;
-  }
+  return LIVE_RUN_DELTA_TYPES.has(type);
 }
 
 /** Events that add or remove sidebar catalog rows. Title and activity patch locally. */
 export function runtimeEventUpdatesSessionList(type: string): boolean {
-  switch (type) {
-    case RUNTIME_EVENT_TYPES.sessionRemoved:
-      return true;
-    default:
-      return false;
-  }
+  return type === RUNTIME_EVENT_TYPES.sessionRemoved;
 }
 
+const PROCESS_SCOPED_TYPES: ReadonlySet<string> = new Set([
+  RUNTIME_EVENT_TYPES.settingsSnapshot,
+  RUNTIME_EVENT_TYPES.permissionStatus,
+  RUNTIME_EVENT_TYPES.providerAuthFlow,
+]);
+
 export function isProcessScopedEventType(type: string): boolean {
-  switch (type) {
-    case RUNTIME_EVENT_TYPES.settingsSnapshot:
-    case RUNTIME_EVENT_TYPES.permissionStatus:
-    case RUNTIME_EVENT_TYPES.providerAuthFlow:
-      return true;
-    default:
-      return false;
-  }
+  return PROCESS_SCOPED_TYPES.has(type);
 }
 
 export function appendThinkingDelta(work: readonly RunWorkEntry[], delta: string): RunWorkEntry[] {
@@ -341,169 +334,88 @@ export function applyRuntimeEvent(
     }
   }
 
+  const patchSnapshot = (patch: (snapshot: SessionSnapshot) => SessionSnapshot): ConversationViewState => {
+    if (!state.snapshot) {
+      return { ...state, lastSequence: event.sequence };
+    }
+    return { ...state, lastSequence: event.sequence, snapshot: patch(state.snapshot) };
+  };
+
   switch (event.type) {
     case RUNTIME_EVENT_TYPES.sessionSnapshot:
       return {
+        ...state,
         lastSequence: event.sequence,
         snapshot: preserveLiveRunFields(state.snapshot, event.payload as SessionSnapshot),
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
       };
     case RUNTIME_EVENT_TYPES.runSettled:
-      return {
-        lastSequence: event.sequence,
-        snapshot: event.payload as SessionSnapshot,
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      return { ...state, lastSequence: event.sequence, snapshot: event.payload as SessionSnapshot };
     case RUNTIME_EVENT_TYPES.runAdmitted: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const admission = event.payload as PromptAdmission;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          run: {
-            runId: admission.runId,
-            status: "admitted",
-            streamingText: "",
-            work: [],
-            startedAt: event.occurredAt,
-          },
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        run: {
+          runId: admission.runId,
+          status: "admitted",
+          streamingText: "",
+          work: [],
+          startedAt: event.occurredAt,
         },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      }));
     }
     case RUNTIME_EVENT_TYPES.textDelta: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const payload = event.payload as TextDeltaPayload;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          run: {
-            ...snapshot.run,
-            status: "streaming",
-            streamingText: snapshot.run.streamingText + payload.delta,
-          },
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        run: {
+          ...snapshot.run,
+          status: "streaming",
+          streamingText: snapshot.run.streamingText + payload.delta,
         },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      }));
     }
     case RUNTIME_EVENT_TYPES.thinkingDelta: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const payload = event.payload as ThinkingDeltaPayload;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          run: {
-            ...snapshot.run,
-            status: "streaming",
-            work: appendThinkingDelta(snapshot.run.work, payload.delta),
-          },
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        run: {
+          ...snapshot.run,
+          status: "streaming",
+          work: appendThinkingDelta(snapshot.run.work, payload.delta),
         },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      }));
     }
     case RUNTIME_EVENT_TYPES.toolEvent: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const payload = event.payload as ToolEventPayload;
       const liveTodos =
         payload.name === TODO_TOOL_NAME ? parsePlanTodosFromToolPreview(payload.inputPreview) : undefined;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          run: {
-            ...snapshot.run,
-            status: "streaming",
-            work: upsertToolWork(snapshot.run.work, {
-              callId: payload.callId,
-              name: payload.name,
-              status: payload.status,
-              inputPreview: payload.inputPreview,
-              outputPreview: payload.outputPreview,
-            }),
-          },
-          ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        run: {
+          ...snapshot.run,
+          status: "streaming",
+          work: upsertToolWork(snapshot.run.work, {
+            callId: payload.callId,
+            name: payload.name,
+            status: payload.status,
+            inputPreview: payload.inputPreview,
+            outputPreview: payload.outputPreview,
+          }),
         },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+        ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
+      }));
     }
     case RUNTIME_EVENT_TYPES.runFailed: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const payload = event.payload as RunFailedPayload;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          run: {
-            ...snapshot.run,
-            status: "failed",
-            error: payload.error,
-          },
-        },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        run: { ...snapshot.run, status: "failed", error: payload.error },
+      }));
     }
-    case RUNTIME_EVENT_TYPES.featureSnapshot: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          features: event.payload as FeatureSnapshot,
-        },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
-    }
+    case RUNTIME_EVENT_TYPES.featureSnapshot:
+      return patchSnapshot((snapshot) => ({ ...snapshot, features: event.payload as FeatureSnapshot }));
     case RUNTIME_EVENT_TYPES.extensionDialogRequest:
-      return {
-        ...state,
-        lastSequence: event.sequence,
-        dialog: event.payload as HostDialogRequest,
-      };
+      return { ...state, lastSequence: event.sequence, dialog: event.payload as HostDialogRequest };
     case RUNTIME_EVENT_TYPES.extensionDialogSettled: {
       const payload = event.payload as ExtensionDialogSettledPayload;
       return {
@@ -513,19 +425,9 @@ export function applyRuntimeEvent(
       };
     }
     case RUNTIME_EVENT_TYPES.extensionNotification:
-      return {
-        ...state,
-        lastSequence: event.sequence,
-        notification: event.payload as ExtensionNotification,
-      };
-    case RUNTIME_EVENT_TYPES.settingsSnapshot: {
-      const settings = event.payload as HarnessSettingsSnapshot;
-      return {
-        ...state,
-        lastSequence: event.sequence,
-        settings,
-      };
-    }
+      return { ...state, lastSequence: event.sequence, notification: event.payload as ExtensionNotification };
+    case RUNTIME_EVENT_TYPES.settingsSnapshot:
+      return { ...state, lastSequence: event.sequence, settings: event.payload as HarnessSettingsSnapshot };
     case RUNTIME_EVENT_TYPES.permissionStatus: {
       const payload = event.payload as PermissionStatusPayload;
       const settings = state.settings;
@@ -535,41 +437,17 @@ export function applyRuntimeEvent(
       return {
         ...state,
         lastSequence: event.sequence,
-        settings: {
-          ...settings,
-          permission: {
-            ...settings.permission,
-            yoloMode: payload.yoloMode,
-          },
-        },
+        settings: { ...settings, permission: { ...settings.permission, yoloMode: payload.yoloMode } },
       };
     }
     case RUNTIME_EVENT_TYPES.providerAuthFlow:
-      return {
-        ...state,
-        lastSequence: event.sequence,
-        authFlow: event.payload as ProviderAuthFlowSnapshot,
-      };
-    case RUNTIME_EVENT_TYPES.sessionActivity:
-    case RUNTIME_EVENT_TYPES.sessionRemoved:
-      return { ...state, lastSequence: event.sequence };
+      return { ...state, lastSequence: event.sequence, authFlow: event.payload as ProviderAuthFlowSnapshot };
     case RUNTIME_EVENT_TYPES.changeReviewUpdated: {
-      const snapshot = state.snapshot;
-      if (!snapshot) {
-        return { ...state, lastSequence: event.sequence };
-      }
       const incoming = event.payload as ChangeReviewSetSummary;
-      return {
-        lastSequence: event.sequence,
-        snapshot: {
-          ...snapshot,
-          changeReviews: upsertChangeReview(snapshot.changeReviews, incoming),
-        },
-        dialog: state.dialog,
-        notification: state.notification,
-        settings: state.settings,
-        authFlow: state.authFlow,
-      };
+      return patchSnapshot((snapshot) => ({
+        ...snapshot,
+        changeReviews: upsertChangeReview(snapshot.changeReviews, incoming),
+      }));
     }
     default:
       return { ...state, lastSequence: event.sequence };

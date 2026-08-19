@@ -12,3 +12,28 @@ export function InlineChipShell({
 }) {
   return <span className={cn("mention-chip-shell", className)}>{children}</span>;
 }
+
+export function InlineChip({
+  className,
+  data,
+  title,
+  ariaLabel,
+  icon,
+  label,
+}: {
+  className?: string;
+  data: Record<string, string>;
+  title: string;
+  ariaLabel: string;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <InlineChipShell>
+      <span className={cn("mention-chip", className)} {...data} title={title} aria-label={ariaLabel}>
+        {icon}
+        <span className="mention-chip-label">{label}</span>
+      </span>
+    </InlineChipShell>
+  );
+}

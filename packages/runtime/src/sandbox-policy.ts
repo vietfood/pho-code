@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { SandboxNetworkMode } from "@pho-code/protocol";
+import { isPathInsideOrEqual } from "./path-containment";
 
 export type { SandboxNetworkMode };
 export type SandboxFileToolName = "read" | "write" | "edit";
@@ -91,13 +92,11 @@ const SANDBOX_NETWORK_DENY_RE =
 
 export function shouldAnnotateSandboxBashFailure(output: string): boolean {
   const text = output.trim();
-  if (!text) {
-    return false;
-  }
-  if (text.includes(SANDBOX_BASH_OS_DENY_REASON)) {
-    return false;
-  }
-  return SANDBOX_OS_DENY_RE.test(text) || SANDBOX_NETWORK_DENY_RE.test(text);
+  return (
+    text.length > 0 &&
+    !text.includes(SANDBOX_BASH_OS_DENY_REASON) &&
+    (SANDBOX_OS_DENY_RE.test(text) || SANDBOX_NETWORK_DENY_RE.test(text))
+  );
 }
 
 export function sandboxFilesystemPolicy(input: SandboxPolicyInput): SandboxRuntimeConfig["filesystem"] {
@@ -121,18 +120,15 @@ export function sandboxFilesystemPolicy(input: SandboxPolicyInput): SandboxRunti
 }
 
 export function buildSandboxRuntimeConfig(input: SandboxPolicyInput): SandboxRuntimeConfig {
-  const config: SandboxRuntimeConfig = {
+  return {
     network: {
       allowedDomains: [...allowedDomainsFor(input)],
       deniedDomains: [],
       strictAllowlist: true,
     },
     filesystem: sandboxFilesystemPolicy(input),
+    ...(input.rgPath ? { ripgrep: { command: input.rgPath } } : {}),
   };
-  if (input.rgPath) {
-    config.ripgrep = { command: input.rgPath };
-  }
-  return config;
 }
 
 export function assertNoWeakerSandboxFlags(config: SandboxRuntimeConfig): void {
@@ -185,33 +181,24 @@ export async function evaluateSandboxFileToolAccess(input: {
     ),
   );
   const denyReadRoots = await Promise.all(filesystem.denyRead.map((root) => canonicalizeExisting(expandHomePath(root))));
+  const deny = (reason: string, denyKind: SandboxFileToolDenyKind): SandboxFileToolEvaluation => ({
+    decision: "deny",
+    reason,
+    denyKind,
+    canonicalPath,
+  });
 
   if (pathIsInsideAny(denyReadRoots, canonicalPath)) {
-    return {
-      decision: "deny",
-      reason: SANDBOX_FILE_TOOL_PROTECTED_REASON,
-      denyKind: "protected",
-      canonicalPath,
-    };
+    return deny(SANDBOX_FILE_TOOL_PROTECTED_REASON, "protected");
   }
 
   if (input.toolName !== "read" && isProtectedWritePath(canonicalPath, workspacePath)) {
-    return {
-      decision: "deny",
-      reason: SANDBOX_FILE_TOOL_PROTECTED_REASON,
-      denyKind: "protected",
-      canonicalPath,
-    };
+    return deny(SANDBOX_FILE_TOOL_PROTECTED_REASON, "protected");
   }
 
   const allowedRoots = input.toolName === "read" ? readableRoots : writableRoots;
   if (!pathIsInsideAny(allowedRoots, canonicalPath)) {
-    return {
-      decision: "deny",
-      reason: SANDBOX_FILE_TOOL_OUTSIDE_REASON,
-      denyKind: "outside-policy",
-      canonicalPath,
-    };
+    return deny(SANDBOX_FILE_TOOL_OUTSIDE_REASON, "outside-policy");
   }
 
   return { decision: "allow", reason: "", canonicalPath };
@@ -228,7 +215,7 @@ function allowedDomainsFor(input: SandboxPolicyInput): string[] {
   return uniqueStrings(domains);
 }
 
-function uniquePaths(values: readonly string[]): string[] {
+function uniqueNormalized(values: readonly string[], normalize: (trimmed: string) => string): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const value of values) {
@@ -236,7 +223,7 @@ function uniquePaths(values: readonly string[]): string[] {
     if (!trimmed) {
       continue;
     }
-    const normalized = trimmed.startsWith("~") ? trimmed : path.resolve(trimmed);
+    const normalized = normalize(trimmed);
     if (seen.has(normalized)) {
       continue;
     }
@@ -246,31 +233,21 @@ function uniquePaths(values: readonly string[]): string[] {
   return result;
 }
 
+function uniquePaths(values: readonly string[]): string[] {
+  return uniqueNormalized(values, (trimmed) => (trimmed.startsWith("~") ? trimmed : path.resolve(trimmed)));
+}
+
 function uniqueStrings(values: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (!trimmed || seen.has(trimmed)) {
-      continue;
-    }
+  return uniqueNormalized(values, (trimmed) => {
     if (trimmed === "*") {
       throw new Error("Sandbox domain allowlists cannot include '*'.");
     }
-    seen.add(trimmed);
-    result.push(trimmed);
-  }
-  return result;
+    return trimmed;
+  });
 }
 
 export function expandHomePath(value: string): string {
-  if (value === "~") {
-    return os.homedir();
-  }
-  if (value.startsWith("~/")) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
+  return value === "~" ? os.homedir() : value.startsWith("~/") ? path.join(os.homedir(), value.slice(2)) : value;
 }
 
 function resolveAgainstWorkspace(requestedPath: string, workspacePath: string): string {
@@ -302,15 +279,7 @@ async function canonicalizeExisting(resolved: string): Promise<string> {
 }
 
 function pathIsInsideAny(roots: readonly string[], target: string): boolean {
-  return roots.some((root) => pathIsInside(root, target));
-}
-
-function pathIsInside(root: string, target: string): boolean {
-  if (target === root) {
-    return true;
-  }
-  const relative = path.relative(root, target);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  return roots.some((root) => isPathInsideOrEqual(root, target));
 }
 
 function isProtectedWritePath(canonicalPath: string, workspacePath: string): boolean {

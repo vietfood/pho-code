@@ -9,8 +9,7 @@ import {
 export function useDocumentAppearance(): {
   appearance: ResolvedAppearance;
   palette: AppearancePalette;
-} {
-  const [state, setState] = useState(() =>
+} {  const [state, setState] = useState(() =>
     typeof document === "undefined"
       ? { appearance: "light" as const, palette: "default" as const }
       : {
@@ -36,9 +35,4 @@ export function useDocumentAppearance(): {
   }, []);
 
   return state;
-}
-
-/** Follows html[data-appearance] after applyAppearanceTheme. */
-export function useResolvedAppearance(): ResolvedAppearance {
-  return useDocumentAppearance().appearance;
 }

@@ -31,6 +31,7 @@ import { SandboxSettingsSection } from "./sandbox-settings";
 import { SkillsSettingsSection } from "./skills-settings";
 import { cn } from "./lib/cn";
 import { handleDialogTab } from "./lib/dialog-focus";
+import { isActiveProviderAuthFlow } from "./lib/provider-accounts";
 import { projectPermissionTrustPending } from "./lib/project-permission-trust";
 import {
   adjacentSettingsSection,
@@ -85,16 +86,6 @@ function displayedPermissionProfile(settings: HarnessSettingsSnapshot): ManagedP
     return "custom";
   }
   return settings.permission.profile;
-}
-
-function isActiveAuthFlow(flow: ProviderAuthFlowSnapshot | null): boolean {
-  return (
-    flow !== null &&
-    flow.phase !== "idle" &&
-    flow.phase !== "completed" &&
-    flow.phase !== "failed" &&
-    flow.phase !== "cancelled"
-  );
 }
 
 export function SettingsView({
@@ -154,7 +145,7 @@ export function SettingsView({
   onRemoveGitHubPat: () => void;
   onSandboxChange: (input: UpdateSandboxSettingsInput) => void;
 }) {
-  const flowActive = isActiveAuthFlow(authFlow);
+  const flowActive = isActiveProviderAuthFlow(authFlow);
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const [section, setSection] = useState<SettingsSectionId>(() => initialSettingsSection({ flowActive }));
@@ -365,236 +356,117 @@ export function SettingsView({
               data-testid={`settings-panel-${section}`}
               className="grid w-full max-w-xl gap-6"
             >
-              <SettingsPanel
-                section={section}
-                settings={settings}
-                busy={busy}
-                disabled={disabled}
-                running={running}
-                custom={custom}
-                profile={profile}
-                reviewLog={reviewLog}
-                yoloConfirm={yoloConfirm}
-                permissionDirty={permissionDirty}
-                providerAccounts={providerAccounts}
-                authFlow={authFlow}
-                onAppearanceChange={onAppearanceChange}
-                onSelectProfile={selectProfile}
-                onReviewLogChange={setReviewLog}
-                onYoloConfirm={() => {
-                  setProfile("developer");
-                  setYoloConfirm(false);
-                }}
-                onTrustProjectPermissionRules={onTrustProjectPermissionRules}
-                onSavePermissions={() => {
-                  void saveAndApply();
-                }}
-                onImportApiKey={onImportApiKey}
-                onStartOAuth={onStartOAuth}
-                onRespondAuthPrompt={onRespondAuthPrompt}
-                onOpenAuthLink={onOpenAuthLink}
-                onCancelAuth={onCancelAuth}
-                onLogoutProvider={onLogoutProvider}
-                projects={projects}
-                sessionsByWorkspace={sessionsByWorkspace}
-                onRestoreArchived={onRestoreArchived}
-                onOpenArchived={onOpenArchived}
-                onRemoveSession={onRemoveSession}
-                onRemoveAllArchived={onRemoveAllArchived}
-                onSkillSourceChange={onSkillSourceChange}
-                onRefreshSkills={onRefreshSkills}
-                onGitHubMcpChange={onGitHubMcpChange}
-                onImportGitHubPat={onImportGitHubPat}
-                onRemoveGitHubPat={onRemoveGitHubPat}
-                onSandboxChange={onSandboxChange}
-              />
+              {renderSection()}
             </div>
           </div>
         </div>
       </section>
     </div>
   );
-}
 
-function SettingsPanel({
-  section,
-  settings,
-  busy,
-  disabled,
-  running,
-  custom,
-  profile,
-  reviewLog,
-  yoloConfirm,
-  permissionDirty,
-  providerAccounts,
-  authFlow,
-  onAppearanceChange,
-  onSelectProfile,
-  onReviewLogChange,
-  onYoloConfirm,
-  onTrustProjectPermissionRules,
-  onSavePermissions,
-  onImportApiKey,
-  onStartOAuth,
-  onRespondAuthPrompt,
-  onOpenAuthLink,
-  onCancelAuth,
-  onLogoutProvider,
-  projects,
-  sessionsByWorkspace,
-  onRestoreArchived,
-  onOpenArchived,
-  onRemoveSession,
-  onRemoveAllArchived,
-  onSkillSourceChange,
-  onRefreshSkills,
-  onGitHubMcpChange,
-  onImportGitHubPat,
-  onRemoveGitHubPat,
-  onSandboxChange,
-}: {
-  section: SettingsSectionId;
-  settings: HarnessSettingsSnapshot;
-  busy: boolean;
-  disabled: boolean;
-  running: boolean;
-  custom: boolean;
-  profile: ManagedPermissionProfileId | "custom";
-  reviewLog: boolean;
-  yoloConfirm: boolean;
-  permissionDirty: boolean;
-  providerAccounts: ProviderAccountsResult;
-  authFlow: ProviderAuthFlowSnapshot | null;
-  onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
-  onSelectProfile: (profile: ManagedPermissionProfileId) => void;
-  onReviewLogChange: (value: boolean) => void;
-  onYoloConfirm: () => void;
-  onTrustProjectPermissionRules: () => Promise<void>;
-  onSavePermissions: () => void;
-  onImportApiKey: (input: ImportProviderApiKeyInput) => Promise<void>;
-  onStartOAuth: (providerId: string) => Promise<void>;
-  onRespondAuthPrompt: (flowId: string, promptId: string, value: string) => Promise<void>;
-  onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
-  onCancelAuth: (flowId: string) => Promise<void>;
-  onLogoutProvider: (providerId: string) => Promise<void>;
-  projects: readonly RecentWorkspaceRecord[];
-  sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
-  onRestoreArchived: (workspaceId: string, sessionId: string) => void;
-  onOpenArchived: (workspaceId: string, sessionId: string) => void;
-  onRemoveSession: (workspaceId: string, sessionId: string) => void;
-  onRemoveAllArchived: (workspaceId: string) => void;
-  onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
-  onRefreshSkills: () => void;
-  onGitHubMcpChange: (input: UpdateGitHubMcpSettingsInput) => void;
-  onImportGitHubPat: (input: ImportGitHubPatInput) => Promise<void>;
-  onRemoveGitHubPat: () => void;
-  onSandboxChange: (input: UpdateSandboxSettingsInput) => void;
-}): ReactNode {
-  switch (section) {
-    case "appearance":
-      return <AppearanceSection settings={settings} busy={busy} onAppearanceChange={onAppearanceChange} />;
-    case "accounts":
-      return (
-        <ProviderAccountsSection
-          accounts={providerAccounts}
-          flow={authFlow}
-          running={running}
-          disabled={disabled}
-          onImportApiKey={onImportApiKey}
-          onStartOAuth={onStartOAuth}
-          onRespondPrompt={onRespondAuthPrompt}
-          onOpenLink={onOpenAuthLink}
-          onCancelLogin={onCancelAuth}
-          onLogout={onLogoutProvider}
-        />
-      );
-    case "github":
-      return (
-        <GitHubMcpSettingsSection
-          githubMcp={settings.githubMcp}
-          busy={busy}
-          onEnabledChange={onGitHubMcpChange}
-          onImportPat={onImportGitHubPat}
-          onRemovePat={onRemoveGitHubPat}
-        />
-      );
-    case "skills":
-      return (
-        <SkillsSettingsSection
-          skills={settings.skills}
-          busy={busy}
-          onSourceChange={onSkillSourceChange}
-          onRefresh={onRefreshSkills}
-        />
-      );
-    case "archived":
-      return (
-        <ArchivedChatsSection
-          projects={projects}
-          sessionsByWorkspace={sessionsByWorkspace}
-          busy={busy}
-          onRestore={onRestoreArchived}
-          onOpen={onOpenArchived}
-          onRemove={onRemoveSession}
-          onRemoveAll={onRemoveAllArchived}
-        />
-      );
-    case "permissions":
-      return (
-        <PermissionSection
-          settings={settings}
-          custom={custom}
-          profile={profile}
-          reviewLog={reviewLog}
-          yoloConfirm={yoloConfirm}
-          permissionDirty={permissionDirty}
-          disabled={disabled}
-          running={running}
-          onSelectProfile={onSelectProfile}
-          onReviewLogChange={onReviewLogChange}
-          onYoloConfirm={onYoloConfirm}
-          onTrustProjectPermissionRules={onTrustProjectPermissionRules}
-          onSave={onSavePermissions}
-        />
-      );
-    case "sandbox":
-      return (
-        <SandboxSettingsSection
-          sandbox={settings.sandbox}
-          busy={busy}
-          running={running}
-          onChange={onSandboxChange}
-        />
-      );
-    default: {
-      const exhaustive: never = section;
-      return exhaustive;
+  function renderSection(): ReactNode {
+    switch (section) {
+      case "appearance":
+        return <AppearanceSection settings={settings} busy={busy} onAppearanceChange={onAppearanceChange} />;
+      case "accounts":
+        return (
+          <ProviderAccountsSection
+            accounts={providerAccounts}
+            flow={authFlow}
+            running={running}
+            disabled={disabled}
+            onImportApiKey={onImportApiKey}
+            onStartOAuth={onStartOAuth}
+            onRespondPrompt={onRespondAuthPrompt}
+            onOpenLink={onOpenAuthLink}
+            onCancelLogin={onCancelAuth}
+            onLogout={onLogoutProvider}
+          />
+        );
+      case "github":
+        return (
+          <GitHubMcpSettingsSection
+            githubMcp={settings.githubMcp}
+            busy={busy}
+            onEnabledChange={onGitHubMcpChange}
+            onImportPat={onImportGitHubPat}
+            onRemovePat={onRemoveGitHubPat}
+          />
+        );
+      case "skills":
+        return (
+          <SkillsSettingsSection
+            skills={settings.skills}
+            busy={busy}
+            onSourceChange={onSkillSourceChange}
+            onRefresh={onRefreshSkills}
+          />
+        );
+      case "archived":
+        return (
+          <ArchivedChatsSection
+            projects={projects}
+            sessionsByWorkspace={sessionsByWorkspace}
+            busy={busy}
+            onRestore={onRestoreArchived}
+            onOpen={onOpenArchived}
+            onRemove={onRemoveSession}
+            onRemoveAll={onRemoveAllArchived}
+          />
+        );
+      case "permissions":
+        return (
+          <PermissionSection
+            settings={settings}
+            custom={custom}
+            profile={profile}
+            reviewLog={reviewLog}
+            yoloConfirm={yoloConfirm}
+            permissionDirty={permissionDirty}
+            disabled={disabled}
+            running={running}
+            onSelectProfile={selectProfile}
+            onReviewLogChange={setReviewLog}
+            onYoloConfirm={() => {
+              setProfile("developer");
+              setYoloConfirm(false);
+            }}
+            onTrustProjectPermissionRules={onTrustProjectPermissionRules}
+            onSave={() => {
+              void saveAndApply();
+            }}
+          />
+        );
+      case "sandbox":
+        return (
+          <SandboxSettingsSection
+            sandbox={settings.sandbox}
+            busy={busy}
+            running={running}
+            onChange={onSandboxChange}
+          />
+        );
+      default: {
+        const exhaustive: never = section;
+        return exhaustive;
+      }
     }
   }
 }
+
+const SECTION_ICONS: Record<SettingsSectionId, typeof PaletteIcon> = {
+  appearance: PaletteIcon,
+  accounts: KeyRoundIcon,
+  github: GithubIcon,
+  skills: BookOpenIcon,
+  archived: ArchiveIcon,
+  permissions: ShieldIcon,
+  sandbox: BoxIcon,
+};
 
 function SectionIcon({ id, className }: { id: SettingsSectionId; className?: string }): ReactNode {
-  switch (id) {
-    case "appearance":
-      return <PaletteIcon className={className} aria-hidden="true" />;
-    case "accounts":
-      return <KeyRoundIcon className={className} aria-hidden="true" />;
-    case "github":
-      return <GithubIcon className={className} aria-hidden="true" />;
-    case "skills":
-      return <BookOpenIcon className={className} aria-hidden="true" />;
-    case "archived":
-      return <ArchiveIcon className={className} aria-hidden="true" />;
-    case "permissions":
-      return <ShieldIcon className={className} aria-hidden="true" />;
-    case "sandbox":
-      return <BoxIcon className={className} aria-hidden="true" />;
-    default: {
-      const exhaustive: never = id;
-      return exhaustive;
-    }
-  }
+  const Icon = SECTION_ICONS[id];
+  return <Icon className={className} aria-hidden="true" />;
 }
 
 function AppearanceSection({

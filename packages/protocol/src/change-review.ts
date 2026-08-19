@@ -77,16 +77,16 @@ export const CHANGE_LEDGER_DISCLOSURE =
 
 export const CHANGE_REVIEW_COPY = {
   alreadyApplied:
-    "",
+    "These writes and edits are already on disk. Approve records that you accept the current file; it does not write the files again. Undo restores the captured before-image only when the current file still matches the agent result.",
   trackedOnly: "Changes",
   notAllChanges:
-    "",
+    "Only Pi write and edit calls are tracked. Shell commands and other tools are not. Undo all is unavailable because restoring several files plus Trash cannot be made atomic.",
   captureCapped:
-    "",
+    "This run reached the tracked-file limit, so later writes and edits were not captured. Only the files listed here can be reviewed or undone.",
   ledgerUnreadable:
-    "",
+    "The stored change-review record for this run is unreadable. Changes cannot be reviewed, approved, or undone, and chat removal is refused, until the record is repaired.",
   undoMetadata:
-    "",
+    "Undo restores file contents from the captured before-image. POSIX permission bits, extended attributes, and ownership are not captured or restored.",
 } as const;
 
 export interface FileChangeSummary {

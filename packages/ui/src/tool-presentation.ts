@@ -30,83 +30,48 @@ export function capitalizePhrase(value: string): string {
 }
 
 export function toolStatusWord(status: ToolStatus): string {
-  switch (status) {
-    case "completed":
-      return "completed";
-    case "failed":
-      return "failed";
-    case "cancelled":
-      return "cancelled";
-    case "running":
-      return "running";
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
+  return status;
 }
 
 export function toolWorkEntryHeading(name: string, status: ToolStatus): string {
   return capitalizePhrase(`${normalizeToolName(name)} ${toolStatusWord(status)}`);
 }
 
+const ICON_RULES: readonly [test: (key: string) => boolean, icon: WorkEntryIconName][] = [
+  [(key) => key === "execute" || key === "execute_plan", "bot"],
+  [isShellTool, "terminal"],
+  [(key) => key === "read" || key.includes("read_file") || key.includes("cat"), "eye"],
+  [
+    (key) =>
+      key === "write" || key === "edit" || key.includes("write_file") || key.includes("apply_patch") || key.includes("str_replace"),
+    "square-pen",
+  ],
+  [(key) => key.includes("grep") || key.includes("search") || key.includes("glob") || key.includes("find"), "search"],
+  [(key) => key.includes("web") || key.includes("fetch") || key.includes("http"), "globe"],
+  [(key) => key.includes("ls") || key.includes("list") || key.includes("dir") || key.includes("trash"), "folder"],
+  [(key) => key === "todo", "list"],
+];
+
 export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   const key = normalizeToolName(name);
-  if (key === "execute" || key === "execute_plan") {
-    return "bot";
-  }
-  if (key === "bash" || key === "shell" || key.includes("terminal") || key.includes("exec")) {
-    return "terminal";
-  }
-  if (key === "read" || key.includes("read_file") || key.includes("cat")) {
-    return "eye";
-  }
-  if (
-    key === "write" ||
-    key === "edit" ||
-    key.includes("write_file") ||
-    key.includes("apply_patch") ||
-    key.includes("str_replace")
-  ) {
-    return "square-pen";
-  }
-  if (key.includes("grep") || key.includes("search") || key.includes("glob") || key.includes("find")) {
-    return "search";
-  }
-  if (key.includes("web") || key.includes("fetch") || key.includes("http")) {
-    return "globe";
-  }
-  if (key.includes("ls") || key.includes("list") || key.includes("dir") || key.includes("trash")) {
-    return "folder";
-  }
-  if (key === "todo") {
-    return "list";
-  }
-  return "wrench";
+  return ICON_RULES.find(([test]) => test(key))?.[1] ?? "wrench";
 }
 
 export function toolWorkEntryPreview(name: string, inputPreview: string, outputPreview: string): string | null {
-  if (normalizeToolName(name) === "todo") {
+  const key = normalizeToolName(name);
+  if (key === "todo") {
     const todos = parseTodosFromInput(inputPreview);
     if (todos) {
       return sessionTodoChipLabel(todos);
     }
   }
-  if (normalizeToolName(name) === "ask user") {
+  if (key === "ask user") {
     const compactOutput = compactOneLine(outputPreview);
     if (compactOutput) {
       return compactOutput;
     }
   }
-  const fromInput = extractPreviewFromPayload(name, inputPreview);
-  if (fromInput) {
-    return fromInput;
-  }
-  const compactOutput = compactOneLine(outputPreview);
-  if (compactOutput) {
-    return compactOutput;
-  }
-  return compactOneLine(inputPreview);
+  return extractPreviewFromPayload(name, inputPreview) ?? compactOneLine(outputPreview) ?? compactOneLine(inputPreview);
 }
 
 export function describeToolInputTarget(
@@ -131,11 +96,7 @@ export function describeToolInputTarget(
       return { label: labelForField(primary.field), value: primary.value };
     }
   }
-  const quoted = extractQuotedField(trimmed, ["url", "path", "file_path", "query", "pattern", "command", "cmd"]);
-  if (quoted) {
-    return quoted;
-  }
-  return null;
+  return extractQuotedField(trimmed, ["url", "path", "file_path", "query", "pattern", "command", "cmd"]);
 }
 
 export function prettyToolInputJson(inputPreview: string): string | null {
@@ -160,21 +121,11 @@ export function buildToolExpandedSections(
   const sections: ToolExpandedSection[] = [];
   const input = formatToolInput(name, inputPreview);
   if (input) {
-    sections.push({
-      id: "input",
-      label: input.label,
-      language: input.language,
-      text: input.text,
-    });
+    sections.push({ id: "input", ...input });
   }
   const output = formatToolOutput(outputPreview);
   if (output) {
-    sections.push({
-      id: "output",
-      label: "Output",
-      language: output.language,
-      text: output.text,
-    });
+    sections.push({ id: "output", label: "Output", ...output });
   }
   return sections;
 }
@@ -233,9 +184,10 @@ function formatToolInput(
   }
 
   if (typeof parsed === "string") {
+    const shell = isShellTool(normalizeToolName(name));
     return {
-      label: isShellTool(normalizeToolName(name)) ? "Command" : "Input",
-      language: isShellTool(normalizeToolName(name)) ? "bash" : "text",
+      label: shell ? "Command" : "Input",
+      language: shell ? "bash" : "text",
       text: parsed,
     };
   }
@@ -255,29 +207,32 @@ function formatToolOutput(outputPreview: string): { language: ToolPayloadLanguag
   return { language: "text", text: trimmed };
 }
 
+const PATH_FIELDS = ["path", "file_path", "filePath", "filename"];
+const QUERY_FIELDS = ["query", "pattern", "glob", "url"];
+const COMMAND_FIELDS = ["command", "cmd"];
+
 function primaryToolField(
   toolKey: string,
   record: Record<string, unknown>,
 ): { field: string; value: string; language: ToolPayloadLanguage } | null {
-  const pathFields = ["path", "file_path", "filePath", "filename"];
-  const queryFields = ["query", "pattern", "glob", "url"];
-  const ordered =
-    toolKey === "read" ||
+  const fileish =
     toolKey.includes("read") ||
-    toolKey === "write" ||
     toolKey === "edit" ||
     toolKey.includes("write") ||
     toolKey.includes("str_replace") ||
-    toolKey.includes("apply_patch")
-      ? [...pathFields, ...queryFields, "command", "cmd"]
-      : toolKey.includes("grep") ||
-          toolKey.includes("search") ||
-          toolKey.includes("glob") ||
-          toolKey.includes("find") ||
-          toolKey.includes("web") ||
-          toolKey.includes("fetch")
-        ? [...queryFields, ...pathFields, "command", "cmd"]
-        : ["command", "cmd", ...pathFields, ...queryFields];
+    toolKey.includes("apply_patch");
+  const searchish =
+    toolKey.includes("grep") ||
+    toolKey.includes("search") ||
+    toolKey.includes("glob") ||
+    toolKey.includes("find") ||
+    toolKey.includes("web") ||
+    toolKey.includes("fetch");
+  const ordered = fileish
+    ? [...PATH_FIELDS, ...QUERY_FIELDS, ...COMMAND_FIELDS]
+    : searchish
+      ? [...QUERY_FIELDS, ...PATH_FIELDS, ...COMMAND_FIELDS]
+      : [...COMMAND_FIELDS, ...PATH_FIELDS, ...QUERY_FIELDS];
 
   for (const field of ordered) {
     const value = record[field];
@@ -285,34 +240,28 @@ function primaryToolField(
       return {
         field,
         value,
-        language: field === "command" || field === "cmd" ? "bash" : "text",
+        language: COMMAND_FIELDS.includes(field) ? "bash" : "text",
       };
     }
   }
   return null;
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  command: "Command",
+  cmd: "Command",
+  path: "Path",
+  file_path: "Path",
+  filePath: "Path",
+  filename: "Path",
+  query: "Query",
+  pattern: "Pattern",
+  glob: "Glob",
+  url: "URL",
+};
+
 function labelForField(field: string): string {
-  switch (field) {
-    case "command":
-    case "cmd":
-      return "Command";
-    case "path":
-    case "file_path":
-    case "filePath":
-    case "filename":
-      return "Path";
-    case "query":
-      return "Query";
-    case "pattern":
-      return "Pattern";
-    case "glob":
-      return "Glob";
-    case "url":
-      return "URL";
-    default:
-      return capitalizePhrase(field.replace(/_/gu, " "));
-  }
+  return FIELD_LABELS[field] ?? capitalizePhrase(field.replace(/_/gu, " "));
 }
 
 function normalizeToolName(name: string): string {
@@ -330,29 +279,15 @@ function extractPreviewFromPayload(name: string, inputPreview: string): string |
   }
   try {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    const key = normalizeToolName(name);
-    const candidates = [
-      parsed.command,
-      parsed.cmd,
-      parsed.path,
-      parsed.file_path,
-      parsed.filePath,
-      parsed.filename,
-      parsed.query,
-      parsed.pattern,
-      parsed.url,
-      parsed.glob,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
-        return compactOneLine(candidate);
-      }
+    const primary = firstString(parsed, ["command", "cmd", "path", "file_path", "filePath", "filename", "query", "pattern", "url", "glob"]);
+    if (primary) {
+      return compactOneLine(primary);
     }
-    if (isShellTool(key)) {
+    if (isShellTool(normalizeToolName(name))) {
       const firstStringValue = Object.values(parsed).find(
-        (value) => typeof value === "string" && value.trim(),
+        (value): value is string => typeof value === "string" && value.trim().length > 0,
       );
-      if (typeof firstStringValue === "string") {
+      if (firstStringValue) {
         return compactOneLine(firstStringValue);
       }
     }
@@ -419,25 +354,17 @@ function extractQuotedField(
   return null;
 }
 
+const JSON_ESCAPES: Record<string, string> = {
+  '"': '"',
+  "\\": "\\",
+  "/": "/",
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+};
+
 function unescapeJsonString(value: string): string {
-  return value.replace(/\\(["\\/bfnrt])/gu, (_, ch: string) => {
-    switch (ch) {
-      case '"':
-      case "\\":
-      case "/":
-        return ch;
-      case "b":
-        return "\b";
-      case "f":
-        return "\f";
-      case "n":
-        return "\n";
-      case "r":
-        return "\r";
-      case "t":
-        return "\t";
-      default:
-        return ch;
-    }
-  });
+  return value.replace(/\\(["\\/bfnrt])/gu, (_, ch: string) => JSON_ESCAPES[ch] ?? ch);
 }

@@ -22,24 +22,49 @@ function wrapMentionChipShell(chip: HTMLSpanElement, documentRef: Document): HTM
   return shell;
 }
 
+function buildChipElement(
+  spec: {
+    className: string;
+    dataset: Record<string, string>;
+    title: string;
+    ariaLabel: string;
+    iconSvg: string;
+    label: string;
+  },
+  documentRef: Document,
+): HTMLSpanElement {
+  const chip = documentRef.createElement("span");
+  chip.className = spec.className;
+  chip.contentEditable = "false";
+  for (const [key, value] of Object.entries(spec.dataset)) {
+    chip.dataset[key] = value;
+  }
+  chip.title = spec.title;
+  chip.setAttribute("aria-label", spec.ariaLabel);
+  chip.innerHTML = `${spec.iconSvg}<span class="mention-chip-label"></span>`;
+  const label = chip.querySelector(".mention-chip-label");
+  if (label) {
+    label.textContent = spec.label;
+  }
+  return wrapMentionChipShell(chip, documentRef);
+}
+
 export function createMentionChipElement(
   path: string,
   kind: WorkspaceReferenceKind,
   documentRef: Document = document,
 ): HTMLSpanElement {
-  const chip = documentRef.createElement("span");
-  chip.className = "mention-chip";
-  chip.contentEditable = "false";
-  chip.dataset.mentionPath = path;
-  chip.dataset.mentionKind = kind;
-  chip.title = path;
-  chip.setAttribute("aria-label", path);
-  chip.innerHTML = `${kind === "folder" ? FOLDER_ICON_SVG : FILE_ICON_SVG}<span class="mention-chip-label"></span>`;
-  const label = chip.querySelector(".mention-chip-label");
-  if (label) {
-    label.textContent = mentionLabel(path);
-  }
-  return wrapMentionChipShell(chip, documentRef);
+  return buildChipElement(
+    {
+      className: "mention-chip",
+      dataset: { mentionPath: path, mentionKind: kind },
+      title: path,
+      ariaLabel: path,
+      iconSvg: kind === "folder" ? FOLDER_ICON_SVG : FILE_ICON_SVG,
+      label: mentionLabel(path),
+    },
+    documentRef,
+  );
 }
 
 const SKILL_ICON_SVG =
@@ -50,19 +75,17 @@ export function createSkillChipElement(
   skillName: string,
   documentRef: Document = document,
 ): HTMLSpanElement {
-  const chip = documentRef.createElement("span");
-  chip.className = "mention-chip skill-chip";
-  chip.contentEditable = "false";
-  chip.dataset.skillSource = sourceId;
-  chip.dataset.skillName = skillName;
-  chip.title = skillName;
-  chip.setAttribute("aria-label", formatSkillToken(sourceId, skillName));
-  chip.innerHTML = `${SKILL_ICON_SVG}<span class="mention-chip-label"></span>`;
-  const label = chip.querySelector(".mention-chip-label");
-  if (label) {
-    label.textContent = skillName;
-  }
-  return wrapMentionChipShell(chip, documentRef);
+  return buildChipElement(
+    {
+      className: "mention-chip skill-chip",
+      dataset: { skillSource: sourceId, skillName },
+      title: skillName,
+      ariaLabel: formatSkillToken(sourceId, skillName),
+      iconSvg: SKILL_ICON_SVG,
+      label: skillName,
+    },
+    documentRef,
+  );
 }
 
 // Lucide Github icon paths (MIT).
@@ -75,20 +98,17 @@ export function createGithubChipElement(
   repo: string,
   documentRef: Document = document,
 ): HTMLSpanElement {
-  const chip = documentRef.createElement("span");
-  chip.className = "mention-chip github-chip";
-  chip.contentEditable = "false";
-  chip.dataset.githubUrl = url;
-  chip.dataset.githubOwner = owner;
-  chip.dataset.githubRepo = repo;
-  chip.title = url;
-  chip.setAttribute("aria-label", url);
-  chip.innerHTML = `${GITHUB_ICON_SVG}<span class="mention-chip-label"></span>`;
-  const label = chip.querySelector(".mention-chip-label");
-  if (label) {
-    label.textContent = githubLinkLabel(owner, repo);
-  }
-  return wrapMentionChipShell(chip, documentRef);
+  return buildChipElement(
+    {
+      className: "mention-chip github-chip",
+      dataset: { githubUrl: url, githubOwner: owner, githubRepo: repo },
+      title: url,
+      ariaLabel: url,
+      iconSvg: GITHUB_ICON_SVG,
+      label: githubLinkLabel(owner, repo),
+    },
+    documentRef,
+  );
 }
 
 export function serializeComposerEditable(root: HTMLElement): string {

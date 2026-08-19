@@ -15,7 +15,6 @@ export {
   restoreSessionMetadata,
   forgetWorkspace,
   setAppearance,
-  setAppearanceTheme,
   setEnabledSkillSources,
   setGitHubMcpAccountLogin,
   setGitHubMcpEnabled,

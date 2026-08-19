@@ -5,7 +5,6 @@ import {
   insertAtMention,
   mentionDirectory,
   mentionLabel,
-  parseMentionSegments,
 } from "../src/lib/at-mention";
 
 describe("composer @ mentions", () => {
@@ -60,33 +59,6 @@ describe("composer @ mentions", () => {
       text: '@"notes/KL divergence.md" ',
       cursor: 26,
     });
-  });
-
-  test("parses mention segments and skips emails", () => {
-    expect(parseMentionSegments("Can you read @AGENTS.md")).toEqual([
-      { type: "text", text: "Can you read " },
-      { type: "mention", path: "AGENTS.md" },
-    ]);
-    expect(parseMentionSegments("email a@b.com then @file.ts")).toEqual([
-      { type: "text", text: "email a@b.com then " },
-      { type: "mention", path: "file.ts" },
-    ]);
-    expect(parseMentionSegments('summarize @"KL divergence.md"')).toEqual([
-      { type: "text", text: "summarize " },
-      { type: "mention", path: "KL divergence.md" },
-    ]);
-    expect(parseMentionSegments("plain")).toEqual([{ type: "text", text: "plain" }]);
-  });
-
-  test("does not chip the in-progress mention range", () => {
-    expect(parseMentionSegments("@KL divergence.md", { start: 0, end: 17 })).toEqual([
-      { type: "text", text: "@KL divergence.md" },
-    ]);
-    expect(parseMentionSegments("see @src/file.ts and @KL", { start: 21, end: 24 })).toEqual([
-      { type: "text", text: "see " },
-      { type: "mention", path: "src/file.ts" },
-      { type: "text", text: " and @KL" },
-    ]);
   });
 
   test("mentionLabel uses the basename and inferMentionKind uses trailing slash", () => {

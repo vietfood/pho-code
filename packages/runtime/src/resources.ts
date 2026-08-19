@@ -46,14 +46,6 @@ export function projectFeatureSnapshot(
   };
 }
 
-export function emptyProjectedFeatures(): FeatureSnapshot {
-  return {
-    features: [],
-    diagnostics: [],
-    trustNotice: FEATURE_TRUST_NOTICE,
-  };
-}
-
 function projectFeature(
   feature: HarnessFeature,
   extensions: readonly LoadedExtension[],
