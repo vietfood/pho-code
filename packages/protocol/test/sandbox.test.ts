@@ -3,6 +3,7 @@ import {
   emptySandboxSettingsSnapshot,
   emptySettingsSnapshot,
   isJsonSafeValue,
+  isSandboxBashToolName,
   isSandboxNetworkMode,
   isSandboxStatus,
   jsonRoundTrip,
@@ -14,6 +15,7 @@ import {
   parseSandboxPathList,
   parseSandboxSettingsPatch,
   SANDBOX_DISCLOSURE,
+  sandboxBashWasWrapped,
   sandboxStatusLabel,
 } from "../src/index";
 
@@ -49,6 +51,12 @@ describe("sandbox protocol", () => {
     expect(isSandboxNetworkMode("allowlist")).toBe(true);
     expect(isSandboxNetworkMode("allow-all")).toBe(false);
     expect(sandboxStatusLabel("failed")).toBe("Failed");
+    expect(isSandboxBashToolName("bash")).toBe(true);
+    expect(isSandboxBashToolName("user_bash")).toBe(true);
+    expect(isSandboxBashToolName("write")).toBe(false);
+    expect(sandboxBashWasWrapped("bash", "healthy")).toBe(true);
+    expect(sandboxBashWasWrapped("bash", "off")).toBe(false);
+    expect(sandboxBashWasWrapped("write", "healthy")).toBe(false);
   });
 
   test("rejects wildcard, empty, and oversized domain allowlists", () => {

@@ -64,7 +64,7 @@ Live text uses conservative sanitized GFM. Expensive rich rendering waits until 
 - SVG as an image data URL, never injected markup;
 - credential-less gated image URLs and lightbox.
 
-Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes.
+Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes. Collapsed tool and thought rows show a short preview chip (file basename, command, first-line thought; CSS ellipsis) plus a shield on Seatbelt-wrapped bash. Full paths, commands, and thought text stay in the expanded detail. The shield is not a claim that Pho, Pi, MCP, or the owner terminal are sandboxed.
 
 ## Navigation and persistence
 

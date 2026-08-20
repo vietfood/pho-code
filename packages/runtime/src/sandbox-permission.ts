@@ -5,11 +5,11 @@ import type {
   PermissionsService,
   PromptPermissionDetails,
 } from "@gotgenes/pi-permission-system";
+import { isSandboxBashToolName } from "@pho-code/protocol";
 import { SANDBOX_PERMISSION_AUTHORIZER_NAME } from "./permission-settings";
 import { isSandboxFileToolName, SANDBOX_FILE_TOOL_MISSING_PATH_REASON } from "./sandbox-policy";
 import type { AgentSandbox, SandboxFileToolVerdict, SandboxRuntimeSnapshot } from "./sandbox-runtime";
 
-const BASH_TOOLS = new Set(["bash", "user_bash"]);
 const DELEGATION_EXCLUDED_SURFACES = new Set(["path", "external_directory"]);
 const PERMISSIONS_READY_CHANNEL = "permissions:ready";
 /**
@@ -200,7 +200,7 @@ function publishedPermissionsService(): PermissionsService | undefined {
 }
 
 function isAgentBashAsk(details: SandboxAskDetails): boolean {
-  if (details.toolName && BASH_TOOLS.has(details.toolName)) {
+  if (details.toolName && isSandboxBashToolName(details.toolName)) {
     return true;
   }
   return details.surface === "bash";

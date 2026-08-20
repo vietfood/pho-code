@@ -77,7 +77,7 @@ Runtime events carry protocol version, sequence, composite session identity wher
 The implemented event catalog in `packages/protocol/src/events.ts` covers:
 
 - authoritative session/feature/settings snapshots;
-- run admission, text/thinking deltas, tool activity, settle, and failure;
+- run admission, text/thinking deltas, tool activity (optional `sandboxed` on Seatbelt-wrapped bash), settle, and failure;
 - extension dialog requests/settlement, notifications, and permission status;
 - provider authentication flow;
 - session activity and removal;

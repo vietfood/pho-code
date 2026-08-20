@@ -267,6 +267,7 @@ export type {
 
 export {
   emptySandboxSettingsSnapshot,
+  isSandboxBashToolName,
   isSandboxNetworkMode,
   isSandboxStatus,
   isSandboxStatusReason,
@@ -279,14 +280,17 @@ export {
   parseSandboxPathEntry,
   parseSandboxPathList,
   parseSandboxSettingsPatch,
+  SANDBOX_BASH_TOOL_NAMES,
   SANDBOX_DISCLOSURE,
   SANDBOX_NETWORK_MODES,
   SANDBOX_STATUS_REASONS,
   SANDBOX_STATUSES,
+  sandboxBashWasWrapped,
   sandboxStatusLabel,
   sandboxStatusReasonLabel,
 } from "./sandbox";
 export type {
+  SandboxBashToolName,
   SandboxNetworkMode,
   SandboxSettingsSnapshot,
   SandboxStatus,

@@ -50,9 +50,10 @@ export { copyText } from "./lib/clipboard";
 export {
   buildToolExpandedSections,
   describeToolInputTarget,
+  thoughtWorkEntryChip,
+  toolWorkEntryChip,
   toolWorkEntryHeading,
   toolWorkEntryIcon,
-  toolWorkEntryPreview,
 } from "./tool-presentation";
 export {
   presentPermissionChoices,

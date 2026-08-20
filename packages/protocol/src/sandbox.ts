@@ -23,6 +23,20 @@ export const SANDBOX_DISCLOSURE = [
   "Not a sandbox for Pho Code, Pi, the owner terminal, MCP, or Undo.",
 ].join(" ");
 
+export const SANDBOX_BASH_TOOL_NAMES = ["bash", "user_bash"] as const;
+export type SandboxBashToolName = (typeof SANDBOX_BASH_TOOL_NAMES)[number];
+
+const SANDBOX_BASH_TOOL_NAME_SET = new Set<string>(SANDBOX_BASH_TOOL_NAMES);
+
+export function isSandboxBashToolName(name: string): boolean {
+  return SANDBOX_BASH_TOOL_NAME_SET.has(name);
+}
+
+/** True when this agent bash call is wrapped by a healthy OS box. */
+export function sandboxBashWasWrapped(toolName: string, status: SandboxStatus): boolean {
+  return status === "healthy" && isSandboxBashToolName(toolName);
+}
+
 export interface SandboxSettingsSnapshot {
   enabled: boolean;
   status: SandboxStatus;

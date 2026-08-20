@@ -57,18 +57,22 @@ test("healthy sandbox skips bash asks, denies curl at the OS, and disable restor
       await page.getByTestId("composer").fill("USE_SANDBOX_PWD");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 0);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed|ok|pwd/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed/i);
+      await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
+      await expect(page.getByTestId("tool-card").last().getByTestId("tool-chip")).toHaveText("pwd");
 
       await page.getByTestId("composer").fill("USE_SANDBOX_TOUCH");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 1);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed|ok/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed/i);
+      await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
       expect(existsSync(join(workspaceDir, "sandbox-allowed.txt"))).toBe(true);
 
       await page.getByTestId("composer").fill("USE_SANDBOX_CURL");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 2);
       await expect(page.getByTestId("tool-card").last()).toContainText(/Bash failed|not permitted|denied|unavailable/i);
+      await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
       await page.getByTestId("tool-card").last().click();
       await expect(page.getByTestId("tool-detail").last()).toContainText("Do not retry");
       await expect(page.getByTestId("tool-detail").last()).toContainText("Settings → Sandbox");
@@ -86,6 +90,9 @@ test("healthy sandbox skips bash asks, denies curl at the OS, and disable restor
       await expect(page.getByTestId("extension-dialog")).toContainText("Allow once");
       await allowOnceIfPrompted(page);
       await expandSettledWorkLog(page, 3);
+      await expect(page.getByTestId("tool-card").last().getByTestId("tool-sandbox-shield")).toHaveCount(0);
+      await expandSettledWorkLog(page, 0);
+      await expect(page.getByTestId("tool-sandbox-shield").first()).toBeVisible();
     } finally {
       await harness.close();
     }
@@ -135,6 +142,7 @@ test("healthy sandbox skips workspace write, denies a sibling path, and extra wr
       await expectNoDialogThenExpandWorkLog(page, 0);
       expect(existsSync(join(workspaceDir, "agent-note.txt"))).toBe(true);
       await expect(page.getByTestId("tool-open-review")).toContainText("1 file");
+      await expect(page.getByTestId("tool-sandbox-shield")).toHaveCount(0);
 
       await page.getByTestId("composer").fill(`USE_SANDBOX_WRITE_ABS:${deniedFile}`);
       await page.getByRole("button", { name: "Send" }).click();

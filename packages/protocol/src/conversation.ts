@@ -25,13 +25,18 @@ export interface TranscriptThinkingBlock {
   text: string;
 }
 
-export interface TranscriptToolBlock {
-  type: "tool";
+export interface ToolActivity {
   callId: string;
   name: string;
   status: ToolStatus;
   inputPreview: string;
   outputPreview: string;
+  /** True when this bash/user_bash call ran through a healthy Seatbelt wrap. */
+  sandboxed?: boolean;
+}
+
+export interface TranscriptToolBlock extends ToolActivity {
+  type: "tool";
 }
 
 /**
@@ -87,25 +92,8 @@ export interface TranscriptMessage {
   createdAt?: string;
 }
 
-export interface ToolActivity {
-  callId: string;
-  name: string;
-  status: ToolStatus;
-  inputPreview: string;
-  outputPreview: string;
-}
-
 /** Ordered think/tool segments for the in-flight assistant turn. */
-export type RunWorkEntry =
-  | { type: "thinking"; text: string }
-  | {
-      type: "tool";
-      callId: string;
-      name: string;
-      status: ToolStatus;
-      inputPreview: string;
-      outputPreview: string;
-    };
+export type RunWorkEntry = { type: "thinking"; text: string } | TranscriptToolBlock;
 
 export interface RunState {
   runId?: string;

@@ -1,0 +1,51 @@
+import { describe, expect, test } from "bun:test";
+import type { TranscriptMessage } from "@pho-code/protocol";
+import {
+  applySandboxedBashOverlay,
+  collectSandboxedBashCallIds,
+  SANDBOXED_BASH_CUSTOM_TYPE,
+} from "../src/sandboxed-bash";
+
+const assistant: TranscriptMessage = {
+  id: "assistant:1:0",
+  role: "assistant",
+  blocks: [
+    {
+      type: "tool",
+      callId: "bash-1",
+      name: "bash",
+      status: "completed",
+      inputPreview: '{"command":"pwd"}',
+      outputPreview: "/tmp",
+    },
+    {
+      type: "tool",
+      callId: "write-1",
+      name: "write",
+      status: "completed",
+      inputPreview: '{"path":"a.txt"}',
+      outputPreview: "ok",
+    },
+  ],
+};
+
+describe("sandboxed bash overlay", () => {
+  test("stamps only bash call ids from custom entries", () => {
+    const callIds = collectSandboxedBashCallIds([
+      { type: "custom", customType: SANDBOXED_BASH_CUSTOM_TYPE, data: { callId: "bash-1" } },
+      { type: "custom", customType: SANDBOXED_BASH_CUSTOM_TYPE, data: { callId: "write-1" } },
+      { type: "custom", customType: "other", data: { callId: "bash-2" } },
+      { type: "message", data: { callId: "bash-3" } },
+    ]);
+    const stamped = applySandboxedBashOverlay([assistant], callIds);
+    expect(stamped[0]?.blocks).toEqual([
+      { ...assistant.blocks[0], sandboxed: true },
+      assistant.blocks[1],
+    ]);
+  });
+
+  test("ignores empty overlays and non-bash names", () => {
+    expect(applySandboxedBashOverlay([assistant], new Set())).toEqual([assistant]);
+    expect(applySandboxedBashOverlay([assistant], new Set(["write-1"]))[0]?.blocks[1]).toEqual(assistant.blocks[1]);
+  });
+});

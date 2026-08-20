@@ -4,7 +4,15 @@ import type { ChangeReviewSetSummary } from "./change-review";
 import { changeScopeEquals, MAX_CHANGE_REVIEWS_ON_SNAPSHOT } from "./change-review";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
-import type { PromptAdmission, RunState, RunStatus, RunWorkEntry, SessionSnapshot, ToolActivity } from "./conversation";
+import type {
+  PromptAdmission,
+  RunState,
+  RunStatus,
+  RunWorkEntry,
+  SessionSnapshot,
+  ToolActivity,
+  TranscriptToolBlock,
+} from "./conversation";
 import { parsePlanTodosFromToolPreview, TODO_TOOL_NAME, withLivePlanTodos } from "./plan-agent";
 import type { ExtensionNotification, FeatureSnapshot, HostDialogRequest } from "./resources";
 import type { HarnessSettingsSnapshot, PermissionStatusPayload } from "./settings";
@@ -253,13 +261,7 @@ export function applyLiveRunDelta(run: RunState, event: RuntimeEventEnvelope): R
         ...run,
         runId: run.runId ?? eventRunId,
         status: "streaming",
-        work: upsertToolWork(run.work, {
-          callId: payload.callId,
-          name: payload.name,
-          status: payload.status,
-          inputPreview: payload.inputPreview,
-          outputPreview: payload.outputPreview,
-        }),
+        work: upsertToolWork(run.work, payload),
       };
     }
     default:
@@ -270,17 +272,7 @@ export function applyLiveRunDelta(run: RunState, event: RuntimeEventEnvelope): R
 export function upsertToolWork(work: readonly RunWorkEntry[], tool: ToolActivity): RunWorkEntry[] {
   const index = work.findIndex((entry) => entry.type === "tool" && entry.callId === tool.callId);
   if (index < 0) {
-    return [
-      ...work,
-      {
-        type: "tool",
-        callId: tool.callId,
-        name: tool.name,
-        status: tool.status,
-        inputPreview: tool.inputPreview,
-        outputPreview: tool.outputPreview,
-      },
-    ];
+    return [...work, toolWorkEntry(tool)];
   }
 
   const existing = work[index];
@@ -289,16 +281,21 @@ export function upsertToolWork(work: readonly RunWorkEntry[], tool: ToolActivity
   }
 
   const next = [...work];
-  next[index] = {
+  next[index] = toolWorkEntry(tool, existing);
+  return next;
+}
+
+function toolWorkEntry(tool: ToolActivity, existing?: TranscriptToolBlock): TranscriptToolBlock {
+  return {
     type: "tool",
     callId: tool.callId,
     name: tool.name,
     status: tool.status,
     // Empty end/update payloads must not wipe the command preview shown while running.
-    inputPreview: tool.inputPreview || existing.inputPreview,
+    inputPreview: existing ? tool.inputPreview || existing.inputPreview : tool.inputPreview,
     outputPreview: tool.outputPreview,
+    ...(tool.sandboxed === true || existing?.sandboxed === true ? { sandboxed: true } : {}),
   };
-  return next;
 }
 
 function preserveLiveRunFields(
@@ -395,13 +392,7 @@ export function applyRuntimeEvent(
         run: {
           ...snapshot.run,
           status: "streaming",
-          work: upsertToolWork(snapshot.run.work, {
-            callId: payload.callId,
-            name: payload.name,
-            status: payload.status,
-            inputPreview: payload.inputPreview,
-            outputPreview: payload.outputPreview,
-          }),
+          work: upsertToolWork(snapshot.run.work, payload),
         },
         ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
       }));

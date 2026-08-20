@@ -11,6 +11,8 @@ describe("thinking block", () => {
     expect(markup).toContain("Thought");
     expect(markup).toContain("I should inspect the docs first.");
     expect(markup).toContain('data-testid="thinking-block"');
+    expect(markup).toContain('data-testid="thought-chip"');
+    expect(markup).toContain("truncate");
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('data-testid="markdown"');
   });
@@ -24,6 +26,7 @@ describe("thinking block", () => {
     );
     expect(markup).toContain('data-testid="markdown"');
     expect(markup).toContain("chat-markdown-dense");
+    expect(markup).not.toContain('data-testid="thought-chip"');
     expect(markup).toContain("<strong>");
     expect(markup).toContain("<code>");
     expect(markup).toContain("<li>");

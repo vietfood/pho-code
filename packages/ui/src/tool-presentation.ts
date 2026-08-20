@@ -1,5 +1,15 @@
-import { parsePlanTodoList, type PlanTodoItem, type ToolStatus } from "@pho-code/protocol";
-import { sessionTodoChipLabel } from "./session-todo-list";
+import {
+  completedPlanTodoCount,
+  parsePlanTodoList,
+  type PlanTodoItem,
+  type ToolStatus,
+} from "@pho-code/protocol";
+import { splitRelativePath } from "./lib/compact-path";
+
+export interface ToolWorkEntryChip {
+  text: string;
+  title: string;
+}
 
 export type WorkEntryIconName =
   | "terminal"
@@ -57,21 +67,41 @@ export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   return ICON_RULES.find(([test]) => test(key))?.[1] ?? "wrench";
 }
 
-export function toolWorkEntryPreview(name: string, inputPreview: string, outputPreview: string): string | null {
+export function toolWorkEntryChip(
+  name: string,
+  inputPreview: string,
+  outputPreview = "",
+): ToolWorkEntryChip | null {
   const key = normalizeToolName(name);
   if (key === "todo") {
     const todos = parseTodosFromInput(inputPreview);
-    if (todos) {
-      return sessionTodoChipLabel(todos);
+    if (!todos || todos.length === 0) {
+      return null;
     }
+    const text = `${completedPlanTodoCount(todos)}/${todos.length}`;
+    return { text, title: text };
   }
-  if (key === "ask user") {
-    const compactOutput = compactOneLine(outputPreview);
-    if (compactOutput) {
-      return compactOutput;
+
+  const target = describeToolInputTarget(name, inputPreview);
+  if (target) {
+    const text = conciseChipText(target.label, target.value);
+    if (!text) {
+      return null;
     }
+    return { text, title: compactWhitespace(target.value) };
   }
-  return extractPreviewFromPayload(name, inputPreview) ?? compactOneLine(outputPreview) ?? compactOneLine(inputPreview);
+
+  if (key === "ask user question") {
+    const title = compactWhitespace(outputPreview);
+    return title ? { text: title, title } : null;
+  }
+
+  return null;
+}
+
+export function thoughtWorkEntryChip(text: string): ToolWorkEntryChip | null {
+  const firstLine = compactWhitespace((text.split(/\r?\n/u, 1)[0] ?? "").replace(/[*_`#]+/gu, " "));
+  return firstLine ? { text: firstLine, title: firstLine } : null;
 }
 
 export function describeToolInputTarget(
@@ -272,39 +302,6 @@ function isShellTool(key: string): boolean {
   return key === "bash" || key === "shell" || key.includes("terminal") || key.includes("exec");
 }
 
-function extractPreviewFromPayload(name: string, inputPreview: string): string | null {
-  const trimmed = inputPreview.trim();
-  if (!trimmed) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    const primary = firstString(parsed, ["command", "cmd", "path", "file_path", "filePath", "filename", "query", "pattern", "url", "glob"]);
-    if (primary) {
-      return compactOneLine(primary);
-    }
-    if (isShellTool(normalizeToolName(name))) {
-      const firstStringValue = Object.values(parsed).find(
-        (value): value is string => typeof value === "string" && value.trim().length > 0,
-      );
-      if (firstStringValue) {
-        return compactOneLine(firstStringValue);
-      }
-    }
-  } catch {
-    // Fall through to raw one-line compacting.
-  }
-  return compactOneLine(trimmed);
-}
-
-function compactOneLine(value: string): string | null {
-  const compact = value.replace(/\s+/gu, " ").trim();
-  if (!compact) {
-    return null;
-  }
-  return compact.length > 120 ? `${compact.slice(0, 117)}…` : compact;
-}
-
 function tryParseJson(value: string): unknown {
   try {
     return JSON.parse(value) as unknown;
@@ -324,6 +321,34 @@ function parseTodosFromInput(inputPreview: string): PlanTodoItem[] | null {
 function parseTodosFromRecord(record: Record<string, unknown>): PlanTodoItem[] | null {
   const parsed = parsePlanTodoList(record.todos);
   return parsed.ok ? parsed.todos : null;
+}
+
+function conciseChipText(label: string, value: string): string | null {
+  const compact = compactWhitespace(value);
+  if (!compact) {
+    return null;
+  }
+  if (label === "Path") {
+    return splitRelativePath(compact).name || compact;
+  }
+  if (label === "URL") {
+    return urlChipText(compact);
+  }
+  return compact;
+}
+
+function urlChipText(value: string): string {
+  try {
+    const url = new URL(value);
+    const last = url.pathname.split("/").filter(Boolean).at(-1);
+    return last || url.hostname;
+  } catch {
+    return value;
+  }
+}
+
+function compactWhitespace(value: string): string {
+  return value.replace(/\s+/gu, " ").trim();
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -56,7 +56,7 @@ const diff: ChangeDiffPage = {
 };
 
 describe("change review sheet", () => {
-  test("renders pending unified diff and honest already-applied copy", () => {
+  test("renders pending unified diff without always-on safety paragraphs", () => {
     const markup = renderToStaticMarkup(
       createElement(ChangeReviewSheet, {
         review: pendingReview,
@@ -68,7 +68,7 @@ describe("change review sheet", () => {
       }),
     );
     expect(markup).toContain(CHANGE_REVIEW_COPY.trackedOnly);
-    expect(markup).toContain(CHANGE_REVIEW_COPY.alreadyApplied);
+    expect(markup).not.toContain("already on disk");
     expect(markup).not.toContain("<h2");
     expect(markup).not.toContain('data-testid="change-review-close"');
     expect(markup).not.toContain('data-testid="change-review-rail"');
@@ -84,12 +84,12 @@ describe("change review sheet", () => {
     expect(markup).toContain("after from agent");
     expect(markup).toContain('data-testid="change-review-approve"');
     expect(markup).toContain('data-testid="change-review-undo"');
-    expect(markup).toContain(CHANGE_REVIEW_COPY.notAllChanges);
+    expect(markup).not.toContain("Undo all is unavailable");
     expect(markup).toContain("change-review-diff");
     expect(markup).toContain('data-testid="change-review-search"');
     expect(markup).toContain('data-testid="change-review-whitespace"');
     expect(markup).toContain('data-testid="change-review-context"');
-    expect(markup).toContain(CHANGE_REVIEW_COPY.undoMetadata);
+    expect(markup).not.toContain("POSIX permission bits");
     expect(markup).not.toContain('data-testid="change-review-resize"');
     expect(markup).not.toContain("Resize review sidebar");
     expect(markup).not.toContain('data-testid="change-review-undo-all"');

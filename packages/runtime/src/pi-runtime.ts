@@ -44,6 +44,7 @@ import {
   GITHUB_MCP_FEATURE_ID,
   isExternalSkillSourceId,
   requireMatchingSessionKey,
+  sandboxBashWasWrapped,
   sessionKeyId,
   sessionActivityPhase,
   type AbortRunInput,
@@ -216,6 +217,11 @@ import {
   joinedText,
   originalJoinedText,
 } from "./assistant-rewrite";
+import {
+  applySandboxedBashOverlay,
+  collectSandboxedBashCallIds,
+  SANDBOXED_BASH_CUSTOM_TYPE,
+} from "./sandboxed-bash";
 import {
   collectWorkspaceReferenceTokens,
   serializeWorkspaceReferences,
@@ -507,6 +513,34 @@ export async function createPhoCodeRuntime(
       workspaceId: session.key.workspaceId,
       sessionId: event.sessionId ?? session.key.sessionId,
     });
+  }
+
+  function toolEventPayload(
+    runId: string,
+    event: { toolCallId: string; toolName: string },
+    status: "running" | "completed" | "failed",
+    inputPreview: string,
+    outputPreview: string,
+  ) {
+    return {
+      runId,
+      callId: event.toolCallId,
+      name: displayToolName(event.toolName),
+      status,
+      inputPreview,
+      outputPreview,
+      ...(sandboxBashWasWrapped(event.toolName, sandbox.snapshot().status) ? { sandboxed: true as const } : {}),
+    };
+  }
+
+  function rememberSandboxedBashCall(live: LiveSession, toolName: string, callId: string): void {
+    if (!sandboxBashWasWrapped(toolName, sandbox.snapshot().status)) {
+      return;
+    }
+    if (collectSandboxedBashCallIds(live.runtime.session.sessionManager.getEntries()).has(callId)) {
+      return;
+    }
+    live.runtime.session.sessionManager.appendCustomEntry(SANDBOXED_BASH_CUSTOM_TYPE, { callId });
   }
 
   function emitSessionSnapshot(live: LiveSession, snapshot: SessionSnapshot): void {
@@ -1207,18 +1241,12 @@ export async function createPhoCodeRuntime(
         if (!runId) {
           return;
         }
+        rememberSandboxedBashCall(live, event.toolName, event.toolCallId);
         emitFor(live, {
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
-          payload: {
-            runId,
-            callId: event.toolCallId,
-            name: displayToolName(event.toolName),
-            status: "running",
-            inputPreview: previewUnknown(event.args),
-            outputPreview: "",
-          },
+          payload: toolEventPayload(runId, event, "running", previewUnknown(event.args), ""),
         });
         if (event.toolName === TODO_TOOL_NAME && rememberPlanTodos(live, todosFromToolArgs(event.args))) {
           await emitSessionPlanSnapshot(live, sessionId, runId);
@@ -1232,14 +1260,13 @@ export async function createPhoCodeRuntime(
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
-          payload: {
+          payload: toolEventPayload(
             runId,
-            callId: event.toolCallId,
-            name: displayToolName(event.toolName),
-            status: "running",
-            inputPreview: previewUnknown(event.args),
-            outputPreview: previewToolResult(event.partialResult),
-          },
+            event,
+            "running",
+            previewUnknown(event.args),
+            previewToolResult(event.partialResult),
+          ),
         });
         return;
       case "tool_execution_end":
@@ -1250,14 +1277,13 @@ export async function createPhoCodeRuntime(
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
-          payload: {
+          payload: toolEventPayload(
             runId,
-            callId: event.toolCallId,
-            name: displayToolName(event.toolName),
-            status: event.isError ? "failed" : "completed",
-            inputPreview: "",
-            outputPreview: previewToolResult(event.result),
-          },
+            event,
+            event.isError ? "failed" : "completed",
+            "",
+            previewToolResult(event.result),
+          ),
         });
         if (event.toolName === TODO_TOOL_NAME) {
           rememberPlanTodos(live, todosFromToolResult(event.result));
@@ -2521,9 +2547,10 @@ function toHarnessError(error: unknown, operation: string, code: string): Harnes
 }
 
 function projectSessionMessages(session: AgentSession) {
-  return applyRewriteOverlays(
-    projectMessages(session.messages),
-    collectRewriteOverlays(session.sessionManager.getEntries()),
+  const entries = session.sessionManager.getEntries();
+  return applySandboxedBashOverlay(
+    applyRewriteOverlays(projectMessages(session.messages), collectRewriteOverlays(entries)),
+    collectSandboxedBashCallIds(entries),
   );
 }
 

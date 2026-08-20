@@ -80,7 +80,7 @@ describe("change-review protocol", () => {
     expect(isUntrackedChangePath(".pho-code-untracked/outside-abcd")).toBe(true);
     expect(CHANGE_REVIEW_COPY.captureCapped).toContain("tracked-file limit");
     expect(CHANGE_REVIEW_COPY.ledgerUnreadable).toContain("unreadable");
-    expect(CHANGE_REVIEW_COPY.undoMetadata).toContain("POSIX permission bits");
+    expect(CHANGE_REVIEW_COPY.undoMetadata).toBe("");
   });
 
   test("accepts a complete scope and rejects incomplete identities", () => {
@@ -100,9 +100,9 @@ describe("change-review protocol", () => {
     expect(latestChangeReview([summary, { ...summary, runId: "run-2", updatedAt: "2026-08-16T00:00:00.000Z" }])?.runId).toBe(
       "run-2",
     );
-    expect(CHANGE_REVIEW_COPY.alreadyApplied).toContain("already on disk");
+    expect(CHANGE_REVIEW_COPY.alreadyApplied).toBe("");
     expect(CHANGE_REVIEW_COPY.trackedOnly).toBe("Changes");
-    expect(CHANGE_REVIEW_COPY.notAllChanges).toContain("Undo all is unavailable");
+    expect(CHANGE_REVIEW_COPY.notAllChanges).toBe("");
     expect(CHANGE_LEDGER_DISCLOSURE).toContain("application data");
     expect(CHANGE_LEDGER_DISCLOSURE).toContain("250 MiB");
     expect(CHANGE_LEDGER_DISCLOSURE).toContain("Approve or Undo");

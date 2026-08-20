@@ -2,6 +2,7 @@ import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react"
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { ConservativeMarkdown } from "./markdown";
+import { thoughtWorkEntryChip } from "./tool-presentation";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 // Thinking work-entry row adapted from refs/t3code MessagesTimeline.tsx tone:"thinking"
@@ -18,8 +19,8 @@ export function ThinkingBlock({
   live?: boolean;
 }) {
   const [expanded, setExpanded] = useState(open ?? live);
-  const preview = text.replace(/\s+/gu, " ").trim();
-  const shortPreview = preview.length > 100 ? `${preview.slice(0, 97)}…` : preview;
+  const heading = live ? "Thinking" : "Thought";
+  const chip = expanded ? null : thoughtWorkEntryChip(text);
 
   useEffect(() => {
     if (live) {
@@ -41,6 +42,7 @@ export function ThinkingBlock({
         role="button"
         tabIndex={0}
         aria-expanded={expanded}
+        aria-label={[heading, chip?.text].filter(Boolean).join(" · ")}
         data-testid={live ? "thinking-status" : "thinking-block"}
         onClick={() => setExpanded((value) => !value)}
         onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
@@ -54,16 +56,13 @@ export function ThinkingBlock({
           <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <p className="flex min-w-0 w-full items-baseline gap-1.5 text-[12px] leading-5">
-              <span className="min-w-0 shrink truncate font-medium text-foreground">
-                {live ? "Thinking" : "Thought"}
-              </span>
-              {!expanded && shortPreview ? (
-                <span className="min-w-0 flex-1 truncate text-secondary-label">{shortPreview}</span>
-              ) : null}
-            </p>
-          </div>
+          <p className="shrink-0 text-[12px] leading-5 font-medium text-foreground">{heading}</p>
+          {chip ? (
+            <span className="tool-chip min-w-0 shrink truncate" data-testid="thought-chip" title={chip.title}>
+              {chip.text}
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1" />
           <div className="flex shrink-0 items-center gap-px text-icon-muted">
             <span className="flex size-4 shrink-0 items-center justify-center">
               <ChevronDownIcon

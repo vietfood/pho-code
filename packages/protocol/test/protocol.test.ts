@@ -391,6 +391,61 @@ describe("protocol serialization", () => {
     ]);
   });
 
+  test("preserves sandboxed bash flag when a tool end payload omits it", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "t1",
+        name: "bash",
+        status: "running",
+        inputPreview: '{"command":"ls"}',
+        outputPreview: "",
+        sandboxed: true,
+      },
+      occurredAt: "2026-08-13T00:00:01.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 3,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: {
+        runId: "run-a",
+        callId: "t1",
+        name: "bash",
+        status: "completed",
+        inputPreview: "",
+        outputPreview: "ok",
+      },
+      occurredAt: "2026-08-13T00:00:02.000Z",
+      runId: "run-a",
+    });
+    expect(state.snapshot?.run.work).toEqual([
+      {
+        type: "tool",
+        callId: "t1",
+        name: "bash",
+        status: "completed",
+        inputPreview: '{"command":"ls"}',
+        outputPreview: "ok",
+        sandboxed: true,
+      },
+    ]);
+  });
+
   test("todo tool events update the session plan list from that call's input", () => {
     const snapshot = sampleSessionSnapshot("run-a");
     snapshot.plan = {

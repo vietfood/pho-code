@@ -1,16 +1,18 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
-import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, ShieldIcon, XIcon } from "lucide-react";
 import { formatChangedFileCount, parsePlanTodoList, type TranscriptToolBlock } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import {
   buildToolExpandedSections,
   type ToolExpandedSection,
+  toolWorkEntryChip,
   toolWorkEntryHeading,
   toolWorkEntryIcon,
-  toolWorkEntryPreview,
 } from "./tool-presentation";
 import { SessionTodoList } from "./session-todo-list";
 import { WorkEntryIcon } from "./work-entry-icon";
+
+const SANDBOX_BASH_SHIELD_LABEL = "Ran in the agent sandbox";
 
 // Collapsed chrome adapted from Beautiful UI ToolChips.tsx (MIT, Shane Levine,
 // https://www.beautifului.dev/ retrieved 2026-08-13): icon + label + preview chip.
@@ -30,9 +32,7 @@ export function ToolRow({
 }) {
   const [expanded, setExpanded] = useState(open);
   const heading = toolWorkEntryHeading(block.name, block.status);
-  const preview = toolWorkEntryPreview(block.name, block.inputPreview, block.outputPreview);
-  const displayPreview =
-    preview && preview.toLowerCase() === heading.toLowerCase() ? null : preview;
+  const chip = toolWorkEntryChip(block.name, block.inputPreview, block.outputPreview);
   const sections = buildToolExpandedSections(block.name, block.inputPreview, block.outputPreview);
   const todos = parseTodosFromToolBlock(block);
   const showTodoList = todos !== null && todos.length > 0;
@@ -41,6 +41,9 @@ export function ToolRow({
   const completed = block.status === "completed";
   const running = block.status === "running";
   const iconName = toolWorkEntryIcon(block.name);
+  const rowLabel = [heading, chip?.text, block.sandboxed ? SANDBOX_BASH_SHIELD_LABEL : undefined]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
 
   return (
     <div
@@ -55,7 +58,7 @@ export function ToolRow({
             role: "button" as const,
             tabIndex: 0,
             "aria-expanded": expanded,
-            "aria-label": displayPreview ? `${heading} - ${displayPreview}` : heading,
+            "aria-label": rowLabel,
             onClick: () => setExpanded((value) => !value),
             onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -100,13 +103,22 @@ export function ToolRow({
         >
           {heading}
         </span>
-        {displayPreview ? (
-          <span className="tool-chip min-w-0 flex-1 truncate font-mono" data-testid="tool-chip">
-            {displayPreview}
+        {block.sandboxed ? (
+          <span
+            className="flex size-4 shrink-0 items-center justify-center text-icon-muted"
+            data-testid="tool-sandbox-shield"
+            title={SANDBOX_BASH_SHIELD_LABEL}
+            aria-label={SANDBOX_BASH_SHIELD_LABEL}
+          >
+            <ShieldIcon className="block size-3 shrink-0 stroke-[1.8] opacity-80" aria-hidden="true" />
           </span>
-        ) : (
-          <span className="min-w-0 flex-1" />
-        )}
+        ) : null}
+        {chip ? (
+          <span className="tool-chip min-w-0 shrink truncate font-mono" data-testid="tool-chip" title={chip.title}>
+            {chip.text}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1" />
         {reviewCount !== undefined && reviewCount > 0 ? (
           onOpenReview ? (
             <button

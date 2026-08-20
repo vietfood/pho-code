@@ -97,6 +97,14 @@ describe("sandbox settings runtime", () => {
       await waitForSettledWithoutDialog(events, touch);
       expect(existsSync(path.join(workspaceDir, "sandbox-allowed.txt"))).toBe(true);
       expect(events.some((event) => event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest)).toBe(false);
+      expect(
+        events.some(
+          (event) =>
+            event.type === RUNTIME_EVENT_TYPES.toolEvent &&
+            (event.payload as { name?: string; sandboxed?: boolean }).name === "bash" &&
+            (event.payload as { sandboxed?: boolean }).sandboxed === true,
+        ),
+      ).toBe(true);
 
       events.length = 0;
       const curl = runtime.sendPrompt({ sessionId: created.session.id, text: TEST_PROMPT.useSandboxCurl });

@@ -95,7 +95,9 @@ export function ChangeReviewSheet({
           {CHANGE_REVIEW_COPY.notAllChanges ? (
             <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground/80">{CHANGE_REVIEW_COPY.notAllChanges}</p>
           ) : null}
-          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground/80">{CHANGE_REVIEW_COPY.undoMetadata}</p>
+          {CHANGE_REVIEW_COPY.undoMetadata ? (
+            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground/80">{CHANGE_REVIEW_COPY.undoMetadata}</p>
+          ) : null}
         </div>
       ) : null}
       {review?.ledgerUnreadable ? (
