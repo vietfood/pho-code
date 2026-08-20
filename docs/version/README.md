@@ -5,7 +5,7 @@ This folder holds promoted numbered core product versions plus the later promoti
 | Path | Role |
 | --- | --- |
 | [`v4/`](./v4/README.md) | **Pending** V4 — Public Beta Foundation. Held 2026-08-20 until Apple Developer Program / Developer ID authority exists. Milestone 0 source freeze remains; remaining milestones are not in implementation. |
-| [`v5/`](./v5/README.md) | **In implementation** V5 — Pho Agent Foundation. M0 code and permitted non-packaged checks are complete; the owner-deferred packaged gate keeps M0 unaccepted and M1 blocked. Task Brief and later intelligence milestones have not started. |
+| [`v5/`](./v5/README.md) | **In implementation** V5 — Pho Agent Foundation. M0 automated gates including packaged pass; real-provider is not owner-verified; M0 is not formally accepted and M1 has not started. |
 | [`roadmap-vnext.md`](./roadmap-vnext.md) | Independently promotable later phases not already owned by V4 or V5 |
 | [`research-backlog.md`](./research-backlog.md) | Unpromoted core-product research; not add-ons or promises |
 

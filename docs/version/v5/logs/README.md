@@ -15,3 +15,7 @@ V5 logs own `pho-agent` package extraction, Task Brief, evidence-pack, verificat
 Current M0 implementation evidence: [`2026-08-20-m0-harness-ownership-expansion.md`](./2026-08-20-m0-harness-ownership-expansion.md).
 
 Production repository extraction: [`2026-08-20-m0-pho-agent-submodule.md`](./2026-08-20-m0-pho-agent-submodule.md).
+
+Checkout re-verification after submodule init: [`2026-08-20-m0-checkout-verification.md`](./2026-08-20-m0-checkout-verification.md).
+
+Packaged gate: [`2026-08-20-m0-packaged-verification.md`](./2026-08-20-m0-packaged-verification.md).

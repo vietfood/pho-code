@@ -142,6 +142,11 @@ describe("workspace package dependency graph", () => {
     expect(manifest.peerDependencies).toEqual({ react: "19.1.1", "react-dom": "19.1.1" });
   });
 
+  test("root eval command depends on the agent evals package surface", async () => {
+    const manifest = await readPackage(".");
+    expect(manifest.devDependencies?.["@pho-agent/evals"]).toBe("workspace:*");
+  });
+
   test("desktop may depend on application and runtime only outside the renderer package graph", async () => {
     const manifest = await readPackage("apps/desktop");
     expect(manifest.dependencies?.["@pho-code/application"]).toBe("workspace:*");

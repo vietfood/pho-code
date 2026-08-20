@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20. Milestone 0 implementation and permitted non-packaged verification are complete, but its required packaged gate was not run by owner direction; M0 remains unaccepted and M1 has not started. Planned later-milestone commands, tools, events, state, and UI described here do not exist until the owning milestone lands and its dated log records verification.
+Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20. Milestone 0 implementation and required automated verification, including `package:mac` and `test:packaged`, are complete. Real-provider baseline remains not owner-verified. M0 is not formally accepted and M1 has not started. Planned later-milestone commands, tools, events, state, and UI described here do not exist until the owning milestone lands and its dated log records verification.
 
 Read before implementation:
 

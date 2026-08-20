@@ -74,6 +74,7 @@ Run commands from the repository root:
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun test` | Run non-GUI unit and integration tests. |
+| `bun run eval:v5` | Run the frozen V5 M0 live deterministic development and holdout cohorts through Pho Code's isolated `harness-test/slice` runtime. `eval:v5:development` and `eval:v5:holdout` run one cohort. Results are append-only files in an owned temporary directory. |
 | `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, bounded Stop/Stop-all, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
 | `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, notices, `LICENSE`, and `EULA.md`, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
 | `bun run package:mac:proof` | Same staging, then a fail-closed Developer ID / hardened-runtime / notarized DMG+ZIP proof under `apps/desktop/release-proof`. Missing signing or notarization credentials write no proof artifact. The output is labeled `m0-proof`, not a V4 beta. |

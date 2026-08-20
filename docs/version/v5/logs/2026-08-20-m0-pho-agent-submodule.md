@@ -57,3 +57,5 @@ Package-unit tests recreated `apps/desktop/resources` and two exact `pho-code-st
 ## Handoff
 
 The owner will run packaged confirmation on a separate machine. M0 remains unaccepted under the current plan until that evidence is recorded or the packaged gate is explicitly waived. A future Pho Research repository can add the same remote as a pinned submodule and include `packages/pho-agent/packages/*` in its workspace without importing Pho Code.
+
+A later checkout re-verification after `git submodule update --init --recursive` is recorded in [`2026-08-20-m0-checkout-verification.md`](./2026-08-20-m0-checkout-verification.md). Packaged confirmation on this machine is recorded in [`2026-08-20-m0-packaged-verification.md`](./2026-08-20-m0-packaged-verification.md).

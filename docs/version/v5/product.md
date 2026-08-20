@@ -2,7 +2,7 @@
 
 ## Status
 
-Owner-promoted numbered product boundary, 2026-08-20. Status: **Promoted; Milestone 0 implementation and permitted non-packaged verification complete, packaged acceptance gate deferred by owner direction**.
+Owner-promoted numbered product boundary, 2026-08-20. Status: **Promoted; Milestone 0 implementation and required automated verification including packaged complete; real-provider not owner-verified; M0 not formally accepted**.
 
 This document defines the V5 outcome. [`implementation-plan.md`](./implementation-plan.md) is the implementation contract. Planned package names, commands, state, and UI below are not current behavior until the owning milestone is implemented, verified, logged, and accepted.
 
