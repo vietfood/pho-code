@@ -6,7 +6,7 @@ This is the sole agent entry point. The root `README.md` is user-facing and is n
 
 ## Mission and current maturity
 
-Build a macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1 and v2 are accepted and archived. The next product decision is whether to promote a bounded public-release phase; Pho Code is not yet publicly distributed or adversarially hardened.
+Build a macOS-first and Linux-compatible desktop harness on the Pi SDK. Personal v1, v2, and v3 are accepted and archived. V4 — Public Beta Foundation is promoted under `docs/version/v4`; Pho Code is not yet publicly distributed or adversarially hardened.
 
 Milestones 0 through 5 of personal v1 are accepted on Pi SDK `0.84.1`. Their product, implementation, and review records live under `docs/archive/v1`. Read the archived Milestone 4 and 5 reviews before changing settings, identity, data-root, packaging, or credential import. Conversation chrome remains tracked in `docs/ui/implementation/conversation-ui.md`. Open add-on features live under `docs/features`. Closed add-ons live under `docs/archive/features`. Owner-priority defects, safety, and startup work live under `docs/urgent`. The current numbered product version lives under `docs/version`. Do not turn v2 into signing/notarization, a generic settings engine, package/resource manager, MCP manager, or production-hardening project without an explicit scope change.
 
@@ -21,10 +21,11 @@ Read these files before nontrivial implementation:
 7. `docs/development.md`
 8. `docs/archive/v1/reviews/milestone-5-code-review.md` when changing packaged resources, credentials, identity, or data ownership
 9. `docs/archive/v1/reviews/milestone-4-code-review.md` when changing settings or permission configuration
-10. `docs/features/README.md` when adding or promoting an add-on capability; `docs/features/terminal/product.md` and `docs/features/terminal/implementation-plan.md` when changing the integrated terminal, PTY, ghostty-web, or the right-sidebar Terminal surface; `docs/archive/features/plan-agent/product.md` and `docs/archive/features/plan-agent/implementation-plan.md` when changing Plan/Agent, ask-user, or the Plan sidebar document; `docs/archive/features/sandbox/product.md` and `docs/archive/features/sandbox/implementation-plan.md` when changing agent-tool sandbox, Seatbelt wrap, Settings Sandbox, or packaged `rg`
+10. `docs/features/README.md` when adding or promoting an add-on capability; `docs/features/terminal/product.md` and `docs/features/terminal/implementation-plan.md` when changing the integrated terminal, PTY, ghostty-web, or the right-sidebar Terminal surface; `docs/features/compaction/product.md` and `docs/features/compaction/implementation-plan.md` when changing Pi compaction, transcript boundaries, manual compaction, or its composer usage surface; `docs/archive/features/plan-agent/product.md` and `docs/archive/features/plan-agent/implementation-plan.md` when changing Plan/Agent, ask-user, or the Plan sidebar document; `docs/archive/features/sandbox/product.md` and `docs/archive/features/sandbox/implementation-plan.md` when changing agent-tool sandbox, Seatbelt wrap, Settings Sandbox, or packaged `rg`
 11. `docs/archive/v3/product.md` and `docs/archive/v3/implementation-plan.md` when changing accepted change review, Approve, or Undo behavior
 12. `docs/urgent/README.md` when choosing what to do first; `docs/archive/urgent/agent-stop/` when changing accepted `abortRun`, composer Stop, Stop-all, or live-run teardown; `docs/archive/urgent/window-first-pi-core/` when changing accepted app startup or window creation versus Pi boot; `docs/version/roadmap-vnext.md` before promoting extraction of `HarnessRuntime` from Electron main
 13. the earlier record under `docs/archive/v1` only when changing a boundary it established
+14. `docs/version/v4/product.md` and `docs/version/v4/implementation-plan.md` when changing public-beta identity, runtime-process extraction, application-data migration/recovery, diagnostics/privacy, signing/notarization, release artifacts, updates, or the desktop handoff to the product website
 
 Project workflows live under `.agents/skills/`:
 

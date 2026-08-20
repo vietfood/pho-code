@@ -12,7 +12,7 @@ An add-on may still change protocol, Electron, or UI, but it must be able to shi
 
 | Maturity | Layout | Meaning |
 | --- | --- | --- |
-| Research / proposed | one markdown file, e.g. `compaction.md` | Design only. Not an implementation contract. |
+| Research / proposed | one markdown file, e.g. `<feature>.md` | Design only. Not an implementation contract. |
 | Promoted add-on | a folder with `product.md` and `implementation-plan.md` | Owner-approved product boundary plus the real plan. Status is **In implementation** until acceptance. |
 | Accepted add-on | same folder, plus a record in [`current-state.md`](../current-state.md) | Implemented and verified to the stated level. Stays here while the workstream is open. |
 | Closed add-on | moved to [`archive/features/`](../archive/features/README.md) | Workstream closed. Living behavior stays in architecture and current-state. |
@@ -36,13 +36,13 @@ A document may contain both current and planned sections. Each claim must make t
 | Feature | Status | Owner outcome | Documents |
 | --- | --- | --- | --- |
 | Integrated terminal | In implementation; owner-approved 2026-08-16 | Owner-visible login shell in the selected workspace, ghostty-web in the right sidebar, PTY in Electron main | [`terminal/product.md`](./terminal/product.md), [`terminal/implementation-plan.md`](./terminal/implementation-plan.md) |
-| Compaction | Proposed; Pi-native automatic behavior exists today | Long conversations retain useful continuity, expose when context is summarized, and remain portable across supported providers | [`compaction.md`](./compaction.md) |
+| Context compaction | In implementation; owner-approved 2026-08-20 | Long chats keep a complete display transcript while Pi reduces active model context; lifecycle, idle-only manual control, and cancellation become visible | [`compaction/product.md`](./compaction/product.md), [`compaction/implementation-plan.md`](./compaction/implementation-plan.md) |
 
 Closed add-ons live under [`archive/features`](../archive/features/README.md). Agent-tool sandbox was accepted 2026-08-17 and archived 2026-08-18; see [`archive/features/sandbox`](../archive/features/sandbox/README.md). Plan / Agent was accepted and archived 2026-08-18; see [`archive/features/plan-agent`](../archive/features/plan-agent/README.md).
 
 ## What does not belong here
 
-Session tree/fork, subagents, LSP, edit reliability, browser automation, and public-release hardening are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Plan / Agent modes with structured ask-back are the accepted, archived [`plan-agent`](../archive/features/plan-agent/README.md) add-on. Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md). Extracting the Pi Node runtime into another process remains Phase F. The owner-priority **window-first** slice (create the window before `ModelRuntime.create`) is accepted and archived under [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md); it is not an add-on or crash isolation. Bounded Stop, Stop-all, and bounded teardown are accepted under archived [`agent-stop`](../archive/urgent/agent-stop/README.md), not an add-on and not crash isolation. OS-level wrapping of agent `bash` plus in-process file-tool policy is the accepted, archived [`sandbox`](../archive/features/sandbox/README.md) add-on; it is not Phase F.
+Session tree/fork, subagents, LSP, edit reliability, and browser automation are core product research. Track them in the numbered-version [`roadmap`](../version/roadmap-vnext.md) and [`research backlog`](../version/research-backlog.md). Public-beta hardening and extracting the Pi Node runtime into another process are promoted under active [`V4`](../version/v4/README.md), not add-ons. Plan / Agent modes with structured ask-back are the accepted, archived [`plan-agent`](../archive/features/plan-agent/README.md) add-on. Accepted change review and recovery are archived as [`v3`](../archive/v3/product.md). The owner-priority **window-first** slice (create the window before `ModelRuntime.create`) is accepted and archived under [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md); it is not an add-on or crash isolation. Bounded Stop, Stop-all, and bounded teardown are accepted under archived [`agent-stop`](../archive/urgent/agent-stop/README.md), not an add-on and not crash isolation. OS-level wrapping of agent `bash` plus in-process file-tool policy is the accepted, archived [`sandbox`](../archive/features/sandbox/README.md) add-on; it is not V4 process isolation.
 
 Do not use this directory as a general competitor research catalog. A capability belongs here only when it can be specified, implemented, accepted, degraded, and retired independently of the active numbered version.
 

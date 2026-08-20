@@ -6,7 +6,7 @@
 **Surface:** composer meta strip usage control  
 **Owner:** conversation UI track  
 **Owning plan:** [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)  
-**Related:** [`2026-08-18-change-composer-meta-strip.md`](./2026-08-18-change-composer-meta-strip.md)
+**Related:** [`2026-08-18-change-composer-meta-strip.md`](./2026-08-18-change-composer-meta-strip.md), [`../../features/compaction/product.md`](../../features/compaction/product.md), [`../../features/compaction/implementation-plan.md`](../../features/compaction/implementation-plan.md)
 
 ## Intended change
 
@@ -32,6 +32,8 @@ Actual: a non-interactive meter sat beside a separate Info icon.
 ## Owner feedback
 
 2026-08-18: use the context circle + usage text as the button; bold the usage text, keep the quiet color.
+
+2026-08-20 handoff: the promoted context-compaction add-on reuses this popover for its future idle-only Compact/Cancel action and current-context explanation. It must preserve this single-trigger decision rather than adding another info or sidebar control.
 
 ## Handoff
 

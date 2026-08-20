@@ -134,7 +134,7 @@ Do not expose Electron objects or rely on Structured Clone-only values; doing so
 
 ## When to revisit
 
-Startup ordering and crash isolation of in-process Pi are **not** shell changes. Archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) owns the accepted same-process startup order: load metadata/IPC/window before dynamically importing and constructing Pi. Its desktop behavior is verified; packaged behavior and elapsed-time measurements were explicitly not verified at closure. Extracting the complete `HarnessRuntime` into another process is deferred to roadmap Phase F. Bounded Stop, Stop-all, and bounded teardown are already accepted under archived [`agent-stop`](../archive/urgent/agent-stop/README.md); neither they nor window-first ordering can survive a frozen main-process Pi.
+Startup ordering and crash isolation of in-process Pi are **not** shell changes. Archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) owns the accepted same-process startup order: load metadata/IPC/window before dynamically importing and constructing Pi. Its desktop behavior is verified; packaged behavior and elapsed-time measurements were explicitly not verified at closure. Extracting the complete `HarnessRuntime` into another process is promoted but unimplemented under [`V4 — Public Beta Foundation`](../version/v4/README.md). Bounded Stop, Stop-all, and bounded teardown are already accepted under archived [`agent-stop`](../archive/urgent/agent-stop/README.md); neither they nor window-first ordering can survive a frozen main-process Pi.
 
 Reconsider Tauri only after the first usable Electron build and when at least one of these is measured:
 

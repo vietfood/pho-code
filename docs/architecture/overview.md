@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Bounded Stop, Stop-all, and bounded teardown are accepted; their evidence lives in [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). Window-first startup is accepted; its immutable contract and qualified evidence live in [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi process extraction remains roadmap Phase F.
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Bounded Stop, Stop-all, and bounded teardown are accepted; their evidence lives in [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). Window-first startup is accepted; its immutable contract and qualified evidence live in [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi utility-process extraction and public-beta release behavior are proposed under active [`version/v4`](../version/v4/README.md), not current architecture.
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -228,7 +228,7 @@ The lifecycle below reflects accepted window-first startup. Main stores applicat
 6. Boot failure becomes a fixed redacted `failed` state without deleting sessions. If quit wins, a late runtime is disposed and never attached.
 7. Runtime refreshes remote model catalogs only when explicitly requested or when the chosen SDK policy says it is safe; startup must work from cached catalogs.
 
-[`agent-stop`](../archive/urgent/agent-stop/README.md) bounds `abortRun` and controller disposal, and provides Stop-all for background runs. Archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) owns the accepted same-process startup reorder above. Pi still shares Electron main; moving the complete `HarnessRuntime` into another process is deferred to roadmap Phase F.
+[`agent-stop`](../archive/urgent/agent-stop/README.md) bounds `abortRun` and controller disposal, and provides Stop-all for background runs. Archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) owns the accepted same-process startup reorder above. Pi still shares Electron main; moving the complete `HarnessRuntime` into another process is promoted but unimplemented under [`V4`](../version/v4/README.md).
 
 ### Open workspace
 

@@ -1,6 +1,6 @@
 # Pho Code future-release roadmap
 
-This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs.
+This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3; the bounded public-beta portion of Phase F is promoted as active [V4 — Public Beta Foundation](./v4/README.md).
 
 V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](../archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
@@ -40,10 +40,11 @@ This phase should build on Milestone 3's composite session ownership. It must di
 
 ## Phase B: session intelligence and richer input
 
+Context compaction was promoted from this phase on 2026-08-20 as the standalone [`features/compaction`](../features/compaction/README.md) add-on. Its first release is deliberately Pi-native: preserve the full active-branch display transcript, project automatic lifecycle, add an idle-only manual action and cancellation, and explain current context separately from cumulative usage. Provider-native OpenAI compaction remains deferred research. The product and plan are implementation contracts, not acceptance evidence.
+
 Extend the accepted session lifecycle without introducing multi-agent execution:
 
 - fork and tree navigation while leaving Pi JSONL authoritative;
-- visible automatic compaction events, manual compact, and an explanation of context composition and token impact, developed from the proposed [compaction feature design](../features/compaction.md);
 - richer selected-file, text, image, and bounded document attachments with explicit type/size controls;
 - per-run/provider usage and optional soft budget warnings;
 - integrated diagnostics and redacted log export for auth, baked features, indexes, MCP state, and interrupted runs.
@@ -90,9 +91,11 @@ Add orchestration only after single-agent review and recovery are dependable:
 
 This phase must specify failure handling for partial worktree creation, child-process crashes, permission dialogs on background agents, application restart, and conflicting user edits. Worktree removal may use only a verified recoverable strategy; if Git itself requires irreversible cleanup, the operation must stop and explain the manual prerequisite rather than using `rm`.
 
-## Phase F: runtime isolation and public distribution
+## Phase F: runtime isolation and public distribution — promoted as V4
 
-Start this phase only if measured risk or distribution goals justify it:
+The owner promoted a bounded Apple Silicon macOS public-beta slice on 2026-08-20 as [V4 — Public Beta Foundation](./v4/README.md). Implement from its [product contract](./v4/product.md) and [implementation plan](./v4/implementation-plan.md), not from this summary.
+
+The original phase direction is:
 
 - move the Pi runtime and executable feature hosts into an Electron utility or child process with a narrow typed broker;
 - evaluate OS/container/VM execution isolation separately from renderer sandboxing;
@@ -101,9 +104,9 @@ Start this phase only if measured risk or distribution goals justify it:
 - migrations, telemetry policy, public threat model, security-response process, and managed feature-update policy;
 - a Tauri proof of concept only if measured Electron costs justify the additional Node-sidecar boundary.
 
-**Window-first boot** (create the Electron window before `ModelRuntime.create`) was pulled forward, accepted, and archived under [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi process extraction was explicitly deferred back here; any future `utilityProcess` work requires a newly promoted plan and packaged evidence. Signing, Linux installers, and a public threat model also stay in this phase.
+**Window-first boot** (create the Electron window before `ModelRuntime.create`) was pulled forward, accepted, and archived under [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi process extraction, signed/notarized arm64 distribution, public threat/privacy/support boundaries, migration-safe state, diagnostics, and beta updates are now owned by V4. Linux installers remain unpromoted later work.
 
-**Bounded Stop** of a stuck in-process run was pulled forward, accepted, and archived under [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). It does not extract Pi; crash isolation remains in the window-first/Phase F boundary.
+**Bounded Stop** of a stuck in-process run was pulled forward, accepted, and archived under [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). It does not extract Pi; crash isolation is now active V4 work.
 
 Process separation is not called a sandbox unless its filesystem, network, credential, and child-process authority is actually constrained and tested.
 
