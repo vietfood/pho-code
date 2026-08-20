@@ -71,14 +71,15 @@ Run commands from the repository root:
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun test` | Run non-GUI unit and integration tests. |
 | `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, bounded Stop/Stop-all, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
-| `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
+| `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, notices, `LICENSE`, and `EULA.md`, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
+| `bun run package:mac:proof` | Same staging, then a fail-closed Developer ID / hardened-runtime / notarized DMG+ZIP proof under `apps/desktop/release-proof`. Missing signing or notarization credentials write no proof artifact. The output is labeled `m0-proof`, not a V4 beta. |
 | `bun run stage:github-mcp` | Fetch the pinned GitHub MCP binary into gitignored `apps/desktop/resources` for `bun run dev`. `package:mac` stages the same artifact. The running app never downloads it. |
 | `bun run stage:ripgrep` | Fetch the pinned ripgrep binary into gitignored `apps/desktop/resources` for sandbox init. `package:mac` stages the same artifact. The running app never downloads it. |
 | `bun run test:packaged` | Smoke the packaged `.app` with isolated user data, baked-feature loading, and a PATH that does not contain `pi`. |
 
 Package-local scripts exist for focused work, but documentation and CI should call the root commands for milestone acceptance.
 
-`bun run package:linux` remains later until a real Linux artifact is in scope. Signing and notarization remain deferred.
+`bun run package:linux` remains later until a real Linux artifact is in scope. Local `package:mac` stays unsigned. Signed proof packaging is `package:mac:proof` and requires owner-held Developer ID and notarization credentials documented in [`version/v4/release-preflight.md`](./version/v4/release-preflight.md). Public `package:mac:release` remains a Milestone 4 contract until implemented.
 
 ## First setup
 

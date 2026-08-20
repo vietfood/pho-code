@@ -2,11 +2,13 @@
 
 ## Status and use
 
-Owner-approved implementation contract for **V4 — Public Beta Foundation**, promoted 2026-08-20. No milestone is accepted merely because this plan exists. Record implementation and verification in one new dated file under [`logs/`](./logs/README.md) per bounded slice.
+Owner-approved implementation contract for **V4 — Public Beta Foundation**, promoted 2026-08-20. Status: **Pending** as of 2026-08-20. No milestone is accepted merely because this plan exists. Record implementation and verification in one new dated file under [`logs/`](./logs/README.md) per bounded slice.
+
+The owner cannot enroll in the Apple Developer Program, so Developer ID signing and notarization cannot be completed. Hold remaining Milestone 0 owner evidence and Milestones 1–6. Do not implement those slices, and do not emit an unsigned public artifact, until Developer ID Application and notarization credentials exist. A later numbered version may be promoted from the [roadmap](../roadmap-vnext.md) without archiving V4; it must not take over signing, notarization, public updates, public-beta diagnostics/privacy, or `HarnessRuntime` utility-process extraction. Hold record: [`logs/2026-08-20-hold-pending-apple-developer.md`](./logs/2026-08-20-hold-pending-apple-developer.md).
 
 Read the [V4 product contract](./product.md), current [architecture](../../architecture/README.md), [development runbook](../../development.md), accepted [V3 recovery contract](../../archive/v3/product.md), archived [window-first process research](../../archive/urgent/window-first-pi-core/product.md), and [future roadmap](../roadmap-vnext.md) before implementation.
 
-Implement milestones in order. Milestone 0 is a stop gate: do not create a public release candidate until public identity, distribution rights, Apple signing authority, platform floor, and fixed release origins are recorded. A private implementation may continue without publishing, but it must not weaken or bypass that gate.
+Implement milestones in order when the hold lifts. Milestone 0 is a stop gate: do not create a public release candidate until public identity, distribution rights, Apple signing authority, platform floor, and fixed release origins are recorded. A private implementation may continue without publishing, but it must not weaken or bypass that gate.
 
 ## Global acceptance rules
 

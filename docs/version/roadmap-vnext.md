@@ -1,6 +1,6 @@
 # Pho Code future-release roadmap
 
-This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3; the bounded public-beta portion of Phase F is promoted as active [V4 — Public Beta Foundation](./v4/README.md).
+This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3. The bounded public-beta portion of Phase F is promoted as [V4 — Public Beta Foundation](./v4/README.md) and is **Pending** (held 2026-08-20) until Apple Developer Program enrollment. Independent add-ons and a later numbered version (V5) may be promoted from the remaining phases without closing V4.
 
 V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](../archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
@@ -91,9 +91,9 @@ Add orchestration only after single-agent review and recovery are dependable:
 
 This phase must specify failure handling for partial worktree creation, child-process crashes, permission dialogs on background agents, application restart, and conflicting user edits. Worktree removal may use only a verified recoverable strategy; if Git itself requires irreversible cleanup, the operation must stop and explain the manual prerequisite rather than using `rm`.
 
-## Phase F: runtime isolation and public distribution — promoted as V4
+## Phase F: runtime isolation and public distribution — promoted as V4 (pending)
 
-The owner promoted a bounded Apple Silicon macOS public-beta slice on 2026-08-20 as [V4 — Public Beta Foundation](./v4/README.md). Implement from its [product contract](./v4/product.md) and [implementation plan](./v4/implementation-plan.md), not from this summary.
+The owner promoted a bounded Apple Silicon macOS public-beta slice on 2026-08-20 as [V4 — Public Beta Foundation](./v4/README.md). On 2026-08-20 V4 was marked **Pending** because the owner cannot enroll in the Apple Developer Program ([hold](./v4/logs/2026-08-20-hold-pending-apple-developer.md)). Implement from its [product contract](./v4/product.md) and [implementation plan](./v4/implementation-plan.md) only after that hold lifts, not from this summary. Do not move signing, notarization, public updates, or `HarnessRuntime` extraction into a later numbered version.
 
 The original phase direction is:
 
@@ -106,7 +106,7 @@ The original phase direction is:
 
 **Window-first boot** (create the Electron window before `ModelRuntime.create`) was pulled forward, accepted, and archived under [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi process extraction, signed/notarized arm64 distribution, public threat/privacy/support boundaries, migration-safe state, diagnostics, and beta updates are now owned by V4. Linux installers remain unpromoted later work.
 
-**Bounded Stop** of a stuck in-process run was pulled forward, accepted, and archived under [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). It does not extract Pi; crash isolation is now active V4 work.
+**Bounded Stop** of a stuck in-process run was pulled forward, accepted, and archived under [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). It does not extract Pi; crash isolation remains V4 work and is held with V4.
 
 Process separation is not called a sandbox unless its filesystem, network, credential, and child-process authority is actually constrained and tested.
 

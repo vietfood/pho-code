@@ -2,7 +2,7 @@
 
 ## Status
 
-Owner-approved V4 product boundary, promoted 2026-08-20. Implementation and public release are **not accepted** by this document. Acceptance requires every gate in [`implementation-plan.md`](./implementation-plan.md) and an immutable V4 review.
+Owner-approved V4 product boundary, promoted 2026-08-20. **Pending** as of 2026-08-20: the owner cannot enroll in the Apple Developer Program, so Developer ID signing, notarization, Gatekeeper-clean DMG, and Homebrew cask distribution cannot be verified. Remaining implementation is held. Public release is **not accepted**. Do not weaken the unsigned-fallback gate. Resume from [`implementation-plan.md`](./implementation-plan.md) when Developer ID authority exists. Hold record: [`logs/2026-08-20-hold-pending-apple-developer.md`](./logs/2026-08-20-hold-pending-apple-developer.md). Acceptance still requires every gate in the implementation plan and an immutable V4 review. Independent add-ons and a later numbered version may proceed without taking over this contract.
 
 ## Outcome
 

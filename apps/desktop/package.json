@@ -18,6 +18,7 @@
     "lint": "eslint .",
     "test:desktop": "electron-vite build && playwright test",
     "package:mac": "bun ../../scripts/package-mac.ts",
+    "package:mac:proof": "bun ../../scripts/package-mac.ts --proof",
     "test:packaged": "playwright test -c playwright.packaged.config.ts"
   },
   "dependencies": {

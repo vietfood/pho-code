@@ -5,6 +5,7 @@ dist
 out
 release
 apps/desktop/release
+apps/desktop/release-proof
 apps/desktop/.package-stage
 apps/desktop/resources
 .DS_Store

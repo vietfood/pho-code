@@ -16,7 +16,7 @@ packages/
 ├── application/     Use cases, metadata, catalog coordination
 ├── runtime/         Pi ownership and privileged feature adapters
 └── ui/              React presentation and interaction components
-scripts/             Packaging, staging, attribution checks
+scripts/             Packaging, staging, attribution checks; V4 release identity and macOS proof vs local package policy
 ```
 
 The enforced direction is:

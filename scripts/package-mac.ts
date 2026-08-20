@@ -11,6 +11,20 @@ import {
   writeThirdPartyNotices,
 } from "./stage-app-resources.ts";
 import {
+  PUBLIC_PRODUCT_NAME,
+  STAGED_APP_PACKAGE_NAME,
+} from "./release-identity.ts";
+import {
+  createMacElectronBuilderConfig,
+  electronBuilderMacArgs,
+  macOutputDir,
+  parseMacPackageFlavor,
+  proofBuildNumber,
+  requireProofSigningInputs,
+  type MacPackageFlavor,
+  type ProofSigningInputs,
+} from "./mac-packaging-config.ts";
+import {
   SANDBOX_RUNTIME_NESTED_DEPS,
   SANDBOX_RUNTIME_PACKAGE,
   SANDBOX_RUNTIME_VERSION,
@@ -146,9 +160,9 @@ function writeStagedAppManifest(packages: readonly ResolvedProductionPackage[]):
   const staged: PackageManifest = {
     // Must not reuse the workspace package name `pho-code`; electron-builder's bun
     // workspace detection otherwise overwrites the repository root package.json.
-    name: "pho-code-app",
+    name: STAGED_APP_PACKAGE_NAME,
     version: source.version ?? "0.0.0",
-    productName: source.productName ?? "Pho Code",
+    productName: source.productName ?? PUBLIC_PRODUCT_NAME,
     description: source.description ?? "Personal desktop harness for Pi",
     main: "out/main/main.js",
     private: true,
@@ -157,51 +171,18 @@ function writeStagedAppManifest(packages: readonly ResolvedProductionPackage[]):
   writeFileSync(path.join(STAGE_DIR, "package.json"), `${JSON.stringify(staged, null, 2)}\n`);
 }
 
-function writeStagedBuilderConfig(): string {
+function writeStagedBuilderConfig(flavor: MacPackageFlavor, signing?: ProofSigningInputs): string {
   const configPath = path.join(STAGE_DIR, "electron-builder.json");
-  const config = {
-    appId: "dev.vietfood.phocode",
-    productName: "Pho Code",
-    electronVersion: "43.4.0",
-    copyright: "Copyright 2026 Pho Code",
-    directories: {
-      output: path.join(DESKTOP_DIR, "release"),
-      buildResources: path.join(DESKTOP_DIR, "resources"),
+  const config = createMacElectronBuilderConfig(
+    flavor,
+    {
+      outputDir: macOutputDir(flavor),
+      buildResourcesDir: path.join(DESKTOP_DIR, "resources"),
     },
-    files: [
-      "**/*",
-      "!**/node_modules/@gotgenes/**",
-      "!**/node_modules/@pho-code/**",
-      "!**/node_modules/pi-cursor-sdk/**",
-      "!**/node_modules/@cursor/**",
-    ],
-    asar: true,
-    asarUnpack: [
-      "**/*.node",
-      "**/*.wasm",
-      "**/*.dylib",
-      "**/*.so",
-      "**/node_modules/@silvia-odwyer/photon-node/**/*",
-      "**/node_modules/@ff-labs/**/*",
-      "**/node_modules/ffi-rs/**/*",
-      "**/node_modules/@cursor/**/*",
-    ],
-    extraResources: [
-      { from: path.join(DESKTOP_RESOURCES_DIR, "features"), to: "features" },
-      { from: path.join(DESKTOP_RESOURCES_DIR, "THIRD_PARTY_NOTICES.txt"), to: "THIRD_PARTY_NOTICES.txt" },
-    ],
-    npmRebuild: false,
-    nodeGypRebuild: false,
-    mac: {
-      identity: null,
-      category: "public.app-category.developer-tools",
-      target: ["dir"],
-      darkModeSupport: true,
-      hardenedRuntime: false,
-      gatekeeperAssess: false,
-    },
-    artifactName: "${productName}-${version}-${arch}.${ext}",
-  };
+    flavor === "proof"
+      ? { signing, buildNumber: proofBuildNumber(process.env) }
+      : undefined,
+  );
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   return configPath;
 }
@@ -301,14 +282,12 @@ function assertWorkspaceManifestIntact(): void {
 }
 
 function main(): void {
+  const flavor = parseMacPackageFlavor(process.argv);
+  const signing = flavor === "proof" ? requireProofSigningInputs(process.env) : undefined;
   assertWorkspaceManifestIntact();
   prepareMacPackageStage();
-  const configPath = writeStagedBuilderConfig();
-  run(
-    "bunx",
-    ["electron-builder", "--projectDir", STAGE_DIR, "--config", configPath, "--mac", "dir", "--publish", "never"],
-    STAGE_DIR,
-  );
+  const configPath = writeStagedBuilderConfig(flavor, signing);
+  run("bunx", ["electron-builder", "--projectDir", STAGE_DIR, "--config", configPath, ...electronBuilderMacArgs(flavor)], STAGE_DIR);
   assertWorkspaceManifestIntact();
 }
 

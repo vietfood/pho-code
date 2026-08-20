@@ -14,7 +14,7 @@ Always free. I built this for myself. You can use it too.
 - Want to sell it? That's your problem, not mine.
 - Love it? Give it a star. Love you.
 
-No plan, no paywall, no "open core." The source is the product.
+No plan, no paywall, no "open core." The source is the product, licensed under MIT.
 
 This is for people who rice their editor, keep a dotfiles repo, and would rather change a file than wait on a plugin marketplace. If you want a signed store app, a generic MCP manager, or someone else's feature catalog, this is the wrong bowl.
 
@@ -64,7 +64,7 @@ bun run package:mac
 bun run test:packaged
 ```
 
-`package:mac` writes an unsigned `Pho Code.app` under `apps/desktop/release`. `test:packaged` smokes that artifact with isolated user data and a PATH that does not contain `pi`. Signing, notarization, and auto-update are not part of this product yet.
+`package:mac` writes an unsigned `Pho Code.app` under `apps/desktop/release`. `test:packaged` smokes that artifact with isolated user data and a PATH that does not contain `pi`. A signed hardened-runtime proof is `bun run package:mac:proof` and fails closed without Developer ID and notarization credentials; it is not a public V4 beta.
 
 ## Trust
 
