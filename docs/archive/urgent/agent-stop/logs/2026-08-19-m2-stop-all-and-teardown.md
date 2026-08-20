@@ -42,7 +42,7 @@ Owner accepted Milestone 1 and directed the track to Milestone 2 (2026-08-19).
 
 ## UI impact
 
-New conditional sidebar row `Stop all` (with count when > 1) while any run is live, including background chats stuck on a permission or ask-user card. No other chrome changes. Logged in [`../../../ui/logs/2026-08-19-change-sidebar-stop-all.md`](../../../ui/logs/2026-08-19-change-sidebar-stop-all.md).
+New conditional sidebar row `Stop all` (with count when > 1) while any run is live, including background chats stuck on a permission or ask-user card. No other chrome changes. Logged in [`change-sidebar-stop-all.md`](../../../../ui/logs/2026-08-19-change-sidebar-stop-all.md).
 
 ## Blockers and handoff
 

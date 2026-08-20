@@ -1,12 +1,13 @@
 # Pho Code: current state
 
-Last updated: 2026-08-18
+Last updated: 2026-08-20
 
 ## What exists today
 
 Pho Code is a personal macOS-first Electron application built directly on Pi SDK `0.84.1`. It currently has:
 
 - a sandboxed React renderer behind a narrow typed Electron bridge;
+- accepted window-first startup: metadata appearance, IPC, and welcome/recents load before a dynamically imported Pi runtime; starting/failed states are explicit and Pi-backed controls stay disabled until ready (desktop verified; packaged behavior and elapsed-time measurements were explicitly not verified at closure);
 - local workspace selection and recent-project navigation;
 - persistent Pi JSONL sessions with new, list, open, resume, and immediate sidebar state;
 - real provider/model discovery plus model and thinking-level selection;
@@ -53,10 +54,10 @@ Milestones 0 through 5 are accepted, and the personal v1 is complete. The owner 
 - **Integrated terminal add-on:** promoted and in implementation; no PTY or Terminal rail exists in source. Product, plan, and handoff live under [`features/terminal`](./features/terminal/README.md).
 - **Plan / Agent and ask-user add-on:** accepted 2026-08-18; workstream archived 2026-08-18. Agent default; Plan write-tool policy (not a sandbox); juicesharp-style ask-back card; session `todo` in Agent and Plan; Plan document + Execute with V3 capture; no baked juicesharp/`pi-tui`. Composer mode is the Bot/ListTree context button (not a plus, not a labeled chip); Stay/Refine buttons and composer `n/m` chip are not shipped. Todos stay on the transcript tool row and Plan rail. Living behavior is architecture. Product, plan, and review live under [`archive/features/plan-agent`](./archive/features/plan-agent/README.md). Closure: [`archive/features/plan-agent/logs/2026-08-18-workstream-closure.md`](./archive/features/plan-agent/logs/2026-08-18-workstream-closure.md).
 - **Agent-tool sandbox add-on:** accepted 2026-08-17; workstream archived 2026-08-18. Default on; fail-closed Seatbelt wrap for agent bash; healthy sandbox skips bash and in-policy `read`/`write`/`edit` asks; extra-workspace writes may still ask on `external_directory`; packaged macOS stages the pinned engine and bundled `rg`. Living behavior is architecture. Product, plan, and review live under [`archive/features/sandbox`](./archive/features/sandbox/README.md). Closure: [`archive/features/sandbox/logs/2026-08-18-workstream-closure.md`](./archive/features/sandbox/logs/2026-08-18-workstream-closure.md). Distinct from Phase F runtime extraction and from the urgent window-first track.
-- **Urgent queue:** opened 2026-08-16. Priority 1 is [agent stop](./urgent/agent-stop/README.md): Milestone 1 bounded Stop is **accepted 2026-08-19** ([review](./urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)) — Stop cancels a stuck run, permission card, or ask-user card within a 1 s deadline, publishes `cancelled`, and reopens a still-busy controller from Pi JSONL; this is not crash isolation. Milestone 2 (sidebar Stop-all over the existing `abortRun` loop, bounded controller dispose, Playwright `stopRunsAndClose` teardown) is in implementation with the automated gate green ([log](./urgent/agent-stop/logs/2026-08-19-m2-stop-all-and-teardown.md)); owner acceptance pending. Priority 2 is [window-first Pi core](./urgent/window-first-pi-core/README.md) (proposed; not in source): show the window before `ModelRuntime.create`; later crash isolation via `utilityProcess` is not a sandbox. See [`urgent/README.md`](./urgent/README.md).
+- **Urgent queue:** no active tracks. [Agent stop](./archive/urgent/agent-stop/README.md) is accepted and archived 2026-08-20: bounded Stop cancels a selected stuck run/dialog within a 1 s Pi-idle deadline, Stop-all covers working/attention rows across background chats, and controller/test teardown is bounded ([closure](./archive/urgent/agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md)). [Window-first Pi core](./archive/urgent/window-first-pi-core/README.md) is also accepted and archived: metadata chrome loads before dynamic Pi construction ([closure](./archive/urgent/window-first-pi-core/logs/2026-08-20-m1-acceptance-and-closure.md)). Its package assertion and five timing clocks were explicitly waived/deferred, so no packaged or latency claim is made. Pi still shares Electron main; process extraction is deferred to roadmap Phase F. See [`urgent/README.md`](./urgent/README.md).
 - **Conversation UI:** active independent track for transcript, composer, project/session chrome, and shared right-sidebar host behavior under [`ui`](./ui/README.md).
 
-Browser automation, broader shell-mutation recovery, session tree/compaction controls, multi-agent worktrees, public distribution, and remaining Pi-process isolation (if not accepted from the urgent track) remain unpromoted core research in the [`version` roadmap](./version/roadmap-vnext.md).
+Browser automation, broader shell-mutation recovery, session tree/compaction controls, multi-agent worktrees, public distribution, and Pi-process extraction remain unpromoted core research in the [`version` roadmap](./version/roadmap-vnext.md).
 
 ## Related records
 

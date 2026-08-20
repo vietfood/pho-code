@@ -1,5 +1,7 @@
 export { createApplicationService, untrustedSenderError } from "./bootstrap";
 export type { AppearanceHost, ApplicationHostVersions, ApplicationService } from "./bootstrap";
+export { createApplicationRuntimeHost } from "./runtime-host";
+export type { ApplicationRuntimeHost } from "./runtime-host";
 export {
   archiveSessionMetadata,
   createMemoryMetadataStore,

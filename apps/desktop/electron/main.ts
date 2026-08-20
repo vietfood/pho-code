@@ -5,7 +5,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, session, shell } from "electron";
 import { installApplicationMenu } from "./application-menu";
-import { createApplicationService, type ApplicationService } from "@pho-code/application";
+import {
+  createApplicationRuntimeHost,
+  createApplicationService,
+  type AppMetadata,
+  type ApplicationRuntimeHost,
+  type ApplicationService,
+} from "@pho-code/application";
 import {
   commandFail,
   commandOk,
@@ -23,20 +29,12 @@ import {
   type PasteImagesInput,
   type PickImagesInput,
   type PickImagesResult,
+  type PiRuntimeStatusSnapshot,
   type PrepareImageInput,
   type PreparedImageSummary,
 } from "@pho-code/protocol";
 import { decodePastedImageBase64 } from "./image-base64";
-import {
-  createDefaultFeatureManifest,
-  createNodeModuleResourceLocator,
-  createPackagedResourceLocator,
-  createPhoCodeRuntime,
-  resolveGitHubMcpServerPath,
-  resolveRipgrepPath,
-  type HarnessRuntime,
-  type ResourceLocator,
-} from "@pho-code/runtime";
+import type { HarnessRuntime } from "@pho-code/runtime";
 import { runBoundedShutdown } from "./bounded-shutdown";
 import { IPC_CHANNELS } from "./ipc";
 import { ingestImageBytes, ingestImageFile, ingestNativeImage } from "./image-ingest";
@@ -79,17 +77,6 @@ function registerPackagedNodeModulePath(): void {
   }
   const withInit = Module as typeof Module & { _initPaths?: () => void };
   withInit._initPaths?.();
-}
-
-function resolveDesktopResourceLocator(): ResourceLocator {
-  if (app.isPackaged) {
-    return createPackagedResourceLocator(process.resourcesPath);
-  }
-  const override = process.env.PHO_CODE_RESOURCES_DIR?.trim();
-  if (override) {
-    return createPackagedResourceLocator(path.resolve(override));
-  }
-  return createNodeModuleResourceLocator();
 }
 
 function applyUserDataOverride(): void {
@@ -157,7 +144,7 @@ function createWindow(): BrowserWindow {
     height: 780,
     minWidth: 640,
     minHeight: 520,
-    show: !testMode,
+    show: false,
     // macOS stays transparent-capable so frosted glass can toggle without recreating the window.
     transparent: isMac,
     backgroundColor: currentAppearance.glassEnabled && isMac ? "#00000000" : solidBackground,
@@ -233,6 +220,12 @@ function publishRuntimeEvent(event: unknown): void {
   }
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send(IPC_CHANNELS.event, event);
+  }
+}
+
+function publishPiRuntimeStatus(status: PiRuntimeStatusSnapshot): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(IPC_CHANNELS.piRuntimeStatus, status);
   }
 }
 
@@ -487,6 +480,88 @@ function configureSession(): void {
   );
 }
 
+async function waitForTestRuntimeGate(): Promise<boolean> {
+  const gate = testMode ? process.env.PHO_CODE_TEST_RUNTIME_GATE?.trim() : undefined;
+  if (!gate) {
+    return true;
+  }
+  if (!path.isAbsolute(gate)) {
+    throw new Error("PHO_CODE_TEST_RUNTIME_GATE must be absolute.");
+  }
+  while (!existsSync(gate)) {
+    if (shutdownStarted) {
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return !shutdownStarted;
+}
+
+async function startPiRuntime(
+  host: ApplicationRuntimeHost,
+  metadata: AppMetadata,
+  agentDir: string,
+  agentDirOverride: string | undefined,
+  resourcesRoot: string,
+): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  try {
+    if (!(await waitForTestRuntimeGate())) {
+      return;
+    }
+    if (testMode && process.env.PHO_CODE_TEST_RUNTIME_FAILURE === "1") {
+      throw new Error("Injected Pi runtime startup failure.");
+    }
+
+    const runtimeModule = await import("@pho-code/runtime");
+    const resourcesOverride = process.env.PHO_CODE_RESOURCES_DIR?.trim();
+    const locator = app.isPackaged
+      ? runtimeModule.createPackagedResourceLocator(process.resourcesPath)
+      : resourcesOverride
+        ? runtimeModule.createPackagedResourceLocator(path.resolve(resourcesOverride))
+        : runtimeModule.createNodeModuleResourceLocator();
+    const githubMcpServerPath = runtimeModule.resolveGitHubMcpServerPath(resourcesRoot);
+    const rgPath = runtimeModule.resolveRipgrepPath({ resourcesRoot });
+    const created = await runtimeModule.createPhoCodeRuntime({
+      agentDir,
+      appliesToSharedPiAgentDir: Boolean(agentDirOverride),
+      resourceLocator: locator,
+      applicationDataDir: app.getPath("userData"),
+      enabledSkillSources: metadata.enabledSkillSources,
+      githubMcpEnabled: metadata.githubMcpEnabled,
+      ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
+      ...(githubMcpServerPath ? { githubMcpServerPath } : {}),
+      ...(rgPath ? { rgPath } : {}),
+      ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
+      deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
+      testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
+      testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",
+      openValidatedAuthUrl,
+      ...(process.env.PHO_CODE_TEST_FEATURES === "1"
+        ? {
+            featureManifest: runtimeModule.createDefaultFeatureManifest(locator, {
+              agentDir,
+              applicationDataDir: app.getPath("userData"),
+              ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
+            }),
+          }
+        : {}),
+    });
+    if (!(await host.attach(created))) {
+      return;
+    }
+    runtime = created;
+
+    const injectedWorkspace = process.env.PHO_CODE_TEST_WORKSPACE?.trim();
+    if (testMode && injectedWorkspace) {
+      await application?.openPickedWorkspace(path.resolve(injectedWorkspace));
+      publishPiRuntimeStatus(host.getStatus());
+    }
+  } catch {
+    host.fail();
+  }
+}
+
 async function finishQuit(): Promise<void> {
   if (shutdownStarted) {
     return;
@@ -514,47 +589,21 @@ async function finishQuit(): Promise<void> {
 app.setName(APP_NAME);
 applyUserDataOverride();
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   installApplicationMenu();
   configureSession();
   registerPackagedNodeModulePath();
   const agentDirOverride = process.env.PHO_CODE_AGENT_DIR?.trim();
   const agentDir = path.resolve(agentDirOverride || path.join(app.getPath("userData"), "pi-agent"));
   process.env.PI_CODING_AGENT_DIR = agentDir;
-  const locator = resolveDesktopResourceLocator();
   const metadataStore = createFileMetadataStore(path.join(app.getPath("userData"), "app-metadata.json"));
   const metadata = metadataStore.load();
   const resourcesRoot = app.isPackaged
     ? process.resourcesPath
     : path.resolve(process.env.PHO_CODE_RESOURCES_DIR?.trim() || path.join(__dirname, "..", "..", "resources"));
-  const githubMcpServerPath = resolveGitHubMcpServerPath(resourcesRoot);
-  const rgPath = resolveRipgrepPath({ resourcesRoot });
-  runtime = await createPhoCodeRuntime({
-    agentDir,
-    appliesToSharedPiAgentDir: Boolean(agentDirOverride),
-    resourceLocator: locator,
-    applicationDataDir: app.getPath("userData"),
-    githubMcpEnabled: metadata.githubMcpEnabled,
-    ...(metadata.githubMcpAccountLogin ? { githubMcpAccountLogin: metadata.githubMcpAccountLogin } : {}),
-    ...(githubMcpServerPath ? { githubMcpServerPath } : {}),
-    ...(rgPath ? { rgPath } : {}),
-    ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
-    deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
-    testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
-    testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",
-    openValidatedAuthUrl,
-    ...(process.env.PHO_CODE_TEST_FEATURES === "1"
-      ? {
-          featureManifest: createDefaultFeatureManifest(locator, {
-            agentDir,
-            applicationDataDir: app.getPath("userData"),
-            ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
-          }),
-        }
-      : {}),
-  });
+  const runtimeHost = createApplicationRuntimeHost();
   application = createApplicationService({
-    runtime,
+    runtime: runtimeHost,
     versions: {
       appVersion: app.getVersion(),
       electron: process.versions.electron ?? PINNED_ELECTRON.version,
@@ -563,15 +612,11 @@ app.whenReady().then(async () => {
     metadataStore,
     appearanceHost: { applyAppearance },
   });
-  runtime.subscribe(publishRuntimeEvent);
+  application.subscribe(publishRuntimeEvent);
+  runtimeHost.subscribeStatus(publishPiRuntimeStatus);
   registerIpc();
-
-  const injectedWorkspace = process.env.PHO_CODE_TEST_WORKSPACE?.trim();
-  if (testMode && injectedWorkspace) {
-    await application.openPickedWorkspace(path.resolve(injectedWorkspace));
-  }
-
   createWindow();
+  void startPiRuntime(runtimeHost, metadata, agentDir, agentDirOverride, resourcesRoot);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

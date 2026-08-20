@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Proposed bounded Stop remains under [`../urgent/agent-stop/`](../urgent/agent-stop/README.md). Proposed window-first boot and Pi `utilityProcess` remain under [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md).
+Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Bounded Stop, Stop-all, and bounded teardown are accepted; their evidence lives in [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). Window-first startup is accepted; its immutable contract and qualified evidence live in [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi process extraction remains roadmap Phase F.
 
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
@@ -216,18 +216,19 @@ Use Pi APIs instead of reaching into internal fields unless the pinned SDK expos
 
 ## Runtime lifecycle
 
-The lifecycle below is implemented in the accepted v1. Main constructs `createPhoCodeRuntime` after `app.whenReady()`, stores application metadata at `userData/app-metadata.json`, and uses `userData/pi-agent` unless `PHO_CODE_AGENT_DIR` is set.
+The lifecycle below reflects accepted window-first startup. Main stores application metadata at `userData/app-metadata.json` and uses `userData/pi-agent` unless `PHO_CODE_AGENT_DIR` is set. Desktop behavior is verified; packaged window-first behavior and elapsed-time measurements were explicitly not verified at closure.
 
 ### Bootstrap
 
-1. Electron becomes ready and establishes application data/resource paths.
-2. Main constructs the metadata store and `HarnessRuntime`. The default runtime agent directory is `userData/pi-agent`; `PHO_CODE_AGENT_DIR` is an explicit external/shared override.
-3. Runtime constructs the pinned Pi model/runtime services.
-4. Application loads recent workspace metadata without opening every Pi session.
-5. Renderer requests a bootstrap snapshot.
-6. Runtime refreshes remote model catalogs only when explicitly requested or when the chosen SDK policy says it is safe; startup must work from cached catalogs.
+1. Electron becomes ready, establishes application data/resource paths, loads metadata, and applies appearance.
+2. Main creates the stable `ApplicationRuntimeHost` plus `ApplicationService`, subscribes to events/status, and registers IPC.
+3. Main creates the `BrowserWindow` and requests renderer load. Renderer bootstrap can return recents and metadata-safe settings with Pi status `starting`.
+4. On the next main-process turn, a caught background task dynamically imports `@pho-code/runtime` and constructs the pinned Pi model/runtime services. The eager main entry does not import the broad runtime graph.
+5. Main attaches only a live runtime to the host. A separate status wakeup makes the renderer re-query authoritative bootstrap; Pi-backed provider accounts and catalogs load only after ready.
+6. Boot failure becomes a fixed redacted `failed` state without deleting sessions. If quit wins, a late runtime is disposed and never attached.
+7. Runtime refreshes remote model catalogs only when explicitly requested or when the chosen SDK policy says it is safe; startup must work from cached catalogs.
 
-Proposed, not accepted: [`../urgent/agent-stop/`](../urgent/agent-stop/README.md) would bound `abortRun` so Stop does not wait forever on `waitForIdle`. [`../urgent/window-first-pi-core/`](../urgent/window-first-pi-core/README.md) would create the window before `createPhoCodeRuntime` and may later move Pi into `utilityProcess`. Until those tracks are accepted, the lifecycle above remains the code.
+[`agent-stop`](../archive/urgent/agent-stop/README.md) bounds `abortRun` and controller disposal, and provides Stop-all for background runs. Archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) owns the accepted same-process startup reorder above. Pi still shares Electron main; moving the complete `HarnessRuntime` into another process is deferred to roadmap Phase F.
 
 ### Open workspace
 

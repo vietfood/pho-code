@@ -70,19 +70,32 @@ describe("GitHub MCP runtime", () => {
     await github.dispose();
   });
 
-  test("reports PAT stored while disabled when a token is already stored", async () => {
+  test("does not read a stored PAT until enabled", async () => {
+    const memory = createMemorySecretStore({
+      [`${GITHUB_MCP_SECRET_SERVICE}\0${GITHUB_MCP_SECRET_ACCOUNT}`]: CANARY,
+    });
+    let reads = 0;
     const github = createGitHubMcpRuntime({
-      secretStore: createMemorySecretStore({
-        [`${GITHUB_MCP_SECRET_SERVICE}\0${GITHUB_MCP_SECRET_ACCOUNT}`]: CANARY,
-      }),
+      secretStore: {
+        ...memory,
+        async get(service, account) {
+          reads += 1;
+          return memory.get(service, account);
+        },
+      },
       launch: () => launchFake(),
     });
     const snapshot = await github.startIfEnabled();
     expect(snapshot.enabled).toBe(false);
     expect(snapshot.status).toBe("disabled");
-    expect(snapshot.account.patConfigured).toBe(true);
+    expect(snapshot.account.patConfigured).toBe(false);
+    expect(reads).toBe(0);
     expect(github.pid()).toBeUndefined();
     expect(JSON.stringify(snapshot)).not.toContain(CANARY);
+
+    const enabled = await github.setEnabled(true);
+    expect(reads).toBe(1);
+    expect(enabled.status).toBe("ready");
     await github.dispose();
   });
 

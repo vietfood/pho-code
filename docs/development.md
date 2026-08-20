@@ -42,7 +42,7 @@ Do not run install/build commands inside a reference submodule as if that built 
 | `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer (mode icon menu for Plan/Agent + Images…, model, thinking; meta strip folder + usage meter), tool rows, persistent right sidebar (Changes review + Context prompt + Plan document), host dialogs including ask-user questionnaire, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions, Sandbox) with deferred API-key import, GitHub PAT, and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid/SVG, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, staged `rg` PATH prepend for GUI and packaged launches, agent-dir override, test seams |
 | `apps/desktop/src` | Shell state and conversation React composition |
-| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/session-lifecycle/host-ui/ask-user/permission/settings/credentials/change-review/sandbox specs, packaged artifact lane, unit tests, fail-closed trash helper |
+| `apps/desktop/tests` | Playwright smoke/security/shutdown/chat/abort/session-lifecycle/host-ui/ask-user/permission/settings/credentials/change-review/sandbox specs, packaged artifact lane, unit tests, fail-closed trash helper |
 
 The production build writes `apps/desktop/out/main`, `out/preload`, and `out/renderer`. These are ignored build artifacts, not distributable installers.
 
@@ -70,7 +70,7 @@ Run commands from the repository root:
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun test` | Run non-GUI unit and integration tests. |
-| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
+| `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, bounded Stop/Stop-all, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
 | `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, and notices, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
 | `bun run stage:github-mcp` | Fetch the pinned GitHub MCP binary into gitignored `apps/desktop/resources` for `bun run dev`. `package:mac` stages the same artifact. The running app never downloads it. |
 | `bun run stage:ripgrep` | Fetch the pinned ripgrep binary into gitignored `apps/desktop/resources` for sandbox init. `package:mac` stages the same artifact. The running app never downloads it. |
@@ -179,7 +179,7 @@ Check in this order:
 1. Does the root command exist and use the pinned package manager?
 2. Did shared packages build before main/preload imported them?
 3. Does Electron's embedded Node satisfy Pi's engine?
-4. Is the Pi SDK imported only from main/runtime code?
+4. Does the eager Electron main entry avoid broad `@pho-code/runtime` value imports, with Pi present only in the dynamic runtime chunk?
 5. Is the preload path absolute and present in the built output?
 6. Are `contextIsolation`, `sandbox`, and `nodeIntegration` configured correctly?
 7. Is the renderer loading the expected local dev URL or packaged file?
@@ -187,6 +187,10 @@ Check in this order:
 9. Did resource loading produce diagnostics?
 10. Did a native dependency require an Electron ABI rebuild?
 11. If main fails with `The requested module 'electron' does not provide an export named 'BrowserWindow'`, is `ELECTRON_RUN_AS_NODE` set? Unset it (`env -u ELECTRON_RUN_AS_NODE bun run dev`). Playwright already deletes it in `desktopLaunchEnv`.
+
+Window-first bootstrap is authoritative through `BootstrapState.piRuntime`: `starting`, `ready`, or `failed`. The separate status subscription is only a wakeup; diagnose a missed transition by querying bootstrap, not by replaying it through the sequenced runtime event reducer. A fixed `runtime_unavailable` response while starting/failed is expected, not an IPC outage.
+
+Desktop tests reserve `PHO_CODE_TEST_RUNTIME_GATE` for an absolute file gate and `PHO_CODE_TEST_RUNTIME_FAILURE=1` for the redacted failure path. These seams are accepted only with `PHO_CODE_TEST_MODE=background`; do not use sleeps or the owner's Pi directory for startup-order tests.
 
 Log paths and versions, but do not log API keys, auth files, MCP tokens, complete environment dumps, or sensitive tool payloads.
 
@@ -211,6 +215,7 @@ Settings opens as a floating dialog over the conversation, with compact **Appear
 - Treat deltas as display updates and final messages as authority.
 - Distinguish prompt rejection from failure after admission.
 - Confirm abort settles the UI and allows a later prompt.
+- Stop-all loops the existing `abortRun` over every working/attention activity row; use `stopRunsAndClose` in a desktop spec that deliberately leaves live work before teardown.
 - On resume, compare the projected transcript with Pi's current session messages.
 - On session replacement, re-subscribe and re-bind extensions.
 - Flush durable settings/catalog writes before asserting them in tests.

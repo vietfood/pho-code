@@ -3,7 +3,7 @@
 Status: accepted 2026-08-19; see [`2026-08-19-m1-acceptance-review.md`](./2026-08-19-m1-acceptance-review.md)  
 Owner: urgent/agent-stop  
 Plan: [`../implementation-plan.md`](../implementation-plan.md) Milestone 1  
-Related logs: [`2026-08-16-research-handoff.md`](./2026-08-16-research-handoff.md), [`2026-08-19-m1-acceptance-review.md`](./2026-08-19-m1-acceptance-review.md), [`../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md)
+Related logs: [`2026-08-16-research-handoff.md`](./2026-08-16-research-handoff.md), [`2026-08-19-m1-acceptance-review.md`](./2026-08-19-m1-acceptance-review.md), [`UI bug`](../../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`window-first cross-link`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md)
 
 ## Intent
 

@@ -293,8 +293,6 @@ export function createGitHubMcpRuntime(options: GitHubMcpRuntimeOptions): GitHub
     async startIfEnabled() {
       if (enabled) {
         await start().catch(() => undefined);
-      } else {
-        await token();
       }
       return snapshot();
     },

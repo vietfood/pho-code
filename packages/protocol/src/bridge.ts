@@ -1,4 +1,4 @@
-import type { BootstrapState } from "./bootstrap";
+import type { BootstrapState, PiRuntimeStatusSnapshot } from "./bootstrap";
 import type { PasteImagesInput, PickImagesInput, PickImagesResult, RemovePreparedImageInput } from "./attachments";
 import type {
   AbortRunInput,
@@ -145,4 +145,5 @@ export interface DesktopBridge {
   prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
   applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
+  subscribePiRuntimeStatus(listener: (status: PiRuntimeStatusSnapshot) => void): Unsubscribe;
 }

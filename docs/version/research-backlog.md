@@ -43,4 +43,4 @@ Driving the owner's existing browser profile, magic hidden keywords, marketplace
 
 ## Native-code rule
 
-Do not introduce a general Rust rewrite to mirror Oh My Pi. Pho Code embeds Pi's TypeScript SDK and uses native dependencies only for a measured boundary that JavaScript and the pinned SDK cannot carry. Electron remains the accepted shell until a separate architecture decision changes it. A Deno wrap of Pi is deferred until after a Node `utilityProcess` child exists; see [`urgent/window-first-pi-core`](../urgent/window-first-pi-core/product.md).
+Do not introduce a general Rust rewrite to mirror Oh My Pi. Pho Code embeds Pi's TypeScript SDK and uses native dependencies only for a measured boundary that JavaScript and the pinned SDK cannot carry. Electron remains the accepted shell until a separate architecture decision changes it. A Deno wrap of Pi is deferred until after a Node `utilityProcess` child exists; see archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/product.md) and roadmap Phase F.

@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md`](../../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md)
+Related logs: [`window-first research`](../../../urgent/window-first-pi-core/logs/2026-08-16-research-handoff.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md)
 
 ## Intent
 
@@ -12,7 +12,7 @@ Cross-link the new urgent track so agents do not fold OS boxing of agent `bash` 
 ## Contracts and files
 
 - Sandbox product: [`../product.md`](../product.md) — agent `bash` Seatbelt; not Phase F; not renderer sandbox
-- Urgent product: [`../../../urgent/window-first-pi-core/product.md`](../../../../urgent/window-first-pi-core/product.md) — window-first boot; later crash isolation of the Pi Node process
+- Archived product: [`window-first-pi-core`](../../../urgent/window-first-pi-core/product.md) — accepted window-first boot; process extraction deferred to Phase F
 
 ## Changes and decisions
 

@@ -55,6 +55,7 @@ import {
   type PrepareRemoveProjectResult,
   type PrepareRemoveSessionInput,
   type PrepareRemoveSessionResult,
+  type PiRuntimeStatusSnapshot,
   type PromptAdmission,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
@@ -156,6 +157,7 @@ import {
   projectCatalogEntry,
   selectedSessionKey,
 } from "./session-catalog";
+import type { ApplicationRuntimeHost } from "./runtime-host";
 
 export interface ApplicationHostVersions {
   appVersion: string;
@@ -357,18 +359,20 @@ export function createApplicationService(input: {
     return method;
   }
 
-  return {
+  const service: ApplicationService = {
     getBootstrapState() {
       assertActive();
       const capabilities = input.runtime.getCapabilities();
+      const piRuntime = runtimeStatus(input.runtime, capabilities.piRuntime);
       const state: BootstrapState = {
         protocolVersion: PROTOCOL_VERSION,
         appName: "Pho Code",
         appVersion: input.versions.appVersion,
-        milestone: capabilities.piRuntime ? "vertical-slice" : "bootstrap",
+        milestone: piRuntime.status === "ready" ? "vertical-slice" : "bootstrap",
         capabilities: {
-          piRuntime: capabilities.piRuntime,
+          piRuntime: piRuntime.status === "ready",
         },
+        piRuntime,
         versions: {
           electron: input.versions.electron,
           embeddedNode: input.versions.embeddedNode,
@@ -1178,13 +1182,27 @@ export function createApplicationService(input: {
       return shutdownAttempt;
     },
   };
+  return withRuntimeReadiness(service, input.runtime);
 
   function settingsSnapshot(): HarnessSettingsSnapshot {
+    const githubMcp = input.runtime.getGitHubMcpSettings();
+    const runtimeHost = applicationRuntimeHost(input.runtime);
     return {
       appearance: appearanceFromMetadata(metadata),
       permission: decoratePermissionSettings(input.runtime.getPermissionSettings()),
       skills: input.runtime.getSkillSettings(),
-      githubMcp: input.runtime.getGitHubMcpSettings(),
+      githubMcp:
+        runtimeHost && runtimeHost.getStatus().status !== "ready"
+          ? {
+              ...githubMcp,
+              enabled: metadata.githubMcpEnabled,
+              status: metadata.githubMcpEnabled ? "not_started" : "disabled",
+              account: {
+                ...githubMcp.account,
+                ...(metadata.githubMcpAccountLogin ? { login: metadata.githubMcpAccountLogin } : {}),
+              },
+            }
+          : githubMcp,
       sandbox: input.runtime.getSandboxSettings(),
     };
   }
@@ -1358,6 +1376,66 @@ function requireNonEmptyString(value: unknown, field: string, operation: string)
     failCommand(operation, `${field} is required.`);
   }
   return value.trim();
+}
+
+function runtimeStatus(runtime: HarnessRuntime, ready: boolean): PiRuntimeStatusSnapshot {
+  return applicationRuntimeHost(runtime)?.getStatus() ?? (ready ? { status: "ready" } : { status: "starting" });
+}
+
+const STARTUP_SAFE_APPLICATION_METHODS = new Set<keyof ApplicationService>([
+  "getBootstrapState",
+  "reorderRecentWorkspaces",
+  "getSettings",
+  "updateAppearanceSettings",
+  "subscribe",
+  "shutdown",
+]);
+
+function applicationRuntimeHost(runtime: HarnessRuntime): ApplicationRuntimeHost | undefined {
+  const host = runtime as Partial<ApplicationRuntimeHost>;
+  return typeof host.getStatus === "function" ? (runtime as ApplicationRuntimeHost) : undefined;
+}
+
+function withRuntimeReadiness(service: ApplicationService, runtime: HarnessRuntime): ApplicationService {
+  const host = applicationRuntimeHost(runtime);
+  if (!host) {
+    return service;
+  }
+  const guarded = new Map<PropertyKey, (...args: unknown[]) => unknown>();
+  return new Proxy(service, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (
+        typeof property !== "string" ||
+        typeof value !== "function" ||
+        STARTUP_SAFE_APPLICATION_METHODS.has(property as keyof ApplicationService)
+      ) {
+        return value;
+      }
+      let method = guarded.get(property);
+      if (!method) {
+        method = (...args: unknown[]) => {
+          try {
+            target.getBootstrapState();
+          } catch (error) {
+            return Promise.reject(error);
+          }
+          if (host.getStatus().status !== "ready") {
+            return Promise.reject(
+              createHarnessError({
+                code: HARNESS_ERROR_CODES.runtimeUnavailable,
+                message: "The Pi runtime is not connected.",
+                operation: property,
+              }),
+            );
+          }
+          return Reflect.apply(value, target, args);
+        };
+        guarded.set(property, method);
+      }
+      return method;
+    },
+  });
 }
 
 function optionalCursor(

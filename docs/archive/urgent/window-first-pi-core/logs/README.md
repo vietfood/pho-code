@@ -6,4 +6,4 @@ Dated records for the [`window-first Pi core`](../product.md) urgent track. The 
 YYYY-MM-DD-<milestone-or-kind>-<short-slug>.md
 ```
 
-When this track touches Electron main, protocol, accepted architecture, or the right-sidebar host, scan and cross-link `../../../version/*/logs/`, `../../../features/*/logs/`, and `../../../ui/logs/`.
+When this track touches Electron main, protocol, accepted architecture, or the right-sidebar host, scan and cross-link `../../../../version/*/logs/`, `../../../../features/*/logs/`, and `../../../../ui/logs/`.

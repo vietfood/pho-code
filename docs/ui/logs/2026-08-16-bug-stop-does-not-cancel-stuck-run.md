@@ -1,10 +1,13 @@
 # Stop does not cancel a stuck run
 
-Status: fixed 2026-08-19  
+Status: fixed 2026-08-19
+
 Surface: composer Stop / live run  
-Owner: [`urgent/agent-stop`](../../urgent/agent-stop/README.md)  
-Owning plan: [`../../urgent/agent-stop/implementation-plan.md`](../../urgent/agent-stop/implementation-plan.md)  
-Related logs: [`../../urgent/agent-stop/logs/2026-08-16-research-handoff.md`](../../urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md`](../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md), [`../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md`](../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)
+Owner: archived [`agent-stop`](../../archive/urgent/agent-stop/README.md)
+
+Owning plan: [`agent-stop implementation plan`](../../archive/urgent/agent-stop/implementation-plan.md)
+
+Related logs: [`research`](../../archive/urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`Milestone 1`](../../archive/urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md), [`Milestone 1 acceptance`](../../archive/urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md), [`closure`](../../archive/urgent/agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md)
 
 ## Expected
 
@@ -14,7 +17,7 @@ While a run is live, Stop cancels that run. Permission and ask-user cards for th
 
 Stop calls `abortRun`, which awaits Pi `session.abort()` (`waitForIdle`) and then `promptDone`. A stuck tool, ignored abort, or pending host dialog can leave the IPC outstanding. `onStop` also sets global `busy`. Desktop specs never click Stop; they use `ABORT_ME` as a long stream that is allowed to finish.
 
-If Pi busy-loops or crashes in Electron main, the window is stuck or gone. That is not this bug; see [`urgent/window-first-pi-core`](../../urgent/window-first-pi-core/README.md) Milestone 3.
+If Pi busy-loops or crashes in Electron main, the window is stuck or gone. That is not this bug; process extraction was deferred from archived [`window-first-pi-core`](../../archive/urgent/window-first-pi-core/README.md) to roadmap Phase F.
 
 ## Reproduction / evidence
 
@@ -40,4 +43,4 @@ Do not treat “Stop exists in the composer” as “Stop cancels stuck work.”
 
 ## Fix or handoff
 
-Fixed by Milestone 1, accepted 2026-08-19 ([review](../../urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)): bounded `abortRun` (1 s idle deadline), `cancelPending` on Stop, `abortBash` when running, early `cancelled` publish, controller reopen from Pi JSONL, and `onStop` without the global `busy` flag. Evidence is in [`../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md`](../../urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md): runtime integration tests plus desktop Stop-click specs (Stop on `ABORT_ME` returns Send before `END_ABORT_STREAM`; Stop on a visible permission card dismisses it and returns Send; sidebar New session stays enabled). Remaining known limit: a dead or busy-looping main-process Pi still freezes Stop — owned by window-first Milestone 3, not this bug.
+Fixed by Milestone 1, accepted 2026-08-19 ([review](../../archive/urgent/agent-stop/logs/2026-08-19-m1-acceptance-review.md)): bounded `abortRun` (1 s idle deadline), `cancelPending` on Stop, `abortBash` when running, early `cancelled` publish, controller reopen from Pi JSONL, and `onStop` without the global `busy` flag. Evidence is in the [Milestone 1 log](../../archive/urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md): runtime integration tests plus desktop Stop-click specs (Stop on `ABORT_ME` returns Send before `END_ABORT_STREAM`; Stop on a visible permission card dismisses it and returns Send; sidebar New session stays enabled). Remaining known limit: a dead or busy-looping main-process Pi still freezes Stop — owned by window-first Milestone 3, not this bug.

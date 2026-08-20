@@ -54,7 +54,7 @@ When Pi replaces the active session inside one controller:
 4. publish an authoritative snapshot;
 5. dispose resources whose ownership ended.
 
-Application shutdown stops admission, aborts or settles active work according to policy, disposes all controllers, then shared services, under one bounded deadline. `abortRun` is bounded (accepted 2026-08-19, [`../urgent/agent-stop/`](../urgent/agent-stop/README.md)): it cancels pending host dialogs, signals Pi abort (`abortBash` when running, `abortRetry`, `abortCompaction`, then `abort()`), races idle against a 1 s deadline, publishes `cancelled` without awaiting `promptDone` on the IPC path, and recovers a still-busy session by reopening its controller from Pi JSONL.
+Application shutdown stops admission, aborts or settles active work according to policy, disposes all controllers, then shared services, under one bounded deadline. `abortRun` is bounded (accepted 2026-08-19; archived [`agent-stop`](../archive/urgent/agent-stop/README.md)): it cancels pending host dialogs, signals Pi abort (`abortBash` when running, `abortRetry`, `abortCompaction`, then `abort()`), races idle against a 1 s deadline, publishes `cancelled` without awaiting `promptDone` on the IPC path, and recovers a still-busy session by reopening its controller from Pi JSONL. Controller disposal uses the same bound, and the UI can loop `abortRun` over all live activity rows through Stop-all.
 
 ## Sources of truth
 

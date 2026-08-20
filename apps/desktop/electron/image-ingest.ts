@@ -9,7 +9,7 @@ import {
   MAX_SOURCE_IMAGE_BYTES,
   type PrepareImageInput,
 } from "@pho-code/protocol";
-import { sniffImageMime } from "@pho-code/runtime";
+import { sniffImageMime } from "@pho-code/runtime/image-bytes";
 
 export async function ingestImageFile(filePath: string, operation = "pickImages"): Promise<PrepareImageInput> {
   const name = path.basename(filePath);

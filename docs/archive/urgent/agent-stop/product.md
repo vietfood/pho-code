@@ -2,21 +2,21 @@
 
 ## Status
 
-Proposed urgent track, queued 2026-08-16. This is **not** accepted architecture, **not** a numbered version, **not** an add-on, and **not** Phase F process extraction.
+Accepted and archived urgent track, closed 2026-08-20. This is **not** a numbered version, **not** an add-on, and **not** Phase F process extraction. Its accepted behavior is current architecture; its immutable evidence ends with the [closure review](./logs/2026-08-20-m2-acceptance-and-closure.md).
 
-Personal v1–v3 remain accepted. A Stop button and `abortRun` already exist; they are cooperative and can hang. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status stays **Proposed** until the owner promotes a milestone; then **In implementation** until that milestone’s gate passes.
+Personal v1–v3 remain accepted. The implementation contract and completed gates are in [`implementation-plan.md`](./implementation-plan.md).
 
 ## Outcome
 
 The owner can press Stop and get the chat back. The current run cancels within a **bounded deadline** even when the agent is waiting on a permission card, ask-user questionnaire, bash child, retry, or a slow model. Send becomes available again. Background chats can be stopped the same way.
 
-If Pi is in a busy-loop or has already crashed inside Electron main, Stop cannot help. That remaining failure is crash isolation on [`window-first-pi-core`](../window-first-pi-core/product.md) Milestone 3.
+If Pi is in a busy-loop or has already crashed inside Electron main, Stop cannot help. Archived [`window-first-pi-core`](../window-first-pi-core/product.md) deferred that crash-isolation problem to roadmap Phase F.
 
 ## Why this is urgent, not a feature
 
 Stop is already a v1 conversation control. The defect is that it **waits for Pi to become idle**. During owner testing a stuck run (permission dock, hung tool, long stream) can ignore Stop, keep `busy` true, and make Playwright teardown wait on the same path. That blocks a trustworthy daily driver and blocks verifying other work.
 
-It does not belong under [`features/`](../../features/README.md): it is a safety fix to an existing command, not a capability that can ship or fail independently of the runtime abort path. It does not belong under [`version/`](../../version/README.md) as v4. It belongs in [`urgent/`](../README.md) until Stop is bounded.
+It did not belong under [`features/`](../../../features/README.md): it is a safety fix to an existing command, not a capability that can ship or fail independently of the runtime abort path. It did not belong under [`version/`](../../../version/README.md) as v4. It stayed in [`urgent/`](../../../urgent/README.md) until accepted, then moved here with its evidence.
 
 ## Isolation glossary
 
@@ -24,16 +24,16 @@ Do not use “isolation” or “sandbox” without naming which boundary. Copie
 
 | Kind | What it stops | Pho Code today | This track |
 | --- | --- | --- | --- |
-| Cooperative abort | A run that still observes `AbortSignal` / `session.abort()` | Partial. Stop exists; IPC waits for idle | Milestone 1 |
-| Crash / process isolation | A hung or crashed Pi taking down the window | **Not done.** Pi runs inside Electron main | Out of scope here. [`window-first-pi-core`](../window-first-pi-core/product.md) Milestone 3 |
-| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Accepted.** [`archive/features/sandbox`](../../archive/features/sandbox/README.md) | Out of scope |
+| Cooperative abort | A run that still observes `AbortSignal` / `session.abort()` | **Accepted.** Bounded Stop and Stop-all | Milestones 1–2 |
+| Crash / process isolation | A hung or crashed Pi taking down the window | **Not done.** Pi runs inside Electron main | Out of scope here. Deferred from archived [`window-first-pi-core`](../window-first-pi-core/product.md) to roadmap Phase F |
+| Permission isolation | Agent `bash` / file tools acting outside an OS policy | **Accepted.** [`sandbox`](../../features/sandbox/README.md) | Out of scope |
 | Renderer isolation | The chat page reading disk or seeing tokens | **Done** | Unchanged |
 
-## What exists today
+## Original defect before Milestone 1
 
-Composer Stop is visible while `run.status` is `admitted` or `streaming`. The renderer calls `abortRun({ sessionId, workspaceId, runId })`.
+Composer Stop was visible while `run.status` was `admitted` or `streaming`. The renderer called `abortRun({ sessionId, workspaceId, runId })`.
 
-Runtime `abortRun` in `packages/runtime/src/pi-runtime.ts`:
+Runtime `abortRun` originally:
 
 1. sets `abortRequested`;
 2. `session.clearQueue()`;
@@ -42,17 +42,17 @@ Runtime `abortRun` in `packages/runtime/src/pi-runtime.ts`:
 
 Pinned Pi `0.84.1` `AgentSession.abort()` is `abortRetry()`, `agent.abort()`, then **`await waitForIdle()`**. It does **not** call `abortBash()`.
 
-Host dialogs listen to Pi’s abort signal, but `abortRun` does not call `extensionHost.cancelPending()`. Only session dispose / rebind does. Renderer `onStop` uses `runCommand()` without `{ busy: false }`, so global `busy` stays true until idle.
+Host dialogs listened to Pi’s abort signal, but `abortRun` did not call `extensionHost.cancelPending()`. Renderer `onStop` used `runCommand()` without `{ busy: false }`, so global `busy` stayed true until idle.
 
-Runtime integration covers abort on the cooperative `ABORT_ME` stream. Desktop specs use `ABORT_ME` as a long background stream and **never click Stop**.
+Runtime integration covered abort on the cooperative `ABORT_ME` stream. Desktop specs used it as a long background stream and **never clicked Stop**.
 
 pi-gui’s `cancelCurrentRun` is the contrast: abort is best-effort, then the UI is marked idle even if abort throws.
 
-Related UI record: [`../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md).
+Related UI record: [`bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md).
 
 ## Selected decisions
 
-These close the 2026-08-16 research. They are product decisions for this track, not accepted architecture until implemented.
+These decisions were implemented and accepted.
 
 | Decision | Selection |
 | --- | --- |
@@ -66,7 +66,7 @@ These close the 2026-08-16 research. They are product decisions for this track, 
 | Pi RPC | **Do not** switch the product runtime to `pi --mode rpc` to get Stop. Keep the pinned SDK in `HarnessRuntime`. |
 | Tests | Desktop must **click Stop** on a hung fixture, not only prove the cooperative `ABORT_ME` stream. |
 
-## User-visible contract (once Milestone 1 exists)
+## Accepted user-visible contract
 
 - While a run is live, Stop is visible and remains usable.
 - Pressing Stop dismisses a pending permission or ask-user card for that session and marks the run `cancelled`.
@@ -85,7 +85,7 @@ Allowed: “Stop cancels the current run.” Required if a tool child outlives t
 This track will not:
 
 - extract Pi into `utilityProcess` (that is window-first Milestone 3);
-- wrap agent `bash` in Seatbelt (that is [`archive/features/sandbox`](../../archive/features/sandbox/README.md));
+- wrap agent `bash` in Seatbelt (that is [`sandbox`](../../features/sandbox/README.md));
 - change the accepted Electron shell;
 - replace Pi’s agent loop;
 - add a generic “kill process” control in the renderer;
@@ -95,9 +95,9 @@ Window-first and this track must not wait on each other. Window-first Milestone 
 
 ## Related work
 
-- Architecture (accepted abort as a command, not the hang contract): [`runtime-and-data.md`](../../architecture/runtime-and-data.md), [`protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md), [`overview.md`](../../architecture/overview.md)
-- Crash isolation / window-first: [`../window-first-pi-core/product.md`](../window-first-pi-core/product.md)
-- Phase F public distribution: [`roadmap-vnext.md`](../../version/roadmap-vnext.md)
-- Plan/Agent ask-user cancel: [`archive/features/plan-agent/product.md`](../../archive/features/plan-agent/product.md)
-- Conversation Stop chrome: [`ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
+- Architecture: [`runtime-and-data.md`](../../../architecture/runtime-and-data.md), [`protocol-and-ipc.md`](../../../architecture/protocol-and-ipc.md), [`overview.md`](../../../architecture/overview.md)
+- Accepted startup ordering / deferred crash isolation: [`window-first-pi-core`](../window-first-pi-core/product.md)
+- Phase F public distribution: [`roadmap-vnext.md`](../../../version/roadmap-vnext.md)
+- Plan/Agent ask-user cancel: [`plan-agent`](../../features/plan-agent/product.md)
+- Conversation Stop chrome: [`conversation-ui.md`](../../../ui/implementation/conversation-ui.md)
 - Research log: [`logs/2026-08-16-research-handoff.md`](./logs/2026-08-16-research-handoff.md)

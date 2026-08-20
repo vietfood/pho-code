@@ -51,6 +51,7 @@ Electron main is the composition root and may import application/runtime package
 `packages/application/src` is intentionally small:
 
 - `bootstrap.ts` implements `ApplicationService`, validates use-case identity/input, coordinates metadata and runtime, and maps errors.
+- `runtime-host.ts` owns the attach-once starting/ready/failed Pi connection, pre-attach event/config retention, and late-runtime disposal for window-first startup.
 - `metadata.ts` defines application metadata schema v6: recent-workspace order, selection, archive/view/outcome lifecycle, appearance, trusted projects, skill sources, and GitHub MCP enabled state.
 - `session-catalog.ts` joins Pi session truth with application archive/attention state.
 - `index.ts` exports the application boundary.
@@ -62,7 +63,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 ### Pi and session core
 
 - `harness-runtime.ts` defines the privileged runtime interface.
-- `pi-runtime.ts` composes Pi services and public runtime operations.
+- `pi-runtime.ts` composes Pi services and public runtime operations, including the accepted bounded abort/controller-disposal path.
 - `session-registry.ts` owns composite identity and the bounded independent registry: eight resident controllers and four concurrent runs.
 - `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth.
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.
@@ -105,12 +106,12 @@ This accepted subsystem's product contract, evidence, and residual recovery limi
 
 `apps/desktop/electron` owns:
 
-- `main.ts` — app lifecycle, composition, BrowserWindow, native dialogs/clipboard/theme, resource roots, staged `rg` PATH prepend, command registration, bounded quit.
+- `main.ts` — app lifecycle, metadata/runtime-host composition, BrowserWindow-before-Pi ordering, caught dynamic runtime import, native dialogs/clipboard/theme, resource roots, staged `rg` PATH prepend, command registration, bounded quit.
 - `application-menu.ts`, `application-menu-spec.ts` — application menu; Reload is CommandOrControl+Shift+R so CommandOrControl+R can toggle the right sidebar.
 - `preload.ts`, `ipc.ts` — explicit `window.phoCode` facade and fixed channel names.
 - `security.ts`, `security-policy.ts`, `trusted-renderer.ts` — CSP, sender/origin, navigation, permission, and external-URL policy.
 - `metadata-store.ts` — atomic application metadata persistence.
-- `image-ingest.ts`, `image-base64.ts` — native picker/clipboard image admission.
+- `image-ingest.ts`, `image-base64.ts` — native picker/clipboard image admission; MIME sniffing uses the narrow pure `@pho-code/runtime/image-bytes` subpath so it does not pull the broad runtime into the eager main entry.
 - `bounded-shutdown.ts` — aggregate disposal deadline.
 
 There is no PTY or terminal service in source. That work remains under the terminal add-on.
@@ -147,7 +148,7 @@ UI imports React and protocol only. It renders remote/tool/model content as untr
 
 - Package tests live beside `packages/*/test` and cover reducers, validation, adapters, Pi integration, lifecycle, and recovery using owned temporary roots.
 - `apps/desktop/tests/unit` covers shell helpers and boundary invariants.
-- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, sessions, dialogs, ask-user questionnaires, settings, credentials, OAuth, permissions, project trust, V3 review, sandbox, and shutdown.
+- `apps/desktop/tests/*.spec.ts` runs Electron journeys for bootstrap, security, chat, bounded Stop/Stop-all, sessions, dialogs, ask-user questionnaires, settings, credentials, OAuth, permissions, project trust, V3 review, sandbox, and shutdown.
 - `apps/desktop/tests/packaged.spec.ts` verifies the unsigned macOS artifact with isolated data and no Pi CLI.
 - `eslint.config.js` enforces package dependency direction.
 

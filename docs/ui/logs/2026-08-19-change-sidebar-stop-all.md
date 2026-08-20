@@ -1,10 +1,14 @@
 # Sidebar Stop-all row
 
-Status: in implementation (Milestone 2 gate green, owner acceptance pending)  
-Surface: project sidebar action block  
-Owner: [`urgent/agent-stop`](../../urgent/agent-stop/README.md)  
-Owning plan: [`../../urgent/agent-stop/implementation-plan.md`](../../urgent/agent-stop/implementation-plan.md)  
-Related logs: [`../../urgent/agent-stop/logs/2026-08-19-m2-stop-all-and-teardown.md`](../../urgent/agent-stop/logs/2026-08-19-m2-stop-all-and-teardown.md)
+Status: accepted and archived with agent-stop 2026-08-20
+
+Surface: project sidebar action block
+
+Owner: archived [`agent-stop`](../../archive/urgent/agent-stop/README.md)
+
+Owning plan: [`agent-stop implementation plan`](../../archive/urgent/agent-stop/implementation-plan.md)
+
+Related logs: [`Milestone 2`](../../archive/urgent/agent-stop/logs/2026-08-19-m2-stop-all-and-teardown.md), [`closure`](../../archive/urgent/agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md)
 
 ## Change
 
@@ -20,4 +24,4 @@ Desktop evidence in the owning milestone log: `tests/abort.spec.ts` `Stop all ca
 
 ## Handoff
 
-Collapsed-pill chrome intentionally has no Stop-all. If the owner wants Stop-all in the collapsed pill or a keyboard chord, record it as feedback here or a new idea under `docs/ui/ideas/`.
+Accepted as shipped. Collapsed-pill chrome intentionally has no Stop-all. If the owner later wants Stop-all in the collapsed pill or a keyboard chord, record it as new feedback under `docs/ui/`.

@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/sandbox  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md`](../../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md)
+Related logs: [`agent-stop research`](../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`agent-stop closure`](../../../urgent/agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md), [`2026-08-16-m1-settings.md`](./2026-08-16-m1-settings.md)
 
 ## Intent
 
@@ -12,7 +12,7 @@ Cross-link bounded Stop so agents do not treat `abortBash()` as Seatbelt, or wai
 ## Contracts and files
 
 - Sandbox product: [`../product.md`](../product.md) — OS box for agent `bash` children
-- Agent-stop product: [`../../../urgent/agent-stop/product.md`](../../../../urgent/agent-stop/product.md) — in-process Stop; may call Pi `abortBash()`; not a sandbox
+- Agent-stop product: [`agent-stop`](../../../urgent/agent-stop/product.md) — in-process Stop; may call Pi `abortBash()`; not a sandbox
 
 ## Changes and decisions
 

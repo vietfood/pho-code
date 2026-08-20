@@ -77,7 +77,13 @@ export function AboutDialog({
           </Button>
         </header>
         <div className="grid gap-2 text-xs leading-relaxed text-muted-foreground">
-          <p>{state.capabilities.piRuntime ? "Pi runtime available" : "Pi runtime not connected"}</p>
+          <p>
+            {state.piRuntime.status === "ready"
+              ? "Pi runtime available"
+              : state.piRuntime.status === "starting"
+                ? "Pi runtime starting"
+                : state.piRuntime.error.message}
+          </p>
           <p>
             Protocol {state.protocolVersion} · Node {state.versions.embeddedNode}
             {state.embeddedNodeCompatible ? " (compatible)" : " (below Pi requirement)"} · {state.intendedPiSdk.packageName}{" "}

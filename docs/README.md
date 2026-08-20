@@ -9,7 +9,7 @@ Pho Code docs are grouped by ownership and kind of work, not by date.
 | Folder | What belongs here |
 | --- | --- |
 | [`architecture/`](./architecture/README.md) | Accepted layer boundaries and shell decisions |
-| [`archive/`](./archive/README.md) | Closed numbered versions and closed/retired/superseded features |
+| [`archive/`](./archive/README.md) | Closed numbered versions, features, and urgent tracks |
 | [`assets/capture/`](./assets/capture/README.md) | Demo GIFs and the recording sheet only |
 | [`features/`](./features/README.md) | Standalone add-ons (not a numbered product version) |
 | [`urgent/`](./urgent/README.md) | Owner-priority defects, safety, and startup work to do before more capability |
@@ -29,7 +29,7 @@ Do not mix these:
 - closed accepted add-ons (sandbox, plan-agent) → `archive/features/`, not `features/`
 - terminal, compaction, later add-ons → `features/`, not `version/`
 - conversation chrome and UI bugs → `ui/`, not `features/`
-- startup, crash isolation of Pi, bounded Stop of a stuck run, and “do this before more features” → `urgent/`, not `features/` or a shell rewrite
+- open startup, crash isolation, safety, and “do this before more features” work → `urgent/`; accepted/closed urgent evidence → `archive/urgent/`
 - demo captures → `assets/capture/`, not `archive/`
 
 ## Workstream contract

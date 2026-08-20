@@ -163,11 +163,18 @@ export function createSkillSourceRegistry(options: SkillSourceRegistryOptions): 
       return `${text}\n\n${blocks.join("\n\n")}`;
     },
     setEnabledExternalSources(sourceIds) {
-      enabled = sanitizeEnabledSources(sourceIds);
+      const next = sanitizeEnabledSources(sourceIds);
+      if (sameSourceIds(enabled, next)) {
+        return enabled;
+      }
+      enabled = next;
       rescan();
       return enabled;
     },
     setSourceEnabled(sourceId, enabledFlag) {
+      if (enabled.includes(sourceId) === enabledFlag) {
+        return current;
+      }
       const next = new Set(enabled);
       if (enabledFlag) {
         next.add(sourceId);
@@ -193,7 +200,7 @@ function scan(
   const discovered: DiscoveredSkill[] = [
     ...discoverSource("pho-code", phoCodeSkillsRoot, [{ relative: ".", system: false }]),
   ];
-  for (const sourceId of EXTERNAL_SKILL_SOURCE_IDS) {
+  for (const sourceId of enabled) {
     const layouts = sourceId === "codex"
       ? [
           { relative: ".", system: false },
@@ -496,4 +503,8 @@ export function sanitizeEnabledSources(values: readonly string[]): ExternalSkill
     }
   }
   return EXTERNAL_SKILL_SOURCE_IDS.filter((sourceId) => seen.has(sourceId));
+}
+
+function sameSourceIds(left: readonly ExternalSkillSourceId[], right: readonly ExternalSkillSourceId[]): boolean {
+  return left.length === right.length && left.every((sourceId, index) => sourceId === right[index]);
 }

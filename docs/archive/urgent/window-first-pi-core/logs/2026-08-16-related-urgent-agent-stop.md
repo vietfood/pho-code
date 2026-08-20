@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: urgent/window-first-pi-core  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../agent-stop/logs/2026-08-16-research-handoff.md`](../../agent-stop/logs/2026-08-16-research-handoff.md)
+Related logs: [`agent-stop research`](../../agent-stop/logs/2026-08-16-research-handoff.md), [`agent-stop closure`](../../agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md)
 
 ## Intent
 
@@ -12,7 +12,7 @@ Cross-link the new urgent Stop track so agents do not fold bounded `abortRun` in
 ## Contracts and files
 
 - Window-first product: [`../product.md`](../product.md) — window before `ModelRuntime.create`; later crash isolation
-- Agent-stop product: [`../../agent-stop/product.md`](../../agent-stop/product.md) — bounded in-process Stop; not crash isolation
+- Agent-stop product: [`agent-stop`](../../agent-stop/product.md) — accepted bounded in-process Stop; not crash isolation
 
 ## Changes and decisions
 
@@ -36,4 +36,4 @@ None.
 
 ## Blockers and handoff
 
-Window-first remains proposed. Agent-stop remains proposed. Neither waits on the other.
+Window-first Milestone 1 is implemented and desktop verified as of 2026-08-20, with packaged acceptance still pending. Agent-stop closed and moved to archive the same day. Crash isolation remains here as Milestone 3.

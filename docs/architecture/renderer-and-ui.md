@@ -42,6 +42,8 @@ Runtime snapshots replace projected truth after open/reload. Incremental events 
 
 The renderer never parses streaming text as final state and never invents filesystem/session truth after a missed event.
 
+Window-first lifecycle does not use this sequenced event path. `App.tsx` first loads metadata bootstrap/settings, renders welcome/recents with a starting or bounded failed status, and defers provider accounts/catalogs while Pi is unavailable. A separate runtime-status wakeup triggers another authoritative bootstrap query. Pi-backed launcher/sidebar controls remain disabled until ready; Settings Appearance and About remain available.
+
 ## Conversation surface
 
 The conversation is primary:

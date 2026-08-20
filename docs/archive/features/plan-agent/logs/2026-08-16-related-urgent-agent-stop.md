@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: features/plan-agent  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md`](../../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md)
+Related logs: [`agent-stop research`](../../../urgent/agent-stop/logs/2026-08-16-research-handoff.md), [`agent-stop closure`](../../../urgent/agent-stop/logs/2026-08-20-m2-acceptance-and-closure.md)
 
 ## Intent
 
@@ -12,7 +12,7 @@ Cross-link bounded Stop so agents do not treat a stuck `ask_user_question` card 
 ## Contracts and files
 
 - Plan/Agent product: [`../product.md`](../product.md) — cancelled questionnaires abort that tool call only
-- Agent-stop product: [`../../../../urgent/agent-stop/product.md`](../../../../urgent/agent-stop/product.md) — Stop must `cancelPending()` including `kind: "questionnaire"`
+- Agent-stop product: [`agent-stop`](../../../urgent/agent-stop/product.md) — Stop must `cancelPending()` including `kind: "questionnaire"`
 
 ## Changes and decisions
 

@@ -30,7 +30,9 @@ describe("desktop bridge commands", () => {
     expect(preload).toContain('name !== "event"');
     expect(main).toContain("IPC_CHANNELS[name]");
 
-    const channelCommands = Object.keys(IPC_CHANNELS).filter((name) => name !== "event");
+    const channelCommands = Object.keys(IPC_CHANNELS).filter(
+      (name) => name !== "event" && name !== "piRuntimeStatus",
+    );
     expect(channelCommands.sort()).toEqual([...Object.values(PROTOCOL_COMMANDS)].sort());
 
     for (const command of Object.values(PROTOCOL_COMMANDS)) {

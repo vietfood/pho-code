@@ -2,9 +2,9 @@
 
 ## Status and use
 
-Urgent-track plan, queued 2026-08-16. Milestone 1 is **accepted 2026-08-19** ([review](./logs/2026-08-19-m1-acceptance-review.md)); Milestone 2 is in implementation. This is the implementation contract **after** the owner promotes a milestone. It is not acceptance evidence. No milestone is accepted until its stated evidence exists.
+Accepted and archived urgent-track plan. Milestone 1 was accepted 2026-08-19 ([review](./logs/2026-08-19-m1-acceptance-review.md)); Milestone 2 and the track closed 2026-08-20 ([review](./logs/2026-08-20-m2-acceptance-and-closure.md)).
 
-Read [`product.md`](./product.md), [`../../architecture/runtime-and-data.md`](../../architecture/runtime-and-data.md), [`../../architecture/protocol-and-ipc.md`](../../architecture/protocol-and-ipc.md), and [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md) before editing `abortRun` or the composer Stop control.
+Read [`product.md`](./product.md), [`runtime-and-data.md`](../../../architecture/runtime-and-data.md), [`protocol-and-ipc.md`](../../../architecture/protocol-and-ipc.md), and [`conversation-ui.md`](../../../ui/implementation/conversation-ui.md) before editing `abortRun` or the composer Stop control.
 
 Do not put this work in `archive/v3/`, `archive/features/sandbox/`, or [`window-first-pi-core`](../window-first-pi-core/README.md) source ownership. Do not treat `utilityProcess` as in scope.
 
@@ -18,13 +18,13 @@ Every milestone must:
 - keep protocol values JSON-safe; no process handles or Pi objects cross the bridge;
 - return `abortRun` without waiting unbounded on `waitForIdle` / `promptDone` once Milestone 1 is in source;
 - cancel pending host dialogs for that session on Stop;
-- leave crash isolation of a dead Pi to [`window-first-pi-core`](../window-first-pi-core/implementation-plan.md) Milestone 3;
+- leave crash isolation of a dead Pi to the deferred Milestone 3 contract in archived [`window-first-pi-core`](../window-first-pi-core/implementation-plan.md);
 - distinguish unit, integration, desktop, packaged, and unverified evidence;
 - update architecture, development, current-state, and attribution only when the corresponding milestone lands, and mark accepted behavior only after the gate.
 
 ## Architecture
 
-### Today (accepted)
+### Original defect
 
 ```mermaid
 flowchart LR
@@ -35,7 +35,7 @@ flowchart LR
 
 Pi and Electron main are one OS process. If idle never comes, Stop IPC never returns.
 
-### Milestone 1 (proposed)
+### Milestone 1 (accepted)
 
 ```mermaid
 flowchart LR
@@ -82,7 +82,7 @@ Validate names against `packages/protocol/src/version.ts` during Milestone 1.
 
 **Intent:** Replace anecdote with a written contract.
 
-Already recorded in [`logs/2026-08-16-research-handoff.md`](./logs/2026-08-16-research-handoff.md) and [`../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md).
+Already recorded in [`logs/2026-08-16-research-handoff.md`](./logs/2026-08-16-research-handoff.md) and [`bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md).
 
 **Acceptance:** those logs exist. No source change required.
 
@@ -126,8 +126,8 @@ Only start if Milestone 1 still leaves background chats or test close hanging.
 
 ## Deferred on this track
 
-- `utilityProcess` / hard-kill of Pi: [`window-first-pi-core`](../window-first-pi-core/implementation-plan.md) Milestone 3.
-- OS Seatbelt for agent `bash`: [`archive/features/sandbox`](../../archive/features/sandbox/README.md).
+- `utilityProcess` / hard-kill of Pi: deferred Milestone 3 in archived [`window-first-pi-core`](../window-first-pi-core/implementation-plan.md).
+- OS Seatbelt for agent `bash`: [`sandbox`](../../features/sandbox/README.md).
 - Switching the product to `pi --mode rpc`.
 
 ## Pins and packaging
@@ -145,14 +145,14 @@ bun test
 bun run test:desktop
 ```
 
-Use [`.agents/skills/test-pho-code`](../../../.agents/skills/test-pho-code/SKILL.md). Record only checks that ran. Packaged lane only if protocol or preload abort shape changed.
+Use [`.agents/skills/test-pho-code`](../../../../.agents/skills/test-pho-code/SKILL.md). Record only checks that ran. Packaged lane only if protocol or preload abort shape changed.
 
 ## Acceptance gate for the track
 
-The track may close or shrink when:
+The track closed 2026-08-20 because:
 
-1. Milestone 1 is accepted (bounded Stop is current architecture); and
-2. either Milestone 2 is accepted or explicitly deferred in a log; and
-3. crash isolation remains owned by window-first Milestone 3 or is deferred back to Phase F with a log on that track.
+1. Milestone 1 is accepted (bounded Stop is current architecture);
+2. Milestone 2 is accepted; and
+3. crash isolation remains owned by window-first Milestone 3.
 
 Milestone 2 may merge into 1 if Stop-all is small.

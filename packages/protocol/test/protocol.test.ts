@@ -46,6 +46,7 @@ function sampleBootstrapState(): BootstrapState {
     capabilities: {
       piRuntime: true,
     },
+    piRuntime: { status: "ready" },
     versions: {
       electron: PINNED_ELECTRON.version,
       embeddedNode: "24.18.1",

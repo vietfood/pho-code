@@ -1,4 +1,5 @@
 import type { SessionSnapshot } from "./conversation";
+import type { HarnessError } from "./errors";
 import type { FeatureSnapshot } from "./resources";
 import type { ProtocolVersion } from "./version";
 import type { ModelSummary, RecentWorkspaceRecord, SessionSummary, WorkspaceSummary } from "./workspace";
@@ -14,12 +15,18 @@ export interface BootstrapCapabilities {
 
 export type BootstrapMilestone = "bootstrap" | "vertical-slice";
 
+export type PiRuntimeStatusSnapshot =
+  | { status: "starting" }
+  | { status: "ready" }
+  | { status: "failed"; error: HarnessError };
+
 export interface BootstrapState {
   protocolVersion: ProtocolVersion;
   appName: string;
   appVersion: string;
   milestone: BootstrapMilestone;
   capabilities: BootstrapCapabilities;
+  piRuntime: PiRuntimeStatusSnapshot;
   versions: BootstrapVersions;
   embeddedNodeCompatible: boolean;
   intendedPiSdk: {

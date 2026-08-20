@@ -101,12 +101,14 @@ export function App() {
   const [trustDialogDismissedIds, setTrustDialogDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
+  const piReady = bootstrap?.capabilities.piRuntime === true;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
   const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
   const composerAfterRun = useRef(false);
+  const bootstrapRefreshGeneration = useRef(0);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
   const conversation = selectedConversation(cache);
@@ -249,12 +251,18 @@ export function App() {
   );
 
   const refreshBootstrap = useCallback(async () => {
+    const generation = ++bootstrapRefreshGeneration.current;
     const bridge = getDesktopBridge();
-    const [next, settings, accounts] = await Promise.all([
+    const [next, settings] = await Promise.all([
       bridge.getBootstrapState(),
       bridge.getSettings(),
-      bridge.listProviderAccounts(),
     ]);
+    const accounts = next.capabilities.piRuntime
+      ? await bridge.listProviderAccounts()
+      : idleProviderAccountsResult();
+    if (generation !== bootstrapRefreshGeneration.current) {
+      return;
+    }
     setBootstrap(next);
     setProviderAccounts(accounts);
     if (next.selectedWorkspace) {
@@ -373,6 +381,13 @@ export function App() {
         }
       }
     });
+    const stopPiRuntimeStatus = bridge.subscribePiRuntimeStatus(() => {
+      void refreshBootstrap().catch((cause: unknown) => {
+        if (!cancelled) {
+          setError(errorMessage(cause));
+        }
+      });
+    });
 
     refreshBootstrap()
       .catch((cause: unknown) => {
@@ -389,18 +404,19 @@ export function App() {
     return () => {
       cancelled = true;
       stop();
+      stopPiRuntimeStatus();
     };
   }, [refreshBootstrap]);
 
   const hasSnapshot = Boolean(conversation.snapshot);
   useEffect(() => {
-    if (!bootstrap || (hasSnapshot && !settingsOpen)) {
+    if (!bootstrap || !piReady || (hasSnapshot && !settingsOpen)) {
       return;
     }
     for (const project of bootstrap.recentWorkspaces) {
       void refreshCatalog(project.id).catch(() => undefined);
     }
-  }, [bootstrap, hasSnapshot, refreshCatalog, settingsOpen]);
+  }, [bootstrap, hasSnapshot, piReady, refreshCatalog, settingsOpen]);
 
   const appearance = settings?.appearance;
   useEffect(() => {
@@ -1046,7 +1062,7 @@ export function App() {
           projects={projects}
           sessionsByWorkspace={sessionsByWorkspace}
           bootstrap={sidebarBootstrap}
-          busy={busy}
+          busy={busy || !piReady}
           onToggleCollapsed={toggleSidebar}
             onGoHome={clearSelectedSession}
             homeActive={!snapshot && !chatLoading}
@@ -1263,7 +1279,8 @@ export function App() {
             sessionsByWorkspace={sessionsByWorkspace}
             appName={bootstrap.appName}
             appVersion={bootstrap.appVersion}
-            busy={busy}
+            runtimeStatus={bootstrap.piRuntime}
+            busy={busy || !piReady}
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={toggleSidebar}
             notice={trustNotice}

@@ -57,4 +57,5 @@ export const IPC_CHANNELS = {
   prepareUndoChanges: "pho-code:v1:prepareUndoChanges",
   applyUndoChanges: "pho-code:v1:applyUndoChanges",
   event: "pho-code:v1:event",
+  piRuntimeStatus: "pho-code:v1:piRuntimeStatus",
 } as const;

@@ -11,6 +11,7 @@ const devPort = Number(process.env.PHO_CODE_DEV_PORT ?? "5173");
 const portableAliases = {
   "@pho-code/protocol": path.resolve(workspaceRoot, "packages/protocol/src/index.ts"),
   "@pho-code/application": path.resolve(workspaceRoot, "packages/application/src/index.ts"),
+  "@pho-code/runtime/image-bytes": path.resolve(workspaceRoot, "packages/runtime/src/image-bytes.ts"),
   "@pho-code/runtime": path.resolve(workspaceRoot, "packages/runtime/src/index.ts"),
   "@pho-code/ui": path.resolve(workspaceRoot, "packages/ui/src/index.ts"),
 };

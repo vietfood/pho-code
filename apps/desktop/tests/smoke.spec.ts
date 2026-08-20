@@ -144,6 +144,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "startProviderLogin",
       "steerRun",
       "subscribe",
+      "subscribePiRuntimeStatus",
       "trustProjectPermissionRules",
       "updateAppearanceSettings",
       "updateGitHubMcpSettings",

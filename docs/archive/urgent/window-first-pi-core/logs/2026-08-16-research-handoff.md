@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: urgent/window-first-pi-core  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md`](../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-window-first.md`](../../../archive/features/sandbox/logs/2026-08-16-related-urgent-window-first.md), [`../../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../../archive/features/sandbox/logs/2026-08-16-m1-settings.md), [`../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md`](../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md)
+Related logs: [`../../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md`](../../../../ui/logs/2026-08-16-bug-window-blocked-on-pi-boot.md), [`archive/features/sandbox related log`](../../../features/sandbox/logs/2026-08-16-related-urgent-window-first.md), [`archive/features/sandbox settings`](../../../features/sandbox/logs/2026-08-16-m1-settings.md), [`features/terminal related log`](../../../../features/terminal/logs/2026-08-16-related-urgent-window-first.md)
 
 ## Intent
 
@@ -13,8 +13,8 @@ Record 2026-08-16 owner research: keep Electron, treat long startup as a composi
 
 - Product: [`../product.md`](../product.md)
 - Plan: [`../implementation-plan.md`](../implementation-plan.md)
-- Queue: [`../../README.md`](../../README.md)
-- Accepted shell (unchanged): [`../../../architecture/desktop-shell.md`](../../../architecture/desktop-shell.md)
+- Queue at proposal time: [`urgent/README.md`](../../../../urgent/README.md)
+- Accepted shell (unchanged): [`desktop-shell.md`](../../../../architecture/desktop-shell.md)
 - Evidence in source: `apps/desktop/electron/main.ts` `app.whenReady`; `packages/runtime/src/pi-runtime.ts` `createPhoCodeRuntime`; `apps/desktop/src/App.tsx` Loading gate
 
 ## Changes and decisions

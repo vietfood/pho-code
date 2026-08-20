@@ -45,6 +45,8 @@ The authoritative command registry is `packages/protocol/src/version.ts`; method
 - workspace-reference search;
 - implemented V3 review/diff/Approve/per-file Undo commands.
 
+Window-first startup adds no generic command. `BootstrapState.piRuntime` is the authoritative `starting | ready | failed` projection, while `capabilities.piRuntime` remains the ready boolean. `subscribePiRuntimeStatus` is a separate narrow wakeup that tells the renderer to re-query bootstrap. It does not enter the sequenced Pi event stream, so shell lifecycle messages cannot collide with runtime sequence numbers.
+
 `apps/desktop/tests/unit/bridge-commands.test.ts` asserts that preload, main, and IPC stay aligned with the registry. Do not maintain a copied full interface in architecture prose.
 
 `resolveHostDialog` for `kind: "select"` may include `value` as an optional permission denial reason. The extension host applies that string to the permission package's follow-up `input()` without emitting a second dialog. A select without `value` still shows the follow-up input when the package asks for a reason.

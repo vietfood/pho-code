@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FolderIcon, SquarePenIcon } from "lucide-react";
-import type { RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
+import type { PiRuntimeStatusSnapshot, RecentWorkspaceRecord, SessionCatalogEntry } from "@pho-code/protocol";
 import { compactPath } from "./lib/compact-path";
 import { timeOfDayGreeting } from "./lib/welcome-recents";
 import { formatRelativeTime } from "./lib/relative-time";
@@ -15,6 +15,7 @@ export function WorkspacePicker({
   sessionsByWorkspace,
   appName,
   appVersion,
+  runtimeStatus,
   onPick,
   onOpenRecent,
   onNewSession,
@@ -28,6 +29,7 @@ export function WorkspacePicker({
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   appName: string;
   appVersion: string;
+  runtimeStatus: PiRuntimeStatusSnapshot;
   onPick: () => void;
   onOpenRecent: (workspaceId: string) => void;
   onNewSession: (workspaceId: string) => void;
@@ -60,6 +62,15 @@ export function WorkspacePicker({
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto px-6 py-10">
         <div className="w-full min-w-0 max-w-md overflow-hidden">
           <p className="text-[13px] font-medium text-muted-foreground">{appName}</p>
+          {runtimeStatus.status !== "ready" ? (
+            <p
+              className={runtimeStatus.status === "failed" ? "mt-1 text-xs text-destructive-foreground" : "mt-1 text-xs text-muted-foreground"}
+              data-testid="pi-runtime-status"
+              role={runtimeStatus.status === "failed" ? "alert" : "status"}
+            >
+              {runtimeStatus.status === "failed" ? runtimeStatus.error.message : "Starting Pi…"}
+            </p>
+          ) : null}
           <h1
             id="workspace-heading"
             data-testid="workspace-heading"

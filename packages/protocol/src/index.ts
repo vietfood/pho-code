@@ -37,7 +37,13 @@ export type {
   Unsubscribe,
 } from "./events";
 
-export type { BootstrapCapabilities, BootstrapMilestone, BootstrapState, BootstrapVersions } from "./bootstrap";
+export type {
+  BootstrapCapabilities,
+  BootstrapMilestone,
+  BootstrapState,
+  BootstrapVersions,
+  PiRuntimeStatusSnapshot,
+} from "./bootstrap";
 
 export type {
   CancelProviderLoginInput,

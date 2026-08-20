@@ -3,7 +3,7 @@
 Status: ready for review  
 Owner: urgent/agent-stop  
 Plan: [`../implementation-plan.md`](../implementation-plan.md)  
-Related logs: [`../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md`](../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../archive/features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md`](../../../archive/features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md`](../../../archive/features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md), [`../../../features/sandbox/logs/2026-08-16-m1-settings.md`](../../../archive/features/sandbox/logs/2026-08-16-m1-settings.md)
+Related logs: [`UI bug`](../../../../ui/logs/2026-08-16-bug-stop-does-not-cancel-stuck-run.md), [`window-first cross-link`](../../window-first-pi-core/logs/2026-08-16-related-urgent-agent-stop.md), [`plan-agent cross-link`](../../../features/plan-agent/logs/2026-08-16-related-urgent-agent-stop.md), [`sandbox cross-link`](../../../features/sandbox/logs/2026-08-16-related-urgent-agent-stop.md), [`sandbox settings`](../../../features/sandbox/logs/2026-08-16-m1-settings.md)
 
 ## Intent
 

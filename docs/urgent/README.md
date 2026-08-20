@@ -44,8 +44,12 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
-| 1 | [Agent stop](./agent-stop/README.md) | safety | Milestone 1 accepted 2026-08-19; Milestone 2 (Stop-all, test teardown) gate green, owner acceptance pending | Stop cancels a stuck run within a deadline; permission/ask-user dismiss; Send returns. Does not survive a dead main-process Pi. |
-| 2 | [Window-first Pi core](./window-first-pi-core/README.md) | startup + crash isolation | Proposed; queued 2026-08-16; not in source | Window and recents appear before `ModelRuntime.create`; later, Pi can live in `utilityProcess` without claiming a sandbox |
+| — | No active urgent tracks | — | — | Promote new owner-priority work deliberately |
+
+## Completed
+
+- [Agent stop](../archive/urgent/agent-stop/README.md) — bounded Stop accepted 2026-08-19; Stop-all and bounded teardown accepted and archived 2026-08-20. A dead main-process Pi requires the process extraction deferred to Phase F.
+- [Window-first Pi core](../archive/urgent/window-first-pi-core/README.md) — metadata chrome before dynamic Pi construction accepted and archived 2026-08-20. Packaged behavior and wall-clock timing were owner-waived/deferred; Pi process extraction returned to Phase F.
 
 ## Already in flight (not this queue)
 
@@ -57,10 +61,10 @@ These are owner-approved add-ons. They are not urgent-queue items; do not hide t
 | Plan / Agent | Accepted; archived 2026-08-18 | [`archive/features/plan-agent`](../archive/features/plan-agent/README.md) |
 | Agent-tool sandbox | Accepted; archived 2026-08-18 | [`archive/features/sandbox`](../archive/features/sandbox/README.md) |
 
-Window-first and agent-stop must not block those add-ons, and those add-ons must not wait on `utilityProcess` or bounded Stop. Agent-stop and window-first must not wait on each other.
+Closed urgent tracks must not block those add-ons, and those add-ons must not wait on `utilityProcess` or bounded Stop.
 
 ## Routing
 
-Before changing app startup, window creation versus Pi boot, or extracting `HarnessRuntime` from Electron main, read this README and [`window-first-pi-core`](./window-first-pi-core/README.md). Before changing `abortRun`, composer Stop, or cancel of a live run, read [`agent-stop`](./agent-stop/README.md).
+Before changing accepted app startup or window creation versus Pi boot, read the archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md) contract. Before promoting `HarnessRuntime` extraction, start from roadmap Phase F. Before changing accepted `abortRun`, composer Stop, Stop-all, or live-run teardown, read the archived [`agent-stop`](../archive/urgent/agent-stop/README.md) contract.
 
 When an urgent track touches protocol, Electron, accepted architecture, or the right-sidebar host, scan `version/*/logs/`, `features/*/logs/`, `ui/logs/`, and `urgent/*/logs/`, then add reciprocal links.

@@ -91,6 +91,7 @@ describe("skill source registry", () => {
       phoCodeSkillsRoot: pho,
     });
     expect(registry.snapshot().sources.find((source) => source.sourceId === "cursor")?.enabled).toBe(false);
+    expect(registry.snapshot().inventory.some((entry) => entry.sourceId === "cursor")).toBe(false);
     expect(registry.effectiveSkillPaths()).toEqual([]);
     expect(registry.readSkillMarkdown("cursor", "demo-skill")).toBeUndefined();
     const enabled = registry.setSourceEnabled("cursor", true);
@@ -100,6 +101,25 @@ describe("skill source registry", () => {
     expect(registry.expandInsertedSkills("Use /cursor:demo-skill now.")).toContain("<<<pho-skill source=\"cursor\" name=\"demo-skill\">>>");
     const original = await Bun.file(path.join(cursorRoot, "demo-skill", "SKILL.md")).text();
     expect(original).toBe(TEXT_SKILL);
+  });
+
+  test("does not rescan an unchanged normalized external source set", async () => {
+    const { home, pho } = await makeHome();
+    const cursorRoot = path.join(home, ".cursor", "skills");
+    await writeSkill(cursorRoot, "demo-skill", TEXT_SKILL);
+    let scans = 0;
+    const registry = createSkillSourceRegistry({
+      homedir: home,
+      phoCodeSkillsRoot: pho,
+      enabledExternalSources: ["cursor"],
+      now: () => new Date(++scans),
+    });
+
+    expect(registry.setEnabledExternalSources(["nope", "cursor", "cursor"])).toEqual(["cursor"]);
+    expect(scans).toBe(1);
+    registry.setSourceEnabled("cursor", true);
+    expect(scans).toBe(1);
+    expect(registry.snapshot().inventory.some((entry) => entry.sourceId === "cursor")).toBe(true);
   });
 
   test("admits Codex .system nesting and rejects symlink escapes", async () => {

@@ -28,6 +28,6 @@ Milestone 1 (bounded Stop) is **accepted**. Owner reviewed the green automated g
 
 ## Known limits carried forward
 
-- Stop cannot survive a dead or busy-looping main-process Pi; crash isolation stays with [`../../window-first-pi-core/`](../../window-first-pi-core/README.md) Milestone 3.
+- Stop cannot survive a dead or busy-looping main-process Pi; the related process-extraction contract is archived with [`window-first-pi-core`](../../window-first-pi-core/README.md) and deferred to Phase F.
 - Escape-to-Stop (plan item 5, optional) was not implemented and remains unpromoted.
 - Stop-all for multiple live runs and Playwright close teardown are Milestone 2 scope.
