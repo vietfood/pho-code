@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { emptyGitHubMcpSettingsSnapshot, GITHUB_MCP_DISCLOSURE } from "@pho-code/protocol";
+import {
+  emptyGitHubMcpSettingsSnapshot,
+  GITHUB_MCP_DISCLOSURE_ITEMS,
+  GITHUB_MCP_TRUST_NOTICE,
+} from "@pho-code/protocol";
 import { GitHubMcpSettingsSection } from "../src/github-mcp-settings";
 
 describe("GitHub MCP settings", () => {
@@ -16,7 +20,10 @@ describe("GitHub MCP settings", () => {
       }),
     );
     expect(markup).toContain('data-testid="github-mcp-settings"');
-    expect(markup).toContain(GITHUB_MCP_DISCLOSURE);
+    expect(markup).toContain(GITHUB_MCP_TRUST_NOTICE);
+    for (const item of GITHUB_MCP_DISCLOSURE_ITEMS) {
+      expect(markup).toContain(item);
+    }
     expect(markup).toContain("Enable read-only GitHub tools");
     expect(markup).toContain("Add PAT");
     expect(markup).not.toContain("github_pat_");

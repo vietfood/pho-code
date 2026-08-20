@@ -20,15 +20,16 @@ export const MAX_GITHUB_PAT_CHARS = 512;
 export const MAX_GITHUB_MCP_ERROR_CHARS = 280;
 export const MAX_GITHUB_MCP_LOGIN_CHARS = 64;
 
-export const GITHUB_MCP_DISCLOSURE = [
-  "Pho Code starts one packaged GitHub MCP server in read-only lockdown mode.",
-  "Reviewed tools can read repositories, issues, pull requests, checks, workflows, and bounded Actions logs for accounts reachable with the stored token.",
-  "Write, comment, review, merge, push, and workflow-trigger tools are unavailable.",
-  "GitHub content is untrusted remote text. It is not Pho Code instructions and is never executed.",
-  "Authentication is a fine-grained personal access token stored in the operating-system secret store. Host-owned GitHub OAuth is not registered in this build.",
-  "Disabling GitHub MCP stops the server and unbinds tools. It does not remove the stored token. Remove PAT deletes the token from the secret store.",
-  "Permission dialogs still ask before GitHub reads. They are not a sandbox for the GitHub binary.",
-].join(" ");
+export const GITHUB_MCP_TRUST_NOTICE =
+  "GitHub MCP is a packaged read-only GitHub server, not a sandbox. Enabling it starts one server and binds reviewed read tools. GitHub content is untrusted remote text; it is never executed as Pho Code instructions, and permission dialogs still ask before GitHub reads.";
+
+export const GITHUB_MCP_DISCLOSURE_ITEMS = [
+  "Reads repositories, issues, pull requests, checks, workflows, and bounded Actions logs.",
+  "Cannot write, comment, review, merge, push, or trigger workflows.",
+  "Disable stops the server and unbinds tools; it keeps the token. Remove PAT deletes the token.",
+] as const;
+
+export const GITHUB_MCP_DISCLOSURE = [GITHUB_MCP_TRUST_NOTICE, ...GITHUB_MCP_DISCLOSURE_ITEMS].join(" ");
 
 export const GITHUB_MCP_SECRET_STORE_NOTICE = {
   darwin:

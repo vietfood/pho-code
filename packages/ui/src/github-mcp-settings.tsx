@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  GITHUB_MCP_DISCLOSURE_ITEMS,
+  GITHUB_MCP_TRUST_NOTICE,
   githubMcpStatusLabel,
   type GitHubMcpSettingsSnapshot,
   type ImportGitHubPatInput,
@@ -44,7 +46,12 @@ export function GitHubMcpSettingsSection({
           <ProviderIcon provider="github" className="size-4" />
           GitHub MCP
         </h2>
-        <p className="text-xs text-muted-foreground">{githubMcp.disclosure}</p>
+        <p className="text-xs text-muted-foreground">{GITHUB_MCP_TRUST_NOTICE}</p>
+        <ul className="grid list-disc gap-1 pl-4 text-xs text-muted-foreground">
+          {GITHUB_MCP_DISCLOSURE_ITEMS.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
       </div>
       <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
         <input

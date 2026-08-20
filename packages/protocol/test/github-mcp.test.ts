@@ -3,6 +3,8 @@ import {
   emptyGitHubMcpSettingsSnapshot,
   emptySettingsSnapshot,
   GITHUB_MCP_DISCLOSURE,
+  GITHUB_MCP_DISCLOSURE_ITEMS,
+  GITHUB_MCP_TRUST_NOTICE,
   githubMcpStatusLabel,
   isGitHubMcpStatus,
   isJsonSafeValue,
@@ -16,6 +18,9 @@ describe("GitHub MCP protocol", () => {
     expect(snapshot.status).toBe("disabled");
     expect(snapshot.account.patConfigured).toBe(false);
     expect(snapshot.disclosure).toBe(GITHUB_MCP_DISCLOSURE);
+    expect(GITHUB_MCP_DISCLOSURE).toBe([GITHUB_MCP_TRUST_NOTICE, ...GITHUB_MCP_DISCLOSURE_ITEMS].join(" "));
+    expect(GITHUB_MCP_TRUST_NOTICE).toContain("not a sandbox");
+    expect(GITHUB_MCP_DISCLOSURE).not.toContain("Host-owned GitHub OAuth");
     expect(snapshot.boundToolCount).toBe(0);
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
