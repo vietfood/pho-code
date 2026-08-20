@@ -107,8 +107,6 @@ export function useSessionSwitch(options: {
               snapshot: nextSnapshot,
               dialog: existing?.dialog ?? null,
               notification: existing?.notification ?? null,
-              settings: current.settings,
-              authFlow: current.authFlow,
             },
           },
         };

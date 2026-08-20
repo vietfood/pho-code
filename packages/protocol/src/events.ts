@@ -94,13 +94,16 @@ export type RuntimeEvent =
 
 export type Unsubscribe = () => void;
 
+/**
+ * Per-session chrome only. Settings and the auth flow are process scoped and
+ * live on the cache; a session must never hold its own copy, or a stale one can
+ * be republished over the current values.
+ */
 export interface ConversationViewState {
   lastSequence: number;
   snapshot: SessionSnapshot | null;
   dialog: HostDialogRequest | null;
   notification: ExtensionNotification | null;
-  settings: HarnessSettingsSnapshot | null;
-  authFlow: ProviderAuthFlowSnapshot | null;
 }
 
 export interface ConversationCacheState {
@@ -118,8 +121,6 @@ export function emptyConversationState(): ConversationViewState {
     snapshot: null,
     dialog: null,
     notification: null,
-    settings: null,
-    authFlow: null,
   };
 }
 
@@ -426,22 +427,6 @@ export function applyRuntimeEvent(
     }
     case RUNTIME_EVENT_TYPES.extensionNotification:
       return { ...state, lastSequence: event.sequence, notification: event.payload as ExtensionNotification };
-    case RUNTIME_EVENT_TYPES.settingsSnapshot:
-      return { ...state, lastSequence: event.sequence, settings: event.payload as HarnessSettingsSnapshot };
-    case RUNTIME_EVENT_TYPES.permissionStatus: {
-      const payload = event.payload as PermissionStatusPayload;
-      const settings = state.settings;
-      if (!settings) {
-        return { ...state, lastSequence: event.sequence };
-      }
-      return {
-        ...state,
-        lastSequence: event.sequence,
-        settings: { ...settings, permission: { ...settings.permission, yoloMode: payload.yoloMode } },
-      };
-    }
-    case RUNTIME_EVENT_TYPES.providerAuthFlow:
-      return { ...state, lastSequence: event.sequence, authFlow: event.payload as ProviderAuthFlowSnapshot };
     case RUNTIME_EVENT_TYPES.changeReviewUpdated: {
       const incoming = event.payload as ChangeReviewSetSummary;
       return patchSnapshot((snapshot) => ({
@@ -514,6 +499,32 @@ export function eventSessionKey(event: RuntimeEventEnvelope): SessionKey | undef
   return { workspaceId, sessionId };
 }
 
+/** Settings and auth flow belong to the process, never to the selected session. */
+function applyProcessScopedEvent(
+  cache: ConversationCacheState,
+  event: RuntimeEventEnvelope,
+): ConversationCacheState {
+  switch (event.type) {
+    case RUNTIME_EVENT_TYPES.settingsSnapshot:
+      return { ...cache, settings: event.payload as HarnessSettingsSnapshot };
+    case RUNTIME_EVENT_TYPES.permissionStatus: {
+      const payload = event.payload as PermissionStatusPayload;
+      const settings = cache.settings;
+      if (!settings) {
+        return cache;
+      }
+      return {
+        ...cache,
+        settings: { ...settings, permission: { ...settings.permission, yoloMode: payload.yoloMode } },
+      };
+    }
+    case RUNTIME_EVENT_TYPES.providerAuthFlow:
+      return { ...cache, authFlow: event.payload as ProviderAuthFlowSnapshot };
+    default:
+      return cache;
+  }
+}
+
 export function applyRuntimeEventToCache(
   cache: ConversationCacheState,
   event: RuntimeEventEnvelope,
@@ -523,23 +534,7 @@ export function applyRuntimeEventToCache(
   }
 
   if (isProcessScopedEventType(event.type)) {
-    const selected = cache.selectedKey ? cache.byKey[cache.selectedKey] : undefined;
-    const base = selected ?? {
-      ...emptyConversationState(),
-      lastSequence: cache.lastSequence,
-      settings: cache.settings,
-      authFlow: cache.authFlow,
-    };
-    const nextSelected = applyRuntimeEvent({ ...base, lastSequence: cache.lastSequence }, event);
-    return {
-      ...cache,
-      lastSequence: event.sequence,
-      settings: nextSelected.settings,
-      authFlow: nextSelected.authFlow,
-      byKey: cache.selectedKey
-        ? { ...cache.byKey, [cache.selectedKey]: { ...nextSelected, lastSequence: event.sequence } }
-        : cache.byKey,
-    };
+    return { ...applyProcessScopedEvent(cache, event), lastSequence: event.sequence };
   }
 
   if (event.type === RUNTIME_EVENT_TYPES.sessionActivity) {

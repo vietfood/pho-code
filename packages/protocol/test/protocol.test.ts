@@ -6,10 +6,12 @@ import {
   RUNTIME_EVENT_TYPES,
   applyLiveRunDelta,
   applyRuntimeEvent,
+  applyRuntimeEventToCache,
   assertJsonSafe,
   commandFail,
   commandOk,
   createHarnessError,
+  emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
   emptyGitHubMcpSettingsSnapshot,
@@ -718,14 +720,14 @@ describe("provider auth protocol", () => {
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
     expect(JSON.stringify(snapshot)).not.toContain("https://");
 
-    const state = applyRuntimeEvent(emptyConversationState(), {
+    const cache = applyRuntimeEventToCache(emptyConversationCache(), {
       protocolVersion: PROTOCOL_VERSION,
       sequence: 1,
       type: RUNTIME_EVENT_TYPES.providerAuthFlow,
       payload: snapshot,
       occurredAt: "2026-08-13T00:00:01.000Z",
     });
-    expect(state.authFlow).toEqual(snapshot);
-    expect(state.lastSequence).toBe(1);
+    expect(cache.authFlow).toEqual(snapshot);
+    expect(cache.lastSequence).toBe(1);
   });
 });

@@ -110,6 +110,7 @@ export function App() {
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
   const conversation = selectedConversation(cache);
+  const settings = cache.settings;
   // Live runs across every workspace, for the sidebar Stop-all control.
   const liveRuns = cache.activity.filter(
     (entry) => entry.runId !== undefined && (entry.phase === "working" || entry.phase === "attention"),
@@ -401,7 +402,7 @@ export function App() {
     }
   }, [bootstrap, hasSnapshot, refreshCatalog, settingsOpen]);
 
-  const appearance = conversation.settings?.appearance;
+  const appearance = settings?.appearance;
   useEffect(() => {
     if (appearance) {
       applyAppearanceFonts(appearance);
@@ -413,7 +414,7 @@ export function App() {
     conversation.notification && looksLikeProjectTrustNotification(conversation.notification.message),
   );
   const trustPending =
-    projectPermissionTrustPending(conversation.settings?.permission) || trustNotification;
+    projectPermissionTrustPending(settings?.permission) || trustNotification;
   const trustWorkspace = workspace?.workspace;
   const trustWorkspaceId = trustWorkspace?.id;
   useEffect(() => {
@@ -818,7 +819,7 @@ export function App() {
   const chatLoading = pendingSession !== null && !pendingCached;
   const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
   const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
-  const settingsVisible = settingsOpen && Boolean(conversation.settings);
+  const settingsVisible = settingsOpen && Boolean(settings);
   const showTrustBanner = Boolean(
     trustPending &&
       trustWorkspaceId &&
@@ -828,7 +829,7 @@ export function App() {
   const trustNotice =
     showTrustBanner && trustWorkspace ? (
       <ProjectTrustBanner
-        sessionTrusted={conversation.settings?.permission.projectPermissionRulesTrusted === true}
+        sessionTrusted={settings?.permission.projectPermissionRulesTrusted === true}
         disabled={busy}
         onTrust={() => setTrustDialogOpen(true)}
         onDismiss={() => {
@@ -1135,7 +1136,7 @@ export function App() {
                 onToggleSidebar={toggleSidebar}
                 notice={trustNotice}
                 {...(trustPending ? { onTrustProject: () => setTrustDialogOpen(true) } : {})}
-                {...(conversation.settings?.permission.yoloMode ? { yoloMode: true } : {})}
+                {...(settings?.permission.yoloMode ? { yoloMode: true } : {})}
                 onSubmit={() => {
                   void admitComposer("send");
                 }}
@@ -1201,7 +1202,7 @@ export function App() {
                     setPreparedImages((current) => current.filter((image) => image.id !== imageId));
                   });
                 }}
-                {...(conversation.settings?.skills ? { skills: conversation.settings.skills } : {})}
+                {...(settings?.skills ? { skills: settings.skills } : {})}
                 onOpenChangeReview={openChangeReview}
                 onRewrite={onRewrite}
                 onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
@@ -1288,13 +1289,13 @@ export function App() {
         </RightSidebar>
       ) : null}
       </div>
-      {settingsVisible && conversation.settings ? (
+      {settingsVisible && settings ? (
         <SettingsView
-          settings={conversation.settings}
+          settings={settings}
           running={snapshot?.run.status === "admitted" || snapshot?.run.status === "streaming"}
           busy={busy}
           providerAccounts={providerAccounts}
-          authFlow={conversation.authFlow ?? providerAccounts.flow}
+          authFlow={cache.authFlow ?? providerAccounts.flow}
           projects={projects}
           sessionsByWorkspace={sessionsByWorkspace}
           onClose={() => setSettingsOpen(false)}
@@ -1399,7 +1400,7 @@ export function App() {
         <ProjectTrustDialog
           workspaceName={trustWorkspace.displayName}
           workspacePath={trustWorkspace.path}
-          sessionTrusted={conversation.settings?.permission.projectPermissionRulesTrusted === true}
+          sessionTrusted={settings?.permission.projectPermissionRulesTrusted === true}
           busy={
             busy || snapshot?.run.status === "admitted" || snapshot?.run.status === "streaming"
           }
@@ -1536,11 +1537,7 @@ function errorMessage(cause: unknown): string {
 
 function selectedConversation(cache: ConversationCacheState): ConversationViewState {
   const selected = cache.selectedKey ? cache.byKey[cache.selectedKey] : undefined;
-  return {
-    ...(selected ?? emptyConversationState()),
-    settings: cache.settings ?? selected?.settings ?? null,
-    authFlow: cache.authFlow ?? selected?.authFlow ?? null,
-  };
+  return selected ?? emptyConversationState();
 }
 
 function selectedCachedSnapshot(cache: ConversationCacheState): SessionSnapshot | undefined {

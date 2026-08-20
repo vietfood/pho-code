@@ -113,3 +113,57 @@ test("settings persist palette mode glass and apply a managed permission profile
     await removeTestDirectory(workspaceDir);
   }
 });
+
+/**
+ * A chat opened before an appearance change used to keep its own settings copy.
+ * The next process-scoped event republished that copy and reverted the theme,
+ * which showed up as the palette flipping while a new chat was being created.
+ */
+test("a process-scoped event keeps the current appearance on an already open chat", async () => {
+  const userDataDir = await makeUserDataDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const env = {
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+  };
+
+  try {
+    const harness = await launchDesktop(userDataDir, { env });
+    try {
+      const page = await harness.firstWindow();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible({ timeout: 30_000 });
+
+      await openSettingsSection(page, "appearance");
+      await page.getByTestId("appearance-palette-gruvbox").click();
+      await expect(page.getByTestId("appearance-palette-gruvbox")).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("appearance-mode-dark").click();
+      await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("settings-close").click();
+
+      // The permission extension emits this when a newly created chat binds with
+      // YOLO on; the deterministic lane does not load it, so deliver it directly.
+      await harness.electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.send("pho-code:v1:event", {
+          protocolVersion: 1,
+          sequence: 999_999,
+          occurredAt: new Date().toISOString(),
+          type: "permissionStatus",
+          payload: { yoloMode: true },
+        });
+      });
+      await expect(page.getByTestId("yolo-indicator")).toBeVisible();
+
+      const theme = await page.evaluate(() => ({
+        palette: document.documentElement.dataset.palette,
+        appearance: document.documentElement.dataset.appearance,
+      }));
+      expect(theme).toEqual({ palette: "gruvbox", appearance: "dark" });
+    } finally {
+      await harness.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});

@@ -235,29 +235,32 @@ describe("keyed conversation routing", () => {
     expect(JSON.stringify(summary)).not.toContain(".jsonl");
   });
 
+  test("keeps process settings when a process-scoped event arrives on a selected chat", () => {
+    const settings = processSettings();
+    const selectedKey = sessionKeyId(key("/tmp/ws", "s1"));
+    const cache = applyRuntimeEventToCache(
+      {
+        ...emptyConversationCache(),
+        settings,
+        selectedKey,
+        byKey: {
+          [selectedKey]: { ...emptyConversationState(), snapshot: snapshotFor("/tmp/ws", "s1") },
+        },
+      },
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        sequence: 1,
+        type: RUNTIME_EVENT_TYPES.permissionStatus,
+        payload: { yoloMode: true },
+        occurredAt: "2026-08-14T00:00:00.000Z",
+      },
+    );
+    expect(cache.settings?.appearance).toEqual(settings.appearance);
+    expect(cache.settings?.permission.yoloMode).toBe(true);
+  });
+
   test("preserves process settings when an auth flow starts with no selected chat", () => {
-    const settings = {
-      appearance: {
-        palette: "default" as const,
-        mode: "dark" as const,
-        glassEnabled: false,
-        glassStrength: 55,
-        uiFontSize: 18,
-        chatFontSize: 16,
-      },
-      permission: {
-        profile: "balanced" as const,
-        yoloMode: false,
-        permissionReviewLog: false,
-        projectOverridePresent: false,
-        projectPermissionRulesTrusted: false,
-        projectPermissionRulesRemembered: false,
-        appliesToSharedPiAgentDir: false,
-      },
-      skills: emptySkillSettingsSnapshot(),
-      githubMcp: emptyGitHubMcpSettingsSnapshot(),
-      sandbox: emptySandboxSettingsSnapshot(),
-    };
+    const settings = processSettings();
     const cache = applyRuntimeEventToCache(
       { ...emptyConversationCache(), settings },
       {
@@ -280,3 +283,28 @@ describe("keyed conversation routing", () => {
     expect(cache.authFlow?.flowId).toBe("flow-1");
   });
 });
+
+function processSettings() {
+  return {
+    appearance: {
+      palette: "default" as const,
+      mode: "dark" as const,
+      glassEnabled: false,
+      glassStrength: 55,
+      uiFontSize: 18,
+      chatFontSize: 16,
+    },
+    permission: {
+      profile: "balanced" as const,
+      yoloMode: false,
+      permissionReviewLog: false,
+      projectOverridePresent: false,
+      projectPermissionRulesTrusted: false,
+      projectPermissionRulesRemembered: false,
+      appliesToSharedPiAgentDir: false,
+    },
+    skills: emptySkillSettingsSnapshot(),
+    githubMcp: emptyGitHubMcpSettingsSnapshot(),
+    sandbox: emptySandboxSettingsSnapshot(),
+  };
+}
