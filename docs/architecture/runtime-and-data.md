@@ -4,9 +4,11 @@
 
 Accepted architecture for personal v1, v2, and v3. The immutable V3 recovery contract and evidence live in [`../archive/v3/`](../archive/v3/README.md). Plan/Agent is accepted; its immutable contract lives in [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
+Current source also contains the implemented, still-unaccepted V5 Milestone 0 extraction described below. This records truthful package ownership without promoting the milestone.
+
 ## Service ownership
 
-The application coordinates use cases. The runtime is the only product layer that imports Pi.
+The application coordinates use cases. Privileged runtime packages are the only product layers that import Pi; under V5 M0, the reusable imports live in `@pho-agent/runtime` and Pho Code composes them through its product runtime.
 
 `packages/application` owns:
 
@@ -18,20 +20,27 @@ The application coordinates use cases. The runtime is the only product layer tha
 - V3 review-scope/input validation before delegating to runtime;
 - stable error mapping and shutdown coordination.
 
-`packages/runtime` owns:
+`packages/pho-agent/packages/runtime` currently owns under V5 M0:
+
+- Pi service construction behind the feature API and opaque scope adapter;
+- the bounded session-controller registry algorithm;
+- the shared feature model/loader flattening and context-prompt hook;
+- Plan/Agent, ask-user, session todo, skill source/invocation, path containment, and the reviewed GitHub MCP lifecycle.
+
+`packages/runtime` owns or adapts:
 
 - shared Pi model/settings/credential services where supported;
-- the bounded session-controller registry;
+- Pho Code composite identity over the shared bounded registry;
 - Pi session construction, subscription, replacement, prompt, queue, abort, and disposal;
-- explicit feature-manifest composition and diagnostics;
+- Pho Code feature-manifest selection, resources, and diagnostics over the shared feature model;
 - permission host-UI binding and feature-specific settings adapters;
-- prepared images, local retrieval, public web tools, text-only skill sources, and the fixed GitHub MCP adapter;
+- prepared images, local retrieval, public web tools, curated skill resources, and Pho Code GitHub MCP enablement/credential/artifact policy;
 - context-prompt compilation/reinjection and assistant display overlays through Pi custom entries;
 - accepted V3 write/edit capture, ledger, diff, Approve, and per-file recovery;
-- Plan/Agent inline factory (`ask_user_question` questionnaire, Plan write-tool policy, session `todo`, Plan document + Execute); `custom`/`editor` still throw;
+- the Pho Code Plan/Agent context-policy adapter; shared `ask_user_question`, Plan write-tool policy, session `todo`, Plan document + Execute live in `@pho-agent/runtime`; `custom`/`editor` still throw;
 - normalized protocol projections.
 
-Application code does not know Electron APIs. Runtime code does not know Electron or React.
+Application code does not know Electron APIs. Neither runtime package knows Electron or React, and `@pho-agent/runtime` cannot import `@pho-code/*`.
 
 ## Session lifecycle
 

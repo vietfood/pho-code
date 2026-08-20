@@ -33,15 +33,12 @@ import {
 const STAGE_DIR = path.join(DESKTOP_DIR, ".package-stage");
 const SKIP_APP_PACKAGES = new Set([
   "@gotgenes/pi-permission-system",
-  "@pho-code/application",
-  "@pho-code/protocol",
-  "@pho-code/runtime",
-  "@pho-code/ui",
   "react",
   "react-dom",
 ]);
 
-const WALK_WITHOUT_COPY = new Set(["@pho-code/runtime"]);
+const PRIVATE_WORKSPACE_PACKAGE_PREFIXES = ["@pho-agent/", "@pho-code/"];
+const WALK_WITHOUT_COPY = new Set(["@pho-agent/runtime", "@pho-code/runtime"]);
 const NEST_DEPENDENCY_PACKAGES = new Set([SANDBOX_RUNTIME_PACKAGE]);
 
 interface PackageManifest {
@@ -111,7 +108,10 @@ export function collectProductionPackages(entryPackageJson: string): ResolvedPro
       queue.push({ name: packageName, from, optional, copy: false });
       return;
     }
-    if (SKIP_APP_PACKAGES.has(packageName) || packageName.startsWith("@pho-code/")) {
+    if (
+      SKIP_APP_PACKAGES.has(packageName) ||
+      PRIVATE_WORKSPACE_PACKAGE_PREFIXES.some((prefix) => packageName.startsWith(prefix))
+    ) {
       return;
     }
     queued.add(packageName);

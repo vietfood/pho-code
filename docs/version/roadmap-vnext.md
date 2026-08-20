@@ -1,6 +1,6 @@
 # Pho Code future-release roadmap
 
-This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3. The bounded public-beta portion of Phase F is promoted as [V4 — Public Beta Foundation](./v4/README.md) and is **Pending** (held 2026-08-20) until Apple Developer Program enrollment. Independent add-ons and a later numbered version (V5) may be promoted from the remaining phases without closing V4.
+This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3. The bounded public-beta portion of Phase F is promoted as [V4 — Public Beta Foundation](./v4/README.md) and is **Pending** (held 2026-08-20) until Apple Developer Program enrollment. [V5 — Pho Agent Foundation](./v5/README.md) was promoted independently on 2026-08-20 without closing V4.
 
 V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](../archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
@@ -20,6 +20,12 @@ UI polish, accessibility, performance work, defect fixes, and owner-reviewed add
 Each phase below is optional and independently promotable. Promotion must name the owner outcome, accepted platforms, trust model, permission categories, persisted state, recovery behavior, packaged dependencies, and verification gate. Completion of one phase does not imply approval of the next.
 
 Do not group phases merely to label a major release complete. Prefer the smallest vertical slice that is useful in normal work and can fail or be disabled without destabilizing conversation, sessions, credentials, or accepted baked features.
+
+## Pho Agent foundation — promoted as V5
+
+The owner promoted [`V5 — Pho Agent Foundation`](./v5/README.md) on 2026-08-20. V5 extracts a private headless Pi-powered foundation used by Pho Code and intended for a separately built future Pho Research product. It adds a frozen measurable-intelligence baseline, a living Task Brief, bounded evidence packs, an authoritative verification ledger, and evidence-backed completion.
+
+V5 is not a bundle of the remaining roadmap phases. It explicitly excludes generic memory, Pho Research features, browser automation, terminal, session tree/fork UI, subagents/worktrees, long-job scheduling, persistent kernels, and every held V4 process/distribution contract. Implement only from its [product](./v5/product.md) and [implementation plan](./v5/implementation-plan.md). None of its planned behavior is current or accepted.
 
 ## Phase A: change review and recovery — accepted as V3
 

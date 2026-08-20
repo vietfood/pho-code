@@ -20,6 +20,7 @@ const runtimeImport = {
 };
 const nodePattern = { group: ["node:*"], message: "This layer must not import Node modules." };
 const piSdkPattern = { group: ["@earendil-works/*"], message: "This layer must not import Pi SDK packages." };
+const phoCodePattern = { group: ["@pho-code/*"], message: "Pho Agent must not depend on a product package." };
 const piTuiImport = { name: "@earendil-works/pi-tui", message: "Do not import pi-tui. Plan/Agent uses JSON-safe host dialogs." };
 const juicesharpImport = {
   name: "@juicesharp/rpiv-ask-user-question",
@@ -58,6 +59,30 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  {
+    files: ["packages/pho-agent/packages/protocol/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [electronImport, reactImport, reactDomImport, piTuiImport, juicesharpImport],
+          patterns: [nodePattern, piSdkPattern, phoCodePattern],
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/pho-agent/packages/runtime/**/*.{ts,tsx}", "packages/pho-agent/packages/evals/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [electronImport, reactImport, reactDomImport, applicationImport, runtimeImport, piTuiImport, juicesharpImport],
+          patterns: [phoCodePattern],
+        },
       ],
     },
   },

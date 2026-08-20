@@ -4,6 +4,8 @@ Status: research only. These are possible numbered-version capabilities, not app
 
 The promotion queue and release grouping live in [`roadmap-vnext.md`](./roadmap-vnext.md). Promote one bounded outcome into `version/vN/product.md` and `version/vN/implementation-plan.md` before implementation.
 
+Task Brief, bounded evidence packs, an authoritative verification ledger, evidence-backed completion, and the private headless `pho-agent` package boundary were promoted on 2026-08-20 as [`V5 — Pho Agent Foundation`](./v5/README.md). They are no longer research backlog items. V5 explicitly defers generic memory, Pho Research, subagents, and long-job orchestration.
+
 ## Near-term candidates
 
 1. Session tree, fork, and clone over Pi-owned JSONL.
@@ -28,7 +30,7 @@ Change review and recovery are accepted and archived as [`v3`](../archive/v3/pro
 
 - fresh provider streams without replacing local transcript history;
 - bounded transcript export and diagnostics;
-- usage warnings and cross-session memory with explicit privacy/staleness rules;
+- usage warnings and cross-session memory with explicit privacy/staleness/correction rules (**generic memory remains deferred outside V5**);
 - conversation checkpoint/rewind after compaction UX exists;
 - optional advisor roles, only after subagent ownership is proven;
 - persistent evaluation kernels only with process, timeout, output, and tool-reentry controls.

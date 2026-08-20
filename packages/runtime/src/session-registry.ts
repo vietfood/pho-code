@@ -1,7 +1,14 @@
-import { createHarnessError, HARNESS_ERROR_CODES, sessionKeyId, type SessionKey } from "@pho-code/protocol";
+import {
+  createSessionRegistry as createAgentSessionRegistry,
+  type AgentScopeKey,
+  type SessionRegistry as AgentSessionRegistry,
+} from "@pho-agent/runtime/session-registry";
+import type { SessionKey } from "@pho-code/protocol";
 
-export const MAX_RESIDENT_SESSION_CONTROLLERS = 8;
-export const MAX_CONCURRENT_ACTIVE_RUNS = 4;
+export {
+  MAX_CONCURRENT_ACTIVE_RUNS,
+  MAX_RESIDENT_SESSION_CONTROLLERS,
+} from "@pho-agent/runtime/session-registry";
 
 export interface SessionRegistryHost<C> {
   openController(key: SessionKey): Promise<C>;
@@ -28,177 +35,36 @@ export interface SessionRegistry<C> {
   disposeAll(): Promise<void>;
 }
 
+function toAgentKey(key: SessionKey): AgentScopeKey {
+  return { scopeId: key.workspaceId, sessionId: key.sessionId };
+}
+
+function toCodeKey(key: AgentScopeKey): SessionKey {
+  return { workspaceId: key.scopeId, sessionId: key.sessionId };
+}
+
 export function createSessionRegistry<C>(host: SessionRegistryHost<C>): SessionRegistry<C> {
-  const controllers = new Map<string, C>();
-  const opening = new Map<string, Promise<C>>();
-  const locks = new Map<string, Promise<void>>();
-  let disposingAll = false;
-
-  function requireKey(key: SessionKey, operation: string): string {
-    if (typeof key.workspaceId !== "string" || key.workspaceId.trim() === "") {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: `${operation} requires workspaceId.`,
-        operation,
-        recoverable: true,
-      });
-    }
-    if (typeof key.sessionId !== "string" || key.sessionId.trim() === "") {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.invalidCommand,
-        message: `${operation} requires sessionId.`,
-        operation,
-        recoverable: true,
-      });
-    }
-    return sessionKeyId(key);
-  }
-
-  function getById(id: string): C | undefined {
-    return controllers.get(id);
-  }
-
-  async function evictIfNeeded(operation: string): Promise<void> {
-    if (controllers.size < MAX_RESIDENT_SESSION_CONTROLLERS) {
-      return;
-    }
-    const idle = [...controllers.values()]
-      .filter((controller) => !host.isProtected(controller))
-      .sort((left, right) => host.lastSelectedAt(left) - host.lastSelectedAt(right));
-    const victim = idle[0];
-    if (!victim) {
-      throw createHarnessError({
-        code: HARNESS_ERROR_CODES.sessionConcurrencyLimit,
-        message: `At most ${MAX_RESIDENT_SESSION_CONTROLLERS} chats can stay open. Stop or close a running chat first.`,
-        operation,
-        recoverable: true,
-      });
-    }
-    const victimKey = host.keyOf(victim);
-    controllers.delete(sessionKeyId(victimKey));
-    await host.dispose(victim, "evicted");
-  }
-
-  const registry: SessionRegistry<C> = {
-    async open(key) {
-      const id = requireKey(key, "openSession");
-      const existing = getById(id);
-      if (existing) {
-        return existing;
-      }
-      const inflight = opening.get(id);
-      if (inflight) {
-        return inflight;
-      }
-      const pending = (async () => {
-        await evictIfNeeded("openSession");
-        const created = await host.openController(key);
-        const createdId = requireKey(host.keyOf(created), "openSession");
-        controllers.set(createdId, created);
-        return created;
-      })();
-      opening.set(id, pending);
-      try {
-        return await pending;
-      } finally {
-        if (opening.get(id) === pending) {
-          opening.delete(id);
-        }
-      }
-    },
-    async create(workspaceId) {
-      await evictIfNeeded("createSession");
-      const created = await host.createController(workspaceId);
-      const createdId = requireKey(host.keyOf(created), "createSession");
-      controllers.set(createdId, created);
-      return created;
-    },
-    select(key, at = Date.now()) {
-      const id = requireKey(key, "selectSession");
-      const controller = getById(id);
-      if (!controller) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionNotFound,
-          message: "The selected session is not open.",
-          operation: "selectSession",
-          recoverable: true,
-        });
-      }
-      host.markSelected(controller, at);
-      return controller;
-    },
-    get(key) {
-      return getById(sessionKeyId(key));
-    },
-    list() {
-      return [...controllers.values()];
-    },
-    activeRunCount() {
-      return [...controllers.values()].filter((controller) => host.hasActiveRun(controller)).length;
-    },
-    assertCanAdmitRun(operation) {
-      if (registry.activeRunCount() >= MAX_CONCURRENT_ACTIVE_RUNS) {
-        throw createHarnessError({
-          code: HARNESS_ERROR_CODES.sessionConcurrencyLimit,
-          message: `At most ${MAX_CONCURRENT_ACTIVE_RUNS} chats can run at once.`,
-          operation,
-          recoverable: true,
-        });
-      }
-    },
-    async runLocked(key, operation) {
-      const id = requireKey(key, "sessionLifecycle");
-      const previous = locks.get(id) ?? Promise.resolve();
-      let release: () => void = () => undefined;
-      const current = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      locks.set(id, previous.then(() => current));
-      await previous;
-      try {
-        return await operation();
-      } finally {
-        release();
-        if (locks.get(id) === current) {
-          locks.delete(id);
-        }
-      }
-    },
-    async evictUnprotected(except) {
-      const exceptId = except ? requireKey(except, "refreshSkills") : undefined;
-      const victims = [...controllers.values()].filter((controller) => {
-        if (host.isProtected(controller)) {
-          return false;
-        }
-        return exceptId === undefined || sessionKeyId(host.keyOf(controller)) !== exceptId;
-      });
-      for (const victim of victims) {
-        const victimKey = host.keyOf(victim);
-        controllers.delete(sessionKeyId(victimKey));
-        await host.dispose(victim, "evicted");
-      }
-    },
-    async remove(key) {
-      const id = requireKey(key, "removeSession");
-      const controller = controllers.get(id);
-      if (!controller) {
-        return undefined;
-      }
-      controllers.delete(id);
-      await host.dispose(controller, "removed");
-      return controller;
-    },
-    async disposeAll() {
-      if (disposingAll) {
-        return;
-      }
-      disposingAll = true;
-      const snapshot = [...controllers.values()];
-      controllers.clear();
-      opening.clear();
-      await Promise.all(snapshot.map((controller) => host.dispose(controller, "shutdown")));
-    },
+  const registry: AgentSessionRegistry<C> = createAgentSessionRegistry({
+    openController: (key) => host.openController(toCodeKey(key)),
+    createController: (scopeId) => host.createController(scopeId),
+    keyOf: (controller) => toAgentKey(host.keyOf(controller)),
+    isProtected: (controller) => host.isProtected(controller),
+    lastSelectedAt: (controller) => host.lastSelectedAt(controller),
+    markSelected: (controller, at) => host.markSelected(controller, at),
+    hasActiveRun: (controller) => host.hasActiveRun(controller),
+    dispose: (controller, reason) => host.dispose(controller, reason),
+  });
+  return {
+    open: (key) => registry.open(toAgentKey(key)),
+    create: (workspaceId) => registry.create(workspaceId),
+    select: (key, at) => registry.select(toAgentKey(key), at),
+    get: (key) => registry.get(toAgentKey(key)),
+    list: () => registry.list(),
+    activeRunCount: () => registry.activeRunCount(),
+    assertCanAdmitRun: (operation) => registry.assertCanAdmitRun(operation),
+    runLocked: (key, operation) => registry.runLocked(toAgentKey(key), operation),
+    evictUnprotected: (except) => registry.evictUnprotected(except ? toAgentKey(except) : undefined),
+    remove: (key) => registry.remove(toAgentKey(key)),
+    disposeAll: () => registry.disposeAll(),
   };
-
-  return registry;
 }

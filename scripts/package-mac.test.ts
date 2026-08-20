@@ -7,21 +7,25 @@ import { DESKTOP_DIR, copyPackageTree } from "./stage-app-resources.ts";
 import { SANDBOX_RUNTIME_PACKAGE, SANDBOX_RUNTIME_VERSION } from "../packages/runtime/src/sandbox-artifact.ts";
 
 describe("production package collection", () => {
-  test("walks bun isolated Pi SDK dependencies from the declaring package", () => {
+  test("walks private runtime packages for Pi dependencies without copying workspace TypeScript", () => {
     const packages = collectProductionPackages(path.join(DESKTOP_DIR, "package.json"));
     const names = new Set(packages.map((entry) => entry.name));
 
     expect(names.has("@earendil-works/pi-coding-agent")).toBe(true);
     expect(names.has("@earendil-works/pi-ai")).toBe(true);
+    expect(names.has("@modelcontextprotocol/sdk")).toBe(true);
     expect(names.has("@anthropic-ai/sdk")).toBe(true);
     expect(names.has("openai")).toBe(true);
     expect(names.has("@anthropic-ai/sandbox-runtime")).toBe(true);
     expect(names.has("pi-sandbox")).toBe(false);
     expect(names.has("@carderne/sandbox-runtime")).toBe(false);
     expect(names.has("@gotgenes/pi-permission-system")).toBe(false);
+    expect(names.has("@pho-agent/runtime")).toBe(false);
+    expect(names.has("@pho-agent/protocol")).toBe(false);
     expect(names.has("@pho-code/runtime")).toBe(false);
     expect(names.has("react")).toBe(false);
     expect(packages.every((entry) => !entry.name.startsWith("@pho-code/"))).toBe(true);
+    expect(packages.every((entry) => !entry.name.startsWith("@pho-agent/"))).toBe(true);
 
     const anthropic = packages.find((entry) => entry.name === "@anthropic-ai/sdk");
     expect(anthropic).toBeDefined();

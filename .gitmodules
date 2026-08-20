@@ -10,3 +10,6 @@
 [submodule "refs/oh-my-pi"]
 	path = refs/oh-my-pi
 	url = https://github.com/can1357/oh-my-pi.git
+[submodule "packages/pho-agent"]
+	path = packages/pho-agent
+	url = https://github.com/vietfood/pho-agent.git

@@ -30,4 +30,35 @@ describe("window-first eager module boundary", () => {
     expect(ingest).not.toContain('from "@pho-code/runtime"');
     expect(vite).toContain('"@pho-code/runtime/image-bytes"');
   });
+
+  test("bundles private Pho Agent sources instead of externalizing workspace TypeScript", async () => {
+    const vite = await readDesktop("electron.vite.config.ts");
+
+    for (const entry of [
+      '"@pho-agent/protocol": path.resolve(workspaceRoot, "packages/pho-agent/packages/protocol/src/index.ts")',
+      '"@pho-agent/runtime/feature-api": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/feature-api.ts")',
+      '"@pho-agent/runtime/context-prompt-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/context-prompt-feature.ts")',
+      '"@pho-agent/runtime/github-mcp": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/github-mcp/index.ts")',
+      '"@pho-agent/runtime/plan-agent": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/plan-agent/index.ts")',
+      '"@pho-agent/runtime/path-containment": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/path-containment.ts")',
+      '"@pho-agent/runtime/session-registry": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/session-registry.ts")',
+      '"@pho-agent/runtime/skills": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/skills/index.ts")',
+      '"@pho-agent/runtime/testing": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/testing.ts")',
+      '"@pho-agent/runtime": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/index.ts")',
+    ]) {
+      expect(vite).toContain(entry);
+    }
+    expect(vite.indexOf('"@pho-agent/runtime/feature-api"')).toBeLessThan(
+      vite.indexOf('"@pho-agent/runtime":'),
+    );
+    expect(vite.indexOf('"@pho-agent/runtime/testing"')).toBeLessThan(vite.indexOf('"@pho-agent/runtime":'));
+    expect(vite.indexOf('"@pho-agent/runtime/github-mcp"')).toBeLessThan(vite.indexOf('"@pho-agent/runtime":'));
+    expect(vite).toContain('const bundledMainPackages = [\n  "@pho-agent/protocol",\n  "@pho-agent/runtime",');
+    expect(vite).toContain('const bundledProtocolPackages = ["@pho-agent/protocol", "@pho-code/protocol"]');
+    expect(vite).toContain(
+      'const externalAgentRuntimePackages = [\n  "@earendil-works/pi-ai",\n  "@earendil-works/pi-coding-agent",\n]',
+    );
+    expect(vite).toContain("include: externalAgentRuntimePackages");
+    expect(vite).not.toContain('id.startsWith("@modelcontextprotocol/sdk")');
+  });
 });

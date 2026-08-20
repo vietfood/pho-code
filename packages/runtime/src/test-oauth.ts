@@ -4,7 +4,7 @@ import {
   type AuthInteraction,
   type OAuthCredential,
   type Provider,
-} from "@earendil-works/pi-ai";
+} from "@pho-agent/runtime/testing";
 
 export const TEST_OAUTH_PROVIDER_ID = "pho-test-oauth";
 export const TEST_OAUTH_MODEL_ID = "test-oauth-model";

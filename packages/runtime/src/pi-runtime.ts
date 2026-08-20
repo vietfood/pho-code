@@ -1,27 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { FauxProviderHandle } from "@earendil-works/pi-ai";
 import type {
   AgentSession,
   AgentSessionEvent,
   AgentSessionRuntime,
   AgentSessionRuntimeDiagnostic,
-  CreateAgentSessionRuntimeFactory,
   SessionInfo,
-} from "@earendil-works/pi-coding-agent";
+} from "@pho-agent/runtime/feature-api";
 import {
-  ModelRuntime,
-  ProjectTrustStore,
-  SessionManager,
-  SettingsManager,
-  createAgentSessionFromServices,
-  createAgentSessionRuntime,
-  createAgentSessionServices,
-  DefaultResourceLoader,
+  agentProjectRequiresTrust,
+  createAgentModelRuntime,
+  createAgentProjectTrustStore,
+  createAgentResourceLoader,
+  createAgentSettingsManager,
+  createInMemoryAgentSettings,
+  createNewAgentSessionRuntime,
+  createPiSessionRuntimeFactory,
   getAgentDir,
-  hasTrustRequiringProjectResources,
-} from "@earendil-works/pi-coding-agent";
+  listAgentSessions,
+  openAgentSessionRuntime,
+  registerAgentTestProvider,
+} from "@pho-agent/runtime";
+import type { FauxProviderHandle } from "@pho-agent/runtime/feature-api";
 import {
   PROTOCOL_VERSION,
   RUNTIME_EVENT_TYPES,
@@ -221,6 +222,7 @@ import {
   validateWorkspaceReference,
 } from "./workspace-reference";
 import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
+import { createPhoCodeScopeAdapter } from "./pho-code-scope-adapter";
 
 export interface PhoCodeRuntimeOptions {
   agentDir?: string;
@@ -323,8 +325,9 @@ export async function createPhoCodeRuntime(
   }
   const agentDir = path.resolve(options.agentDir ?? getAgentDir());
   syncHarnessPermissionPolicy(agentDir);
-  const trustStore = new ProjectTrustStore(agentDir);
+  const trustStore = createAgentProjectTrustStore(agentDir);
   const approvedProjectPaths = new Set<string>();
+  const scopeAdapter = createPhoCodeScopeAdapter();
   const listeners = new Set<(event: RuntimeEvent) => void>();
   const compiledContextPromptByKey = new Map<string, string>();
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
@@ -419,17 +422,12 @@ export async function createPhoCodeRuntime(
     ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
   ];
   const flattenedFeatures = flattenFeatureManifest(featureManifest);
-  const modelRuntime = await ModelRuntime.create({
-    authPath: path.join(agentDir, "auth.json"),
-    modelsPath: path.join(agentDir, "models.json"),
-    refreshOnCreate: false,
-    allowModelNetwork: false,
-  });
+  const modelRuntime = await createAgentModelRuntime(agentDir);
 
   let testProvider: FauxProviderHandle | undefined;
   if (options.deterministicTestModel) {
     testProvider = createDeterministicTestProvider();
-    modelRuntime.registerNativeProvider(testProvider.provider);
+    registerAgentTestProvider(modelRuntime, testProvider);
   }
   if (options.testOAuthFlow) {
     modelRuntime.registerNativeProvider(createTestOAuthProvider());
@@ -610,19 +608,17 @@ export async function createPhoCodeRuntime(
   }
 
   async function instantiateSession(workspaceId: string, sessionId?: string): Promise<LiveSession> {
-    const cwd = await canonicalizeWorkspaceDirectory(
+    const canonicalWorkspace = await canonicalizeWorkspaceDirectory(
       workspaceId,
       sessionId ? "openSession" : "createSession",
     );
+    const scopeId = scopeAdapter.registerWorkspace(canonicalWorkspace, canonicalWorkspace);
+    const { runtimeDirectory: cwd } = await scopeAdapter.resolve(scopeId);
     await ensureSandboxInitialized(cwd);
     const workspace = workspaceSummary(cwd);
     const next = sessionId
       ? await openPiRuntime(cwd, sessionId)
-      : await createAgentSessionRuntime(createRuntime, {
-          cwd,
-          agentDir,
-          sessionManager: SessionManager.create(cwd),
-        });
+      : await createNewAgentSessionRuntime(createRuntime, { cwd, agentDir });
     const key: SessionKey = { workspaceId: cwd, sessionId: next.session.sessionId };
     generation += 1;
     const live: LiveSession = {
@@ -654,16 +650,11 @@ export async function createPhoCodeRuntime(
   }
 
   async function openPiRuntime(cwd: string, sessionId: string): Promise<AgentSessionRuntime> {
-    const infos = await SessionManager.list(cwd);
-    const info = infos.find((entry) => entry.id === sessionId);
-    if (!info) {
+    const runtime = await openAgentSessionRuntime(createRuntime, { cwd, agentDir, sessionId });
+    if (!runtime) {
       failCommand("openSession", "The selected session was not found.", HARNESS_ERROR_CODES.sessionNotFound, { sessionId });
     }
-    return createAgentSessionRuntime(createRuntime, {
-      cwd,
-      agentDir,
-      sessionManager: SessionManager.open(info.path),
-    });
+    return runtime;
   }
 
   async function disposeLiveSession(session: LiveSession, _reason: "evicted" | "removed" | "shutdown"): Promise<void> {
@@ -764,7 +755,7 @@ export async function createPhoCodeRuntime(
   }
 
   async function resolveListedSession(cwd: string, sessionId: string, operation: string): Promise<SessionInfo> {
-    const infos = await SessionManager.list(cwd);
+    const infos = await listAgentSessions(cwd, agentDir);
     const info = infos.find((entry) => entry.id === sessionId);
     if (!info) {
       failCommand(operation, "The selected session was not found.", HARNESS_ERROR_CODES.sessionNotFound, { sessionId });
@@ -846,7 +837,7 @@ export async function createPhoCodeRuntime(
     if (approvedProjectPaths.has(cwd)) {
       return true;
     }
-    if (!hasTrustRequiringProjectResources(cwd)) {
+    if (!agentProjectRequiresTrust(cwd)) {
       return true;
     }
     return trustStore.get(cwd) === true;
@@ -880,7 +871,7 @@ export async function createPhoCodeRuntime(
   }
 
   async function listSessions(cwd: string): Promise<SessionSummary[]> {
-    const infos = await SessionManager.list(cwd);
+    const infos = await listAgentSessions(cwd, agentDir);
     return infos.map((info) => sessionSummaryFromInfo(cwd, info));
   }
 
@@ -1093,14 +1084,13 @@ export async function createPhoCodeRuntime(
         live,
       );
     }
-    const settingsManager = SettingsManager.create(cwd, agentDir);
-    const loader = new DefaultResourceLoader({
+    const settingsManager = createAgentSettingsManager(cwd, agentDir);
+    const loader = await createAgentResourceLoader({
       cwd,
       agentDir,
       settingsManager,
       ...resourceLoaderOptions(),
-    });
-    await loader.reload({
+    }, {
       resolveProjectTrust: async () => isProjectApproved(cwd),
     });
     return withHostDiagnostics(projectFeatureSnapshot(featureManifest, loader, compositionDiagnostics));
@@ -1382,59 +1372,42 @@ export async function createPhoCodeRuntime(
     emitActivity();
   }
 
-  const createRuntime: CreateAgentSessionRuntimeFactory = async ({
-    cwd,
-    agentDir: runtimeAgentDir,
-    sessionManager,
-    sessionStartEvent,
-  }) => {
-    const services = await createAgentSessionServices({
-      cwd,
-      agentDir: runtimeAgentDir,
-      modelRuntime,
-      ...(options.deterministicTestModel
-        ? {
-            settingsManager: SettingsManager.inMemory({
+  const createRuntime = createPiSessionRuntimeFactory({
+    modelRuntime,
+    resourceLoaderOptions,
+    resolveProjectTrust: (cwd) => isProjectApproved(cwd),
+    ...(options.deterministicTestModel
+      ? {
+          settingsManager: () =>
+            createInMemoryAgentSettings({
               compaction: { enabled: false },
               retry: { enabled: false },
             }),
+        }
+      : {}),
+    sessionOptions: () => ({
+      ...(testProvider ? { model: testProvider.getModel(), thinkingLevel: "off" } : {}),
+      ...(testTool
+        ? {
+            customTools: [testTool],
+            tools: [
+              TEST_TOOL_NAME,
+              "bash",
+              TRASH_TOOL_NAME,
+              ASK_USER_QUESTION_TOOL_NAME,
+              UPDATE_PLAN_DOCUMENT_TOOL_NAME,
+              TODO_TOOL_NAME,
+              "read",
+              "write",
+              "edit",
+              "ls",
+              "grep",
+              "find",
+            ],
           }
         : {}),
-      resourceLoaderOptions: resourceLoaderOptions(),
-      resourceLoaderReloadOptions: {
-        resolveProjectTrust: async () => isProjectApproved(cwd),
-      },
-    });
-    return {
-      ...(await createAgentSessionFromServices({
-        services,
-        sessionManager,
-        sessionStartEvent,
-        ...(testProvider ? { model: testProvider.getModel(), thinkingLevel: "off" } : {}),
-        ...(testTool
-          ? {
-              customTools: [testTool],
-              tools: [
-                TEST_TOOL_NAME,
-                "bash",
-                TRASH_TOOL_NAME,
-                ASK_USER_QUESTION_TOOL_NAME,
-                UPDATE_PLAN_DOCUMENT_TOOL_NAME,
-                TODO_TOOL_NAME,
-                "read",
-                "write",
-                "edit",
-                "ls",
-                "grep",
-                "find",
-              ],
-            }
-          : {}),
-      })),
-      services,
-      diagnostics: services.diagnostics,
-    };
-  };
+    }),
+  });
 
   function contextPromptEditable(live: LiveSession): boolean {
     if (live.activeRun && !live.activeRun.settled) {

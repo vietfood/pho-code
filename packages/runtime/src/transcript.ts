@@ -1,4 +1,4 @@
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession } from "@pho-agent/runtime/feature-api";
 import { isImageMimeType, type TranscriptBlock, type TranscriptMessage } from "@pho-code/protocol";
 import { previewText, previewToolResult, previewUnknown } from "./preview";
 import { displayToolName } from "./tool-display";

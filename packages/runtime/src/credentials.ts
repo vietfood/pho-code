@@ -1,5 +1,5 @@
-import type { AuthInteraction, AuthPrompt } from "@earendil-works/pi-ai";
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import type { AuthInteraction, AuthPrompt } from "@pho-agent/runtime/feature-api";
+import type { AgentModelRuntime as ModelRuntime } from "@pho-agent/runtime";
 import {
   createHarnessError,
   HARNESS_ERROR_CODES,

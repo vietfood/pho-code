@@ -2,6 +2,8 @@
 
 Accepted current-codebase decisions, ordered from overview to depth. Proposals belong in a `version/` or `features/` plan until acceptance changes a shared boundary here.
 
+The source map also labels the implemented, still-unaccepted V5 Milestone 0 package extraction where omitting it would make current ownership misleading. Those labels do not promote V5; its acceptance remains governed by [`../version/v5/implementation-plan.md`](../version/v5/implementation-plan.md).
+
 | Document | Role |
 | --- | --- |
 | [`overview.md`](./overview.md) | System overview, dependency direction, layer ownership, security posture |

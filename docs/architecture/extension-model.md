@@ -4,6 +4,8 @@
 
 Personal v1 and v2 are accepted and archived. Ordinary global/project executable feature discovery is disabled, `HarnessFeatureManifest` remains the only extension/MCP composition input, and packaged builds resolve third-party executable features only from app-owned resources. V2 Milestone 4 reads text-only skills from fixed, explicitly enabled Codex/Cursor/Claude/Pi user roots with provenance and validation, ships three Pho Code-authored skills, and adds one Settings-controlled adapter for pinned read-only `github/github-mcp-server` `v1.9.0`. Enabling a skill source makes its skills available in `/`; it does not bake them into Pi session context. GitHub uses an explicitly supplied PAT retained in the OS secret store and a fixed `mcp` dispatcher restricted to qualified allowlisted reads; OAuth is intentionally absent. Typed settings do not admit arbitrary paths, packages, or server definitions. See the [v2 closure review](../archive/v2/reviews/milestone-4-code-review.md).
 
+V5 Milestone 0 has moved the host-neutral feature model, skill primitives, and reviewed GitHub MCP lifecycle into `@pho-agent/runtime`; Pho Code retains product selection, credentials, enablement, packaged-resource policy, and UI. This ownership change is implemented but not yet accepted and does not introduce ambient discovery or an arbitrary MCP manager.
+
 ## Purpose
 
 This document defines how the harness composes curated features without becoming a customizable Pi distribution. Pi remains the runtime format and loader, but the application chooses, pins, and ships its capabilities. The owner changes the feature set by changing source and rebuilding the app, not through a resource store.
@@ -90,7 +92,7 @@ This is an About/Diagnostics record, not a composition model. It has no install 
 
 ## Baked feature seam
 
-`HarnessFeatureManifest` is the only composition input. Use a named inline factory for application-owned integration code. Use an explicit packaged path when a third-party Pi package is the implementation unit.
+The source-controlled feature manifest is the only composition input. V5 M0 represents its entries as shared `AgentFeature` values and keeps `HarnessFeature` as the Pho Code compatibility name. Use a named inline factory for application-owned integration code. Use an explicit packaged path when a third-party Pi package is the implementation unit.
 
 The first shipped features are:
 
@@ -138,6 +140,8 @@ const cursorSdkFeature: HarnessFeature = {
 - `change-capture` observes Pi `write`/`edit` for the accepted V3 ledger.
 
 These are still immutable source-selected capabilities. They are assembled in two stages because they depend on runtime-owned services, not because users or projects can install them. Ambient Pi extension/skill/MCP discovery remains disabled. The V3 feature's accepted recovery limits remain in [`../archive/v3/`](../archive/v3/README.md).
+
+Under the implemented V5 M0 split, `read_skill`, Plan/ask-user/todo, and the GitHub MCP transport/lifecycle are reusable `@pho-agent/runtime` feature modules. `createPhoCodeRuntime` supplies Pho Code-owned resource paths, settings, secret/artifact adapters, workspace identity, permission context, and protocol/UI projection. The source-selected two-stage composition contract is unchanged.
 
 `@gotgenes/pi-permission-system` must be an exact application dependency and must be staged with its package manifest, `src`, runtime dependencies, schema/config assets, and license. The Pi loader should load that staged package/path explicitly. Do not rely on `npm:@gotgenes/pi-permission-system` in `~/.pi/agent/settings.json`, global npm lookup, or runtime installation.
 

@@ -4,7 +4,7 @@ import type {
   ExtensionError,
   ExtensionUIContext,
   Theme,
-} from "@earendil-works/pi-coding-agent";
+} from "@pho-agent/runtime/feature-api";
 import {
   failCommand,
   RUNTIME_EVENT_TYPES,

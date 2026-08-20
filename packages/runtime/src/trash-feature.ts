@@ -1,5 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
-import { getAgentDir, defineTool, type InlineExtension } from "@earendil-works/pi-coding-agent";
+import { Type, getAgentDir, defineTool, type InlineExtension } from "@pho-agent/runtime/feature-api";
 import type { ResourceDiagnostic } from "@pho-code/protocol";
 import type { HarnessFeature } from "./features";
 import {

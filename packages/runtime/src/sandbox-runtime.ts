@@ -4,7 +4,7 @@ import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox
 import {
   createLocalBashOperations,
   type BashOperations,
-} from "@earendil-works/pi-coding-agent";
+} from "@pho-agent/runtime/feature-api";
 import type { SandboxStatus, SandboxStatusReason } from "@pho-code/protocol";
 import { PACKAGED_FEATURES_DIR } from "./resource-locator";
 import { findExecutableOnPath } from "./process-launch";

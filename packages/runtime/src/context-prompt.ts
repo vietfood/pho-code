@@ -205,14 +205,18 @@ export function lookupCompiledContextPrompt(
 }
 
 export function collectContextPromptRecord(
-  entries: readonly ContextPromptCustomEntry[],
+  entries: readonly unknown[],
 ): ContextPromptCustomRecord | undefined {
   let current: ContextPromptCustomRecord | undefined;
   for (const entry of entries) {
-    if (entry.type !== "custom" || entry.customType !== CONTEXT_PROMPT_CUSTOM_TYPE) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       continue;
     }
-    const parsed = parseContextPromptRecord(entry.data);
+    const custom = entry as ContextPromptCustomEntry;
+    if (custom.type !== "custom" || custom.customType !== CONTEXT_PROMPT_CUSTOM_TYPE) {
+      continue;
+    }
+    const parsed = parseContextPromptRecord(custom.data);
     if (parsed === "reset") {
       current = undefined;
       continue;

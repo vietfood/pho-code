@@ -8,13 +8,23 @@
     "bun": ">=1.3.14",
     "node": ">=22.19.0"
   },
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/application",
+    "packages/protocol",
+    "packages/runtime",
+    "packages/ui",
+    "packages/pho-agent/packages/*"
+  ],
   "scripts": {
     "dev": "bun run --filter @pho-code/desktop dev",
     "build": "bun run --filter @pho-code/desktop build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",
     "test": "bun test",
+    "eval:v5": "bun scripts/run-v5-baseline.ts --cohort all",
+    "eval:v5:development": "bun scripts/run-v5-baseline.ts --cohort development",
+    "eval:v5:holdout": "bun scripts/run-v5-baseline.ts --cohort holdout",
     "test:desktop": "bun run --filter @pho-code/desktop test:desktop",
     "package:mac": "bun run --filter @pho-code/desktop package:mac",
     "package:mac:proof": "bun run --filter @pho-code/desktop package:mac:proof",

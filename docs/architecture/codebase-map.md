@@ -12,9 +12,14 @@ apps/desktop/
 ├── src/             Renderer composition and keyed UI state
 └── tests/           Electron, packaged, security, and helper lanes
 packages/
+├── pho-agent/       Pinned production submodule (V5 M0, not yet accepted)
+│   └── packages/
+│       ├── protocol/ Host-neutral harness contracts and validation
+│       ├── runtime/  Reusable Pi lifecycle and harness features
+│       └── evals/    Versioned harness-evaluation records and scoring
 ├── protocol/        JSON-safe contracts, reducers, validation
 ├── application/     Use cases, metadata, catalog coordination
-├── runtime/         Pi ownership and privileged feature adapters
+├── runtime/         Pho Code product runtime and adapters over agent-runtime
 └── ui/              React presentation and interaction components
 scripts/             Packaging, staging, attribution checks; V4 release identity and macOS proof vs local package policy
 ```
@@ -24,15 +29,27 @@ The enforced direction is:
 ```text
 apps/desktop/src -> packages/ui -> packages/protocol
 apps/desktop/src -> packages/protocol
-apps/desktop/electron -> packages/application -> packages/runtime -> Pi SDK
+apps/desktop/electron -> packages/application -> packages/runtime -> packages/pho-agent/packages/runtime -> Pi SDK
 apps/desktop/electron -> packages/protocol
+packages/protocol -> packages/pho-agent/packages/protocol
+packages/runtime -> packages/pho-agent/packages/runtime
 ```
 
 Electron main is the composition root and may import application/runtime packages. Renderer code may not.
 
+The three `@pho-agent/*` packages are versioned together by the pinned `packages/pho-agent` gitlink to [`vietfood/pho-agent`](https://github.com/vietfood/pho-agent). They remain unaccepted until the V5 Milestone 0 exit gate closes. `@pho-code/*` compatibility surfaces remain the product-facing boundary during the migration.
+
+## Agent packages (V5 M0, implemented but not accepted)
+
+- `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Plan/Agent, skill, and GitHub MCP contracts. Matching files in `packages/protocol/src` are compatibility re-exports.
+- `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, and the fixed reviewed GitHub MCP lifecycle. It does not import Electron, React, or `@pho-code/*`.
+- `packages/pho-agent/packages/evals/src` owns append-only scenario/result records, source fingerprints, deterministic scoring, and cohort separation for harness evaluation.
+
+Pho Code still owns application identity, renderer contracts, metadata/settings policy, desktop adapters, resources/packaging, product-specific retrieval/web/sandbox/change review, and its wide `HarnessRuntime` facade.
+
 ## Protocol package
 
-`packages/protocol/src` groups contracts by behavior:
+`packages/protocol/src` groups product contracts by behavior and re-exports the shared V5 M0 contracts named above:
 
 - `version.ts`, `bridge.ts`, `command-result.ts`, `errors.ts`, `json.ts` — versioned facade, result envelope, normalized failures, JSON-safety.
 - `events.ts`, `conversation.ts`, `bootstrap.ts` — runtime envelopes, transcript/run projections, bootstrap snapshot and reducers.
@@ -64,17 +81,17 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 
 - `harness-runtime.ts` defines the privileged runtime interface.
 - `pi-runtime.ts` composes Pi services and public runtime operations, including the accepted bounded abort/controller-disposal path.
-- `session-registry.ts` owns composite identity and the bounded independent registry: eight resident controllers and four concurrent runs.
+- `session-registry.ts` adapts Pho Code `{workspaceId, sessionId}` identity to the bounded independent registry owned by `@pho-agent/runtime/session-registry`: eight resident controllers and four concurrent runs.
 - `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth.
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.
-- `context-prompt.ts`, `context-prompt-feature.ts`, `assistant-rewrite.ts` own Pi custom-entry/prompt integration. Context-prompt injection looks up compiled A from the live session on `before_agent_start`; the factory does not capture a bind-time session key.
+- `context-prompt.ts` and `assistant-rewrite.ts` own product compilation and display overlays; `context-prompt-feature.ts` re-exports the reusable Pi hook from `@pho-agent/runtime/context-prompt-feature`. Context-prompt injection looks up compiled A from the live session on `before_agent_start`; the factory does not capture a bind-time session key.
 
 ### Feature composition and resources
 
-- `features.ts`, `resources.ts`, `resource-locator.ts` build the immutable manifest and resolve development vs packaged resources.
+- `features.ts` adapts the shared `AgentFeature` composition model; `resources.ts` and `resource-locator.ts` build the Pho Code manifest and resolve development vs packaged resources.
 - `permission-settings.ts`, `permission-presets.ts` adapt the pinned permission feature; runtime start syncs harness allow-list tools (`ask_user_question`, `update_plan_document`, `todo`, `execute_plan`) and the managed `web_search` / `fetch_content` pair onto existing configs, and appends the sandbox `authorizerChain` link (`pho-code-sandbox`).
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
-- `plan-agent-feature.ts`, `plan-agent-state.ts`, `todo-tool.ts`, `ask-user-question.ts`, `ask-user-present.ts`, `ask-user-rpc-fallback.ts` register `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` (accepted Plan/Agent).
+- `plan-agent-feature.ts` supplies Pho Code tool-policy context to `@pho-agent/runtime/plan-agent`; the remaining compatibility modules re-export the shared `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` implementation (accepted product behavior; V5 package ownership not yet accepted).
 - `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
 
@@ -85,12 +102,12 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `local-retrieval.ts`, `retrieval-feature.ts`, `workspace-reference.ts`, `workspace-path.ts` own the workspace-bounded FFF index and references.
 - `web-feature.ts`, `web-client.ts`, `web-url.ts`, `web-search-providers.ts`, `web-youtube.ts` own bounded public web search/fetch.
 - `image-store.ts`, `image-bytes.ts` own prepared image lifetime and validation.
-- `skill-source.ts`, `skills-feature.ts`, `skill-invoke.ts` own fixed text-only skill sources and on-demand expansion.
+- `skill-source.ts` and `skill-invoke.ts` re-export host-neutral source/invocation primitives from `@pho-agent/runtime/skills`; `skills-feature.ts` owns the curated Pho Code resource adapter.
 
 ### Accounts and MCP
 
 - `credentials.ts`, `provider-auth-flow.ts`, `secret-store.ts` keep credential material and provider OAuth in the privileged layer.
-- `github-mcp-runtime.ts`, `github-mcp-feature.ts`, `github-mcp-allowlist.ts`, `github-mcp-artifact.ts` own the single pinned read-only GitHub server and tool allowlist.
+- `github-mcp-runtime.ts`, `github-mcp-feature.ts`, `github-mcp-allowlist.ts`, and `github-mcp-artifact.ts` are compatibility re-exports of the shared `@pho-agent/runtime/github-mcp` implementation. Pho Code retains enablement, credentials, packaged-artifact selection, and UI policy for the single pinned read-only GitHub server.
 
 ### V3 change review
 

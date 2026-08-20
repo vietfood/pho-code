@@ -5,7 +5,7 @@ import {
   type HarnessFeatureSummary,
   type ResourceDiagnostic,
 } from "@pho-code/protocol";
-import type { DefaultResourceLoader, ResourceLoader } from "@earendil-works/pi-coding-agent";
+import type { DefaultResourceLoader, ResourceLoader } from "@pho-agent/runtime/feature-api";
 import { expectedFeatureResourceCounts, type HarnessFeature, type HarnessFeatureManifest } from "./features";
 
 type LoadedExtension = ReturnType<ResourceLoader["getExtensions"]>["extensions"][number];

@@ -3,7 +3,7 @@ import {
   type InlineExtension,
   type ToolCallEvent,
   type ToolResultEvent,
-} from "@earendil-works/pi-coding-agent";
+} from "@pho-agent/runtime/feature-api";
 import type { ChangeScope } from "@pho-code/protocol";
 import type { HarnessFeature } from "./features";
 import type { ChangeCaptureService } from "./change-capture";

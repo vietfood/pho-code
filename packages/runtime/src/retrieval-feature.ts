@@ -1,5 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
-import { defineTool, type InlineExtension } from "@earendil-works/pi-coding-agent";
+import { Type, defineTool, type InlineExtension } from "@pho-agent/runtime/feature-api";
 import type { HarnessFeature } from "./features";
 import type { LocalRetrievalRuntime } from "./local-retrieval";
 

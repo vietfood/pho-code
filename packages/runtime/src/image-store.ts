@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ImageContent } from "@earendil-works/pi-ai";
+import type { ImageContent } from "@pho-agent/runtime/feature-api";
 import {
   createHarnessError,
   HARNESS_ERROR_CODES,

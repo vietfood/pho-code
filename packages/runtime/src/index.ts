@@ -7,6 +7,7 @@ export type {
   RuntimeCapabilities,
 } from "./harness-runtime";
 export { createPhoCodeRuntime } from "./pi-runtime";
+export { createPhoCodeScopeAdapter, type PhoCodeScopeAdapter } from "./pho-code-scope-adapter";
 export type { PhoCodeRuntimeOptions } from "./pi-runtime";
 export {
   MAX_CONCURRENT_ACTIVE_RUNS,

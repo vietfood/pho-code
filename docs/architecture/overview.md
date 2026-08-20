@@ -4,6 +4,8 @@
 
 Accepted architecture for completed personal v1, v2, and v3. V3 change review, ledger, and per-file recovery are accepted; their immutable contract and evidence live in [`archive/v3`](../archive/v3/README.md). The terminal is a proposed add-on under [`features/terminal`](../features/terminal/README.md), not current architecture. Plan/Agent is accepted; its immutable contract lives in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md). Agent-tool sandbox is accepted; its immutable contract lives in [`archive/features/sandbox`](../archive/features/sandbox/README.md). Bounded Stop, Stop-all, and bounded teardown are accepted; their evidence lives in [`archive/urgent/agent-stop`](../archive/urgent/agent-stop/README.md). Window-first startup is accepted; its immutable contract and qualified evidence live in [`archive/urgent/window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md). Pi utility-process extraction and public-beta release behavior are proposed under pending [`version/v4`](../version/v4/README.md), not current architecture.
 
+V5 Milestone 0 has an implemented source extraction into `@pho-agent/*`, but it is not yet accepted. This document labels that current ownership where necessary; the accepted product behavior remains the archived contracts above.
+
 Use this page for the system shape and non-negotiable boundaries. Deeper accepted contracts are split into:
 
 - [`codebase-map.md`](./codebase-map.md) — current packages, module clusters, composition roots, and test ownership;
@@ -40,8 +42,9 @@ flowchart LR
     Renderer -->|"window.phoCode"| Preload["Electron preload"]
     Preload -->|"typed IPC"| Main["Electron main"]
     Main --> Application["Application service"]
-    Application --> Runtime["Pi harness runtime"]
-    Runtime --> Pi["Pi SDK 0.84.1"]
+    Application --> Runtime["Pho Code runtime adapters"]
+    Runtime --> AgentRuntime["Pho Agent runtime"]
+    AgentRuntime --> Pi["Pi SDK 0.84.1"]
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
@@ -53,8 +56,11 @@ Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Protocol | `packages/protocol/src` | Version 1 named commands/events, JSON safety, workspace/session/run and catalog lifecycle, typed settings/accounts/skills/MCP/input, reducers, and implemented V3 review contracts |
-| Runtime | `packages/runtime/src` | Pi host; bounded registry (8 resident/4 concurrent); transcript, queues, host UI, two-stage feature composition, resources/settings/accounts, retrieval/web/skills/GitHub MCP/context prompt, and implemented V3 capture/ledger/recovery |
+| Agent protocol (V5 M0, unaccepted) | `packages/pho-agent/packages/protocol/src` | Host-neutral errors/JSON helpers and reusable Plan/Agent, skill, and GitHub MCP contracts |
+| Agent runtime (V5 M0, unaccepted) | `packages/pho-agent/packages/runtime/src` | Pi service seam, feature model, opaque-scope registry, Plan/ask-user/todo, skill primitives, context-prompt hook, path containment, and reviewed GitHub MCP lifecycle |
+| Agent evals (V5 M0, unaccepted) | `packages/pho-agent/packages/evals/src` | Append-only scenarios/results, source fingerprints, scoring, and cohort separation |
+| Protocol | `packages/protocol/src` | Version 1 product commands/events, workspace/session/run and catalog lifecycle, settings/accounts/input, reducers, V3 review contracts, and compatibility exports for shared contracts |
+| Runtime | `packages/runtime/src` | Pho Code Pi host/adapters; transcript, queues, host UI, product manifest/resources/settings/accounts, retrieval/web/sandbox/change review, and adapters over shared Plan/skills/MCP/context/session primitives |
 | Application | `packages/application/src` | Input/identity validation, runtime delegation, metadata v6, catalog joins, archive/restore/removal tokens, typed settings/accounts, and V3 review-scope validation |
 | UI | `packages/ui/src` | Shell, keyed conversation presentation, rich untrusted content, composer/tools/dialogs/settings, right-sidebar host, context prompt, and implemented V3 review sheet |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
@@ -69,8 +75,9 @@ flowchart TB
     Renderer -->|"DesktopBridge commands"| Preload["Electron preload"]
     Preload -->|"validated IPC"| Main["Electron main adapter"]
     Main --> App["Application service"]
-    App --> Runtime["Harness runtime"]
-    Runtime --> Pi["Pi SDK 0.84.1"]
+    App --> Runtime["Pho Code HarnessRuntime"]
+    Runtime --> AgentRuntime["Pho Agent runtime"]
+    AgentRuntime --> Pi["Pi SDK 0.84.1"]
     App --> Metadata["Application metadata store"]
     Pi --> Sessions["Pi JSONL sessions"]
     Runtime --> Features["Baked feature manifest"]
@@ -78,7 +85,8 @@ flowchart TB
     Runtime --> PermissionConfig["Permission behavior config"]
     PermissionConfig --> Pi
     Pi --> Models["Providers and model APIs"]
-    Runtime --> MCP["GitHub MCP runtime"]
+    Runtime --> MCPPolicy["Pho Code MCP policy"]
+    MCPPolicy --> AgentMCP["Pho Agent GitHub MCP lifecycle"]
 ```
 
 ## Layer ownership
@@ -182,7 +190,7 @@ It depends on interfaces, not Electron APIs. A test can instantiate it with in-m
 
 ### Harness runtime
 
-The runtime is the only product layer that imports the Pi SDK. It owns:
+The privileged runtime boundary is the only product area that imports the Pi SDK. The in-progress V5 M0 source split places host-neutral lifecycle and feature primitives in `@pho-agent/runtime`; `@pho-code/runtime` remains the product-facing `HarnessRuntime` and owns Pho Code policy, storage, and projections. Together they own:
 
 - one shared `ModelRuntime` and compatible credential/settings services where appropriate;
 - the one-flow provider OAuth coordinator, opaque URL registry, and Pi `AuthInteraction` adapter;

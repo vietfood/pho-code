@@ -3,7 +3,7 @@ import {
   isToolCallEventType,
   type InlineExtension,
   type ToolCallEvent,
-} from "@earendil-works/pi-coding-agent";
+} from "@pho-agent/runtime/feature-api";
 import type { HarnessFeature } from "./features";
 import { bindSandboxPermissionAuthorizer } from "./sandbox-permission";
 import type { AgentSandbox } from "./sandbox-runtime";

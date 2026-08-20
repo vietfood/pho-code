@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { InlineExtension } from "@earendil-works/pi-coding-agent";
+import { flattenAgentFeatures, type AgentFeature } from "@pho-agent/runtime";
+import type { InlineExtension } from "@pho-agent/runtime/feature-api";
 import type { ResourceDiagnostic } from "@pho-code/protocol";
 import { createNodeModuleResourceLocator, readPiExtensionPaths, type ResourceLocator } from "./resource-locator";
 import { createTrashFeature, type TrashFeatureOptions } from "./trash-feature";
@@ -19,19 +20,7 @@ export const CURSOR_SDK_FEATURE_ID = "cursor-sdk";
 export const CURSOR_SDK_FEATURE_VERSION = "0.2.0";
 export const CURSOR_SDK_PACKAGE_NAME = "pi-cursor-sdk";
 
-export interface HarnessFeature {
-  id: string;
-  version: string;
-  extensionFactories?: readonly InlineExtension[];
-  extensionPaths?: readonly string[];
-  skillPaths?: readonly string[];
-  promptPaths?: readonly string[];
-  expected?: {
-    extensions?: number;
-    skills?: number;
-    prompts?: number;
-  };
-}
+export type HarnessFeature = AgentFeature;
 
 export interface HarnessFeatureManifest {
   features: readonly HarnessFeature[];
@@ -155,32 +144,7 @@ export function expectedFeatureResourceCounts(feature: HarnessFeature): {
 }
 
 export function flattenFeatureManifest(manifest: HarnessFeatureManifest): FlattenedFeatureLoaderOptions {
-  const additionalExtensionPaths: string[] = [];
-  const additionalSkillPaths: string[] = [];
-  const additionalPromptTemplatePaths: string[] = [];
-  const extensionFactories: InlineExtension[] = [];
-
-  for (const feature of manifest.features) {
-    if (feature.extensionPaths) {
-      additionalExtensionPaths.push(...feature.extensionPaths);
-    }
-    if (feature.skillPaths) {
-      additionalSkillPaths.push(...feature.skillPaths);
-    }
-    if (feature.promptPaths) {
-      additionalPromptTemplatePaths.push(...feature.promptPaths);
-    }
-    if (feature.extensionFactories) {
-      extensionFactories.push(...feature.extensionFactories);
-    }
-  }
-
-  return {
-    additionalExtensionPaths,
-    additionalSkillPaths,
-    additionalPromptTemplatePaths,
-    extensionFactories,
-  };
+  return flattenAgentFeatures(manifest.features);
 }
 
 export function emptyFeatureManifest(): HarnessFeatureManifest {

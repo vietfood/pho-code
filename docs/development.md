@@ -4,7 +4,7 @@ For a change-specific verification workflow, use [`.agents/skills/test-pho-code`
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with one Electron desktop app and four shared packages: protocol, application, runtime, and UI. See the current [`codebase map`](./architecture/codebase-map.md) for ownership and [`current-state.md`](./current-state.md) for product/workstream status. The three reference submodules remain read-only.
+The repository is a Bun TypeScript workspace with one Electron desktop app, three private Pho Agent packages from the pinned `packages/pho-agent` production submodule, and four Pho Code packages. See the accepted [`codebase map`](./architecture/codebase-map.md), the in-progress [`V5 M0 ownership record`](./version/v5/logs/2026-08-20-m0-harness-ownership-expansion.md), and [`current-state.md`](./current-state.md). The four `refs/*` reference submodules remain read-only; `packages/pho-agent` changes only when a task explicitly advances the reusable runtime.
 
 After a fresh clone, materialize the references with:
 
@@ -12,7 +12,7 @@ After a fresh clone, materialize the references with:
 git submodule update --init --recursive
 ```
 
-This checks out the revisions recorded by the outer repository. Do not replace it with `git submodule update --remote`; reference upgrades must be deliberate changes.
+This checks out the revisions recorded by the outer repository, including the production Pho Agent runtime. Do not replace it with `git submodule update --remote`; every submodule upgrade must be a deliberate pinned-gitlink change.
 
 Inspect the current state with:
 
@@ -22,6 +22,7 @@ git submodule status
 git -C refs/pi-gui status --short --branch
 git -C refs/pi-web status --short --branch
 git -C refs/t3code status --short --branch
+git -C packages/pho-agent status --short --branch
 ```
 
 Browse files with:
@@ -30,14 +31,17 @@ Browse files with:
 rg --files -g '!node_modules' -g '!dist' -g '!build'
 ```
 
-Do not run install/build commands inside a reference submodule as if that built this product. Do not modify, clean, reset, or advance the submodules unless a task explicitly changes the references.
+Do not run install/build commands inside a `refs/*` reference submodule as if that built this product. Do not modify, clean, reset, or advance reference submodules unless a task explicitly changes them. `packages/pho-agent` has its own development commands and changes only when a task explicitly advances the reusable runtime.
 
 ### Implemented package map
 
 | Path | Current responsibility |
 | --- | --- |
-| `packages/protocol` | Protocol version, JSON-safe command results/events, workspace/session/run, composite session keys, catalog/activity/archive commands, feature summaries, confirm/select/input/`questionnaire` host-UI records, Plan/Agent snapshot and commands, typed appearance/permission/skill-source/GitHub MCP/sandbox settings, `/` skill tokens, credential-import commands, `searchWorkspaceReferences` / `@` tokens, steer/follow-up queue state, prepared image summaries, `rewriteAssistantOutput`, and bounded change-review commands/events |
-| `packages/runtime` | Pi session/loader ownership with a bounded session-controller registry, baked feature manifest, packaged and development `ResourceLocator`s, extension host, permission-settings adapter, API-key import, per-workspace FFF local retrieval, pho-web search/fetch, Pi steer/follow-up, prepared image store, recoverable chat Trash, `SkillSourceRegistry` with `/` expansion and named `read_skill`, GitHub MCP runtime with allowlisted `github_` tools, write/edit change ledger and privileged diff/file views, agent-tool sandbox runtime (engine pin, fail-closed bash wrap, default-on Settings persist, deny-first bash ask-skip, in-process file-tool policy, packaged engine/`rg` staging), Plan/Agent inline factory (`ask_user_question`, Plan tool policy, `todo`, Execute), deterministic test model |
+| `packages/pho-agent/packages/protocol` | Product-neutral opaque scope/session/run contracts, JSON safety/errors, and reusable Plan/ask-user/todo, skills, and fixed GitHub MCP contracts; no Node, Pi, Electron, React, or Pho Code imports |
+| `packages/pho-agent/packages/runtime` | Pinned Pi construction/services, headless `AgentRuntime`, generic feature composition, bounded session registry, Plan/ask-user/todo, skill discovery/invocation, context-prompt Pi hook, and optional fixed read-only GitHub MCP lifecycle; no Pho Code, Electron, or React imports |
+| `packages/pho-agent/packages/evals` | Frozen V5 development/holdout fixtures, typed result schema, deterministic runner/scoring, fingerprints, and append-only result output |
+| `packages/protocol` | Pho Code bridge/event/settings/workspace/change-review contracts plus compatibility re-exports of shared agent protocol values |
+| `packages/runtime` | Pho Code's `HarnessRuntime` product adapter, canonical-workspace authority, packaged/development resource location, extension host UI, permission and sandbox product policy, provider accounts, local coding retrieval/web, prepared images, recoverable Trash, context-prompt settings, coding skill/resource selection, V3 change ledger/recovery, and compatibility adapters for shared agent capabilities |
 | `packages/application` | Workspace/session/prompt/settings/credential use cases, session catalog, archive/restore/remove metadata, recent-workspace, appearance, enabled skill-source, GitHub MCP enabled metadata, idle-only sandbox apply, change-review command validation, shutdown |
 | `packages/ui` | T3-derived desktop chat shell: multi-project sidebar, transcript, composer (mode icon menu for Plan/Agent + Images…, model, thinking; meta strip folder + usage meter), tool rows, persistent right sidebar (Changes review + Context prompt + Plan document), host dialogs including ask-user questionnaire, floating Settings dialog (Appearance, Accounts, GitHub, Skills, Archived, Permissions, Sandbox) with deferred API-key import, GitHub PAT, and provider OAuth, sanitized markdown with KaTeX/Shiki/Mermaid/SVG, Tailwind theme |
 | `apps/desktop/electron` | Composition root, native picker, typed IPC results/events, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, staged `rg` PATH prepend for GUI and packaged launches, agent-dir override, test seams |

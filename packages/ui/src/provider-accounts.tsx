@@ -258,6 +258,14 @@ function ProviderAccountRow({
           <div className="min-w-0">
             <p className="text-sm font-medium">{provider.name}</p>
             <p className="text-xs text-muted-foreground">{providerStatusLabel(provider)}</p>
+            {provider.disclosureKey ? (
+              <details className="mt-1 text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none">About this login</summary>
+                <p className="mt-1" data-testid={`provider-disclosure-${provider.id}`}>
+                  {providerDisclosureCopy(provider.disclosureKey)}
+                </p>
+              </details>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">

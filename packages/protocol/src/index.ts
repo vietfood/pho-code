@@ -567,3 +567,4 @@ export {
   nodeVersionMeetsMinimum,
   parseNodeVersion,
 } from "./json";
+export * from "@pho-agent/protocol";

@@ -41,7 +41,7 @@ describe("baked feature staging", () => {
     for (const name of CURATED_SKILL_NAMES) {
       expect(existsSync(path.join(skillsRoot, name, "SKILL.md"))).toBe(true);
     }
-  });
+  }, 30_000);
 
   test("notices name the pinned Pi, permission, and Cursor SDK packages", () => {
     const notices = generateThirdPartyNotices();

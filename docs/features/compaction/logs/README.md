@@ -9,6 +9,7 @@ Create one log per bounded implementation slice, issue, or owner-feedback thread
 | Date | Record | Status |
 | --- | --- | --- |
 | 2026-08-20 | [`2026-08-20-research-and-promotion.md`](./2026-08-20-research-and-promotion.md) | Research complete; add-on promoted; implementation not started |
+| 2026-08-20 | [`2026-08-20-related-v5-pho-agent.md`](./2026-08-20-related-v5-pho-agent.md) | V5 branch/task-state boundary recorded; no compaction contract change |
 
 ## Entry template
 

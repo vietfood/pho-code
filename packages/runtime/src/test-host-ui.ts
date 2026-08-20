@@ -1,4 +1,4 @@
-import type { InlineExtension } from "@earendil-works/pi-coding-agent";
+import type { InlineExtension } from "@pho-agent/runtime/feature-api";
 import { TEST_TOOL_NAME } from "./test-model";
 
 export const TEST_HOST_UI_FEATURE_ID = "harness-host-ui";

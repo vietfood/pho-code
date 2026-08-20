@@ -9,8 +9,9 @@ import {
   fauxToolCall,
   type Context,
   type FauxProviderHandle,
-} from "@earendil-works/pi-ai";
-import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+  defineTool,
+  type ToolDefinition,
+} from "@pho-agent/runtime/testing";
 import { PLAN_EXECUTE_PROMPT } from "./plan-agent-state";
 
 export const TEST_PROVIDER_ID = "harness-test";
