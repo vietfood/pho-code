@@ -25,6 +25,28 @@ describe("ComposerRail", () => {
     expect(markup).not.toContain('data-testid="composer-rail-workspace"');
   });
 
+  test("omits machine and workspace chips when context is hidden", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ComposerRail, { workspaceName: "piui", showContextChips: false }),
+    );
+    expect(markup).toBe("");
+  });
+
+  test("keeps attach when context chips are hidden", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ComposerRail, {
+        workspaceName: "piui",
+        showContextChips: false,
+        onAttach: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-testid="composer-rail"');
+    expect(markup).toContain('data-testid="composer-rail-attach"');
+    expect(markup).not.toContain('data-testid="composer-rail-machine"');
+    expect(markup).not.toContain('data-testid="composer-rail-workspace"');
+    expect(markup).not.toContain("piui");
+  });
+
   test("offers attach only when the host supports it, disabled with the reason", () => {
     const enabled = renderToStaticMarkup(
       createElement(ComposerRail, {

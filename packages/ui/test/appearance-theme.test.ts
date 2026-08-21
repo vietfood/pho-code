@@ -100,16 +100,28 @@ describe("appearance theme helpers", () => {
     expect(css).toContain(".composer-model-picker-list {\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow: auto;\n  margin: 0;\n  padding: 0 0.35rem 0.4rem;");
     expect(css).toContain(".composer-model-picker-group-title {\n  position: sticky;\n  top: 0;\n  z-index: 1;");
     expect(css).toContain("background: var(--popover);");
+    expect(css).toContain("--composer-radius: 0.5rem;");
+    expect(css).toContain("--composer-outline: color-mix(in srgb, var(--foreground) 28%, transparent);");
+    expect(css).toContain(".chat-composer-host::after {\n  pointer-events: none;\n  position: absolute;\n  z-index: 1;\n  inset: 0;\n  border: 1px solid var(--composer-outline);");
+    expect(css).toContain(
+      'html[data-appearance="dark"] .chat-composer-host::after {\n  border-color: color-mix(in srgb, var(--foreground) 15%, transparent);',
+    );
   });
 
-  test("glass chrome tints chat, composer, and right bar without extra CSS blur", async () => {
+  test("glass chrome tints chat and right bar; composer gets CSS frost when glass is on", async () => {
     const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
     expect(css).toContain("html[data-glass=\"on\"] .app-shell-chat {");
     expect(css).toContain("html[data-glass=\"on\"] .app-sidebar-panel,\nhtml[data-glass=\"on\"] .right-sidebar-host {");
     expect(css).toContain("html[data-glass=\"on\"] .right-sidebar-host > nav,");
     expect(css).toContain("html[data-glass=\"on\"] .plan-document-panel,");
     expect(css).toContain(".empty-session[data-left-overlay=\"true\"] .empty-session-center {");
-    expect(css).not.toContain("html[data-glass=\"on\"] .chat-composer-shell::before {");
+    expect(css).toContain("html[data-glass=\"on\"] .chat-composer-shell::before {");
+    expect(css).toContain(
+      "html[data-glass=\"on\"] .chat-composer-shell::before {\n  background: color-mix(in srgb, var(--background) var(--composer-glass-opacity), transparent);\n  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));",
+    );
+    expect(css).toContain(".chat-composer-shell::before {\n  pointer-events: none;\n  position: absolute;\n  z-index: 0;\n  inset: 0;\n  border-radius: var(--composer-radius);\n  background: var(--background);");
+    expect(css).toContain("html[data-appearance=\"dark\"] .chat-composer-shell::before {\n  background: var(--card);");
+    expect(css).not.toContain("isolation: isolate;");
     expect(css).toContain("html[data-glass=\"on\"] .chat-composer-host {\n  box-shadow: 0 10px 28px -20px rgb(0 0 0 / 28%);\n}");
   });
 

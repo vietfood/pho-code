@@ -5,7 +5,7 @@ Status: in source
 Surface: composer (hero and docked variants)
 Owner: conversation UI track
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
-Related logs: [`2026-08-18-change-plan-agent-composer-chrome.md`](./2026-08-18-change-plan-agent-composer-chrome.md), [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md)
+Related logs: [`2026-08-18-change-plan-agent-composer-chrome.md`](./2026-08-18-change-plan-agent-composer-chrome.md), [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md), [`2026-08-22-change-composer-context-chips-empty-only.md`](./2026-08-22-change-composer-context-chips-empty-only.md), [`2026-08-22-change-composer-radius-border.md`](./2026-08-22-change-composer-radius-border.md)
 
 ## Intent
 

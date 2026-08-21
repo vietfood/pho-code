@@ -3,28 +3,36 @@ import { localMachineLabel } from "./lib/platform";
 
 // Context chip rail above the composer field. Claude Code's composer is the
 // visual reference (chips over the field, flat toolbar under it); the chrome and
-// tokens are harness-owned. Machine/workspace context used to live in the hero
-// header and, separately, in the docked meta strip — one rail now serves both
-// variants. Git branch and worktree chips are deliberately absent: the protocol
-// carries no branch state and branch switching is out of scope for this track.
+// tokens are harness-owned. Machine/workspace chips are empty-session only; the
+// docked field may still keep the attach control. Git branch and worktree chips
+// are deliberately absent: the protocol carries no branch state and branch
+// switching is out of scope for this track.
 export function ComposerRail({
   workspaceName,
+  showContextChips = true,
   onAttach,
   attachDisabled = false,
   attachTitle,
 }: {
   workspaceName?: string;
+  showContextChips?: boolean;
   onAttach?: () => void;
   attachDisabled?: boolean;
   attachTitle?: string;
 }) {
+  if (!showContextChips && !onAttach) {
+    return null;
+  }
+
   return (
     <div className="composer-rail" data-testid="composer-rail" aria-label="Session context">
-      <span className="composer-rail-chip" data-testid="composer-rail-machine">
-        <LaptopIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
-        <span className="composer-rail-chip-label">{localMachineLabel()}</span>
-      </span>
-      {workspaceName ? (
+      {showContextChips ? (
+        <span className="composer-rail-chip" data-testid="composer-rail-machine">
+          <LaptopIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+          <span className="composer-rail-chip-label">{localMachineLabel()}</span>
+        </span>
+      ) : null}
+      {showContextChips && workspaceName ? (
         <span className="composer-rail-chip" data-testid="composer-rail-workspace" title={workspaceName}>
           <FolderIcon className="size-3 shrink-0 opacity-70" aria-hidden="true" />
           <span className="composer-rail-chip-label is-name">{workspaceName}</span>

@@ -212,8 +212,9 @@ export function glassCssTokens(strength: number): {
   const t = clamped / 100;
   // Mild frost: macOS vibrancy already blurs the desktop. Keep fills readable so
   // wallpaper tints chrome instead of dominating it. Sidebars are the most open;
-  // the composer sits between sidebar and pane so the input stays a control, not
-  // a solid card. Extra CSS blur is not applied to composer or the right bar.
+  // the composer sits between sidebar and pane and gets CSS blur when glass is on
+  // so the field reads as frost rather than a solid card. Extra CSS blur stays
+  // off the transcript and right bar.
   const blurPx = Math.round(8 + t * 16);
   const sidebarBlurPx = Math.round(blurPx * 1.2);
   const opacityPercent = Math.round(84 - t * 20);

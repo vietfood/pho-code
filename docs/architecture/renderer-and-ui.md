@@ -120,7 +120,7 @@ Settings never renders a generic schema, path picker, package manager, feature m
 - Keep keyboard paths and focus restoration for dialogs/menus.
 - Respect `prefers-reduced-motion`; motion stays opacity/transform based.
 - Keep transcript scrolling and live-tail updates bounded.
-- Frosted glass uses one OS vibrancy blur plus translucent fills. Extra CSS `backdrop-filter` stays on the left sidebar and small overlay cards — not the composer, transcript, or right bar. Settings stays a solid overlay.
+- Frosted glass uses one OS vibrancy blur plus translucent fills. Extra CSS `backdrop-filter` stays on the left sidebar, the composer shell, and small overlay cards — not the transcript or right bar. Settings stays a solid overlay.
 - Avoid shell remounts during project/session changes.
 - Use shared design tokens and existing resize/menu/dialog primitives.
 

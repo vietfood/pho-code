@@ -212,6 +212,8 @@ describe("empty session hero", () => {
     expect(markup).not.toContain("max-w-3xl");
     expect(markup).not.toContain('data-chat-fill="true"');
     expect(markup).not.toContain("scrollbar-gutter-both");
+    expect(markup).not.toContain('data-testid="composer-rail-machine"');
+    expect(markup).not.toContain('data-testid="composer-rail-workspace"');
   });
 
   test("shows toolbar usage and model selector chrome under the field", () => {

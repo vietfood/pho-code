@@ -29,6 +29,8 @@ test("shows a new session immediately and completes a select host dialog", async
       await expect(page.getByTestId("empty-session")).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
       await expect(page.getByTestId("composer-rail")).toBeVisible();
+      await expect(page.getByTestId("composer-rail-machine")).toBeVisible();
+      await expect(page.getByTestId("composer-rail-workspace")).toBeVisible();
       await expect(page.getByTestId("composer")).toBeVisible();
       await expect(page.getByTestId("session-item")).toBeVisible();
       await expect(page.getByTestId("resources-nav")).toHaveCount(0);
@@ -40,6 +42,8 @@ test("shows a new session immediately and completes a select host dialog", async
       await page.getByTestId("extension-dialog-confirm").click();
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expect(page.getByTestId("empty-session")).toHaveCount(0);
+      await expect(page.getByTestId("composer-rail-machine")).toHaveCount(0);
+      await expect(page.getByTestId("composer-rail-workspace")).toHaveCount(0);
       await expandSettledWorkLog(page);
       await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");

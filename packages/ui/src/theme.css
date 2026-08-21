@@ -9,7 +9,8 @@
   --font-size-chat: 14px;
   --radius: 0.75rem;
   --control-radius: 0.625rem;
-  --composer-radius: 1rem;
+  --composer-radius: 0.5rem;
+  --composer-outline: color-mix(in srgb, var(--foreground) 28%, transparent);
   --sidebar-width: 18.25rem;
   --workspace-topbar-height: 2.75rem;
   --workspace-titlebar-inset: 5.75rem;
@@ -1048,7 +1049,6 @@ html[data-appearance="dark"] .approval-card {
 
 .chat-composer-shell {
   position: relative;
-  isolation: isolate;
 }
 
 /* Chat markdown adapted from refs/t3code/apps/web/src/index.css (MIT, T3 Tools Inc., 6bc6cb6).
@@ -1431,7 +1431,7 @@ html[data-appearance="dark"] .approval-card {
   z-index: 0;
   inset: 0;
   border-radius: var(--composer-radius);
-  background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
+  background: var(--background);
   content: "";
 }
 
@@ -1447,13 +1447,23 @@ html[data-appearance="dark"] .approval-card {
   position: absolute;
   z-index: 1;
   inset: 0;
-  border: 1px solid rgb(0 0 0 / 6%);
+  border: 1px solid var(--composer-outline);
   border-radius: inherit;
   content: "";
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 html[data-appearance="dark"] .chat-composer-shell::before {
+  background: var(--card);
+}
+
+html[data-glass="on"] .chat-composer-shell::before {
+  background: color-mix(in srgb, var(--background) var(--composer-glass-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+
+html[data-glass="on"][data-appearance="dark"] .chat-composer-shell::before {
   background: color-mix(in srgb, var(--card) var(--composer-glass-opacity), transparent);
 }
 
@@ -1470,7 +1480,7 @@ html[data-glass="on"][data-appearance="dark"] .chat-composer-host {
 }
 
 html[data-appearance="dark"] .chat-composer-host::after {
-  border-color: rgb(255 255 255 / 6%);
+  border-color: color-mix(in srgb, var(--foreground) 15%, transparent);
   box-shadow: inset 0 1px rgb(255 255 255 / 4%);
 }
 
@@ -2347,8 +2357,9 @@ html[data-appearance="dark"] .composer-model-picker-panel {
 /* Frosted window chrome: root stays clear so vibrancy/wallpaper show through.
    Large panes use a translucent fill only. Extra CSS backdrop-filter is expensive
    (offscreen snapshot per layer) and double-frosts macOS vibrancy; keep it on the
-   narrow left sidebar and small overlay cards, not the composer, transcript, or
-   right bar. Chat and right bar are siblings so their fills do not stack. */
+   narrow left sidebar, the composer shell, and small overlay cards — not the
+   transcript or right bar. Chat and right bar are siblings so their fills do not
+   stack. */
 html[data-glass="on"] body,
 html[data-glass="on"] #root,
 html[data-glass="on"] .app-shell-root,
@@ -2397,7 +2408,8 @@ html[data-glass="on"] .glass-field {
 @media (prefers-reduced-motion: reduce) {
   html[data-glass="on"] .app-sidebar-panel,
   html[data-glass="on"] .glass-panel,
-  html[data-glass="on"] .glass-field {
+  html[data-glass="on"] .glass-field,
+  html[data-glass="on"] .chat-composer-shell::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

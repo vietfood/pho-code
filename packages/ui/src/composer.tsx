@@ -523,6 +523,7 @@ export function Composer({
       {/* A model that cannot accept images gets no rail affordance at all; the mode
           menu still carries the disabled Images… entry with the reason. */}
       <ComposerRail
+        showContextChips={hero}
         {...(metaHint ? { workspaceName: metaHint } : {})}
         {...(onPickImages && supportsImages ? { onAttach: onPickImages } : {})}
         attachDisabled={disabled || !canAttach}
