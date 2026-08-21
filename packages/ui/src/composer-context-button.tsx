@@ -80,7 +80,8 @@ export function ComposerContextButton({
         aria-controls={listId}
         onClick={() => setOpen((value) => !value)}
       >
-        <SessionModeIcon mode={mode} className="size-3.5" />
+        <SessionModeIcon mode={mode} className="size-3.5 shrink-0" />
+        <span className="composer-context-button-label">{mode === "agent" ? "Agent" : "Plan"}</span>
       </button>
       {open ? (
         <ul

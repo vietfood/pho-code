@@ -1,9 +1,10 @@
-import { ArchiveIcon, ArchiveRestoreIcon, Trash2Icon } from "lucide-react";
-import { FloatingMenu } from "./floating-menu";
+import { FloatingMenu, MenuItem, MenuSeparator } from "./floating-menu";
 
 // Right-click session actions adapted from refs/pi-gui ThreadSessionRow
 // onContextMenu / use-thread-menu (MIT). Rename, pin, mark-read, and copy
-// session id omitted; Restore appears only for archived chats.
+// session id omitted; Restore appears only for archived chats. Label-first
+// rows with a trailing single-key hint and a separated destructive group are
+// harness-owned chrome.
 
 export function SessionContextMenu({
   x,
@@ -25,53 +26,31 @@ export function SessionContextMenu({
   return (
     <FloatingMenu x={x} y={y} testId="session-context-menu" onClose={onClose}>
       {archived ? (
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="restore-session"
-          className="session-context-menu__item"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onRestore?.();
-            onClose();
-          }}
-        >
-          <ArchiveRestoreIcon className="session-context-menu__item-icon" aria-hidden="true" />
-          Restore chat
-        </button>
+        <MenuItem
+          label="Restore chat"
+          shortcut="R"
+          testId="restore-session"
+          onSelect={() => onRestore?.()}
+          onClose={onClose}
+        />
       ) : (
-        <button
-          type="button"
-          role="menuitem"
-          data-testid="archive-session"
-          className="session-context-menu__item"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onArchive?.();
-            onClose();
-          }}
-        >
-          <ArchiveIcon className="session-context-menu__item-icon" aria-hidden="true" />
-          Archive chat
-        </button>
+        <MenuItem
+          label="Archive chat"
+          shortcut="A"
+          testId="archive-session"
+          onSelect={() => onArchive?.()}
+          onClose={onClose}
+        />
       )}
-      <button
-        type="button"
-        role="menuitem"
-        data-testid="remove-session"
-        className="session-context-menu__item session-context-menu__item--danger"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onRemove();
-          onClose();
-        }}
-      >
-        <Trash2Icon className="session-context-menu__item-icon" aria-hidden="true" />
-        Move chat to Trash
-      </button>
+      <MenuSeparator />
+      <MenuItem
+        label="Move chat to Trash"
+        shortcut="D"
+        testId="remove-session"
+        danger
+        onSelect={onRemove}
+        onClose={onClose}
+      />
     </FloatingMenu>
   );
 }

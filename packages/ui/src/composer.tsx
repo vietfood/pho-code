@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUpIcon, FileIcon, FolderIcon, ListPlusIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
+import { CornerDownLeftIcon, FileIcon, FolderIcon, ListPlusIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
 import type {
   ContextUsageSummary,
   ModelSummary,
@@ -44,7 +44,8 @@ import {
   setComposerCaretOffset,
 } from "./lib/composer-editable-dom";
 import { ComposerContextButton } from "./composer-context-button";
-import { ComposerMetaStrip } from "./composer-meta-strip";
+import { ComposerRail } from "./composer-rail";
+import { ComposerToolbar } from "./composer-toolbar";
 import { isMaxThinkingLevel } from "./lib/thinking-labels";
 import { ThinkingLevelChip } from "./thinking-level-chip";
 import { MarkdownImage } from "./markdown-image";
@@ -60,6 +61,9 @@ import { SkillSourceIcon } from "./skill-source-icon";
 // autoplay, and fake source/command catalogs. Image attach is Milestone 1 Slice 4.
 // Usage strip inspired by Pi TUI footer / AI Elements Context (bar, not ring).
 // @ mention chips are Cursor-inspired (visual reference only; harness-owned).
+// Layout is Claude Code-inspired (visual reference only; harness-owned): a context
+// chip rail above the field, a prompt-only field with an inline send affordance,
+// and a flat mode/model/usage toolbar under it.
 
 export function Composer({
   value,
@@ -386,16 +390,19 @@ export function Composer({
     ? "Attach PNG, JPEG, GIF, or WebP images"
     : "The selected model does not accept images";
 
+  const mode = (
+    <ComposerContextButton
+      mode={sessionMode}
+      disabled={selectorsDisabled}
+      {...(onSessionModeChange ? { onModeChange: onSessionModeChange } : {})}
+      {...(onPickImages ? { onAttach: onPickImages } : {})}
+      attachDisabled={disabled || !canAttach}
+      attachTitle={attachTitle}
+    />
+  );
+
   const selectors = (
     <>
-      <ComposerContextButton
-        mode={sessionMode}
-        disabled={selectorsDisabled}
-        {...(onSessionModeChange ? { onModeChange: onSessionModeChange } : {})}
-        {...(onPickImages ? { onAttach: onPickImages } : {})}
-        attachDisabled={disabled || !canAttach}
-        attachTitle={attachTitle}
-      />
       <label className="sr-only" htmlFor="model-selector">
         Model
       </label>
@@ -435,8 +442,11 @@ export function Composer({
     },
   ];
 
-  const submit = running ? (
-    <div className="flex shrink-0 items-center gap-1">
+  // Steering and follow-up stay text actions, so they sit in the toolbar beside the
+  // mode chip; the field keeps a single primary affordance (send, or stop while a
+  // run is live).
+  const queueControls = running ? (
+    <>
       {queueActions.map(({ id, label, ariaLabel, title, icon: Icon, action }) => (
         <button
           key={id}
@@ -457,26 +467,30 @@ export function Composer({
           {label}
         </button>
       ))}
-      <button
-        type="button"
-        className="relative isolate flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive enabled:cursor-pointer hover:bg-destructive/25 disabled:opacity-30"
-        data-testid="stop-button"
-        aria-label="Stop"
-        onClick={onStop}
-      >
-        <SquareIcon className="size-3 fill-current" aria-hidden="true" />
-      </button>
-    </div>
+    </>
+  ) : null;
+
+  const submit = running ? (
+    <button
+      type="button"
+      className="composer-send is-stop"
+      data-testid="stop-button"
+      aria-label="Stop"
+      title="Stop the current run"
+      onClick={onStop}
+    >
+      <SquareIcon className="size-3 fill-current" aria-hidden="true" />
+    </button>
   ) : (
     <button
       type="submit"
-      className={cn(
-        "relative isolate flex size-7 shrink-0 items-center justify-center rounded-full bg-message-action text-message-action-foreground enabled:cursor-pointer hover:opacity-90 disabled:pointer-events-none disabled:opacity-30",
-      )}
+      className={cn("composer-send", canSend && !disabled && "is-ready")}
+      data-testid="send-button"
       disabled={disabled || !canSend}
       aria-label="Send"
+      title="Send — Enter"
     >
-      <ArrowUpIcon className="size-3.5 stroke-[2.2]" aria-hidden="true" />
+      <CornerDownLeftIcon className="size-3.5 stroke-[2]" aria-hidden="true" />
     </button>
   );
 
@@ -506,133 +520,144 @@ export function Composer({
           ))}
         </div>
       ) : null}
+      {/* A model that cannot accept images gets no rail affordance at all; the mode
+          menu still carries the disabled Images… entry with the reason. */}
+      <ComposerRail
+        {...(metaHint ? { workspaceName: metaHint } : {})}
+        {...(onPickImages && supportsImages ? { onAttach: onPickImages } : {})}
+        attachDisabled={disabled || !canAttach}
+        attachTitle={attachTitle}
+      />
       <div
         className={cn("chat-composer-shell", highlight !== "none" && `is-${highlight}`)}
         data-composer-highlight={highlight}
       >
-        <div className={cn("chat-composer-host", hero ? "px-3.5 pt-3 pb-2.5" : "px-3 pt-2.5 pb-2")}>
+        <div className={cn("chat-composer-host", hero ? "px-3.5 py-3" : "px-3 py-2.5")}>
           <div className="relative z-10 flex flex-col">
-            <div
-              ref={editorRef}
-              id="composer-input"
-              data-testid="composer"
-              role="textbox"
-              aria-multiline="true"
-              aria-label="Message"
-              aria-disabled={fieldDisabled || undefined}
-              contentEditable={!fieldDisabled}
-              suppressContentEditableWarning
-              data-placeholder={placeholder}
-              className={cn(
-                "chat-composer-input chat-composer-editable min-w-0 w-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground outline-none",
-                fieldDisabled && "opacity-60",
-                hero ? "max-h-[min(52em,70vh)] min-h-[4.5em]" : "max-h-[min(48em,58vh)] min-h-[1.5em]",
-              )}
-              onInput={handleEditorInput}
-              onKeyUp={(event) => {
-                if (shouldSkipComposerTokenSyncOnKeyUp(event.key, menuOpen, slashOpen)) {
-                  return;
-                }
-                syncComposerTokensFromEditor();
-              }}
-              onClick={syncComposerTokensFromEditor}
-              onPaste={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (fieldDisabled) {
-                  return;
-                }
-                const imageFiles = collectPastedImageFiles({
-                  files: event.clipboardData?.files,
-                  items: event.clipboardData?.items,
-                });
-                if (
-                  onPasteImages &&
-                  (imageFiles.length > 0 || clipboardLooksLikeImage(event.clipboardData?.types))
-                ) {
-                  const fingerprint = pasteFingerprint(imageFiles, event.clipboardData?.types);
-                  const now = Date.now();
-                  if (shouldIgnoreDuplicatePaste(lastImagePasteRef.current, fingerprint, now)) {
+            <div className="composer-field">
+              <div
+                ref={editorRef}
+                id="composer-input"
+                data-testid="composer"
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Message"
+                aria-disabled={fieldDisabled || undefined}
+                contentEditable={!fieldDisabled}
+                suppressContentEditableWarning
+                data-placeholder={placeholder}
+                className={cn(
+                  "chat-composer-input chat-composer-editable min-w-0 w-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground outline-none",
+                  fieldDisabled && "opacity-60",
+                  hero ? "max-h-[min(52em,70vh)] min-h-[1.5em]" : "max-h-[min(48em,58vh)] min-h-[1.5em]",
+                )}
+                onInput={handleEditorInput}
+                onKeyUp={(event) => {
+                  if (shouldSkipComposerTokenSyncOnKeyUp(event.key, menuOpen, slashOpen)) {
                     return;
                   }
-                  lastImagePasteRef.current = { fingerprint, at: now };
-                  onPasteImages(imageFiles);
-                  return;
-                }
-                const pasted = normalizePastedPlainText(event.clipboardData?.getData("text/plain") ?? "");
-                if (pasted === "") {
-                  return;
-                }
-                const editor = editorRef.current;
-                if (!editor) {
-                  return;
-                }
-                const next = insertComposerPlainText(value, getComposerSelectionOffsets(editor), pasted);
-                pendingCaretRef.current = next.cursor;
-                closeComposerMenus();
-                onChange(next.text);
-              }}
-              onKeyDown={(event) => {
-                // Returns true when the key was consumed by the open menu. Enter
-                // with no selection dismisses the menu and falls through to submit.
-                const menuKeys = <T,>(
-                  open: boolean,
-                  items: readonly T[],
-                  select: (item: T) => void,
-                  dismiss: () => void,
-                ): boolean => {
-                  if (!open) {
+                  syncComposerTokensFromEditor();
+                }}
+                onClick={syncComposerTokensFromEditor}
+                onPaste={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (fieldDisabled) {
+                    return;
+                  }
+                  const imageFiles = collectPastedImageFiles({
+                    files: event.clipboardData?.files,
+                    items: event.clipboardData?.items,
+                  });
+                  if (
+                    onPasteImages &&
+                    (imageFiles.length > 0 || clipboardLooksLikeImage(event.clipboardData?.types))
+                  ) {
+                    const fingerprint = pasteFingerprint(imageFiles, event.clipboardData?.types);
+                    const now = Date.now();
+                    if (shouldIgnoreDuplicatePaste(lastImagePasteRef.current, fingerprint, now)) {
+                      return;
+                    }
+                    lastImagePasteRef.current = { fingerprint, at: now };
+                    onPasteImages(imageFiles);
+                    return;
+                  }
+                  const pasted = normalizePastedPlainText(event.clipboardData?.getData("text/plain") ?? "");
+                  if (pasted === "") {
+                    return;
+                  }
+                  const editor = editorRef.current;
+                  if (!editor) {
+                    return;
+                  }
+                  const next = insertComposerPlainText(value, getComposerSelectionOffsets(editor), pasted);
+                  pendingCaretRef.current = next.cursor;
+                  closeComposerMenus();
+                  onChange(next.text);
+                }}
+                onKeyDown={(event) => {
+                  // Returns true when the key was consumed by the open menu. Enter
+                  // with no selection dismisses the menu and falls through to submit.
+                  const menuKeys = <T,>(
+                    open: boolean,
+                    items: readonly T[],
+                    select: (item: T) => void,
+                    dismiss: () => void,
+                  ): boolean => {
+                    if (!open) {
+                      return false;
+                    }
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      if (items.length > 0) {
+                        setActiveIndex((index) =>
+                          nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, items.length),
+                        );
+                      }
+                      return true;
+                    }
+                    if (event.key === "Enter" || event.key === "Tab") {
+                      const selected = items[activeIndex];
+                      if (selected) {
+                        event.preventDefault();
+                        select(selected);
+                        return true;
+                      }
+                      dismiss();
+                      if (event.key === "Tab") {
+                        event.preventDefault();
+                        return true;
+                      }
+                    }
                     return false;
+                  };
+                  if (menuKeys(slashOpen, skillChoices, selectSkill, dismissSlash)) {
+                    return;
                   }
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  if (menuKeys(menuOpen, suggestions, selectSuggestion, dismissMention)) {
+                    return;
+                  }
+                  if (event.key === "Escape" && (menuOpen || slashOpen)) {
                     event.preventDefault();
-                    if (items.length > 0) {
-                      setActiveIndex((index) =>
-                        nextComposerMenuIndex(index, event.key === "ArrowDown" ? 1 : -1, items.length),
-                      );
+                    if (menuOpen) {
+                      dismissMention();
                     }
-                    return true;
+                    if (slashOpen) {
+                      dismissSlash();
+                    }
+                    return;
                   }
-                  if (event.key === "Enter" || event.key === "Tab") {
-                    const selected = items[activeIndex];
-                    if (selected) {
-                      event.preventDefault();
-                      select(selected);
-                      return true;
-                    }
-                    dismiss();
-                    if (event.key === "Tab") {
-                      event.preventDefault();
-                      return true;
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (!running && !disabled && canSend) {
+                      closeComposerMenus();
+                      onSubmit();
                     }
                   }
-                  return false;
-                };
-                if (menuKeys(slashOpen, skillChoices, selectSkill, dismissSlash)) {
-                  return;
-                }
-                if (menuKeys(menuOpen, suggestions, selectSuggestion, dismissMention)) {
-                  return;
-                }
-                if (event.key === "Escape" && (menuOpen || slashOpen)) {
-                  event.preventDefault();
-                  if (menuOpen) {
-                    dismissMention();
-                  }
-                  if (slashOpen) {
-                    dismissSlash();
-                  }
-                  return;
-                }
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  if (!running && !disabled && canSend) {
-                    closeComposerMenus();
-                    onSubmit();
-                  }
-                }
-              }}
-            />
+                }}
+              />
+              {submit}
+            </div>
             {menuOpen ? (
               <div className="composer-mention-menu" role="listbox" aria-label="Workspace references" data-testid="composer-mentions">
                 {suggestions.length === 0 ? (
@@ -736,12 +761,6 @@ export function Composer({
                 ))}
               </div>
             ) : null}
-            <div className={cn("flex shrink-0 items-center justify-between gap-2", hero ? "mt-1.5" : "mt-1")}>
-              <div className="flex min-w-0 items-center gap-0.5">
-                {selectors}
-              </div>
-              {submit}
-            </div>
             {images.length > 0 ? (
               <p className="composer-image-disclosure">
                 Sending an image transmits it to the selected model provider.
@@ -750,8 +769,14 @@ export function Composer({
           </div>
         </div>
       </div>
-      <ComposerMetaStrip
-        {...(!hero && metaHint ? { metaHint } : {})}
+      <ComposerToolbar
+        leading={
+          <>
+            {mode}
+            {queueControls}
+          </>
+        }
+        trailing={selectors}
         {...(usage ? { usage } : {})}
         {...(contextUsage ? { contextUsage } : {})}
       />

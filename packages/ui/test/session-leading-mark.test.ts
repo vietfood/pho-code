@@ -24,9 +24,11 @@ describe("project context menu", () => {
     expect(markup).toContain("Copy pathname");
     expect(markup).toContain("Remove project");
     expect(markup).toContain("Garden");
-    expect(markup).toContain("lucide-square-pen");
-    expect(markup).toContain("lucide-copy");
-    expect(markup).toContain("lucide-trash-2");
+    expect(markup).toContain('data-menu-key="n"');
+    expect(markup).toContain('data-menu-key="c"');
+    expect(markup).toContain('data-menu-key="d"');
+    expect(markup).toContain("app-menu__item--danger");
+    expect(markup).not.toContain("lucide-");
     expect(markup).not.toContain("Archive chat");
     expect(markup).not.toContain("Move chat to Trash");
   });
@@ -47,13 +49,20 @@ describe("session leading mark", () => {
     expect(markup).toContain('data-testid="session-activity"');
     expect(markup).toContain('data-activity="working"');
     expect(markup).toContain("loading-dots");
-    expect(markup).not.toContain("lucide-message-square");
+    expect(markup).not.toContain('data-testid="session-dot"');
   });
 
-  test("restores the session icon when idle", () => {
-    const markup = renderToStaticMarkup(createElement(SessionLeadingMark, { activity: undefined }));
-    expect(markup).toContain("lucide-message-square");
-    expect(markup).not.toContain("loading-dots");
+  test("shows a hollow dot when idle and a filled dot when the row is selected", () => {
+    const idle = renderToStaticMarkup(createElement(SessionLeadingMark, { activity: undefined }));
+    expect(idle).toContain('data-testid="session-dot"');
+    expect(idle).toContain('data-filled="false"');
+    expect(idle).not.toContain("lucide-message-square");
+    expect(idle).not.toContain("loading-dots");
+
+    const selected = renderToStaticMarkup(
+      createElement(SessionLeadingMark, { activity: undefined, selected: true }),
+    );
+    expect(selected).toContain('data-filled="true"');
   });
 });
 

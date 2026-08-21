@@ -82,8 +82,8 @@ function sidebarProps(overrides: Partial<Parameters<typeof AppSidebar>[0]> = {})
   };
 }
 
-describe("app sidebar project folders", () => {
-  test("uses an open folder glyph for the expanded project and a closed folder for collapsed ones", () => {
+describe("app sidebar project groups", () => {
+  test("renders project names as quiet group headings without folder glyphs", () => {
     const garden = sampleProject("/tmp/garden", "Garden");
     const notes = sampleProject("/tmp/notes", "Notes");
     const markup = renderToStaticMarkup(
@@ -101,16 +101,61 @@ describe("app sidebar project folders", () => {
       ),
     );
 
-    expect(markup).toContain("lucide-folder-open");
-    expect(markup).toContain("lucide-folder ");
+    expect(markup).not.toContain("lucide-folder-open");
+    expect(markup).not.toContain("lucide-folder ");
     expect(markup).not.toContain("lucide-chevron-down");
     expect(markup).toContain('data-testid="project-item"');
-    expect(markup).toContain('data-testid="project-collapse"');
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("Collapse Garden");
     expect(markup).toContain("Expand Notes");
     expect(markup).toContain("Plan the beds");
+  });
+
+  test("each project group offers an inline new-session control and a session count", () => {
+    const garden = sampleProject("/tmp/garden", "Garden");
+    const markup = renderToStaticMarkup(
+      createElement(
+        AppSidebar,
+        sidebarProps({
+          projects: [garden],
+          activeWorkspaceId: garden.id,
+          sessionsByWorkspace: {
+            [garden.id]: [sampleSession(garden.id, "s1", "Plan the beds")],
+          },
+        }),
+      ),
+    );
+
+    expect(markup).toContain('data-testid="project-new-session-inline"');
+    expect(markup).toContain('aria-label="New session in Garden"');
+    expect(markup).toContain("lucide-plus");
+    expect(markup).toContain('data-testid="project-session-count"');
+  });
+
+  test("session rows lead with a state dot rather than a chat glyph", () => {
+    const garden = sampleProject("/tmp/garden", "Garden");
+    const markup = renderToStaticMarkup(
+      createElement(
+        AppSidebar,
+        sidebarProps({
+          projects: [garden],
+          activeWorkspaceId: garden.id,
+          selectedSessionId: "s1",
+          sessionsByWorkspace: {
+            [garden.id]: [
+              sampleSession(garden.id, "s1", "Plan the beds"),
+              sampleSession(garden.id, "s2", "Water the beds"),
+            ],
+          },
+        }),
+      ),
+    );
+
+    expect(markup).not.toContain("lucide-message-square");
+    expect(markup).toContain('data-testid="session-dot"');
+    expect(markup).toContain('data-filled="true"');
+    expect(markup).toContain('data-filled="false"');
   });
 
   test("session rows show an archive button instead of a three-dot menu", () => {
@@ -138,7 +183,7 @@ describe("app sidebar project folders", () => {
     expect(markup).not.toContain("aria-haspopup");
   });
 
-  test("renders a Projects heading at the project-row type size aligned with folder glyphs", () => {
+  test("drops the Projects heading so project names carry the grouping", () => {
     const garden = sampleProject("/tmp/garden", "Garden");
     const markup = renderToStaticMarkup(
       createElement(
@@ -151,20 +196,15 @@ describe("app sidebar project folders", () => {
       ),
     );
 
-    const headingMatch = markup.match(/<h2[^>]*data-testid="projects-heading"[^>]*>Projects<\/h2>/);
-    expect(headingMatch).not.toBeNull();
-    const heading = headingMatch?.[0] ?? "";
-    expect(heading).toContain("px-2");
-    expect(heading).toContain("text-sm");
-    expect(heading).toContain("h-8");
-    expect(heading).not.toContain("pl-8");
-    expect(heading).not.toContain("text-[11px]");
+    expect(markup).not.toContain('data-testid="projects-heading"');
+    expect(markup).not.toContain(">Projects</h2>");
+    expect(markup).toContain('data-testid="project-list"');
   });
 
   test("renders Settings and About as start-aligned icon-only controls", () => {
     const markup = renderToStaticMarkup(createElement(AppSidebar, sidebarProps()));
     const footerMatch = markup.match(
-      /<div class="flex min-w-0 justify-start gap-1 overflow-hidden px-2 py-2">[\s\S]*?<\/div>/,
+      /<div class="flex min-w-0 justify-start gap-1 overflow-hidden border-t border-sidebar-border px-2 py-2">[\s\S]*?<\/div>/,
     );
     expect(footerMatch).not.toBeNull();
     const footer = footerMatch?.[0] ?? "";
@@ -175,6 +215,36 @@ describe("app sidebar project folders", () => {
     expect(footer).toContain("size-7");
     expect(footer).not.toContain(">Settings<");
     expect(footer).not.toContain(">About · 0.0.0<");
+  });
+
+  test("emphasises New session and keeps the other actions at normal weight", () => {
+    const garden = sampleProject("/tmp/garden", "Garden");
+    const markup = renderToStaticMarkup(
+      createElement(
+        AppSidebar,
+        sidebarProps({
+          projects: [garden],
+          activeWorkspaceId: garden.id,
+          sessionsByWorkspace: { [garden.id]: [] },
+        }),
+      ),
+    );
+
+    const row = (testId: string): string =>
+      markup.match(new RegExp(`<button[^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? "";
+
+    expect(row("new-session")).toContain("font-medium");
+    expect(row("new-session")).toContain(" bg-sidebar-row-hover");
+    expect(row("go-home")).toContain("font-normal");
+    expect(row("go-home")).not.toContain(" bg-sidebar-row-hover");
+    expect(row("add-project")).toContain("font-normal");
+    for (const testId of ["new-session", "go-home", "add-project"]) {
+      expect(row(testId)).toContain("text-[13px]");
+      expect(row(testId)).toContain("tracking-[-0.01em]");
+      expect(row(testId)).toContain("gap-2.5");
+      expect(row(testId)).toContain("h-7");
+      expect(row(testId)).toContain("rounded-lg");
+    }
   });
 
   test("renders a compact overlay pill when collapsed", () => {

@@ -68,7 +68,8 @@ describe("empty session hero", () => {
   test("centers a hero composer with workspace and local machine context", () => {
     const markup = renderToStaticMarkup(createElement(Conversation, { snapshot: snapshot(), ...handlers }));
     expect(markup).toContain('data-testid="empty-session"');
-    expect(markup).toContain('data-testid="session-context"');
+    expect(markup).toContain('data-testid="composer-rail"');
+    expect(markup).toContain('data-testid="composer-rail-workspace"');
     expect(markup).toContain("piui");
     expect(markup).toContain(localMachineLabel(isMacDesktop()));
     expect(markup).toContain("Ask anything");
@@ -213,7 +214,7 @@ describe("empty session hero", () => {
     expect(markup).not.toContain("scrollbar-gutter-both");
   });
 
-  test("shows usage strip and model selector chrome", () => {
+  test("shows toolbar usage and model selector chrome under the field", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
         snapshot: snapshot({
@@ -224,7 +225,7 @@ describe("empty session hero", () => {
         onPickImages: () => undefined,
       }),
     );
-    expect(markup).toContain('data-testid="composer-meta-strip"');
+    expect(markup).toContain('data-testid="composer-toolbar"');
     expect(markup).toContain('data-testid="composer-usage-trigger"');
     expect(markup).toContain('data-testid="composer-context-ring"');
     expect(markup).not.toContain('data-testid="composer-usage-info"');

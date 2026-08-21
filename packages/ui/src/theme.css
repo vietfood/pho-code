@@ -9,7 +9,7 @@
   --font-size-chat: 14px;
   --radius: 0.75rem;
   --control-radius: 0.625rem;
-  --composer-radius: 1.25rem;
+  --composer-radius: 1rem;
   --sidebar-width: 18.25rem;
   --workspace-topbar-height: 2.75rem;
   --workspace-titlebar-inset: 5.75rem;
@@ -1627,19 +1627,27 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 
 .composer-context-button {
   display: inline-flex;
-  width: 1.625rem;
   height: 1.625rem;
   align-items: center;
   justify-content: center;
+  gap: 0.3rem;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
+  padding: 0 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   outline: none;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
     transform 140ms ease;
+}
+
+.composer-context-button-label {
+  min-width: 0;
 }
 
 .composer-context-button:hover:not(:disabled) {
@@ -1661,14 +1669,14 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 
 .composer-context-button.is-agent {
   color: var(--destructive-foreground);
-  border-color: color-mix(in srgb, var(--destructive) 24%, transparent);
-  background: color-mix(in srgb, var(--destructive) 16%, transparent);
+  border-color: color-mix(in srgb, var(--destructive) 16%, transparent);
+  background: color-mix(in srgb, var(--destructive) 9%, transparent);
 }
 
 .composer-context-button.is-plan {
   color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 16%, transparent);
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
 .composer-context-menu {
@@ -1748,31 +1756,158 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
   min-width: 0;
 }
 
-.composer-meta-strip {
+/* Composer rail, field row, and toolbar follow Claude Code's composer layout
+   (visual reference only; harness-owned chrome and tokens). */
+.composer-rail {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.375rem;
-  padding: 0 0.25rem;
+  gap: 0.25rem;
+  margin-bottom: 0.375rem;
+  padding: 0 0.15rem;
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   line-height: 1.35;
 }
 
-.composer-meta-strip-folder {
-  display: flex;
+.composer-rail-chip {
+  display: inline-flex;
   min-width: 0;
-  max-width: 40%;
-  flex-shrink: 1;
+  max-width: 14rem;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+  padding: 0.15rem 0.4rem;
+  white-space: nowrap;
 }
 
-.composer-meta-strip-usage {
-  margin-left: auto;
+.composer-rail-chip-label {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-rail-chip-label.is-name {
+  color: color-mix(in srgb, var(--foreground) 82%, transparent);
+  font-weight: 500;
+}
+
+.composer-rail-add {
+  display: inline-flex;
+  height: 1.375rem;
+  width: 1.375rem;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 55%, transparent);
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.composer-rail-add:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.composer-rail-add:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.composer-rail-add:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.composer-field {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+/* Sized to one prompt line box (line-height 1.4 plus the 0.2em block padding on
+   .chat-composer-input) so bottom alignment centers the glyph on the caret line
+   instead of floating it above the text. */
+.composer-send {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.composer-send:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.composer-send:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.composer-send.is-ready {
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--message-action) 14%, transparent);
+  color: var(--foreground);
+}
+
+.composer-send.is-ready:hover {
+  border-color: transparent;
+  background: var(--message-action);
+  color: var(--message-action-foreground);
+}
+
+.composer-send.is-stop {
+  background: color-mix(in srgb, var(--destructive) 15%, transparent);
+  color: var(--destructive);
+}
+
+.composer-send.is-stop:hover {
+  background: color-mix(in srgb, var(--destructive) 25%, transparent);
+}
+
+.composer-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+  padding: 0 0.05rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.composer-toolbar-group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.composer-toolbar-group.is-trailing {
+  margin-left: auto;
+  flex-shrink: 0;
+  gap: 0.25rem;
 }
 
 .session-todo-list {
@@ -2427,72 +2562,68 @@ html[data-glass="on"] .glass-field {
   }
 }
 
-.session-context-menu {
+.app-menu {
   position: fixed;
   z-index: 40;
-  min-width: 12.5rem;
+  min-width: 13rem;
   overflow: hidden;
   -webkit-app-region: no-drag;
-  border: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
-  border-radius: 0.5rem;
-  background: var(--sidebar);
-  color: var(--sidebar-foreground);
-  padding: 0.2rem 0;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 28%);
+  border: 1px solid color-mix(in srgb, var(--sidebar-foreground) 10%, transparent);
+  border-radius: 0.75rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.3125rem;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 12%),
+    0 12px 32px rgb(0 0 0 / 28%);
 }
 
-html[data-appearance="dark"] .session-context-menu {
-  border-color: rgb(255 255 255 / 10%);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+html[data-appearance="dark"] .app-menu {
+  border-color: rgb(255 255 255 / 9%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 40%),
+    0 16px 40px rgb(0 0 0 / 55%);
 }
 
-.session-context-menu__item {
+.app-menu__item {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1.5rem;
+  justify-content: space-between;
   border: 0;
-  border-radius: 0;
+  border-radius: 0.5rem;
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
-  padding: 0.45rem 0.7rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.625rem;
   text-align: left;
 }
 
-.session-context-menu__item + .session-context-menu__item {
-  border-top: 1px solid color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
-}
-
-.session-context-menu__item:hover,
-.session-context-menu__item:focus-visible {
+.app-menu__item:hover,
+.app-menu__item:focus-visible {
   background: var(--sidebar-row-hover);
   outline: none;
 }
 
-.session-context-menu__item-icon {
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
-  opacity: 0.85;
-}
-
-.session-context-menu__item--stacked {
-  align-items: flex-start;
-}
-
-.session-context-menu__item-copy {
+.app-menu__text {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.1rem;
+  gap: 0.05rem;
 }
 
-.session-context-menu__item-meta {
+.app-menu__label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-menu__detail {
   display: block;
   max-width: 16rem;
   overflow: hidden;
@@ -2503,13 +2634,31 @@ html[data-appearance="dark"] .session-context-menu {
   line-height: 1.2;
 }
 
-.session-context-menu__item:disabled {
+.app-menu__key {
+  flex-shrink: 0;
+  color: var(--sidebar-muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-menu__separator {
+  height: 1px;
+  margin: 0.3125rem 0.375rem;
+  background: color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
+}
+
+.app-menu__item:disabled {
   cursor: default;
   opacity: 0.4;
 }
 
-.session-context-menu__item--danger {
+.app-menu__item--danger {
   color: var(--destructive);
+}
+
+.app-menu__item--danger .app-menu__key {
+  color: color-mix(in srgb, var(--destructive) 70%, transparent);
 }
 
 @keyframes session-activity-pulse {

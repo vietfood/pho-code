@@ -17,11 +17,10 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import {
   ArchiveIcon,
-  FolderIcon,
-  FolderOpenIcon,
   FolderPlusIcon,
   HouseIcon,
   InfoIcon,
+  PlusIcon,
   SettingsIcon,
   SquareIcon,
   SquarePenIcon,
@@ -45,6 +44,22 @@ import { Button } from "./ui/button";
 // refs/t3code RightPanelTabs. Multi-project collapse, single-line
 // Cursor-inspired density, and folder DnD are harness-owned. Skills,
 // Extensions, worktrees, and branding omitted.
+//
+// The quiet muted project-group headers, the raised primary action, and the
+// dot-marked session rows are harness-owned chrome described in
+// docs/ui/logs/2026-08-21-change-sidebar-claude-layout.md. No third-party code
+// was copied for that pass.
+
+// One row shape for the primary actions, kept compact: 28px tall, 13px label
+// with the slight negative tracking SF wants there, 10px icon gutter. Emphasis
+// comes from weight and the raised pill, not from height or from every row
+// shouting at medium weight.
+const sidebarActionClass =
+  "flex h-7 w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg px-2 text-left text-[13px] leading-5 tracking-[-0.01em] text-sidebar-foreground disabled:opacity-40";
+
+// Thin glyphs: at 15px the lucide default stroke of 2 sits heavier than SF at
+// 13px next to it.
+const sidebarActionIconClass = "size-[0.9375rem] shrink-0";
 
 export function AppSidebar({
   projects,
@@ -202,44 +217,53 @@ export function AppSidebar({
         <span className="sr-only">Projects</span>
       </header>
 
-      <div className="min-w-0 space-y-0.5 overflow-hidden px-2 pb-2">
+      <div className="min-w-0 space-y-px overflow-hidden px-2 pb-2.5">
+        <button
+          type="button"
+          className={cn(sidebarActionClass, "bg-sidebar-row-hover font-medium hover:bg-sidebar-row-selected")}
+          data-testid="new-session"
+          disabled={busy || !canNewSession}
+          onClick={handleNewSession}
+        >
+          <PlusIcon className={sidebarActionIconClass} strokeWidth={1.75} aria-hidden="true" />
+          <span className="min-w-0 truncate">New session</span>
+        </button>
         <button
           type="button"
           className={cn(
-            "flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover",
-            homeActive && "bg-sidebar-row-selected",
+            sidebarActionClass,
+            "hover:bg-sidebar-row-hover",
+            homeActive ? "bg-sidebar-row-selected font-medium" : "font-normal",
           )}
           data-testid="go-home"
           aria-current={homeActive ? "page" : undefined}
           onClick={onGoHome}
         >
-          <HouseIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
+          <HouseIcon
+            className={cn(sidebarActionIconClass, "text-sidebar-muted-foreground")}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
           <span className="min-w-0 truncate">Home</span>
         </button>
         <button
           type="button"
-          className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover disabled:opacity-40"
-          data-testid="new-session"
-          disabled={busy || !canNewSession}
-          onClick={handleNewSession}
-        >
-          <SquarePenIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 truncate">New session</span>
-        </button>
-        <button
-          type="button"
-          className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-sidebar-foreground hover:bg-sidebar-row-hover disabled:opacity-40"
+          className={cn(sidebarActionClass, "font-normal hover:bg-sidebar-row-hover")}
           data-testid="add-project"
           disabled={busy}
           onClick={onAddProject}
         >
-          <FolderPlusIcon className="size-3.5 shrink-0 text-sidebar-muted-foreground" aria-hidden="true" />
+          <FolderPlusIcon
+            className={cn(sidebarActionIconClass, "text-sidebar-muted-foreground")}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
           <span className="min-w-0 truncate">Open folder</span>
         </button>
         {stopAllCount > 0 && onStopAll ? (
           <button
             type="button"
-            className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 py-1 text-left text-[13px] font-medium leading-5 text-destructive hover:bg-sidebar-row-hover"
+            className={cn(sidebarActionClass, "font-normal text-destructive hover:bg-sidebar-row-hover")}
             data-testid="stop-all"
             onClick={onStopAll}
           >
@@ -252,16 +276,10 @@ export function AppSidebar({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-2">
-        <h2
-          className="mb-1 flex h-8 items-center px-2 text-sm font-medium leading-5 text-sidebar-muted-foreground"
-          data-testid="projects-heading"
-        >
-          Projects
-        </h2>
         {projects.length > 0 ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={projectIds} strategy={verticalListSortingStrategy}>
-              <ul className="m-0 grid list-none gap-1 p-0" data-testid="project-list">
+              <ul className="m-0 grid list-none gap-1.5 p-0" data-testid="project-list">
                 {projects.map((project) => {
                   const open = expanded[project.id] === true;
                   const sessions = sessionsByWorkspace[project.id] ?? [];
@@ -276,6 +294,7 @@ export function AppSidebar({
                       sessions={sessions}
                       selectedSessionId={selectedSessionId}
                       onToggle={() => toggleProject(project.id)}
+                      onNewSession={() => onNewSession(project.id)}
                       onOpenSession={(sessionId) => onOpenSession(project.id, sessionId)}
                       onOpenMenu={(sessionId, point) => {
                         setMenu({ kind: "session", workspaceId: project.id, sessionId, x: point.x, y: point.y });
@@ -291,10 +310,10 @@ export function AppSidebar({
             </SortableContext>
           </DndContext>
         ) : (
-          <p className="px-2 text-[0.6875rem] text-muted-foreground">Add a project to start.</p>
+          <p className="px-2 text-[12px] leading-5 text-sidebar-muted-foreground">Add a project to start.</p>
         )}
       </div>
-      <div className="flex min-w-0 justify-start gap-1 overflow-hidden px-2 py-2">
+      <div className="flex min-w-0 justify-start gap-1 overflow-hidden border-t border-sidebar-border px-2 py-2">
         <SidebarGlyphButton size="md" label="Settings" testId="open-settings" onClick={onOpenSettings}>
           <SettingsIcon className="size-4" aria-hidden="true" />
         </SidebarGlyphButton>
@@ -451,6 +470,7 @@ function SortableProjectRow({
   sessions,
   selectedSessionId,
   onToggle,
+  onNewSession,
   onOpenSession,
   onOpenMenu,
   onArchive,
@@ -463,6 +483,7 @@ function SortableProjectRow({
   sessions: readonly SessionCatalogEntry[];
   selectedSessionId?: string;
   onToggle: () => void;
+  onNewSession: () => void;
   onOpenSession: (sessionId: string) => void;
   onOpenMenu: (sessionId: string, point: { x: number; y: number }) => void;
   onArchive: (sessionId: string) => void;
@@ -476,24 +497,23 @@ function SortableProjectRow({
   return (
     <li
       ref={setNodeRef}
-      className={cn("min-w-0 overflow-hidden", open && "mb-1", isDragging && "opacity-40")}
+      className={cn("group/project min-w-0 overflow-hidden", isDragging && "opacity-40")}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
       }}
     >
       <div
-        className={cn(
-          "grid h-8 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-md px-2 hover:bg-sidebar-row-hover",
-          active ? "text-sidebar-foreground" : "text-sidebar-foreground/80",
-        )}
+        className="grid h-6 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-md px-2"
         {...contextMenuHandlers(onOpenProjectMenu)}
       >
         <button
           type="button"
           className={cn(
-            "flex min-w-0 items-center gap-2 text-left text-sm leading-5",
-            active ? "font-medium" : "font-normal",
+            "flex min-w-0 items-center text-left text-[12px] font-medium leading-5 tracking-[-0.005em]",
+            active
+              ? "text-sidebar-foreground"
+              : "text-sidebar-muted-foreground hover:text-sidebar-foreground",
           )}
           data-testid="project-item"
           aria-label={open ? `Collapse ${project.displayName}` : `Expand ${project.displayName}`}
@@ -503,25 +523,39 @@ function SortableProjectRow({
           {...attributes}
           {...listeners}
         >
-          <span data-testid="project-collapse" className="flex size-4 shrink-0 items-center justify-center">
-            {open ? (
-              <FolderOpenIcon className="size-4 text-sidebar-muted-foreground" aria-hidden="true" />
-            ) : (
-              <FolderIcon className="size-4 text-sidebar-muted-foreground" aria-hidden="true" />
-            )}
-          </span>
           <span className="min-w-0 truncate" title={project.displayName}>
             {project.displayName}
           </span>
         </button>
-        <span className="px-1 text-xs tabular-nums text-sidebar-muted-foreground">
-          {ordinary.length}
-        </span>
+        <div className="relative flex h-5 min-w-5 shrink-0 items-center justify-end">
+          <span
+            className="pr-0.5 text-[11px] leading-none tabular-nums text-sidebar-muted-foreground group-hover/project:opacity-0 group-focus-within/project:opacity-0"
+            data-testid="project-session-count"
+          >
+            {ordinary.length > 0 ? ordinary.length : ""}
+          </span>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            data-testid="project-new-session-inline"
+            disabled={busy}
+            aria-label={`New session in ${project.displayName}`}
+            title="New session"
+            className="absolute inset-y-0 right-0 size-5 text-sidebar-muted-foreground opacity-0 hover:text-sidebar-foreground focus-visible:opacity-100 group-hover/project:opacity-100 group-focus-within/project:opacity-100"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onNewSession();
+            }}
+          >
+            <PlusIcon className="size-3.5" aria-hidden="true" />
+          </Button>
+        </div>
       </div>
       {open ? (
-        <div className="project-sessions-enter mt-px min-w-0 overflow-hidden pl-[1.875rem]">
+        <div className="project-sessions-enter mt-0.5 min-w-0 overflow-hidden">
           {ordinary.length > 0 ? (
-            <ul className="m-0 grid min-w-0 list-none p-0">
+            <ul className="m-0 grid min-w-0 list-none gap-px p-0">
               {ordinary.map((session) => (
                 <SessionRow
                   key={session.sessionId}
@@ -535,7 +569,9 @@ function SortableProjectRow({
               ))}
             </ul>
           ) : (
-            <p className="px-1.5 py-1 text-[11px] leading-5 text-muted-foreground">No saved sessions yet.</p>
+            <p className="px-2 py-0.5 text-[12px] leading-5 text-sidebar-muted-foreground">
+              No saved sessions yet.
+            </p>
           )}
         </div>
       ) : null}
@@ -563,7 +599,7 @@ function SessionRow({
     <li className="group/session min-w-0 overflow-hidden">
       <div
         className={cn(
-          "flex h-7 w-full min-w-0 items-center gap-1 overflow-hidden rounded-md py-0 pr-0.5 pl-1.5",
+          "flex h-7 w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg py-0 pr-1 pl-2",
           selected
             ? "bg-sidebar-row-selected text-sidebar-foreground"
             : "text-sidebar-foreground/90 hover:bg-sidebar-row-hover hover:text-sidebar-foreground",
@@ -572,15 +608,20 @@ function SessionRow({
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:opacity-50"
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left disabled:opacity-50"
           data-testid="session-item"
           aria-current={selected}
           disabled={busy}
           title={sessionRowTooltip(session)}
           onClick={onOpen}
         >
-          <SessionLeadingMark activity={session.activity} />
-          <span className={cn("min-w-0 flex-1 truncate text-[13px] leading-5", selected && "font-medium")}>
+          <SessionLeadingMark activity={session.activity} selected={selected} />
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[13px] leading-5 tracking-[-0.01em]",
+              selected && "font-medium",
+            )}
+          >
             {session.title}
           </span>
         </button>

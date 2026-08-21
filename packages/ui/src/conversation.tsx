@@ -130,7 +130,7 @@ export function Conversation({
       sessionMode={snapshot.plan?.mode ?? "agent"}
       {...(onSessionModeChange ? { onSessionModeChange } : {})}
       variant={empty ? "hero" : "docked"}
-      {...(empty ? {} : { metaHint: snapshot.workspace.displayName })}
+      metaHint={snapshot.workspace.displayName}
       {...(snapshot.model ? { selectedModel: snapshot.model } : {})}
       {...(snapshot.usage ? { usage: snapshot.usage } : {})}
       {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
