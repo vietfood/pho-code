@@ -28,7 +28,7 @@ function buildChipElement(
     dataset: Record<string, string>;
     title: string;
     ariaLabel: string;
-    iconSvg: string;
+    iconSvg?: string;
     label: string;
   },
   documentRef: Document,
@@ -41,7 +41,7 @@ function buildChipElement(
   }
   chip.title = spec.title;
   chip.setAttribute("aria-label", spec.ariaLabel);
-  chip.innerHTML = `${spec.iconSvg}<span class="mention-chip-label"></span>`;
+  chip.innerHTML = `${spec.iconSvg ?? ""}<span class="mention-chip-label"></span>`;
   const label = chip.querySelector(".mention-chip-label");
   if (label) {
     label.textContent = spec.label;
@@ -67,9 +67,6 @@ export function createMentionChipElement(
   );
 }
 
-const SKILL_ICON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="m15 4-8 16"/><path d="M7.5 4h9"/><path d="M7.5 20h9"/></svg>';
-
 export function createSkillChipElement(
   sourceId: SkillSourceId,
   skillName: string,
@@ -81,7 +78,6 @@ export function createSkillChipElement(
       dataset: { skillSource: sourceId, skillName },
       title: skillName,
       ariaLabel: formatSkillToken(sourceId, skillName),
-      iconSvg: SKILL_ICON_SVG,
       label: skillName,
     },
     documentRef,

@@ -32,4 +32,15 @@ describe("thinking block", () => {
     expect(markup).toContain("<li>");
     expect(markup).not.toContain("<script");
   });
+
+  test("shimmers the Thinking heading with a sparkle while live", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ThinkingBlock, { text: "planning the next step", live: true }),
+    );
+    expect(markup).toContain("Thinking");
+    expect(markup).toContain("working-shimmer");
+    expect(markup).toContain('data-testid="thinking-status"');
+    expect(markup).toContain('data-testid="working-star"');
+    expect(markup).not.toContain("animate-pulse");
+  });
 });

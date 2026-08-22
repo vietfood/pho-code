@@ -266,6 +266,29 @@ describe("empty session hero", () => {
     expect(markup).toContain("Can you read ");
   });
 
+  test("renders skill tokens in user messages as name-only chips", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [{ type: "text", text: "/pho-code:repository-investigation please" }],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-skill-name="repository-investigation"');
+    expect(markup).toContain("repository-investigation");
+    expect(markup).toContain("please");
+    expect(markup).toContain('title="Built in · repository-investigation"');
+    expect(markup).not.toContain(">Ph</span>");
+    expect(markup).not.toContain("mention-chip-icon");
+  });
+
   test("renders quoted @ references with spaces as mention chips", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
@@ -361,6 +384,10 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="markdown-image"');
     expect(markup).toContain(`src="${preview}"`);
     expect(markup).toContain('aria-label="Remove shot.png"');
+    expect(markup).not.toContain("Sending an image transmits it to the selected model provider.");
+    expect(markup.indexOf('data-testid="composer-images"')).toBeLessThan(
+      markup.indexOf('data-testid="composer"'),
+    );
   });
 
   test("shows steer and follow-up actions while a run is streaming", () => {
@@ -394,7 +421,7 @@ describe("empty session hero", () => {
     expect(modelChunk).toContain("disabled");
   });
 
-  test("shows static Working text while the agent is waiting for tokens", () => {
+  test("shows shimmering Working text while the agent is waiting for tokens", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
         snapshot: snapshot({
@@ -412,6 +439,8 @@ describe("empty session hero", () => {
     );
     expect(markup).toContain('data-testid="agent-working"');
     expect(markup).toContain("Working");
+    expect(markup).toContain("working-shimmer");
+    expect(markup).toContain('data-testid="working-star"');
     expect(markup).not.toContain("loading-state-grid");
   });
 

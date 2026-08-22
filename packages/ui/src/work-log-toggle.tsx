@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { workedForLabel } from "./lib/work-log";
+import { WorkingLabel } from "./working-label";
 
 // Codex-inspired single disclosure for an entire assistant turn.
 // Visual reference only (no Codex source). Collapses all thinking/tool steps at once.
 // Settled labels are activity summaries; live labels still use wall-clock “Working for …”.
+// Live chrome: Beautiful UI sparkle + shimmer-text (MIT, Shane Levine).
 
 export function WorkLogToggle({
   label,
@@ -50,7 +52,7 @@ export function WorkLogToggle({
       data-testid="work-log-toggle"
       onClick={onToggle}
     >
-      <span className="min-w-0 truncate font-medium">{text}</span>
+      <WorkingLabel text={text} live={live} />
       <ChevronRightIcon
         className={cn(
           "size-3.5 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",

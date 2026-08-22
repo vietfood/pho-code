@@ -162,6 +162,8 @@ describe("work log toggle", () => {
     expect(markup).toContain("Thought, then peeked");
     expect(markup).toContain('data-testid="work-log-toggle"');
     expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('data-testid="working-star"');
+    expect(markup).not.toContain("working-shimmer");
     expect(markup).not.toContain('data-testid="agent-loading"');
   });
 
@@ -176,6 +178,8 @@ describe("work log toggle", () => {
       }),
     );
     expect(markup).toContain("Working");
+    expect(markup).toContain("working-shimmer");
+    expect(markup).toContain('data-testid="working-star"');
     expect(markup).not.toContain('data-testid="agent-loading"');
   });
 });

@@ -50,15 +50,17 @@ import { isMaxThinkingLevel } from "./lib/thinking-labels";
 import { ThinkingLevelChip } from "./thinking-level-chip";
 import { MarkdownImage } from "./markdown-image";
 import { ModelPicker } from "./model-picker";
+import { ComposerPickerMenu } from "./composer-picker-menu";
 import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 import { SkillSourceIcon } from "./skill-source-icon";
 
 // Docked composer chrome adapted from refs/t3code ChatView composer dock and
 // ComposerPrimaryActions.tsx (MIT, T3 Tools Inc., 6bc6cb6). In-field model/thinking
 // controls and empty-session hero layout are harness-owned Cursor-inspired chrome.
-// Highlight ring and / skill picker adapted from Beautiful UI PromptBar.tsx
-// (MIT, Shane Levine, retrieved 2026-08-13): omitted dictation, glimm sweep,
-// autoplay, and fake source/command catalogs. Image attach is Milestone 1 Slice 4.
+// Highlight ring, gliding @ / picker, and / skill insert adapted from Beautiful UI
+// PromptBar.tsx (MIT, Shane Levine, retrieved 2026-08-13 / 2026-08-22): omitted
+// dictation, glimm sweep, autoplay, and fake source/command catalogs.
+// Image attach is Milestone 1 Slice 4.
 // Usage strip inspired by Pi TUI footer / AI Elements Context (bar, not ring).
 // @ mention chips are Cursor-inspired (visual reference only; harness-owned).
 // Layout is Claude Code-inspired (visual reference only; harness-owned): a context
@@ -533,8 +535,126 @@ export function Composer({
         className={cn("chat-composer-shell", highlight !== "none" && `is-${highlight}`)}
         data-composer-highlight={highlight}
       >
+        {menuOpen ? (
+          <ComposerPickerMenu
+            label="Workspace references"
+            testId="composer-mentions"
+            hint="Type to search files and folders"
+            activeIndex={activeIndex}
+            itemCount={suggestions.length}
+            listKey={mentionQuery ?? ""}
+          >
+            {suggestions.length === 0 ? (
+              <div className="composer-mention-empty">{searchStatus ?? "No matching files"}</div>
+            ) : (
+              suggestions.map((suggestion, index) => {
+                const directory = mentionDirectory(suggestion.path);
+                return (
+                  <button
+                    key={`${suggestion.kind}:${suggestion.path}`}
+                    ref={(node) => {
+                      mentionOptionRefs.current[index] = node;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeIndex}
+                    className={cn("composer-mention-option", index === activeIndex && "is-active")}
+                    title={suggestion.path}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectSuggestion(suggestion);
+                    }}
+                  >
+                    <span className="composer-mention-option-icon">
+                      {suggestion.kind === "folder" ? (
+                        <FolderIcon className="size-3.5" aria-hidden="true" />
+                      ) : (
+                        <FileIcon className="size-3.5" aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className="composer-mention-option-text">
+                      <span className="composer-mention-option-name">{mentionLabel(suggestion.path)}</span>
+                      {directory ? <span className="composer-mention-option-dir">{directory}</span> : null}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </ComposerPickerMenu>
+        ) : null}
+        {slashOpen ? (
+          <ComposerPickerMenu
+            label="Skills"
+            testId="composer-skills"
+            hint="Type to search skills"
+            activeIndex={activeIndex}
+            itemCount={skillChoices.length}
+            listKey={slashQuery ?? ""}
+          >
+            {skillChoices.length === 0 ? (
+              <div className="composer-mention-empty">
+                {skills
+                  ? "No matching skills. Enable a source in Settings to make its skills available here."
+                  : "Skills are not loaded yet."}
+              </div>
+            ) : (
+              skillChoices.map((entry, index) => (
+                <button
+                  key={`${entry.sourceId}:${entry.skillName}`}
+                  ref={(node) => {
+                    skillOptionRefs.current[index] = node;
+                  }}
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
+                  className={cn("composer-mention-option", index === activeIndex && "is-active")}
+                  title={entry.description ?? entry.displayName}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    setActiveIndex(index);
+                    selectSkill(entry);
+                  }}
+                >
+                  <span className="composer-mention-option-icon">
+                    <SkillSourceIcon sourceId={entry.sourceId} className="size-3.5" />
+                  </span>
+                  <span className="composer-mention-option-text">
+                    <span className="composer-mention-option-name">{entry.displayName}</span>
+                    <span className="composer-mention-option-dir">
+                      {SKILL_SOURCE_LABELS[entry.sourceId]}
+                      {entry.compatibility === "compatible" ? "" : ` · ${entry.compatibility}`}
+                    </span>
+                  </span>
+                </button>
+              ))
+            )}
+          </ComposerPickerMenu>
+        ) : null}
         <div className={cn("chat-composer-host", hero ? "px-3.5 py-3" : "px-3 py-2.5")}>
           <div className="relative z-10 flex flex-col">
+            {images.length > 0 ? (
+              <div className="composer-image-row" data-testid="composer-images">
+                {images.map((image) => (
+                  <div key={image.id} className="composer-image-thumb" data-testid="prepared-image">
+                    <MarkdownImage src={image.previewDataUrl} alt={image.name} />
+                    <button
+                      type="button"
+                      className="composer-image-remove"
+                      aria-label={`Remove ${image.name}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onRemoveImage?.(image.id);
+                      }}
+                    >
+                      <XIcon className="size-3" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <div className="composer-field">
               <div
                 ref={editorRef}
@@ -659,114 +779,6 @@ export function Composer({
               />
               {submit}
             </div>
-            {menuOpen ? (
-              <div className="composer-mention-menu" role="listbox" aria-label="Workspace references" data-testid="composer-mentions">
-                {suggestions.length === 0 ? (
-                  <div className="composer-mention-empty">{searchStatus ?? "No matching files"}</div>
-                ) : (
-                  suggestions.map((suggestion, index) => {
-                    const directory = mentionDirectory(suggestion.path);
-                    return (
-                      <button
-                        key={`${suggestion.kind}:${suggestion.path}`}
-                        ref={(node) => {
-                          mentionOptionRefs.current[index] = node;
-                        }}
-                        type="button"
-                        role="option"
-                        aria-selected={index === activeIndex}
-                        className={cn("composer-mention-option", index === activeIndex && "is-active")}
-                        title={suggestion.path}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          selectSuggestion(suggestion);
-                        }}
-                      >
-                        {suggestion.kind === "folder" ? (
-                          <FolderIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                        ) : (
-                          <FileIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                        )}
-                        <span className="composer-mention-option-text">
-                          <span className="composer-mention-option-name">{mentionLabel(suggestion.path)}</span>
-                          {directory ? <span className="composer-mention-option-dir">{directory}</span> : null}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            ) : null}
-            {slashOpen ? (
-              <div
-                className="composer-mention-menu"
-                role="listbox"
-                aria-label="Skills"
-                data-testid="composer-skills"
-              >
-                {skillChoices.length === 0 ? (
-                  <div className="composer-mention-empty">
-                    {skills
-                      ? "No matching skills. Enable a source in Settings to make its skills available here."
-                      : "Skills are not loaded yet."}
-                  </div>
-                ) : (
-                  skillChoices.map((entry, index) => (
-                    <button
-                      key={`${entry.sourceId}:${entry.skillName}`}
-                      ref={(node) => {
-                        skillOptionRefs.current[index] = node;
-                      }}
-                      type="button"
-                      role="option"
-                      aria-selected={index === activeIndex}
-                      className={cn("composer-mention-option", index === activeIndex && "is-active")}
-                      title={entry.description ?? entry.displayName}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        setActiveIndex(index);
-                        selectSkill(entry);
-                      }}
-                    >
-                      <SkillSourceIcon sourceId={entry.sourceId} className="size-3.5" />
-                      <span className="composer-mention-option-text">
-                        <span className="composer-mention-option-name">{entry.displayName}</span>
-                        <span className="composer-mention-option-dir">
-                          {SKILL_SOURCE_LABELS[entry.sourceId]}
-                          {entry.compatibility === "compatible" ? "" : ` · ${entry.compatibility}`}
-                        </span>
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-            {images.length > 0 ? (
-              <div className="composer-image-row" data-testid="composer-images">
-                {images.map((image) => (
-                  <div key={image.id} className="composer-image-thumb" data-testid="prepared-image">
-                    <MarkdownImage src={image.previewDataUrl} alt={image.name} />
-                    <button
-                      type="button"
-                      className="composer-image-remove"
-                      aria-label={`Remove ${image.name}`}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onRemoveImage?.(image.id);
-                      }}
-                    >
-                      <XIcon className="size-3" aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {images.length > 0 ? (
-              <p className="composer-image-disclosure">
-                Sending an image transmits it to the selected model provider.
-              </p>
-            ) : null}
           </div>
         </div>
       </div>

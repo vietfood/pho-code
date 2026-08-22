@@ -25,7 +25,7 @@ export function InlineChip({
   data: Record<string, string>;
   title: string;
   ariaLabel: string;
-  icon: ReactNode;
+  icon?: ReactNode;
   label: string;
 }) {
   return (

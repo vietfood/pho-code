@@ -2,12 +2,14 @@ import { useEffect, useState, type KeyboardEvent, type MouseEvent } from "react"
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { ConservativeMarkdown } from "./markdown";
+import { SparkleIcon } from "./sparkle-icon";
 import { thoughtWorkEntryChip } from "./tool-presentation";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 // Thinking work-entry row adapted from refs/t3code MessagesTimeline.tsx tone:"thinking"
 // PlainWorkEntryRow (MIT, T3 Tools Inc., 6bc6cb6). Settled expanded body uses harness
 // markdown; live thinking stays plaintext so deltas do not re-parse.
+// Live heading sparkle + shimmer adapted from Beautiful UI ThinkingState (MIT).
 
 export function ThinkingBlock({
   text,
@@ -53,32 +55,36 @@ export function ThinkingBlock({
         }}
       >
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground">
-          <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
+          {live ? (
+            <SparkleIcon className="working-label-star is-live block size-3.5" />
+          ) : (
+            <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
+          )}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <p className="shrink-0 text-[12px] leading-5 font-medium text-foreground">{heading}</p>
+          <p
+            className={cn(
+              "shrink-0 text-[12px] leading-5 font-medium",
+              live ? "working-shimmer" : "text-foreground",
+            )}
+          >
+            {heading}
+          </p>
           {chip ? (
             <span className="tool-chip min-w-0 shrink truncate" data-testid="thought-chip" title={chip.title}>
               {chip.text}
             </span>
           ) : null}
           <span className="min-w-0 flex-1" />
-          <div className="flex shrink-0 items-center gap-px text-icon-muted">
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              <ChevronDownIcon
-                className={cn(
-                  "size-3 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",
-                  expanded && "rotate-180",
-                )}
-                aria-hidden="true"
-              />
-            </span>
-            {live ? (
-              <span className="flex size-4 items-center justify-center" aria-hidden="true">
-                <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60 motion-reduce:animate-none" />
-              </span>
-            ) : null}
-          </div>
+          <span className="flex size-4 shrink-0 items-center justify-center text-icon-muted">
+            <ChevronDownIcon
+              className={cn(
+                "size-3 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none",
+                expanded && "rotate-180",
+              )}
+              aria-hidden="true"
+            />
+          </span>
         </div>
       </div>
       {expanded ? (

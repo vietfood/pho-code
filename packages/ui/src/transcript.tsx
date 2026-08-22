@@ -35,6 +35,7 @@ import { SkillChip } from "./skill-chip";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
+import { WorkingLabel } from "./working-label";
 import { Button } from "./ui/button";
 
 // Transcript layout adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
@@ -194,7 +195,7 @@ function LiveRunTail({
       ) : null}
       {running && !run.streamingText && liveWorkCounts.steps === 0 ? (
         <p className="chat-column px-1 pb-2.5 pt-1 text-sm text-muted-foreground" data-testid="agent-working">
-          Working
+          <WorkingLabel text="Working" live />
         </p>
       ) : null}
       {run.error ? (
