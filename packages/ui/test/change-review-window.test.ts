@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ChangeDiffPage, ChangeReviewSetSnapshot } from "@pho-code/protocol";
 import { ChangeReviewWindow } from "../src/change-review-window";
 import {
+  CHANGES_WINDOW_INSET_PX,
   clampChangesWindowFrame,
   defaultChangesWindowFrame,
   MIN_CHANGES_WINDOW_HEIGHT_PX,
@@ -76,25 +77,46 @@ function render(overrides: Partial<Parameters<typeof ChangeReviewWindow>[0]> = {
       onEnsureDiff: () => undefined,
       onApprove: () => undefined,
       onApproveAll: () => undefined,
-      onClose: () => undefined,
+      onExpand: () => undefined,
       ...overrides,
     }),
   );
 }
 
-describe("floating changes window", () => {
-  test("stacks every changed file under a workspace → working tree title", () => {
+describe("stacked changes pane", () => {
+  test("stacks files in the sidebar with expand and visible diff tools", () => {
     const markup = render();
     expect(markup).toContain('data-testid="change-review-window"');
-    expect(markup).toContain("pho-code");
+    expect(markup).not.toContain('data-testid="change-review-window-host"');
     expect(markup).toContain("working tree");
-    expect(markup).toContain('data-path="packages/ui/src/composer.tsx"');
-    expect(markup).toContain('data-path="packages/protocol/src/settings.ts"');
+    expect(markup).toContain("2 files");
+    expect(markup).toContain("composer.tsx");
+    expect(markup).toContain("settings.ts");
+    expect(markup).toContain('data-testid="change-review-window-file"');
+    expect(markup).toContain('data-testid="change-review-expand-window"');
+    expect(markup).not.toContain('data-testid="change-review-window-close"');
+    expect(markup).not.toContain('data-testid="change-review-window-maximize"');
+    expect(markup).not.toContain('data-testid="change-review-window-tools"');
+    expect(markup).not.toContain('data-testid="change-review-window-resize"');
+    expect(markup).toContain('data-testid="change-review-search"');
+    expect(markup).toContain('data-testid="change-review-diff"');
+    expect(markup).toContain('data-testid="change-review-approve"');
+    expect(markup).toContain('data-testid="change-review-approve-all"');
+    expect(markup).toContain("2 of 2 awaiting review");
+  });
+
+  test("keeps overlay chrome and hides search until tools are opened", () => {
+    const markup = render({ variant: "overlay", onClose: () => undefined, onExpand: undefined });
+    expect(markup).toContain('data-testid="change-review-window-host"');
     expect(markup).toContain('data-testid="change-review-window-close"');
     expect(markup).toContain('data-testid="change-review-window-maximize"');
+    expect(markup).toContain('data-testid="change-review-window-tools"');
     expect(markup).toContain('data-testid="change-review-window-resize"');
-    expect(markup).toContain("2 of 2 awaiting review");
-    expect(markup).toContain('data-testid="change-review-window-approve-all"');
+    expect(markup).toContain("composer.tsx");
+    expect(markup).toContain("settings.ts");
+    expect(markup).not.toContain('data-testid="change-review-expand-window"');
+    expect(markup).not.toContain('data-testid="change-review-search"');
+    expect(markup).not.toContain('data-testid="change-review-whitespace"');
   });
 
   test("shows word-level marks only on the bytes that changed", () => {
@@ -103,7 +125,6 @@ describe("floating changes window", () => {
     expect(markup).toContain('data-kind="added"');
     expect(markup).toContain('data-changed="true"');
     expect(markup).toContain("export const DEFAULT_CHAT_FONT_SIZE = ");
-    // The changed token is split out of the surrounding text, not merged with it.
     expect(markup).not.toContain("export const DEFAULT_CHAT_FONT_SIZE = 15;</span>");
   });
 
@@ -114,10 +135,13 @@ describe("floating changes window", () => {
     expect(expandable).toContain("33 unmodified lines");
   });
 
-  test("keeps a dragged window reachable and never smaller than a readable diff", () => {
-    const centred = defaultChangesWindowFrame(viewport);
-    expect(centred.width).toBeGreaterThanOrEqual(MIN_CHANGES_WINDOW_WIDTH_PX);
-    expect(centred.height).toBeGreaterThanOrEqual(MIN_CHANGES_WINDOW_HEIGHT_PX);
+  test("anchors the default overlay to the right with air around it", () => {
+    const frame = defaultChangesWindowFrame(viewport);
+    expect(frame.width).toBeGreaterThanOrEqual(MIN_CHANGES_WINDOW_WIDTH_PX);
+    expect(frame.height).toBeGreaterThanOrEqual(MIN_CHANGES_WINDOW_HEIGHT_PX);
+    expect(frame.y).toBe(CHANGES_WINDOW_INSET_PX);
+    expect(frame.x).toBe(viewport.width - frame.width - CHANGES_WINDOW_INSET_PX);
+    expect(frame.x).toBeGreaterThan(viewport.width * 0.3);
 
     const offscreen = clampChangesWindowFrame({ x: 5_000, y: 5_000, width: 800, height: 600 }, viewport);
     expect(offscreen.x).toBeLessThanOrEqual(viewport.width - 96);

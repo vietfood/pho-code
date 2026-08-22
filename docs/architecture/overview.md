@@ -102,7 +102,7 @@ The renderer owns presentation and transient interaction state:
 - composer draft and attachment previews;
 - streaming indicators and a per-chat live-run projection;
 - tool cards;
-- the accepted V3 read-only change-review surface in the persistent right sidebar (not a second editor);
+- the accepted V3 read-only change review (stacked sidebar pane, optional expanded overlay; not a second editor);
 - dialogs and settings views;
 - light/dark theme and accessible interaction.
 

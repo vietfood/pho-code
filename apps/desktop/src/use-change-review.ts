@@ -307,7 +307,6 @@ export function useChangeReview(cache: ConversationCacheState) {
     setUndoPreview(null);
   }, []);
 
-  /** Loads a diff into the shared cache without moving the docked sheet's selection. */
   const ensureDiff = useCallback(
     (relativePath: string) => {
       const nextScope = scopeRef.current;

@@ -95,11 +95,11 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 
 Current surfaces are:
 
-- `changes` — implemented V3 review UI;
+- `changes` — V3 review as a stacked-file card in the docked panel (Expand opens a right-anchored overlay over chat);
 - `context-prompt` — edit while the session is empty, inspect after first message;
 - `plan` — Plan document surface (accepted Plan/Agent). Terminal remains a planned peer with no `terminal` variant yet.
 
-V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
+FileDiff and a write/edit tool card expand the rail onto Changes. Re-click or ⌘R / Ctrl+R collapses it. Expand, then Escape or the overlay close control, restores the stacked sidebar. Context prompt and Plan still expand the resizable docked panel. V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
 ## Settings and account surfaces
 

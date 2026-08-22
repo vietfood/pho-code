@@ -28,6 +28,38 @@ describe("RightSidebar", () => {
     expect(markup).not.toContain(">panel<");
     expect(markup).not.toContain('data-testid="right-sidebar-resize"');
     expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
+    expect(markup).toContain('aria-pressed="false"');
+  });
+
+  test("docks Changes children when the panel is expanded", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, {
+        collapsed: false,
+        surface: "changes",
+        onToggleCollapsed: () => undefined,
+        onSelectSurface: () => undefined,
+        children: createElement("section", { "data-testid": "change-review-window" }, "stacked"),
+      }),
+    );
+    expect(markup).toContain('data-collapsed="false"');
+    expect(markup).not.toContain('data-testid="right-sidebar-pill"');
+    expect(markup).toContain('data-testid="change-review-window"');
+    expect(markup).toContain("stacked");
+  });
+
+  test("marks Changes pressed on the collapsed pill while the overlay is open", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, {
+        collapsed: true,
+        surface: "changes",
+        changesOverlayOpen: true,
+        onToggleCollapsed: () => undefined,
+        onSelectSurface: () => undefined,
+      }),
+    );
+    expect(markup).toContain('data-collapsed="true"');
+    expect(markup).toContain('data-testid="right-sidebar-pill"');
+    expect(markup).toContain('aria-pressed="true"');
   });
 
   test("expands to a resizable panel with the selected surface", () => {
@@ -62,6 +94,7 @@ describe("right sidebar surface activation", () => {
     expect(rightSidebarSurfaceAction(false, "changes", "changes")).toBe("collapse");
     expect(rightSidebarSurfaceAction(false, "context-prompt", "context-prompt")).toBe("collapse");
     expect(rightSidebarSurfaceAction(false, "plan", "plan")).toBe("collapse");
+    expect(rightSidebarSurfaceAction(true, "changes", "changes", true)).toBe("collapse");
   });
 
   test("selects when collapsed or when switching surfaces", () => {
@@ -71,6 +104,7 @@ describe("right sidebar surface activation", () => {
     expect(rightSidebarSurfaceAction(false, "context-prompt", "changes")).toBe("select");
     expect(rightSidebarSurfaceAction(false, "plan", "changes")).toBe("select");
     expect(rightSidebarSurfaceAction(false, "changes", "plan")).toBe("select");
+    expect(rightSidebarSurfaceAction(true, "changes", "context-prompt", true)).toBe("select");
   });
 });
 

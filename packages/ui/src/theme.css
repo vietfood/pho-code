@@ -2989,26 +2989,30 @@ html[data-appearance="dark"] .app-menu {
   outline-offset: 1px;
 }
 
-/* Floating changes window ------------------------------------------------- */
+/* Stacked Changes card in the right sidebar; overlay is an optional expand. */
+
+.change-window-host {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+}
 
 .change-window {
-  position: fixed;
-  z-index: 50;
+  pointer-events: auto;
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
-  border-radius: calc(var(--radius) + 0.25rem);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: var(--radius);
   background: var(--code-background);
   color: var(--code-foreground);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.12),
-    0 24px 60px -12px rgb(0 0 0 / 0.45);
 }
 
 .change-window-maximized {
-  inset: 1.5rem;
+  inset: 0.75rem;
   width: auto;
   height: auto;
 }
@@ -3019,8 +3023,8 @@ html[data-appearance="dark"] .app-menu {
   gap: 0.4rem;
   min-height: 2.25rem;
   flex-shrink: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.35rem 0.55rem 0.35rem 0.75rem;
   font-family: var(--font-sans);
   font-size: 0.8125rem;
   cursor: grab;
@@ -3032,6 +3036,11 @@ html[data-appearance="dark"] .app-menu {
   cursor: grabbing;
 }
 
+.change-window-sidebar .change-window-title,
+.change-window-sidebar .change-window-title:active {
+  cursor: default;
+}
+
 .change-window-arrow {
   flex-shrink: 0;
   color: var(--muted-foreground);
@@ -3041,6 +3050,39 @@ html[data-appearance="dark"] .app-menu {
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
+}
+
+.change-window-sidebar {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0.75rem;
+  pointer-events: auto;
+}
+
+.change-window-overlay {
+  pointer-events: auto;
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.change-window-overlay > .change-window {
+  height: 100%;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.change-window-overlay-max {
+  position: absolute;
+  top: 0.4rem;
+  inset-inline-end: 2.15rem;
+  z-index: 2;
 }
 
 .change-window-file + .change-window-file {
@@ -3064,11 +3106,16 @@ html[data-appearance="dark"] .app-menu {
 .change-window-file-toggle {
   display: flex;
   min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
   gap: 0.4rem;
-  border-radius: var(--control-radius);
+  border: 0;
+  background: transparent;
   padding: 0.1rem 0.2rem;
+  border-radius: var(--control-radius);
+  color: inherit;
   text-align: start;
+  cursor: pointer;
 }
 
 .change-window-file-toggle:focus-visible {
@@ -3078,12 +3125,13 @@ html[data-appearance="dark"] .app-menu {
 
 .change-window-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  padding: 0.4rem 0.6rem;
-  background: var(--background);
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.4rem 0.75rem;
+  background: var(--code-background);
 }
 
 .change-window-resize {

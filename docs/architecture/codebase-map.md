@@ -157,7 +157,7 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 - conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (accepted Plan/Agent);
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
 - settings/accounts/skills/GitHub/archive/trust/sandbox dialogs;
-- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
+- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `change-review-window.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
 - design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/`.
 
 UI imports React and protocol only. It renders remote/tool/model content as untrusted data.
