@@ -55,11 +55,16 @@ export function ThinkingBlock({
           }
         }}
       >
-        <span className="flex size-5 shrink-0 items-center justify-center text-foreground">
+        <span
+          className={cn(
+            "relative flex size-4 shrink-0 items-center justify-center",
+            live ? "text-foreground" : "text-icon-muted",
+          )}
+        >
           {live ? (
             <SparkleIcon className="working-label-star block size-3.5" />
           ) : (
-            <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
+            <WorkEntryIcon name="thought" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
           )}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -72,7 +77,11 @@ export function ThinkingBlock({
             {heading}
           </p>
           {chip ? (
-            <span className="tool-chip min-w-0 shrink truncate" data-testid="thought-chip" title={chip.title}>
+            <span
+              className="min-w-0 max-w-[14rem] shrink truncate text-[11px] text-muted-foreground"
+              data-testid="thought-chip"
+              title={chip.title}
+            >
               {chip.text}
             </span>
           ) : null}

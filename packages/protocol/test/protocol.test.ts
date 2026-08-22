@@ -608,6 +608,7 @@ describe("protocol serialization", () => {
       appearance: {
         palette: "default" as const,
         mode: "dark" as const,
+        workEntryIcons: "pho" as const,
         glassEnabled: false,
         glassStrength: 55,
         uiFontSize: 18,

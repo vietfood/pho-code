@@ -1,5 +1,6 @@
 import {
   completedPlanTodoCount,
+  displayToolName,
   parsePlanTodoList,
   type PlanTodoItem,
   type ToolStatus,
@@ -12,15 +13,24 @@ export interface ToolWorkEntryChip {
 }
 
 export type WorkEntryIconName =
-  | "terminal"
-  | "eye"
-  | "square-pen"
+  | "list"
+  | "read"
+  | "write"
+  | "edit"
+  | "run"
   | "search"
-  | "globe"
-  | "folder"
+  | "find"
+  | "web-search"
+  | "fetch"
+  | "trash"
+  | "skill"
+  | "ask"
+  | "todos"
+  | "plan"
+  | "execute"
+  | "github"
   | "wrench"
-  | "bot"
-  | "list";
+  | "thought";
 
 export type ToolPayloadLanguage = "bash" | "json" | "text";
 
@@ -39,32 +49,53 @@ export function capitalizePhrase(value: string): string {
   return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
-export function toolStatusWord(status: ToolStatus): string {
-  return status;
+export function toolWorkEntryHeading(name: string, _status: ToolStatus): string {
+  return displayToolName(name);
 }
 
-export function toolWorkEntryHeading(name: string, status: ToolStatus): string {
-  return capitalizePhrase(`${normalizeToolName(name)} ${toolStatusWord(status)}`);
-}
-
-const ICON_RULES: readonly [test: (key: string) => boolean, icon: WorkEntryIconName][] = [
-  [(key) => key === "execute" || key === "execute_plan", "bot"],
-  [isShellTool, "terminal"],
-  [(key) => key === "read" || key.includes("read_file") || key.includes("cat"), "eye"],
-  [
-    (key) =>
-      key === "write" || key === "edit" || key.includes("write_file") || key.includes("apply_patch") || key.includes("str_replace"),
-    "square-pen",
-  ],
-  [(key) => key.includes("grep") || key.includes("search") || key.includes("glob") || key.includes("find"), "search"],
-  [(key) => key.includes("web") || key.includes("fetch") || key.includes("http"), "globe"],
-  [(key) => key.includes("ls") || key.includes("list") || key.includes("dir") || key.includes("trash"), "folder"],
-  [(key) => key === "todo", "list"],
-];
+const ICON_BY_KEY: Readonly<Record<string, WorkEntryIconName>> = {
+  ls: "list",
+  list: "list",
+  browse: "list",
+  read: "read",
+  write: "write",
+  edit: "edit",
+  bash: "run",
+  "user bash": "run",
+  run: "run",
+  shell: "run",
+  grep: "search",
+  ffgrep: "search",
+  "fff-multi-grep": "search",
+  search: "search",
+  find: "find",
+  fffind: "find",
+  "web search": "web-search",
+  fetch: "fetch",
+  "fetch content": "fetch",
+  "move to trash": "trash",
+  trash: "trash",
+  "read skill": "skill",
+  skill: "skill",
+  ask: "ask",
+  "ask user": "ask",
+  "ask user question": "ask",
+  todo: "todos",
+  todos: "todos",
+  "plan document": "plan",
+  "update plan document": "plan",
+  plan: "plan",
+  execute: "execute",
+  "execute plan": "execute",
+  thought: "thought",
+};
 
 export function toolWorkEntryIcon(name: string): WorkEntryIconName {
   const key = normalizeToolName(name);
-  return ICON_RULES.find(([test]) => test(key))?.[1] ?? "wrench";
+  if (key.startsWith("github")) {
+    return "github";
+  }
+  return ICON_BY_KEY[key] ?? "wrench";
 }
 
 export function toolWorkEntryChip(
@@ -73,7 +104,7 @@ export function toolWorkEntryChip(
   outputPreview = "",
 ): ToolWorkEntryChip | null {
   const key = normalizeToolName(name);
-  if (key === "todo") {
+  if (key === "todo" || key === "todos") {
     const todos = parseTodosFromInput(inputPreview);
     if (!todos || todos.length === 0) {
       return null;
@@ -91,7 +122,7 @@ export function toolWorkEntryChip(
     return { text, title: compactWhitespace(target.value) };
   }
 
-  if (key === "ask user question") {
+  if (key === "ask" || key === "ask user" || key === "ask user question") {
     const title = compactWhitespace(outputPreview);
     return title ? { text: title, title } : null;
   }
@@ -299,7 +330,7 @@ function normalizeToolName(name: string): string {
 }
 
 function isShellTool(key: string): boolean {
-  return key === "bash" || key === "shell" || key.includes("terminal") || key.includes("exec");
+  return key === "bash" || key === "shell" || key === "run" || key.includes("terminal") || key.includes("exec");
 }
 
 function tryParseJson(value: string): unknown {

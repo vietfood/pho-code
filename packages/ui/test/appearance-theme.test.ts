@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { coerceAppearance, glassCssTokens, paletteSupportsMode, resolveAppearanceMode } from "@pho-code/protocol";
-import { applyAppearanceTheme, readAppearancePalette } from "../src/lib/appearance-theme";
+import { applyAppearanceTheme, readAppearancePalette, readWorkEntryIconPack } from "../src/lib/appearance-theme";
 
 function fakeRoot() {
   const dataset: Record<string, string> = {};
@@ -39,6 +39,7 @@ describe("appearance theme helpers", () => {
       {
         palette: "gruvbox",
         mode: "dark",
+        workEntryIcons: "pho",
         glassEnabled: true,
         glassStrength: 80,
         uiFontSize: 16,
@@ -51,6 +52,7 @@ describe("appearance theme helpers", () => {
     expect(resolved).toBe("dark");
     expect(root.dataset.palette).toBe("gruvbox");
     expect(root.dataset.appearance).toBe("dark");
+    expect(root.dataset.workIcons).toBe("pho");
     expect(root.dataset.glass).toBe("on");
     const tokens = glassCssTokens(80);
     expect(root.style.properties.get("--glass-blur")).toBe(`${tokens.blurPx}px`);
@@ -70,6 +72,7 @@ describe("appearance theme helpers", () => {
       {
         palette: "default",
         mode: "light",
+        workEntryIcons: "pho",
         glassEnabled: false,
         glassStrength: 55,
         uiFontSize: 16,
@@ -132,5 +135,33 @@ describe("appearance theme helpers", () => {
     expect(readAppearancePalette(root as unknown as HTMLElement)).toBe("gruvbox");
     root.dataset.palette = "sepia";
     expect(readAppearancePalette(root as unknown as HTMLElement)).toBe("default");
+  });
+
+  test("applyAppearanceTheme writes the work-entry icon pack", () => {
+    const root = fakeRoot();
+    applyAppearanceTheme(
+      {
+        palette: "default",
+        mode: "light",
+        workEntryIcons: "lucide",
+        glassEnabled: false,
+        glassStrength: 55,
+        uiFontSize: 16,
+        chatFontSize: 14,
+      },
+      root as unknown as HTMLElement,
+      { prefersDark: false },
+    );
+    expect(root.dataset.workIcons).toBe("lucide");
+    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
+  });
+
+  test("readWorkEntryIconPack falls back to pho", () => {
+    const root = fakeRoot();
+    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("pho");
+    root.dataset.workIcons = "lucide";
+    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
+    root.dataset.workIcons = "fluent";
+    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("pho");
   });
 });

@@ -57,21 +57,21 @@ test("healthy sandbox skips bash asks, denies curl at the OS, and disable restor
       await page.getByTestId("composer").fill("USE_SANDBOX_PWD");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 0);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Run/i);
       await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
       await expect(page.getByTestId("tool-card").last().getByTestId("tool-chip")).toHaveText("pwd");
 
       await page.getByTestId("composer").fill("USE_SANDBOX_TOUCH");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 1);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash completed/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Run/i);
       await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
       expect(existsSync(join(workspaceDir, "sandbox-allowed.txt"))).toBe(true);
 
       await page.getByTestId("composer").fill("USE_SANDBOX_CURL");
       await page.getByRole("button", { name: "Send" }).click();
       await expectNoDialogThenExpandWorkLog(page, 2);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Bash failed|not permitted|denied|unavailable/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Run|not permitted|denied|unavailable/i);
       await expect(page.getByTestId("tool-sandbox-shield").last()).toBeVisible();
       await page.getByTestId("tool-card").last().click();
       await expect(page.getByTestId("tool-detail").last()).toContainText("Do not retry");

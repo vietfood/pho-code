@@ -6,7 +6,6 @@ import {
   type TranscriptMessage,
 } from "@pho-code/protocol";
 import { previewToolResult, previewUnknown } from "./preview";
-import { displayToolName } from "./tool-display";
 import { isHiddenPlanExecutePrompt } from "./plan-agent-state";
 import { stripWorkspaceReferenceAppendix } from "./workspace-reference";
 
@@ -66,7 +65,7 @@ export function projectMessages(messages: readonly SessionMessage[]): Transcript
               blocks.push({
                 type: "tool",
                 callId: part.id,
-                name: displayToolName(part.name),
+                name: part.name,
                 status,
                 inputPreview: previewUnknown(part.arguments),
                 outputPreview: result?.output ?? "",

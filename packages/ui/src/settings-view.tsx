@@ -10,6 +10,7 @@ import {
   paletteSupportsMode,
   type AppearanceMode,
   type AppearancePalette,
+  type WorkEntryIconPack,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
   type ManagedPermissionProfileId,
@@ -49,6 +50,11 @@ const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
   { id: "flexoki", label: "Flexoki" },
   { id: "github", label: "GitHub" },
   { id: "one-dark", label: "One Dark" },
+];
+
+const ICON_PACKS: ReadonlyArray<{ id: WorkEntryIconPack; label: string }> = [
+  { id: "pho", label: "Pho" },
+  { id: "lucide", label: "Lucide" },
 ];
 
 const MODES: ReadonlyArray<{ id: AppearanceMode; label: string }> = [
@@ -496,6 +502,24 @@ function AppearanceSection({
               onClick={() => onAppearanceChange({ palette: palette.id })}
             >
               {palette.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <p className="text-xs font-medium text-foreground">Icons</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Icons">
+          {ICON_PACKS.map((pack) => (
+            <Button
+              key={pack.id}
+              size="sm"
+              variant={settings.appearance.workEntryIcons === pack.id ? "default" : "outline"}
+              aria-pressed={settings.appearance.workEntryIcons === pack.id}
+              data-testid={`appearance-icons-${pack.id}`}
+              disabled={busy}
+              onClick={() => onAppearanceChange({ workEntryIcons: pack.id })}
+            >
+              {pack.label}
             </Button>
           ))}
         </div>

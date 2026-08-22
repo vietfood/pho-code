@@ -1,20 +1,27 @@
 import { describe, expect, test } from "bun:test";
-import { APP_OWNED_TOOL_NAMES, displayToolName, displayToolNamesInText } from "../src/tool-display";
+import { displayToolName } from "../src/tool-display";
 
 const EXPECTED = new Map([
   ["ls", "Browse"],
+  ["Ls", "Browse"],
+  ["List", "Browse"],
+  ["Browse", "Browse"],
   ["read", "Read"],
   ["write", "Write"],
   ["edit", "Edit"],
   ["bash", "Run"],
+  ["Bash", "Run"],
   ["user_bash", "Run"],
+  ["run", "Run"],
   ["grep", "Search"],
   ["ffgrep", "Search"],
   ["fff-multi-grep", "Search"],
   ["find", "Find"],
   ["fffind", "Find"],
   ["web_search", "Web search"],
+  ["Web search", "Web search"],
   ["fetch_content", "Fetch"],
+  ["Fetch", "Fetch"],
   ["move_to_trash", "Trash"],
   ["read_skill", "Skill"],
   ["ask_user_question", "Ask"],
@@ -23,21 +30,8 @@ const EXPECTED = new Map([
   ["execute_plan", "Execute"],
 ]);
 
-describe("app-owned tool display names", () => {
-  test("maps every canonical tool to its owner-facing label", () => {
-    expect([...APP_OWNED_TOOL_NAMES]).toEqual([
-      "fff-multi-grep",
-      "ffgrep",
-      "fffind",
-      "web_search",
-      "fetch_content",
-      "move_to_trash",
-      "read_skill",
-      "ask_user_question",
-      "update_plan_document",
-      "execute_plan",
-      "todo",
-    ]);
+describe("displayToolName", () => {
+  test("maps canonical ids, mixed case, and already-mapped titles", () => {
     for (const [internalName, displayName] of EXPECTED) {
       expect(displayToolName(internalName)).toBe(displayName);
     }
@@ -45,12 +39,5 @@ describe("app-owned tool display names", () => {
     expect(displayToolName("mcp__list_issues")).toBe("List Issues");
     expect(displayToolName("harness_mark")).toBe("Harness Mark");
     expect(displayToolName("mystery_tool")).toBe("Mystery Tool");
-  });
-
-  test("sanitizes app-owned names in permission-dialog copy", () => {
-    const displayed = displayToolNamesInText(
-      "Permission Required\nAllow web_search, fetch_content, and move_to_trash?",
-    );
-    expect(displayed).toBe("Permission Required\nAllow Web search, Fetch, and Trash?");
   });
 });

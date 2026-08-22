@@ -15,6 +15,10 @@ export type AppearancePalette = (typeof APPEARANCE_PALETTES)[number];
 export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
 export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 
+export const WORK_ENTRY_ICON_PACKS = ["pho", "lucide"] as const;
+export type WorkEntryIconPack = (typeof WORK_ENTRY_ICON_PACKS)[number];
+export const DEFAULT_WORK_ENTRY_ICONS: WorkEntryIconPack = "pho";
+
 /** Resolved light/dark after System follows the OS. */
 export type ResolvedAppearance = "light" | "dark";
 
@@ -41,6 +45,7 @@ export const DEFAULT_GLASS_ENABLED = false;
 export interface AppearanceSettings {
   palette: AppearancePalette;
   mode: AppearanceMode;
+  workEntryIcons: WorkEntryIconPack;
   glassEnabled: boolean;
   glassStrength: number;
   uiFontSize: number;
@@ -68,6 +73,7 @@ export interface HarnessSettingsSnapshot {
 export interface UpdateAppearanceSettingsInput {
   palette?: AppearancePalette;
   mode?: AppearanceMode;
+  workEntryIcons?: WorkEntryIconPack;
   glassEnabled?: boolean;
   glassStrength?: number;
   uiFontSize?: number;
@@ -86,6 +92,7 @@ export interface PermissionStatusPayload {
 
 const PALETTE_SET = new Set<string>(APPEARANCE_PALETTES);
 const MODE_SET = new Set<string>(APPEARANCE_MODES);
+const WORK_ENTRY_ICON_PACK_SET = new Set<string>(WORK_ENTRY_ICON_PACKS);
 
 /** Palettes that only expose dark tokens. Light and System are unavailable. */
 const DARK_ONLY_PALETTES = new Set<AppearancePalette>(["one-dark"]);
@@ -106,6 +113,10 @@ export function isAppearancePalette(value: unknown): value is AppearancePalette 
 
 export function isAppearanceMode(value: unknown): value is AppearanceMode {
   return typeof value === "string" && MODE_SET.has(value);
+}
+
+export function isWorkEntryIconPack(value: unknown): value is WorkEntryIconPack {
+  return typeof value === "string" && WORK_ENTRY_ICON_PACK_SET.has(value);
 }
 
 export function isManagedPermissionProfileId(value: unknown): value is ManagedPermissionProfileId {
@@ -227,6 +238,7 @@ export function emptyAppearanceSettings(): AppearanceSettings {
   return {
     palette: "default",
     mode: "system",
+    workEntryIcons: DEFAULT_WORK_ENTRY_ICONS,
     glassEnabled: DEFAULT_GLASS_ENABLED,
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,

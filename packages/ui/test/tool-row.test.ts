@@ -15,19 +15,47 @@ import type { TranscriptToolBlock } from "@pho-code/protocol";
 const block: TranscriptToolBlock = {
   type: "tool",
   callId: "call-1",
-  name: "bash",
+  name: "Run",
   status: "completed",
   inputPreview: '{"command":"ls -la docs"}',
   outputPreview: "ok",
 };
 
 describe("tool presentation", () => {
-  test("formats T3-style headings and icons", () => {
-    expect(toolWorkEntryHeading("bash", "completed")).toBe("Bash completed");
-    expect(toolWorkEntryHeading("read", "failed")).toBe("Read failed");
-    expect(toolWorkEntryIcon("bash")).toBe("terminal");
-    expect(toolWorkEntryIcon("read")).toBe("eye");
-    expect(toolWorkEntryIcon("execute")).toBe("bot");
+  test("formats owner-facing headings and glyph keys without a status word", () => {
+    expect(toolWorkEntryHeading("ls", "completed")).toBe("Browse");
+    expect(toolWorkEntryHeading("Ls", "completed")).toBe("Browse");
+    expect(toolWorkEntryHeading("bash", "failed")).toBe("Run");
+    expect(toolWorkEntryHeading("Run", "completed")).toBe("Run");
+    expect(toolWorkEntryHeading("read", "failed")).toBe("Read");
+    expect(toolWorkEntryHeading("web_search", "completed")).toBe("Web search");
+    expect(toolWorkEntryHeading("Web search", "completed")).toBe("Web search");
+    expect(toolWorkEntryHeading("mystery_tool", "running")).toBe("Mystery Tool");
+    expect(toolWorkEntryIcon("bash")).toBe("run");
+    expect(toolWorkEntryIcon("Run")).toBe("run");
+    expect(toolWorkEntryIcon("read")).toBe("read");
+    expect(toolWorkEntryIcon("List")).toBe("list");
+    expect(toolWorkEntryIcon("Browse")).toBe("list");
+    expect(toolWorkEntryIcon("ls")).toBe("list");
+    expect(toolWorkEntryIcon("write")).toBe("write");
+    expect(toolWorkEntryIcon("edit")).toBe("edit");
+    expect(toolWorkEntryIcon("grep")).toBe("search");
+    expect(toolWorkEntryIcon("Search")).toBe("search");
+    expect(toolWorkEntryIcon("Find")).toBe("find");
+    expect(toolWorkEntryIcon("fffind")).toBe("find");
+    expect(toolWorkEntryIcon("execute")).toBe("execute");
+    expect(toolWorkEntryIcon("Web search")).toBe("web-search");
+    expect(toolWorkEntryIcon("web_search")).toBe("web-search");
+    expect(toolWorkEntryIcon("Fetch")).toBe("fetch");
+    expect(toolWorkEntryIcon("fetch_content")).toBe("fetch");
+    expect(toolWorkEntryIcon("move_to_trash")).toBe("trash");
+    expect(toolWorkEntryIcon("Skill")).toBe("skill");
+    expect(toolWorkEntryIcon("Ask")).toBe("ask");
+    expect(toolWorkEntryIcon("Todos")).toBe("todos");
+    expect(toolWorkEntryIcon("Plan")).toBe("plan");
+    expect(toolWorkEntryIcon("update_plan_document")).toBe("plan");
+    expect(toolWorkEntryIcon("github_get_file_contents")).toBe("github");
+    expect(toolWorkEntryIcon("mystery_tool")).toBe("wrench");
   });
 
   test("parses shell input into a command section without raw JSON", () => {
@@ -139,12 +167,14 @@ describe("tool presentation", () => {
 });
 
 describe("tool row", () => {
-  test("starts collapsed with heading, short command chip, and status check", () => {
+  test("starts collapsed with heading, short command preview, and status check", () => {
     const markup = renderToStaticMarkup(createElement(ToolRow, { block }));
-    expect(markup).toContain("Bash completed");
+    expect(markup).toContain("Run");
+    expect(markup).not.toContain("Run completed");
     expect(markup).toContain("ls -la docs");
     expect(markup).toContain('data-testid="tool-card"');
     expect(markup).toContain('data-testid="tool-chip"');
+    expect(markup).toContain("text-muted-foreground");
     expect(markup).toContain("truncate");
     expect(markup).not.toContain('data-testid="tool-sandbox-shield"');
     expect(markup).toContain('aria-label="Completed"');
@@ -178,7 +208,10 @@ describe("tool row", () => {
           },
         }),
       );
-      expect(markup).toContain(`${name.charAt(0).toUpperCase()}${name.slice(1)} completed`);
+      expect(markup).toContain(`${name.charAt(0).toUpperCase()}${name.slice(1)}`);
+      expect(markup).not.toContain("Read completed");
+      expect(markup).not.toContain("Write completed");
+      expect(markup).not.toContain("Edit completed");
       expect(markup).toContain('data-testid="tool-chip"');
       expect(markup).toContain("conversation-ui.md");
       expect(markup).toContain('title="docs/ui/implementation/conversation-ui.md"');
@@ -195,5 +228,118 @@ describe("tool row", () => {
     expect(markup).toContain("ok");
     expect(markup).not.toContain('{"command"');
     expect(markup).toContain('data-language="bash"');
+  });
+
+  test("expanded web search lists site titles and hosts instead of a raw dump", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ToolRow, {
+        block: {
+          type: "tool",
+          callId: "search-1",
+          name: "web search",
+          status: "completed",
+          inputPreview: '{"query":"fun interesting facts programming computer science"}',
+          outputPreview: `Search results (mixed):
+
+1. Top 50 Interesting Unknown Facts about Programming
+   https://www.geeksforgeeks.org/top-50-interesting-unknown-facts-about-programming/
+   [duckduckgo]
+
+2. neal.fun
+   https://neal.fun/
+   [bing]
+
+3. Joy Cone
+   https://joycone.com/
+   [brave]
+
+4. Extra One
+   https://example.com/one
+   [jina]
+`,
+        },
+        open: true,
+      }),
+    );
+    expect(markup).toContain('data-testid="web-search-results"');
+    expect(markup).toContain('data-testid="web-search-query"');
+    expect(markup).toContain("fun interesting facts programming computer science");
+    expect(markup).toContain('data-testid="web-site-icon"');
+    expect(markup).toContain("Top 50 Interesting Unknown Facts about Programming");
+    expect(markup).toContain("geeksforgeeks.org");
+    expect(markup).toContain("s2/favicons?domain=");
+    expect(markup).toContain("+1 more");
+    expect(markup).not.toContain("[duckduckgo]");
+    expect(markup).not.toContain("QUERY");
+    expect(markup).not.toContain('data-testid="tool-chip"');
+  });
+
+  test("collapsed web search and fetch keep site icons and omit the query/URL preview", () => {
+    const search = renderToStaticMarkup(
+      createElement(ToolRow, {
+        block: {
+          type: "tool",
+          callId: "search-collapsed",
+          name: "web search",
+          status: "completed",
+          inputPreview: '{"query":"fun interesting facts programming"}',
+          outputPreview: `Search results (mixed):
+
+1. Joy Cone
+   https://joycone.com/
+   [brave]
+`,
+        },
+      }),
+    );
+    expect(search).toContain("Web search");
+    expect(search).not.toContain("Web search completed");
+    expect(search).toContain('data-testid="web-site-icons"');
+    expect(search).not.toContain('data-testid="tool-chip"');
+
+    const fetchMarkup = renderToStaticMarkup(
+      createElement(ToolRow, {
+        block: {
+          type: "tool",
+          callId: "fetch-collapsed",
+          name: "Fetch",
+          status: "completed",
+          inputPreview: JSON.stringify({
+            url: "https://www.geeksforgeeks.org/top-50-interesting-unknown-facts-about-programming/",
+          }),
+          outputPreview: "Body",
+        },
+      }),
+    );
+    expect(fetchMarkup).toContain("Fetch");
+    expect(fetchMarkup).not.toContain("Fetch completed");
+    expect(fetchMarkup).toContain('data-testid="web-site-icon"');
+    expect(fetchMarkup).not.toContain('data-testid="tool-chip"');
+  });
+
+  test("expanded fetch shows a site icon beside the URL and keeps page output", () => {
+    const url = "https://www.geeksforgeeks.org/top-50-interesting-unknown-facts-about-programming/";
+    const markup = renderToStaticMarkup(
+      createElement(ToolRow, {
+        block: {
+          type: "tool",
+          callId: "fetch-1",
+          name: "Fetch",
+          status: "completed",
+          inputPreview: JSON.stringify({ url }),
+          outputPreview: `# Top 50 Interesting Unknown Facts about Programming - GeeksforGeeks\n\nSource: ${url}\n\nBody`,
+        },
+        open: true,
+      }),
+    );
+    expect(markup).toContain('data-testid="web-fetch-source"');
+    expect(markup).toContain('data-testid="web-site-icon"');
+    expect(markup).toContain('data-host="www.geeksforgeeks.org"');
+    expect(markup).toContain("geeksforgeeks.org");
+    expect(markup).toContain("s2/favicons?domain=");
+    expect(markup).toContain("Output");
+    expect(markup).toContain("Body");
+    expect(markup).not.toContain(">URL<");
+    expect(markup).not.toContain('data-testid="tool-chip"');
   });
 });

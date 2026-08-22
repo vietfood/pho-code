@@ -139,7 +139,6 @@ import type {
   RemovedSessionResult,
 } from "./harness-runtime";
 import { validateSessionArtifact } from "./session-artifact";
-import { displayToolName } from "./tool-display";
 import { previewToolResult, previewUnknown } from "./preview";
 import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
@@ -530,7 +529,7 @@ export async function createPhoCodeRuntime(
     return {
       runId,
       callId: event.toolCallId,
-      name: displayToolName(event.toolName),
+      name: event.toolName,
       status,
       inputPreview,
       outputPreview,

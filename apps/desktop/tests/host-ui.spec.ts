@@ -45,7 +45,7 @@ test("shows a new session immediately and completes a select host dialog", async
       await expect(page.getByTestId("composer-rail-machine")).toHaveCount(0);
       await expect(page.getByTestId("composer-rail-workspace")).toHaveCount(0);
       await expandSettledWorkLog(page);
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
+      await expect(page.getByTestId("tool-card")).toContainText("Harness Mark");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");
     } finally {
       await harness.close();

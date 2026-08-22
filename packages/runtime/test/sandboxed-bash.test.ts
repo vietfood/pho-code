@@ -44,6 +44,15 @@ describe("sandboxed bash overlay", () => {
     ]);
   });
 
+  test("stamps leftover display-named bash rows so a shield is not dropped", () => {
+    const leftover: TranscriptMessage = {
+      ...assistant,
+      blocks: [{ ...(assistant.blocks[0] as Extract<(typeof assistant.blocks)[number], { type: "tool" }>), name: "Run" }],
+    };
+    const stamped = applySandboxedBashOverlay([leftover], new Set(["bash-1"]));
+    expect(stamped[0]?.blocks[0]).toMatchObject({ name: "Run", sandboxed: true });
+  });
+
   test("ignores empty overlays and non-bash names", () => {
     expect(applySandboxedBashOverlay([assistant], new Set())).toEqual([assistant]);
     expect(applySandboxedBashOverlay([assistant], new Set(["write-1"]))[0]?.blocks[1]).toEqual(assistant.blocks[1]);

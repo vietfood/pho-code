@@ -1,6 +1,8 @@
 export { PROTOCOL_COMMANDS, PROTOCOL_VERSION, INTENDED_PI_SDK, PINNED_ELECTRON, isSupportedProtocolVersion } from "./version";
 export type { ProtocolCommandName, ProtocolVersion } from "./version";
 
+export { displayToolName } from "./tool-display";
+
 export { createHarnessError, failCommand, HARNESS_ERROR_CODES, isHarnessError } from "./errors";
 export type { HarnessError } from "./errors";
 
@@ -309,6 +311,7 @@ export {
   DEFAULT_GLASS_ENABLED,
   DEFAULT_GLASS_STRENGTH,
   DEFAULT_UI_FONT_SIZE,
+  DEFAULT_WORK_ENTRY_ICONS,
   emptyAppearanceSettings,
   emptySettingsSnapshot,
   glassCssTokens,
@@ -318,6 +321,8 @@ export {
   isGlassStrength,
   isManagedPermissionProfileId,
   isUiFontSize,
+  isWorkEntryIconPack,
+  WORK_ENTRY_ICON_PACKS,
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
   MAX_UI_FONT_SIZE,
@@ -343,6 +348,7 @@ export type {
   ResolvedAppearance,
   UpdateAppearanceSettingsInput,
   UpdatePermissionSettingsInput,
+  WorkEntryIconPack,
 } from "./settings";
 
 export {

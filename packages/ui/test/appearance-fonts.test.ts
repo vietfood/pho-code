@@ -18,6 +18,7 @@ describe("applyAppearanceFonts", () => {
       {
         palette: "default",
         mode: "system",
+        workEntryIcons: "pho",
         glassEnabled: false,
         glassStrength: 55,
         uiFontSize: 18,
@@ -46,6 +47,7 @@ describe("applyAppearanceFonts", () => {
       {
         palette: "default",
         mode: "dark",
+        workEntryIcons: "pho",
         glassEnabled: false,
         glassStrength: 55,
         uiFontSize: 99,

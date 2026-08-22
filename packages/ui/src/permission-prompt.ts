@@ -238,13 +238,13 @@ function summarizeToolAction(
   if (allow?.includes("external directory")) {
     return "use a path outside the workspace.";
   }
-  if (key === "bash" || key === "shell") {
+  if (key === "bash" || key === "shell" || key === "run") {
     return "run a shell command.";
   }
   if (key.includes("fetch") || key.includes("web search")) {
     return summarizeFetchAction(key, target);
   }
-  if (key.includes("search") || key.includes("grep") || key.includes("find") || key === "ls") {
+  if (key.includes("search") || key.includes("grep") || key.includes("find") || key === "ls" || key === "list" || key === "browse") {
     return "search the workspace.";
   }
   if (key === "read" || key.includes("read ")) {

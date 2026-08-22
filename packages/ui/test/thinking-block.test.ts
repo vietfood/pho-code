@@ -11,7 +11,10 @@ describe("thinking block", () => {
     expect(markup).toContain("Thought");
     expect(markup).toContain("I should inspect the docs first.");
     expect(markup).toContain('data-testid="thinking-block"');
+    expect(markup).toContain('data-work-icon="thought"');
+    expect(markup).toContain("size-4");
     expect(markup).toContain('data-testid="thought-chip"');
+    expect(markup).toContain("text-muted-foreground");
     expect(markup).toContain("truncate");
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).not.toContain('data-testid="markdown"');
@@ -41,6 +44,7 @@ describe("thinking block", () => {
     expect(markup).toContain("working-shimmer");
     expect(markup).toContain('data-testid="thinking-status"');
     expect(markup).toContain('data-testid="thinking-star"');
+    expect(markup).not.toContain('data-work-icon="thought"');
     expect(markup).toContain("stream-caret");
     expect(markup).not.toContain("stream-tail");
     expect(markup).not.toContain("animate-pulse");

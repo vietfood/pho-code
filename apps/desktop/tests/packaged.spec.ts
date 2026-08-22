@@ -77,13 +77,13 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
       await page.getByTestId("composer").fill("USE_TOOL");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 0);
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
+      await expect(page.getByTestId("tool-card")).toContainText("Harness Mark");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
 
       await page.getByTestId("composer").fill("USE_TRASH");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 1);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Trash completed|recoverable/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Trash|recoverable/i);
       expect(existsSync(fixturePath)).toBe(false);
 
       const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");

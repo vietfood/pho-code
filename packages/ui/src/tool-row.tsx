@@ -1,7 +1,15 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
-import { CheckIcon, ChevronDownIcon, ShieldIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, ShieldCheckIcon, XIcon } from "lucide-react";
 import { formatChangedFileCount, parsePlanTodoList, type TranscriptToolBlock } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
+import {
+  parseWebFetchSource,
+  parseWebSearchQuery,
+  parseWebSearchResults,
+  webToolKind,
+  type WebSourceRow,
+} from "./lib/web-source";
+import { WebSiteIcon } from "./web-site-icon";
 import {
   buildToolExpandedSections,
   type ToolExpandedSection,
@@ -10,13 +18,15 @@ import {
   toolWorkEntryIcon,
 } from "./tool-presentation";
 import { SessionTodoList } from "./session-todo-list";
+import { WebFetchSource, WebHostStack, WebSearchResultList } from "./web-tool-detail";
 import { WorkEntryIcon } from "./work-entry-icon";
 
 const SANDBOX_BASH_SHIELD_LABEL = "Ran in the agent sandbox";
 
 // Collapsed chrome adapted from Beautiful UI ToolChips.tsx (MIT, Shane Levine,
-// https://www.beautifului.dev/ retrieved 2026-08-13): icon + label + preview chip.
-// Demo autoplay, fake diffs, and ice-cream copy omitted. Expanded body remains
+// https://www.beautifului.dev/ retrieved 2026-08-13): icon + label + hover chevron.
+// Demo autoplay, fake diffs, and ice-cream copy omitted. Preview after the heading
+// is harness-owned quiet text; web search/fetch omit it. Expanded body remains
 // harness-owned labeled Input/Output panels. T3 work-entry headings/icons retained.
 
 export function ToolRow({
@@ -33,10 +43,20 @@ export function ToolRow({
   const [expanded, setExpanded] = useState(open);
   const heading = toolWorkEntryHeading(block.name, block.status);
   const chip = toolWorkEntryChip(block.name, block.inputPreview, block.outputPreview);
-  const sections = buildToolExpandedSections(block.name, block.inputPreview, block.outputPreview);
+  const webKind = webToolKind(block.name);
+  const { searchQuery, searchResults, fetchSource } = webToolChrome(block);
+  const allSections = buildToolExpandedSections(block.name, block.inputPreview, block.outputPreview);
+  const sections =
+    searchQuery || searchResults.length > 0
+      ? []
+      : fetchSource
+        ? allSections.filter((section) => section.id !== "input")
+        : allSections;
   const todos = parseTodosFromToolBlock(block);
   const showTodoList = todos !== null && todos.length > 0;
-  const canExpand = sections.length > 0 && !showTodoList;
+  const canExpand =
+    (sections.length > 0 || Boolean(searchQuery) || searchResults.length > 0 || Boolean(fetchSource)) &&
+    !showTodoList;
   const failed = block.status === "failed";
   const completed = block.status === "completed";
   const running = block.status === "running";
@@ -76,14 +96,26 @@ export function ToolRow({
             failed ? "text-destructive" : "text-icon-muted",
           )}
         >
-          <WorkEntryIcon
-            name={iconName}
-            className={cn(
-              "block size-3.5 shrink-0 stroke-[1.8] opacity-80 transition-opacity duration-100",
-              canExpand && "group-hover/row:opacity-0",
-              expanded && "opacity-0",
-            )}
-          />
+          {fetchSource ? (
+            <span
+              className={cn(
+                "flex transition-opacity duration-100",
+                canExpand && "group-hover/row:opacity-0",
+                expanded && "opacity-0",
+              )}
+            >
+              <WebSiteIcon host={fetchSource.host} size="sm" />
+            </span>
+          ) : (
+            <WorkEntryIcon
+              name={iconName}
+              className={cn(
+                "block size-3.5 shrink-0 stroke-[1.8] opacity-80 transition-opacity duration-100",
+                canExpand && "group-hover/row:opacity-0",
+                expanded && "opacity-0",
+              )}
+            />
+          )}
           {canExpand ? (
             <ChevronDownIcon
               className={cn(
@@ -110,11 +142,16 @@ export function ToolRow({
             title={SANDBOX_BASH_SHIELD_LABEL}
             aria-label={SANDBOX_BASH_SHIELD_LABEL}
           >
-            <ShieldIcon className="block size-3 shrink-0 stroke-[1.8] opacity-80" aria-hidden="true" />
+            <ShieldCheckIcon className="block size-3 shrink-0" aria-hidden="true" />
           </span>
         ) : null}
-        {chip ? (
-          <span className="tool-chip min-w-0 shrink truncate font-mono" data-testid="tool-chip" title={chip.title}>
+        {searchResults.length > 0 ? <WebHostStack rows={searchResults} /> : null}
+        {chip && webKind === null ? (
+          <span
+            className="min-w-0 max-w-[14rem] shrink truncate text-[11px] text-muted-foreground"
+            data-testid="tool-chip"
+            title={chip.title}
+          >
             {chip.text}
           </span>
         ) : null}
@@ -163,6 +200,10 @@ export function ToolRow({
           onPointerDown={stopRowToggle}
         >
           <div className="flex flex-col gap-2">
+            {searchQuery || searchResults.length > 0 ? (
+              <WebSearchResultList query={searchQuery} results={searchResults} />
+            ) : null}
+            {fetchSource ? <WebFetchSource source={fetchSource} /> : null}
             {sections.map((section) => (
               <ToolDetailSection key={section.id} section={section} />
             ))}
@@ -202,6 +243,34 @@ function formatShellBody(command: string): string {
 
 function stopRowToggle(event: MouseEvent<HTMLElement>): void {
   event.stopPropagation();
+}
+
+function webToolChrome(block: TranscriptToolBlock): {
+  searchQuery: string | null;
+  searchResults: WebSourceRow[];
+  fetchSource: WebSourceRow | null;
+} {
+  const kind = webToolKind(block.name);
+  switch (kind) {
+    case "search":
+      return {
+        searchQuery: parseWebSearchQuery(block.inputPreview),
+        searchResults: parseWebSearchResults(block.outputPreview),
+        fetchSource: null,
+      };
+    case "fetch":
+      return {
+        searchQuery: null,
+        searchResults: [],
+        fetchSource: parseWebFetchSource(block.inputPreview, block.outputPreview),
+      };
+    case null:
+      return { searchQuery: null, searchResults: [], fetchSource: null };
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
 }
 
 function parseTodosFromToolBlock(block: TranscriptToolBlock) {

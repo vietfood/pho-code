@@ -39,7 +39,7 @@ test("baked permission feature prompts through select host UI", async () => {
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expandSettledWorkLog(page);
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
+      await expect(page.getByTestId("tool-card")).toContainText("Harness Mark");
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.");
     } finally {
       await harness.close();

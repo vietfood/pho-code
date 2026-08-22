@@ -16,6 +16,7 @@ import {
   isSessionAgentMode,
   planDocumentTooLarge,
   isUiFontSize,
+  isWorkEntryIconPack,
   isWorkspaceReferenceToken,
   isSessionCatalogScope,
   isSessionKey,
@@ -830,6 +831,7 @@ export function createApplicationService(input: {
       const guarded = [
         ["palette", isAppearancePalette, "Unknown appearance palette."],
         ["mode", isAppearanceMode, "Unknown appearance mode."],
+        ["workEntryIcons", isWorkEntryIconPack, "Unknown work-entry icon pack."],
         ["glassStrength", isGlassStrength, "Glass strength must be an integer between 0 and 100."],
         ["uiFontSize", isUiFontSize, "UI font size must be an integer between 12 and 20."],
         ["chatFontSize", isChatFontSize, "Chat font size must be an integer between 12 and 20."],
@@ -1227,6 +1229,7 @@ export function createApplicationService(input: {
     return {
       palette: current.palette,
       mode: current.mode,
+      workEntryIcons: current.workEntryIcons,
       glassEnabled: current.glassEnabled,
       glassStrength: current.glassStrength,
       uiFontSize: current.uiFontSize,

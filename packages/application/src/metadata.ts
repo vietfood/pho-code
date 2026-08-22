@@ -10,6 +10,8 @@ import {
   isAppearanceMode,
   isAppearancePalette,
   isChatFontSize,
+  isWorkEntryIconPack,
+  DEFAULT_WORK_ENTRY_ICONS,
   isGlassStrength,
   isSessionKey,
   isSessionOutcome,
@@ -19,6 +21,7 @@ import {
   sessionKeyEquals,
   type AppearanceMode,
   type AppearancePalette,
+  type WorkEntryIconPack,
   type RecentWorkspaceRecord,
   type SessionKey,
   type SessionOutcome,
@@ -40,6 +43,7 @@ export interface AppMetadata {
   recentWorkspaces: RecentWorkspaceRecord[];
   palette: AppearancePalette;
   mode: AppearanceMode;
+  workEntryIcons: WorkEntryIconPack;
   glassEnabled: boolean;
   glassStrength: number;
   uiFontSize: number;
@@ -64,6 +68,7 @@ export function emptyMetadata(): AppMetadata {
     recentWorkspaces: [],
     palette: "default",
     mode: "system",
+    workEntryIcons: DEFAULT_WORK_ENTRY_ICONS,
     glassEnabled: DEFAULT_GLASS_ENABLED,
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
@@ -134,6 +139,7 @@ export function setAppearance(
   patch: {
     palette?: AppearancePalette;
     mode?: AppearanceMode;
+    workEntryIcons?: WorkEntryIconPack;
     glassEnabled?: boolean;
     glassStrength?: number;
     uiFontSize?: number;
@@ -148,6 +154,7 @@ export function setAppearance(
     ...metadata,
     palette: coerced.palette,
     mode: coerced.mode,
+    workEntryIcons: patch.workEntryIcons ?? metadata.workEntryIcons,
     glassEnabled: patch.glassEnabled ?? metadata.glassEnabled,
     glassStrength: patch.glassStrength ?? metadata.glassStrength,
     uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
@@ -182,6 +189,9 @@ export function parseMetadata(value: unknown): AppMetadata {
     recentWorkspaces,
     palette: coerced.palette,
     mode: coerced.mode,
+    workEntryIcons: isWorkEntryIconPack(candidate.workEntryIcons)
+      ? candidate.workEntryIcons
+      : DEFAULT_WORK_ENTRY_ICONS,
     glassEnabled: typeof candidate.glassEnabled === "boolean" ? candidate.glassEnabled : DEFAULT_GLASS_ENABLED,
     glassStrength: isGlassStrength(candidate.glassStrength)
       ? candidate.glassStrength

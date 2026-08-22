@@ -86,5 +86,12 @@ export { WorkspacePicker } from "./workspace-picker";
 export { ConservativeMarkdown } from "./markdown";
 export { WorkEntryIcon } from "./work-entry-icon";
 export { applyAppearanceFonts } from "./lib/appearance-fonts";
-export { applyAppearanceTheme, readAppearancePalette, readResolvedAppearance } from "./lib/appearance-theme";
+export {
+  applyAppearanceTheme,
+  getWorkEntryIconPack,
+  readAppearancePalette,
+  readResolvedAppearance,
+  readWorkEntryIconPack,
+  subscribeWorkEntryIconPack,
+} from "./lib/appearance-theme";
 export { sessionActivityLabel, sessionRowActivity } from "./lib/session-activity";

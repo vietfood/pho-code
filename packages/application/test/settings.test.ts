@@ -51,6 +51,7 @@ describe("application settings", () => {
     expect(migrated.glassStrength).toBe(DEFAULT_GLASS_STRENGTH);
     expect(migrated.uiFontSize).toBe(DEFAULT_UI_FONT_SIZE);
     expect(migrated.chatFontSize).toBe(DEFAULT_CHAT_FONT_SIZE);
+    expect(migrated.workEntryIcons).toBe("pho");
     expect(migrated.githubMcpEnabled).toBe(false);
     expect(migrated.recentWorkspaces).toHaveLength(1);
   });
@@ -100,6 +101,7 @@ describe("application settings", () => {
     expect(updated.appearance).toEqual({
       palette: "default",
       mode: "system",
+      workEntryIcons: "pho",
       glassEnabled: DEFAULT_GLASS_ENABLED,
       glassStrength: DEFAULT_GLASS_STRENGTH,
       uiFontSize: 18,
@@ -108,6 +110,34 @@ describe("application settings", () => {
     expect(application.getSettings().appearance.uiFontSize).toBe(18);
     expect(application.getSettings().appearance.chatFontSize).toBe(16);
     expect(appearances).toHaveLength(2);
+  });
+
+  test("persists the work-entry icon pack", async () => {
+    const { application, appearances } = createTestApplication();
+    expect(application.getSettings().appearance.workEntryIcons).toBe("pho");
+    const updated = await application.updateAppearanceSettings({ workEntryIcons: "lucide" });
+    expect(updated.appearance.workEntryIcons).toBe("lucide");
+    expect(application.getSettings().appearance.workEntryIcons).toBe("lucide");
+    expect(appearances).toHaveLength(2);
+  });
+
+  test("rejects an unknown icon pack", async () => {
+    const { application } = createTestApplication();
+    await expect(application.updateAppearanceSettings({ workEntryIcons: "fluent" as "pho" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
+
+  test("coerces an unknown stored icon pack to pho", () => {
+    const migrated = parseMetadata({
+      version: 6,
+      recentWorkspaces: [],
+      palette: "default",
+      mode: "system",
+      workEntryIcons: "fluent",
+      trustedPermissionWorkspaceIds: [],
+    });
+    expect(migrated.workEntryIcons).toBe("pho");
   });
 
   test("persists glass settings", async () => {

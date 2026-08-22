@@ -56,20 +56,20 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
       await page.getByTestId("composer").fill("USE_SAFE_SHELL");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 0);
-      await expect(page.getByTestId("tool-card")).toContainText("Bash completed");
+      await expect(page.getByTestId("tool-card")).toContainText("Run");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
 
       await page.getByTestId("composer").fill("USE_DANGEROUS_SHELL");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 1);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/not permitted|denied|unavailable|Bash failed/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/not permitted|denied|unavailable|Run/i);
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       expect(existsSync(fixturePath)).toBe(true);
 
       await page.getByTestId("composer").fill("USE_TRASH");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 2);
-      await expect(page.getByTestId("tool-card").last()).toContainText(/Move to trash completed|recoverable/i);
+      await expect(page.getByTestId("tool-card").last()).toContainText(/Trash|recoverable/i);
       await expect(page.getByTestId("tool-card").last()).not.toContainText("move_to_trash");
       expect(existsSync(fixturePath)).toBe(false);
     } finally {

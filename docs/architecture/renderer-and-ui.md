@@ -65,7 +65,7 @@ Live text uses conservative sanitized GFM. Expensive rich rendering waits until 
 - SVG as an image data URL, never injected markup;
 - credential-less gated image URLs and lightbox.
 
-Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes. Collapsed tool and thought rows show a short preview chip (file basename, command, first-line thought; CSS ellipsis) plus a shield on Seatbelt-wrapped bash. Full paths, commands, and thought text stay in the expanded detail. The shield is not a claim that Pho, Pi, MCP, or the owner terminal are sandboxed.
+Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes. Collapsed tool headings use owner-facing titles (`ls` → Browse, `bash` → Run); the protocol block keeps the Pi id. Thought uses the same 16px icon slot as tools. Collapsed tool and thought rows show small quiet preview text (file basename, command, first-line thought; CSS ellipsis) plus a shield on Seatbelt-wrapped bash. Web search and fetch omit that preview; site icons identify the work. Web search expanded detail is a query row and a compact site list (favicon or hashed-color globe); fetch uses the same web icon on the row and URL. Full paths, commands, and thought text stay in the expanded detail. The shield is not a claim that Pho, Pi, MCP, or the owner terminal are sandboxed.
 
 ## Navigation and persistence
 

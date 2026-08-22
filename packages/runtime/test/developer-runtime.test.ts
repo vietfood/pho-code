@@ -10,7 +10,6 @@ import {
   createDefaultFeatureManifest,
   createNodeModuleResourceLocator,
   createPhoCodeRuntime,
-  displayToolName,
 } from "../src/index";
 import { applyPermissionSettingsPatch } from "../src/permission-settings";
 import type { RecoverableRemovalService } from "../src/recoverable-removal";
@@ -146,7 +145,7 @@ describe("Developer profile runtime", () => {
       await runtime.sendPrompt({ sessionId: created.session.id, text: TEST_PROMPT.useTrash });
       await waitForEvent(events, RUNTIME_EVENT_TYPES.runSettled);
       expect(events.some((event) => event.type === RUNTIME_EVENT_TYPES.extensionDialogRequest)).toBe(false);
-      expect(toolOutput(events, displayToolName(TRASH_TOOL_NAME))).toContain("recoverable");
+      expect(toolOutput(events, TRASH_TOOL_NAME)).toContain("recoverable");
       expect(existsSync(fixturePath)).toBe(false);
       expect(existsSync(simulatedTrashPath)).toBe(true);
 

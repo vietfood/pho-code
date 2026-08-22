@@ -40,6 +40,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       const attrs = await page.evaluate(() => ({
         palette: document.documentElement.dataset.palette,
         appearance: document.documentElement.dataset.appearance,
+        workIcons: document.documentElement.dataset.workIcons,
         glass: document.documentElement.dataset.glass,
         root: getComputedStyle(document.documentElement).fontSize,
         chat: getComputedStyle(document.documentElement).getPropertyValue("--font-size-chat").trim(),
@@ -54,6 +55,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       }));
       expect(attrs.palette).toBe("gruvbox");
       expect(attrs.appearance).toBe("dark");
+      expect(attrs.workIcons).toBe("lucide");
       expect(attrs.glass).toBe("on");
       expect(Number.parseInt(attrs.composerGlassOpacity, 10)).toBeLessThan(100);
       expect(Number.parseInt(attrs.sidebarGlassOpacity, 10)).toBeLessThan(Number.parseInt(attrs.glassOpacity, 10));
@@ -85,6 +87,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       expect(theme).toBe("dark");
       await openSettingsSection(page, "appearance");
       await expect(page.getByTestId("appearance-palette-one-dark")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("appearance-icons-lucide")).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByTestId("appearance-glass-enabled")).toBeChecked();
       await expect(page.getByTestId("appearance-glass-strength-value")).toContainText("70%");
@@ -104,7 +107,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       await page.getByRole("radio", { name: "Allow once", exact: true }).check();
       await page.getByTestId("extension-dialog-confirm").click();
       await expandSettledWorkLog(page);
-      await expect(page.getByTestId("tool-card")).toContainText("Harness mark completed");
+      await expect(page.getByTestId("tool-card")).toContainText("Harness Mark");
     } finally {
       await second.close();
     }

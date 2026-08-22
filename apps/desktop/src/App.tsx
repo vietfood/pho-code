@@ -84,6 +84,8 @@ import {
 } from "./session-catalog-state";
 import { useSessionSwitch } from "./use-session-switch";
 
+const COMMAND_BANNER_DISMISS_MS = 5_000;
+
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapState | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
@@ -188,6 +190,18 @@ export function App() {
     setContextPromptBusy(false);
     setPlanBusy(false);
   }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
+
+  useEffect(() => {
+    if (!error || !bootstrap) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setError(null);
+    }, COMMAND_BANNER_DISMISS_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [bootstrap, error]);
 
   const planDocumentPresent = (conversation.snapshot?.plan?.documentMarkdown.trim().length ?? 0) > 0;
   const planSessionKey = conversation.snapshot
@@ -1129,7 +1143,11 @@ export function App() {
           />
       }
     >
-      {error ? <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert" data-testid="command-error">
+          {error}
+        </p>
+      ) : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="app-shell-chat relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {chatLoading ? (

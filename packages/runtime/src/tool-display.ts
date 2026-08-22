@@ -1,26 +1,21 @@
-const APP_TOOL_DISPLAY_NAMES = {
-  ffgrep: "FFF grep",
-  fffind: "FFF find",
-  "fff-multi-grep": "FFF multi-grep",
-  web_search: "web search",
-  fetch_content: "fetch",
-  move_to_trash: "move to trash",
-  read_skill: "read skill",
-  ask_user_question: "ask user",
-  update_plan_document: "plan document",
-  todo: "todo",
-  execute_plan: "execute",
-} as const satisfies Readonly<Record<string, string>>;
+import { displayToolName } from "@pho-code/protocol";
 
-export const APP_OWNED_TOOL_NAMES = Object.freeze(Object.keys(APP_TOOL_DISPLAY_NAMES));
+export { displayToolName };
 
-/** Human-facing label only. Tool registration, Pi events, and persisted JSONL keep the canonical name. */
-export function displayToolName(name: string): string {
-  if (name.startsWith("github_")) {
-    return name.replaceAll("_", " ");
-  }
-  return APP_TOOL_DISPLAY_NAMES[name as keyof typeof APP_TOOL_DISPLAY_NAMES] ?? name;
-}
+/** Underscored app-owned ids safe to replace in permission-dialog copy. */
+export const APP_OWNED_TOOL_NAMES = Object.freeze([
+  "fff-multi-grep",
+  "ffgrep",
+  "fffind",
+  "web_search",
+  "fetch_content",
+  "move_to_trash",
+  "read_skill",
+  "ask_user_question",
+  "update_plan_document",
+  "execute_plan",
+  "todo",
+] as const);
 
 /** Sanitizes extension-owned dialog copy before it crosses the host UI protocol boundary. */
 export function displayToolNamesInText(value: string): string {

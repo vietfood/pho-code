@@ -1,10 +1,12 @@
 import {
   glassCssTokens,
   isAppearancePalette,
+  isWorkEntryIconPack,
   resolveAppearanceMode,
   type AppearancePalette,
   type AppearanceSettings,
   type ResolvedAppearance,
+  type WorkEntryIconPack,
 } from "@pho-code/protocol";
 
 export type { ResolvedAppearance };
@@ -12,6 +14,8 @@ export type { ResolvedAppearance };
 let systemMedia: MediaQueryList | null = null;
 let systemListener: ((event: MediaQueryListEvent) => void) | null = null;
 let lastAppearance: AppearanceSettings | null = null;
+let currentWorkEntryIcons: WorkEntryIconPack = "pho";
+const workEntryIconListeners = new Set<() => void>();
 
 /**
  * Apply palette, resolved light/dark, and glass CSS tokens to the document root.
@@ -36,6 +40,8 @@ export function applyAppearanceTheme(
   const resolved = resolveAppearanceMode(appearance.mode, prefersDark);
   root.dataset.palette = appearance.palette;
   root.dataset.appearance = resolved;
+  root.dataset.workIcons = appearance.workEntryIcons;
+  setCurrentWorkEntryIconPack(appearance.workEntryIcons);
   root.style.colorScheme = resolved;
 
   if (appearance.glassEnabled) {
@@ -68,6 +74,31 @@ export function readResolvedAppearance(root: HTMLElement = document.documentElem
 
 export function readAppearancePalette(root: HTMLElement = document.documentElement): AppearancePalette {
   return isAppearancePalette(root.dataset.palette) ? root.dataset.palette : "default";
+}
+
+export function readWorkEntryIconPack(root: HTMLElement = document.documentElement): WorkEntryIconPack {
+  return isWorkEntryIconPack(root.dataset.workIcons) ? root.dataset.workIcons : "pho";
+}
+
+export function getWorkEntryIconPack(): WorkEntryIconPack {
+  return currentWorkEntryIcons;
+}
+
+export function subscribeWorkEntryIconPack(onStoreChange: () => void): () => void {
+  workEntryIconListeners.add(onStoreChange);
+  return () => {
+    workEntryIconListeners.delete(onStoreChange);
+  };
+}
+
+function setCurrentWorkEntryIconPack(pack: WorkEntryIconPack): void {
+  if (currentWorkEntryIcons === pack) {
+    return;
+  }
+  currentWorkEntryIcons = pack;
+  for (const listener of workEntryIconListeners) {
+    listener();
+  }
 }
 
 function attachSystemListener(

@@ -45,7 +45,7 @@ test("ask-back card answers two questions without mixing permission chrome", asy
       await page.getByTestId("extension-dialog-confirm").click();
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
       await expandSettledWorkLog(page);
-      const askUserRow = page.getByTestId("tool-card").filter({ hasText: "Ask user completed" });
+      const askUserRow = page.getByTestId("tool-card").filter({ has: page.locator('[data-work-icon="ask"]') });
       await askUserRow.click();
       await expect(page.getByTestId("tool-detail")).toContainText("Patch");
       await expect(page.getByTestId("tool-detail")).toContainText("Keep the permission boundary.");

@@ -53,6 +53,7 @@ describe("sandbox protocol", () => {
     expect(sandboxStatusLabel("failed")).toBe("Failed");
     expect(isSandboxBashToolName("bash")).toBe(true);
     expect(isSandboxBashToolName("user_bash")).toBe(true);
+    expect(isSandboxBashToolName("Run")).toBe(true);
     expect(isSandboxBashToolName("write")).toBe(false);
     expect(sandboxBashWasWrapped("bash", "healthy")).toBe(true);
     expect(sandboxBashWasWrapped("bash", "off")).toBe(false);
