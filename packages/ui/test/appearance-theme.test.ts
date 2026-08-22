@@ -156,12 +156,12 @@ describe("appearance theme helpers", () => {
     expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
   });
 
-  test("readWorkEntryIconPack falls back to pho", () => {
+  test("readWorkEntryIconPack falls back to lucide", () => {
     const root = fakeRoot();
-    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("pho");
-    root.dataset.workIcons = "lucide";
     expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
-    root.dataset.workIcons = "fluent";
+    root.dataset.workIcons = "pho";
     expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("pho");
+    root.dataset.workIcons = "fluent";
+    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
   });
 });

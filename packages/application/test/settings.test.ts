@@ -51,7 +51,7 @@ describe("application settings", () => {
     expect(migrated.glassStrength).toBe(DEFAULT_GLASS_STRENGTH);
     expect(migrated.uiFontSize).toBe(DEFAULT_UI_FONT_SIZE);
     expect(migrated.chatFontSize).toBe(DEFAULT_CHAT_FONT_SIZE);
-    expect(migrated.workEntryIcons).toBe("pho");
+    expect(migrated.workEntryIcons).toBe("lucide");
     expect(migrated.githubMcpEnabled).toBe(false);
     expect(migrated.recentWorkspaces).toHaveLength(1);
   });
@@ -101,7 +101,7 @@ describe("application settings", () => {
     expect(updated.appearance).toEqual({
       palette: "default",
       mode: "system",
-      workEntryIcons: "pho",
+      workEntryIcons: "lucide",
       glassEnabled: DEFAULT_GLASS_ENABLED,
       glassStrength: DEFAULT_GLASS_STRENGTH,
       uiFontSize: 18,
@@ -114,10 +114,10 @@ describe("application settings", () => {
 
   test("persists the work-entry icon pack", async () => {
     const { application, appearances } = createTestApplication();
-    expect(application.getSettings().appearance.workEntryIcons).toBe("pho");
-    const updated = await application.updateAppearanceSettings({ workEntryIcons: "lucide" });
-    expect(updated.appearance.workEntryIcons).toBe("lucide");
     expect(application.getSettings().appearance.workEntryIcons).toBe("lucide");
+    const updated = await application.updateAppearanceSettings({ workEntryIcons: "pho" });
+    expect(updated.appearance.workEntryIcons).toBe("pho");
+    expect(application.getSettings().appearance.workEntryIcons).toBe("pho");
     expect(appearances).toHaveLength(2);
   });
 
@@ -128,7 +128,7 @@ describe("application settings", () => {
     });
   });
 
-  test("coerces an unknown stored icon pack to pho", () => {
+  test("coerces an unknown stored icon pack to lucide", () => {
     const migrated = parseMetadata({
       version: 6,
       recentWorkspaces: [],
@@ -137,7 +137,7 @@ describe("application settings", () => {
       workEntryIcons: "fluent",
       trustedPermissionWorkspaceIds: [],
     });
-    expect(migrated.workEntryIcons).toBe("pho");
+    expect(migrated.workEntryIcons).toBe("lucide");
   });
 
   test("persists glass settings", async () => {

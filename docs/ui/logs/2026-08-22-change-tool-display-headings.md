@@ -5,7 +5,7 @@ Status: in source
 Surface: transcript tool and thought rows
 Owner: conversation UI track
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
-Related logs: [`2026-08-22-change-quiet-tool-preview.md`](./2026-08-22-change-quiet-tool-preview.md), [`2026-08-22-change-web-tool-site-icons.md`](./2026-08-22-change-web-tool-site-icons.md)
+Related logs: [`2026-08-22-change-quiet-tool-preview.md`](./2026-08-22-change-quiet-tool-preview.md), [`2026-08-22-change-web-tool-site-icons.md`](./2026-08-22-change-web-tool-site-icons.md), [`2026-08-22-change-lucide-default-work-icons.md`](./2026-08-22-change-lucide-default-work-icons.md)
 
 ## Intent
 

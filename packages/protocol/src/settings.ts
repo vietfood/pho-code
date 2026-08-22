@@ -17,7 +17,7 @@ export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 
 export const WORK_ENTRY_ICON_PACKS = ["pho", "lucide"] as const;
 export type WorkEntryIconPack = (typeof WORK_ENTRY_ICON_PACKS)[number];
-export const DEFAULT_WORK_ENTRY_ICONS: WorkEntryIconPack = "pho";
+export const DEFAULT_WORK_ENTRY_ICONS: WorkEntryIconPack = "lucide";
 
 /** Resolved light/dark after System follows the OS. */
 export type ResolvedAppearance = "light" | "dark";

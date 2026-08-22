@@ -1,4 +1,5 @@
 import {
+  DEFAULT_WORK_ENTRY_ICONS,
   glassCssTokens,
   isAppearancePalette,
   isWorkEntryIconPack,
@@ -14,7 +15,7 @@ export type { ResolvedAppearance };
 let systemMedia: MediaQueryList | null = null;
 let systemListener: ((event: MediaQueryListEvent) => void) | null = null;
 let lastAppearance: AppearanceSettings | null = null;
-let currentWorkEntryIcons: WorkEntryIconPack = "pho";
+let currentWorkEntryIcons: WorkEntryIconPack = DEFAULT_WORK_ENTRY_ICONS;
 const workEntryIconListeners = new Set<() => void>();
 
 /**
@@ -77,7 +78,7 @@ export function readAppearancePalette(root: HTMLElement = document.documentEleme
 }
 
 export function readWorkEntryIconPack(root: HTMLElement = document.documentElement): WorkEntryIconPack {
-  return isWorkEntryIconPack(root.dataset.workIcons) ? root.dataset.workIcons : "pho";
+  return isWorkEntryIconPack(root.dataset.workIcons) ? root.dataset.workIcons : DEFAULT_WORK_ENTRY_ICONS;
 }
 
 export function getWorkEntryIconPack(): WorkEntryIconPack {

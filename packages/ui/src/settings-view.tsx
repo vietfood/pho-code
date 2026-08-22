@@ -53,8 +53,8 @@ const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
 ];
 
 const ICON_PACKS: ReadonlyArray<{ id: WorkEntryIconPack; label: string }> = [
-  { id: "pho", label: "Pho" },
   { id: "lucide", label: "Lucide" },
+  { id: "pho", label: "Pho" },
 ];
 
 const MODES: ReadonlyArray<{ id: AppearanceMode; label: string }> = [

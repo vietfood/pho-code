@@ -14,7 +14,7 @@ import {
   Trash2Icon,
   WrenchIcon,
 } from "lucide-react";
-import type { WorkEntryIconPack } from "@pho-code/protocol";
+import { DEFAULT_WORK_ENTRY_ICONS, type WorkEntryIconPack } from "@pho-code/protocol";
 import { getWorkEntryIconPack, subscribeWorkEntryIconPack } from "./lib/appearance-theme";
 import { ProviderIcon } from "./provider-icon";
 import type { WorkEntryIconName } from "./tool-presentation";
@@ -40,7 +40,11 @@ export function WorkEntryIcon({
   className?: string;
   pack?: WorkEntryIconPack;
 }) {
-  const documentPack = useSyncExternalStore(subscribeWorkEntryIconPack, getWorkEntryIconPack, () => "pho");
+  const documentPack = useSyncExternalStore(
+    subscribeWorkEntryIconPack,
+    getWorkEntryIconPack,
+    () => DEFAULT_WORK_ENTRY_ICONS,
+  );
   const resolved = pack ?? documentPack;
   return (
     <span data-work-icon={name} data-work-icon-pack={resolved} className="contents">
