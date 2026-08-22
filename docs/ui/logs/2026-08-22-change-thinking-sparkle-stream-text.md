@@ -5,7 +5,7 @@ Status: in source
 Surface: work-log Working label; live Thinking row; live thinking/assistant text
 Owner: conversation UI track
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
-Related logs: [`2026-08-22-change-thinking-shimmer-prompt-bar.md`](./2026-08-22-change-thinking-shimmer-prompt-bar.md)
+Related logs: [`2026-08-22-change-thinking-shimmer-prompt-bar.md`](./2026-08-22-change-thinking-shimmer-prompt-bar.md), [`2026-08-22-feedback-stream-text-blur.md`](./2026-08-22-feedback-stream-text-blur.md)
 
 ## Intent
 

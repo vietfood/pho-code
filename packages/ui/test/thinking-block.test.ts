@@ -41,7 +41,8 @@ describe("thinking block", () => {
     expect(markup).toContain("working-shimmer");
     expect(markup).toContain('data-testid="thinking-status"');
     expect(markup).toContain('data-testid="thinking-star"');
-    expect(markup).toContain('data-testid="stream-tail"');
+    expect(markup).toContain("stream-caret");
+    expect(markup).not.toContain("stream-tail");
     expect(markup).not.toContain("animate-pulse");
   });
 });

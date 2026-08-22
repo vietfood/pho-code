@@ -27,12 +27,12 @@ import {
   workedForLabel,
 } from "./lib/work-log";
 import { isNearBottom } from "./lib/stick-to-bottom";
-import { splitMarkdownStreamTail } from "./lib/stream-text";
 import { ConservativeMarkdown } from "./markdown";
 import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
 import { GithubChip } from "./github-chip";
 import { SkillChip } from "./skill-chip";
+import { StreamCaret } from "./stream-text";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
@@ -230,16 +230,10 @@ function liveWorkKey(entry: RunWorkEntry, index: number): string {
 }
 
 function StreamingMarkdown({ text, running }: { text: string; running: boolean }) {
-  const { head, tail } = running ? splitMarkdownStreamTail(text) : { head: text, tail: "" };
   return (
     <>
-      {head ? <ConservativeMarkdown text={head} streaming /> : null}
-      {tail ? (
-        <span className="stream-tail" data-testid="stream-tail">
-          {tail}
-        </span>
-      ) : null}
-      {running ? <span className="stream-caret is-streaming" aria-hidden="true" /> : null}
+      <ConservativeMarkdown text={text} streaming />
+      {running ? <StreamCaret /> : null}
     </>
   );
 }

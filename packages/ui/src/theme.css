@@ -2493,13 +2493,7 @@ html[data-glass="on"] .glass-field {
   contain: layout style;
 }
 
-/* Beautiful UI StreamText leading-edge blur + caret (MIT, Shane Levine). */
-.stream-tail {
-  filter: blur(1.6px);
-  -webkit-mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
-  mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
-}
-
+/* Beautiful UI StreamText solid streaming caret (MIT, Shane Levine). */
 .stream-caret {
   display: inline-block;
   width: 2px;
@@ -3066,12 +3060,6 @@ html[data-appearance="dark"] .app-menu {
   .stream-caret {
     animation: none;
     opacity: 1;
-  }
-
-  .stream-tail {
-    filter: none;
-    -webkit-mask-image: none;
-    mask-image: none;
   }
 
   .empty-session-glow {
