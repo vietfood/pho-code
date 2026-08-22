@@ -45,13 +45,10 @@ export function ChangeModelDialog({
         {currentLabel ? (
           <>
             Switch from <span className="text-foreground">{currentLabel}</span> to{" "}
-            <span className="text-foreground">{nextLabel}</span>. The Pi JSONL transcript stays as-is; only the
-            live session model binding changes.
           </>
         ) : (
           <>
-            Switch to <span className="text-foreground">{nextLabel}</span>. The Pi JSONL transcript stays as-is;
-            only the live session model binding changes.
+            Switch to <span className="text-foreground">{nextLabel}</span>.
           </>
         )}
       </p>
@@ -61,8 +58,7 @@ export function ChangeModelDialog({
       >
         <li>
           Provider prompt-cache entries are keyed to the previous model. The next turn will miss cache reads
-          {sameProvider ? " for this conversation prefix" : " (and may miss them across providers)"}; expect a
-          cold prefix with full input pricing and a fresh cache write if the new model supports caching.
+          {sameProvider ? " for this conversation prefix" : " (and may miss them across providers)"};
         </li>
         <li>
           {typeof contextTokens === "number" && contextTokens > 0 ? (
@@ -86,10 +82,6 @@ export function ChangeModelDialog({
             ? ` (cache R ${formatRatePerMillion(model.cost.cacheRead)} / W ${formatRatePerMillion(model.cost.cacheWrite)})`
             : ""}
           . Session usage totals keep counting; they do not reset.
-        </li>
-        <li>
-          Tool results, thinking traces, and image attachments already in the transcript remain. Capability
-          differences (for example image input) only affect the next turn.
         </li>
       </ul>
       <div className="flex justify-end gap-2">

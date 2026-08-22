@@ -95,8 +95,7 @@ export function CursorModelWarningDialog({
       {midChat ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="cursor-model-warning-rates">
           Rate card: {formatRatePerMillion(model.cost.input)} in / {formatRatePerMillion(model.cost.output)} out ·{" "}
-          {formatTokenCount(model.contextWindow)} ctx. The Pi JSONL transcript stays as-is; only the live session
-          model binding changes.
+          {formatTokenCount(model.contextWindow)} ctx.
         </p>
       ) : null}
       <div className="flex justify-end gap-2 pt-1">

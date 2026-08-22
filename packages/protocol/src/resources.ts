@@ -1,7 +1,7 @@
 import type { AskUserAnswer, AskUserQuestion } from "./plan-agent";
 
 export const FEATURE_TRUST_NOTICE =
-  "Baked features run with this application's local permissions. Skills and later MCP features can cause tools or external actions to run. Renderer sandboxing does not sandbox feature code.";
+  "";
 
 export type ResourceDiagnosticType = "warning" | "error" | "collision" | "compatibility";
 

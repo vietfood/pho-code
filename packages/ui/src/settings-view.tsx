@@ -7,7 +7,6 @@ import {
   MIN_CHAT_FONT_SIZE,
   MIN_GLASS_STRENGTH,
   MIN_UI_FONT_SIZE,
-  CHANGE_LEDGER_DISCLOSURE,
   paletteSupportsMode,
   type AppearanceMode,
   type AppearancePalette,
@@ -74,7 +73,7 @@ const PROFILES: ReadonlyArray<{ id: ManagedPermissionProfileId; label: string; d
     id: "developer",
     label: "with great power comes great responsibility",
     description:
-      "YOLO mode for trusted workspaces: auto-approve ask decisions while explicit denies remain blocked. Permanent removal stays unavailable; removal uses recoverable OS Trash. This is not a sandbox.",
+      "YOLO mode for trusted workspaces: auto-approve ask decisions while explicit denies remain blocked.",
   },
 ];
 
@@ -617,19 +616,6 @@ function PermissionSection({
       <h2 id="permission-heading" className="text-sm font-medium">
         Permission policy
       </h2>
-      {settings.permission.appliesToSharedPiAgentDir ? (
-        <p className="text-xs text-muted-foreground" data-testid="shared-agent-dir-notice">
-          Pho Code is using an explicitly shared Pi data directory. Other Pi processes that use the same directory will
-          also see this permission config.
-        </p>
-      ) : (
-        <p className="text-xs text-muted-foreground" data-testid="app-agent-dir-notice">
-          Stored in Pho Code&apos;s private data directory. Other Pi installations do not use this permission config.
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground" data-testid="change-ledger-disclosure">
-        {CHANGE_LEDGER_DISCLOSURE}
-      </p>
       {projectPermissionTrustPending(settings.permission) || settings.permission.projectOverridePresent ? (
         <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
           <p className="text-xs text-warning" role="status">
