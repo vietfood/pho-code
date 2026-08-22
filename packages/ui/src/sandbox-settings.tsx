@@ -69,7 +69,7 @@ export function SandboxSettingsSection({
         <h2 id="sandbox-heading" className="text-sm font-medium">
           Agent-tool sandbox
         </h2>
-        <p className="text-xs text-muted-foreground">{sandbox.disclosure}</p>
+        {sandbox.disclosure ? <p className="text-xs text-muted-foreground">{sandbox.disclosure}</p> : null}
       </div>
       {running ? (
         <p className="text-xs text-muted-foreground" data-testid="sandbox-idle-pending">

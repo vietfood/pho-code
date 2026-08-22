@@ -98,6 +98,23 @@ describe("change review sheet", () => {
     expect(markup).not.toContain("change-review-pane");
   });
 
+  test("offers the floating window only when the host can open one", () => {
+    const props = {
+      review: pendingReview,
+      selectedPath: "tracked.txt",
+      diff,
+      onSelectPath: () => undefined,
+      onApprove: () => undefined,
+      onApproveAll: () => undefined,
+    };
+    expect(renderToStaticMarkup(createElement(ChangeReviewSheet, props))).not.toContain(
+      'data-testid="change-review-expand-window"',
+    );
+    expect(
+      renderToStaticMarkup(createElement(ChangeReviewSheet, { ...props, onExpandWindow: () => undefined })),
+    ).toContain('data-testid="change-review-expand-window"');
+  });
+
   test("shows a per-file Undo preview and never offers Undo all", async () => {
     const twoPending = {
       ...pendingReview,

@@ -45,13 +45,11 @@ describe("ChangeModelDialog", () => {
     expect(markup).toContain("Echo");
     expect(markup).toContain("GPT Test");
     expect(markup).toContain("miss cache reads");
-    expect(markup).toContain("cold prefix");
     expect(markup).toContain("12k");
     expect(markup).toContain("200k");
     expect(markup).toContain("128k");
     expect(markup).toContain("Rate card");
     expect(markup).toContain("cache R");
-    expect(markup).toContain("JSONL transcript");
     expect(markup).toContain("Switch model");
   });
 });

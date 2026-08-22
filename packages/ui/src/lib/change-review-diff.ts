@@ -1,4 +1,5 @@
 import type { ChangeDiffHunk, ChangeDiffLineKind, ChangeDiffPage, ChangeKind } from "@pho-code/protocol";
+import type { TextRange } from "./change-review-word-diff";
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
@@ -135,4 +136,112 @@ export function splitSearchPieces(text: string, query: string): { text: string; 
     pieces.push({ text: haystack.slice(from), hit: false });
   }
   return pieces.length > 0 ? pieces : [{ text, hit: false }];
+}
+
+export interface LinePiece {
+  text: string;
+  color?: string;
+  changed: boolean;
+  hit: boolean;
+}
+
+/** Case-insensitive match ranges for the diff search box. */
+export function searchRanges(text: string, query: string): TextRange[] {
+  const needle = query.trim();
+  if (needle === "") {
+    return [];
+  }
+  const ranges: TextRange[] = [];
+  const lower = text.toLowerCase();
+  const match = needle.toLowerCase();
+  let index = lower.indexOf(match);
+  while (index >= 0) {
+    ranges.push({ start: index, end: index + needle.length });
+    index = lower.indexOf(match, index + needle.length);
+  }
+  return ranges;
+}
+
+/**
+ * Flattens the three overlapping highlight layers — syntax colors, word-diff
+ * ranges, and search hits — into one non-overlapping run of spans. Slicing once
+ * against merged boundaries keeps the layers independent instead of nesting
+ * them, which is what breaks when a search hit straddles two syntax tokens.
+ */
+export function buildLinePieces(
+  text: string,
+  tokens: readonly { content: string; color?: string }[] | null,
+  changed: readonly TextRange[] | undefined,
+  search: string,
+): LinePiece[] {
+  if (text === "") {
+    return [];
+  }
+  const colored = colorRanges(text, tokens);
+  const hits = searchRanges(text, search);
+  const boundaries = new Set<number>([0, text.length]);
+  for (const range of colored) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  }
+  for (const range of changed ?? []) {
+    boundaries.add(clamp(range.start, text.length));
+    boundaries.add(clamp(range.end, text.length));
+  }
+  for (const range of hits) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
+  }
+  const edges = [...boundaries].sort((left, right) => left - right);
+  const pieces: LinePiece[] = [];
+  for (let index = 0; index < edges.length - 1; index += 1) {
+    const start = edges[index]!;
+    const end = edges[index + 1]!;
+    if (end <= start) {
+      continue;
+    }
+    const piece: LinePiece = {
+      text: text.slice(start, end),
+      changed: covers(changed, start),
+      hit: covers(hits, start),
+    };
+    const color = colored.find((range) => range.start <= start && range.end > start)?.color;
+    if (color) {
+      piece.color = color;
+    }
+    const previous = pieces.at(-1);
+    if (previous && previous.color === piece.color && previous.changed === piece.changed && previous.hit === piece.hit) {
+      previous.text += piece.text;
+      continue;
+    }
+    pieces.push(piece);
+  }
+  return pieces;
+}
+
+function colorRanges(
+  text: string,
+  tokens: readonly { content: string; color?: string }[] | null,
+): { start: number; end: number; color?: string }[] {
+  if (!tokens || tokens.length === 0) {
+    return [];
+  }
+  const ranges: { start: number; end: number; color?: string }[] = [];
+  let cursor = 0;
+  for (const token of tokens) {
+    const end = cursor + token.content.length;
+    if (token.color) {
+      ranges.push({ start: cursor, end, color: token.color });
+    }
+    cursor = end;
+  }
+  return cursor === text.length ? ranges : [];
+}
+
+function covers(ranges: readonly TextRange[] | undefined, offset: number): boolean {
+  return (ranges ?? []).some((range) => range.start <= offset && range.end > offset);
+}
+
+function clamp(value: number, length: number): number {
+  return Math.min(Math.max(value, 0), length);
 }

@@ -48,6 +48,7 @@ import {
   applyAppearanceTheme,
   ChatPaneLoading,
   ChangeReviewSheet,
+  ChangeReviewWindow,
   Conversation,
   ContextPromptDialog,
   PlanDocumentPanel,
@@ -107,6 +108,7 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
   const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
+  const [changesWindowOpen, setChangesWindowOpen] = useState(false);
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
   const composerAfterRun = useRef(false);
@@ -888,6 +890,12 @@ export function App() {
         onOpenSettings={openSettings}
       />
     ) : null;
+  useEffect(() => {
+    if (!changeReview.scope && changesWindowOpen) {
+      setChangesWindowOpen(false);
+    }
+  }, [changeReview.scope, changesWindowOpen]);
+
   let rightSidebarPanel: ReactNode = null;
   if (!rightSidebarCollapsed) {
     switch (rightSidebarSurface) {
@@ -947,6 +955,8 @@ export function App() {
             onLoadMore={changeReview.loadMore}
             contextLines={changeReview.contextLines}
             onContextLinesChange={changeReview.setContextLines}
+            onRequestFileLines={changeReview.requestFileLines}
+            onExpandWindow={() => setChangesWindowOpen(true)}
           />
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
@@ -1537,6 +1547,28 @@ export function App() {
         <NotificationToast
           notification={conversation.notification}
           onDismiss={clearSelectedNotification}
+        />
+      ) : null}
+      {changesWindowOpen && changeReview.scope ? (
+        <ChangeReviewWindow
+          review={changeReview.review}
+          diffs={changeReview.diffs}
+          busy={changeReview.busy}
+          error={changeReview.error}
+          contextLines={changeReview.contextLines}
+          onEnsureDiff={changeReview.ensureDiff}
+          onRequestFileLines={changeReview.requestFileLines}
+          onApprove={(relativePath) => {
+            void changeReview.approve([relativePath]);
+          }}
+          onApproveAll={() => {
+            const paths = changeReview.review?.files
+              .filter((file) => file.status === "pending" || file.status === "conflict")
+              .map((file) => file.relativePath);
+            void changeReview.approve(paths);
+          }}
+          onContextLinesChange={changeReview.setContextLines}
+          onClose={() => setChangesWindowOpen(false)}
         />
       ) : null}
     </AppShell>

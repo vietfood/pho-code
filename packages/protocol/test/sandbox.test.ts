@@ -28,9 +28,8 @@ describe("sandbox protocol", () => {
     expect(snapshot.allowedDomains).toEqual([]);
     expect(snapshot.includePackageRegistryDefaults).toBe(false);
     expect(snapshot.disclosure).toBe(SANDBOX_DISCLOSURE);
-    expect(snapshot.disclosure).toContain("skip permission asks");
-    expect(snapshot.disclosure).toContain("Workspace and temp files stay allowed");
-    expect(snapshot.disclosure).not.toContain("until skip-ask lands");
+    // fb65320 removed the standing trust disclosure; the field stays on the wire.
+    expect(snapshot.disclosure).toBe("");
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
     expect(JSON.stringify(snapshot)).not.toContain("sandbox-exec");

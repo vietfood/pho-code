@@ -34,7 +34,7 @@ export const DEFAULT_UI_FONT_SIZE = 16;
 /** Absolute px size for chat transcript and composer text. */
 export const MIN_CHAT_FONT_SIZE = 12;
 export const MAX_CHAT_FONT_SIZE = 20;
-export const DEFAULT_CHAT_FONT_SIZE = 14;
+export const DEFAULT_CHAT_FONT_SIZE = 15;
 
 /** Frosted chrome strength when glass is enabled (0 = subtle, 100 = strong). */
 export const MIN_GLASS_STRENGTH = 0;

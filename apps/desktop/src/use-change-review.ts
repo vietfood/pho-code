@@ -22,7 +22,11 @@ export function useChangeReview(cache: ConversationCacheState) {
   const [error, setError] = useState<string | null>(null);
   const [undoPreview, setUndoPreview] = useState<UndoPreview | null>(null);
   const [contextLines, setContextLines] = useState(DEFAULT_CHANGE_CONTEXT_LINES);
+  const [diffs, setDiffs] = useState<Record<string, ChangeDiffPage>>({});
+  const fileLinesRef = useRef(new Map<string, readonly string[]>());
   const generationRef = useRef(0);
+  const pendingDiffsRef = useRef(new Set<string>());
+  const diffRef = useRef<ChangeDiffPage | null>(null);
   const scopeRef = useRef<ChangeScope | null>(null);
   const selectedPathRef = useRef<string | null>(null);
   const reloadRevisionRef = useRef<number | null>(null);
@@ -48,7 +52,10 @@ export function useChangeReview(cache: ConversationCacheState) {
       if (!isCurrent(generation, nextScope) || selectedPathRef.current !== relativePath) {
         return;
       }
-      setDiff((current) => (cursor ? mergeDiffPage(current, page, cursor) : page));
+      const next = cursor ? mergeDiffPage(diffRef.current, page, cursor) : page;
+      diffRef.current = next;
+      setDiff(next);
+      setDiffs((cached) => ({ ...cached, [relativePath]: next }));
     },
     [contextLines, isCurrent],
   );
@@ -82,6 +89,9 @@ export function useChangeReview(cache: ConversationCacheState) {
       setScope(nextScope);
       setError(null);
       setDiff(null);
+      diffRef.current = null;
+      setDiffs({});
+      fileLinesRef.current.clear();
       setUndoPreview(null);
       runLoadingTask(generation, nextScope, "Unable to open the review set.", async () => {
         const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
@@ -109,6 +119,9 @@ export function useChangeReview(cache: ConversationCacheState) {
     setSelectedPath(null);
     selectedPathRef.current = null;
     setDiff(null);
+    diffRef.current = null;
+    setDiffs({});
+    fileLinesRef.current.clear();
     setUndoPreview(null);
     setError(null);
   }, []);
@@ -294,6 +307,56 @@ export function useChangeReview(cache: ConversationCacheState) {
     setUndoPreview(null);
   }, []);
 
+  /** Loads a diff into the shared cache without moving the docked sheet's selection. */
+  const ensureDiff = useCallback(
+    (relativePath: string) => {
+      const nextScope = scopeRef.current;
+      if (!nextScope || pendingDiffsRef.current.has(relativePath)) {
+        return;
+      }
+      const generation = generationRef.current;
+      pendingDiffsRef.current.add(relativePath);
+      void getDesktopBridge()
+        .getChangeDiff({ ...nextScope, relativePath, contextLines })
+        .then((page) => {
+          if (generation !== generationRef.current) {
+            return;
+          }
+          setDiffs((cached) => ({ ...cached, [relativePath]: page }));
+        })
+        .catch((cause) => {
+          if (generation === generationRef.current) {
+            setError(isHarnessError(cause) ? cause.message : "Unable to load that file.");
+          }
+        })
+        .finally(() => {
+          pendingDiffsRef.current.delete(relativePath);
+        });
+    },
+    [contextLines],
+  );
+
+  /** Current on-disk lines, used to expand collapsed runs inside a diff. */
+  const requestFileLines = useCallback(async (relativePath: string): Promise<readonly string[] | null> => {
+    const cached = fileLinesRef.current.get(relativePath);
+    if (cached) {
+      return cached;
+    }
+    const nextScope = scopeRef.current;
+    if (!nextScope) {
+      return null;
+    }
+    const page = await getDesktopBridge()
+      .getChangeFileView({ ...nextScope, relativePath, version: "current" })
+      .catch(() => null);
+    if (!page?.text) {
+      return null;
+    }
+    const lines = page.text.split("\n");
+    fileLinesRef.current.set(relativePath, lines);
+    return lines;
+  }, []);
+
   useEffect(() => {
     if (!scope) {
       return;
@@ -311,6 +374,8 @@ export function useChangeReview(cache: ConversationCacheState) {
     }
     reloadRevisionRef.current = matching.revision;
     setUndoPreview(null);
+    setDiffs({});
+    fileLinesRef.current.clear();
     const generation = generationRef.current;
     const nextScope = scope;
     runLoadingTask(generation, nextScope, "Unable to refresh the review set.", async () => {
@@ -324,6 +389,7 @@ export function useChangeReview(cache: ConversationCacheState) {
         await loadDiff(generation, nextScope, path);
       } else {
         setDiff(null);
+        diffRef.current = null;
       }
     });
   }, [cache.byKey, isCurrent, loadDiff, review?.revision, runLoadingTask, scope]);
@@ -341,6 +407,9 @@ export function useChangeReview(cache: ConversationCacheState) {
     open,
     close,
     selectPath,
+    diffs,
+    ensureDiff,
+    requestFileLines,
     approve,
     prepareUndo,
     applyUndo,

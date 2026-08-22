@@ -144,6 +144,68 @@ export async function tokenizeCode(
   }
 }
 
+const lineTokenCache = new Map<string, { content: string; color?: string }[][]>();
+
+/**
+ * Tokenizes a whole block and keeps line boundaries, so a diff hunk costs one
+ * highlighter call instead of one per row. Returns null when the language is
+ * unavailable and the caller should fall back to plain text.
+ */
+export async function tokenizeLines(
+  code: string,
+  language: string,
+  theme: ShikiThemeName,
+): Promise<{ content: string; color?: string }[][] | null> {
+  const lang = language || "text";
+  if (lang === "text" || code === "") {
+    return null;
+  }
+  const key = `lines\0${theme}\0${lang}\0${code}`;
+  const cached = lineTokenCache.get(key);
+  if (cached) {
+    return cached;
+  }
+  const highlighter = await getHighlighter();
+  const resolvedTheme = await ensureTheme(highlighter, theme);
+  const loaded = highlighter.getLoadedLanguages();
+  if (!loaded.includes(lang as BundledLanguage)) {
+    try {
+      await highlighter.loadLanguage(lang as BundledLanguage);
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const result = highlighter.codeToTokens(code, { lang: lang as BundledLanguage, theme: resolvedTheme });
+    const lines = result.tokens.map((line) =>
+      line.map((token) => {
+        const item: { content: string; color?: string } = { content: token.content };
+        if (token.color) {
+          item.color = token.color;
+        }
+        return item;
+      }),
+    );
+    return rememberLineTokens(key, lines);
+  } catch {
+    return null;
+  }
+}
+
+function rememberLineTokens(
+  key: string,
+  lines: { content: string; color?: string }[][],
+): { content: string; color?: string }[][] {
+  if (lineTokenCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = lineTokenCache.keys().next().value;
+    if (oldest !== undefined) {
+      lineTokenCache.delete(oldest);
+    }
+  }
+  lineTokenCache.set(key, lines);
+  return lines;
+}
+
 function rememberTokens(key: string, tokens: { content: string; color?: string }[]): { content: string; color?: string }[] {
   if (tokenCache.size >= MAX_CACHE_ENTRIES) {
     const oldest = tokenCache.keys().next().value;

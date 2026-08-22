@@ -62,6 +62,6 @@ describe("applyAppearanceFonts", () => {
 
   test("defaults stay within the supported range", () => {
     expect(DEFAULT_UI_FONT_SIZE).toBe(16);
-    expect(DEFAULT_CHAT_FONT_SIZE).toBe(14);
+    expect(DEFAULT_CHAT_FONT_SIZE).toBe(15);
   });
 });
