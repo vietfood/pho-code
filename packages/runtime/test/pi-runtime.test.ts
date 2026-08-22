@@ -1320,7 +1320,8 @@ test("steers an active run through Pi's native queue and rejects a stale run id"
       const after = await runtime.openSession(trusted.workspace.id, created.session.id);
       const tool = after.messages
         .flatMap((message) => message.blocks)
-        .find((block) => block.type === "tool" && block.name === "ask user");
+        .find((block) => block.type === "tool" && block.name === "ask_user_question");
+      expect(tool).toBeDefined();
       expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain("Patch");
       expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain("Keep the permission boundary.");
       expect(tool && "outputPreview" in tool ? tool.outputPreview : "").not.toContain(ASK_USER_DECLINE_MESSAGE);
@@ -1370,7 +1371,8 @@ test("steers an active run through Pi's native queue and rejects a stale run id"
       const after = await runtime.openSession(trusted.workspace.id, created.session.id);
       const tool = after.messages
         .flatMap((message) => message.blocks)
-        .find((block) => block.type === "tool" && block.name === "ask user");
+        .find((block) => block.type === "tool" && block.name === "ask_user_question");
+      expect(tool).toBeDefined();
       expect(tool && "outputPreview" in tool ? tool.outputPreview : "").toContain(ASK_USER_DECLINE_MESSAGE);
       expect(tool && "outputPreview" in tool ? tool.outputPreview : "").not.toContain("never saw");
       stop();

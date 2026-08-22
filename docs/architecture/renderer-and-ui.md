@@ -95,17 +95,17 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 
 Current surfaces are:
 
-- `changes` — implemented V3 review UI;
+- `changes` — V3 review as a stacked-file card in the docked panel (Expand opens a right-anchored overlay over chat);
 - `context-prompt` — edit while the session is empty, inspect after first message;
 - `plan` — Plan document surface (accepted Plan/Agent). Terminal remains a planned peer with no `terminal` variant yet.
 
-V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
+FileDiff and a write/edit tool card expand the rail onto Changes. Re-click or ⌘R / Ctrl+R collapses it. Expand, then Escape or the overlay close control, restores the stacked sidebar. Context prompt and Plan still expand the resizable docked panel. V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
 ## Settings and account surfaces
 
 The floating Settings UI renders typed protocol snapshots:
 
-- Appearance;
+- Appearance (palette, mode, glass, UI/chat sizes, installed UI and code font families, font smoothing);
 - Accounts/provider login;
 - GitHub MCP;
 - Skills and source trust;
@@ -113,7 +113,7 @@ The floating Settings UI renders typed protocol snapshots:
 - Permissions;
 - Sandbox (accepted agent-tool sandbox add-on; default on — see [`../archive/features/sandbox`](../archive/features/sandbox/README.md)).
 
-Settings never renders a generic schema, path picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
+Settings never renders a generic schema, path picker, font-file picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
 
 ## Accessibility and performance
 

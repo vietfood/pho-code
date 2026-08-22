@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   expandSettledWorkLog,
   launchDesktop,
@@ -36,7 +36,13 @@ test("settings persist palette mode glass and apply a managed permission profile
       await page.getByTestId("appearance-ui-font-size-increase").click();
       await page.getByTestId("appearance-chat-font-size-increase").click();
       await expect(page.getByTestId("appearance-ui-font-size")).toContainText("18px");
-      await expect(page.getByTestId("appearance-chat-font-size")).toContainText("15px");
+      await expect(page.getByTestId("appearance-chat-font-size")).toContainText("16px");
+      await chooseInstalledFont(page, "appearance-ui-font-family", "Lucida Grande");
+      await chooseInstalledFont(page, "appearance-code-font-family", "Menlo");
+      await expect(page.getByTestId("appearance-code-font-preview")).toBeVisible();
+      await expect(page.getByTestId("appearance-font-smoothing")).toBeChecked();
+      await page.getByTestId("appearance-font-smoothing").click();
+      await expect(page.getByTestId("appearance-font-smoothing")).not.toBeChecked();
       const attrs = await page.evaluate(() => ({
         palette: document.documentElement.dataset.palette,
         appearance: document.documentElement.dataset.appearance,
@@ -52,6 +58,9 @@ test("settings persist palette mode glass and apply a managed permission profile
           .getPropertyValue("--composer-glass-opacity")
           .trim(),
         sidebar: getComputedStyle(document.querySelector('[data-testid="new-session"]')!).fontSize,
+        sans: document.documentElement.style.getPropertyValue("--font-sans"),
+        mono: document.documentElement.style.getPropertyValue("--font-mono"),
+        smoothing: document.documentElement.style.getPropertyValue("-webkit-font-smoothing"),
       }));
       expect(attrs.palette).toBe("gruvbox");
       expect(attrs.appearance).toBe("dark");
@@ -60,8 +69,11 @@ test("settings persist palette mode glass and apply a managed permission profile
       expect(Number.parseInt(attrs.composerGlassOpacity, 10)).toBeLessThan(100);
       expect(Number.parseInt(attrs.sidebarGlassOpacity, 10)).toBeLessThan(Number.parseInt(attrs.glassOpacity, 10));
       expect(attrs.root).toBe("18px");
-      expect(attrs.chat).toBe("15px");
+      expect(attrs.chat).toBe("16px");
       expect(Number.parseFloat(attrs.sidebar)).toBeGreaterThan(12);
+      expect(attrs.sans).toContain("Lucida Grande");
+      expect(attrs.mono).toContain("Menlo");
+      expect(attrs.smoothing).toBe("");
 
       await page.getByTestId("appearance-palette-one-dark").click();
       await expect(page.getByTestId("appearance-mode-light")).toBeDisabled();
@@ -69,7 +81,6 @@ test("settings persist palette mode glass and apply a managed permission profile
       await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
 
       await openSettingsSection(page, "permissions");
-      await expect(page.getByTestId("app-agent-dir-notice")).toBeVisible();
       await page.getByTestId("permission-profile-guarded").check();
       await page.getByTestId("settings-save").click();
       await expect(page.getByTestId("settings-save")).toBeDisabled();
@@ -92,7 +103,18 @@ test("settings persist palette mode glass and apply a managed permission profile
       await expect(page.getByTestId("appearance-glass-enabled")).toBeChecked();
       await expect(page.getByTestId("appearance-glass-strength-value")).toContainText("70%");
       await expect(page.getByTestId("appearance-ui-font-size")).toContainText("18px");
-      await expect(page.getByTestId("appearance-chat-font-size")).toContainText("15px");
+      await expect(page.getByTestId("appearance-chat-font-size")).toContainText("16px");
+      await expectFontFamilyControl(page, "appearance-ui-font-family", "Lucida Grande");
+      await expectFontFamilyControl(page, "appearance-code-font-family", "Menlo");
+      await expect(page.getByTestId("appearance-font-smoothing")).not.toBeChecked();
+      const persistedFonts = await page.evaluate(() => ({
+        sans: document.documentElement.style.getPropertyValue("--font-sans"),
+        mono: document.documentElement.style.getPropertyValue("--font-mono"),
+        smoothing: document.documentElement.style.getPropertyValue("-webkit-font-smoothing"),
+      }));
+      expect(persistedFonts.sans).toContain("Lucida Grande");
+      expect(persistedFonts.mono).toContain("Menlo");
+      expect(persistedFonts.smoothing).toBe("");
       await page.getByTestId("settings-close").click();
       const sidebarFont = await page.evaluate(
         () => getComputedStyle(document.querySelector('[data-testid="new-session"]')!).fontSize,
@@ -170,3 +192,31 @@ test("a process-scoped event keeps the current appearance on an already open cha
     await removeTestDirectory(workspaceDir);
   }
 });
+
+async function chooseInstalledFont(page: Page, testId: string, family: string): Promise<void> {
+  const control = page.getByTestId(testId);
+  await expect(control).toBeEnabled({ timeout: 10_000 });
+  const tag = await control.evaluate((element) => element.tagName);
+  if (tag === "INPUT") {
+    await control.fill(family);
+    await control.blur();
+    return;
+  }
+  await control.click();
+  const filter = page.getByTestId(`${testId}-filter`);
+  if (await filter.isVisible()) {
+    await filter.fill(family);
+  }
+  await page.locator(`[data-testid="${testId}-option"][data-family="${family}"]`).click();
+}
+
+async function expectFontFamilyControl(page: Page, testId: string, family: string): Promise<void> {
+  const control = page.getByTestId(testId);
+  await expect(control).toBeEnabled({ timeout: 10_000 });
+  const tag = await control.evaluate((element) => element.tagName);
+  if (tag === "INPUT") {
+    await expect(control).toHaveValue(family);
+    return;
+  }
+  await expect(control).toContainText(family);
+}

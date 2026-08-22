@@ -45,6 +45,7 @@ export function ChangeModelDialog({
         {currentLabel ? (
           <>
             Switch from <span className="text-foreground">{currentLabel}</span> to{" "}
+            <span className="text-foreground">{nextLabel}</span>.
           </>
         ) : (
           <>
@@ -58,7 +59,7 @@ export function ChangeModelDialog({
       >
         <li>
           Provider prompt-cache entries are keyed to the previous model. The next turn will miss cache reads
-          {sameProvider ? " for this conversation prefix" : " (and may miss them across providers)"};
+          {sameProvider ? " for this conversation prefix" : " (and may miss them across providers)"}.
         </li>
         <li>
           {typeof contextTokens === "number" && contextTokens > 0 ? (

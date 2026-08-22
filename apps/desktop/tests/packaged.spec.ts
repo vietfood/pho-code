@@ -249,7 +249,7 @@ test("packaged macOS app undoes a created file through OS Trash without Pi CLI",
       expect(existsSync(createdPath)).toBe(true);
       await expandSettledWorkLog(page);
       await page.getByTestId("tool-open-review").click();
-      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await page.getByTestId("change-review-undo").click();
       await expect(page.getByTestId("change-review-undo-preview")).toBeVisible();
       await expect(page.getByTestId("change-review-undo-confirm")).toContainText("Move to Trash");
@@ -414,7 +414,7 @@ test("packaged macOS app loads Plan/Agent, ask-back, Plan write-off, Execute wri
       const executeLog = Math.max(0, (await page.getByTestId("work-log-toggle").count()) - 1);
       await expandSettledWorkLog(page, executeLog);
       await page.getByTestId("tool-open-review").last().click();
-      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toContainText("hello from agent");
 
       const todoLog = await page.getByTestId("work-log-toggle").count();

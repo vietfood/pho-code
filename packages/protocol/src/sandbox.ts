@@ -17,7 +17,7 @@ export const MAX_SANDBOX_DOMAIN_CHARS = 253;
 export const MAX_SANDBOX_PATH_LIST = 32;
 export const MAX_SANDBOX_PATH_CHARS = 1024;
 
-export const SANDBOX_DISCLOSURE = ""
+export const SANDBOX_DISCLOSURE = "";
 
 export const SANDBOX_BASH_TOOL_NAMES = ["bash", "user_bash"] as const;
 export type SandboxBashToolName = (typeof SANDBOX_BASH_TOOL_NAMES)[number];

@@ -26,6 +26,8 @@ export { AboutDialog } from "./about-dialog";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { ChangeReviewSheet, firstSelectablePath } from "./change-review-sheet";
+export { ChangeReviewWindow } from "./change-review-window";
+export type { RequestFileLines } from "./change-review-diff-view";
 export { RightSidebar, type RightSidebarSurface } from "./right-sidebar";
 export { PlanDocumentPanel } from "./plan-document-panel";
 export { SessionTodoList, sessionTodoChipLabel } from "./session-todo-list";

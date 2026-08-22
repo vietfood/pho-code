@@ -49,6 +49,5 @@ describe("CursorModelWarningDialog", () => {
     );
     expect(markup).toContain("miss cache reads");
     expect(markup).toContain("4.2k");
-    expect(markup).toContain("JSONL transcript");
   });
 });

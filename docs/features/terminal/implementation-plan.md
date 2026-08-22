@@ -146,7 +146,7 @@ import { init, Terminal } from "ghostty-web";
 await init();
 const term = new Terminal({
   fontSize: clampedAppearanceChatFontSize,
-  fontFamily: themeMonospaceStack,
+  fontFamily: themeMonospaceStack, // computed `--font-mono` (owner-selected code family or the default stack)
   cursorBlink: !prefersReducedMotion,
   theme: mappedCssVariables,
 });

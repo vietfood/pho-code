@@ -24,6 +24,9 @@
   --app-scrollbar-width: 6px;
   --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
   --code-foreground: var(--foreground);
+  /* Borderless inline-code fill. Mixed against transparent, not --background, so
+     chips keep the same weight inside the user bubble and tool rows. */
+  --code-chip-bg: color-mix(in srgb, var(--foreground) 7%, transparent);
   --shell-divider: color-mix(in srgb, var(--foreground) 18%, transparent);
 }
 
@@ -94,12 +97,26 @@
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 0.875rem;
+    /* Smoothing is applied from appearance settings so the toggle can restore
+       native macOS stem darkening. Electron still inherits Chromium's subpixel
+       default when smoothing is off. */
+    text-rendering: optimizeLegibility;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono,
+  .assistant-rewrite-editor,
+  .change-review-diff {
+    font-variant-ligatures: none;
   }
 }
 
 .chat-text {
   font-size: var(--font-size-chat);
-  line-height: 1.55;
+  line-height: 1.65;
 }
 
 .chat-column {
@@ -167,12 +184,12 @@
 }
 
 /*
- * Composer prompt follows chat size but stays a step under transcript body so the
- * docked field doesn't dominate the model/thinking chrome beside/below it.
+ * Composer prompt matches transcript body size. It used to sit a step under, which
+ * made the primary input read as a status bar next to the answer it produces.
  */
 .chat-composer-input {
-  font-size: calc(var(--font-size-chat) * 0.92);
-  line-height: 1.4;
+  font-size: var(--font-size-chat);
+  line-height: 1.5;
   padding-block: 0.2em;
 }
 
@@ -562,7 +579,7 @@ html[data-appearance="dark"] .approval-card {
   max-height: 6.5rem;
   overflow: auto;
   color: var(--muted-foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -719,7 +736,7 @@ html[data-appearance="dark"] .approval-card {
   border-radius: 0.3rem;
   padding: 0.05rem 0.35rem;
   color: var(--muted-foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 
@@ -1080,7 +1097,7 @@ html[data-appearance="dark"] .approval-card {
   overflow-wrap: anywhere;
   word-break: break-word;
   font-size: var(--font-size-chat);
-  line-height: 1.55;
+  line-height: 1.65;
 }
 
 .chat-markdown > :first-child {
@@ -1099,7 +1116,7 @@ html[data-appearance="dark"] .approval-card {
 .chat-markdown .chat-markdown-table-container,
 .chat-markdown .chat-markdown-codeblock,
 .chat-markdown .chat-markdown-mermaid {
-  margin: 0.5rem 0;
+  margin: 0.9rem 0;
 }
 
 .chat-markdown h1,
@@ -1108,7 +1125,7 @@ html[data-appearance="dark"] .approval-card {
 .chat-markdown h4,
 .chat-markdown h5,
 .chat-markdown h6 {
-  margin: 1.25rem 0 0.5rem;
+  margin: 1.6rem 0 0.6rem;
   font-weight: 600;
   line-height: 1.3;
   color: var(--foreground);
@@ -1119,11 +1136,11 @@ html[data-appearance="dark"] .approval-card {
 }
 
 .chat-markdown h2 {
-  font-size: 1.125em;
+  font-size: 1.2em;
 }
 
 .chat-markdown h3 {
-  font-size: 1em;
+  font-size: 1.05em;
 }
 
 .chat-markdown h4,
@@ -1143,13 +1160,17 @@ html[data-appearance="dark"] .approval-card {
 }
 
 .chat-markdown li + li {
-  margin-top: 0.25rem;
+  margin-top: 0.4rem;
 }
 
 .chat-markdown a {
-  color: inherit;
-  text-decoration: underline;
+  color: var(--primary);
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.chat-markdown a:hover {
+  text-decoration: underline;
 }
 
 .chat-markdown .chat-markdown-image-trigger {
@@ -1256,12 +1277,11 @@ html[data-appearance="dark"] .approval-card {
 }
 
 .chat-markdown :not(pre) > code {
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
-  border-radius: 0.25rem;
-  background: color-mix(in srgb, var(--foreground) 6%, var(--background));
-  padding: 0.02em 0.28em;
+  border-radius: 0.3rem;
+  background: var(--code-chip-bg);
+  padding: 0.12em 0.36em;
   font-family: var(--font-mono);
-  font-size: 0.86em;
+  font-size: 0.9em;
   line-height: inherit;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
@@ -1280,8 +1300,8 @@ html[data-appearance="dark"] .approval-card {
   background: transparent;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 0.85em;
-  line-height: 1.5;
+  font-size: 0.875em;
+  line-height: 1.55;
 }
 
 .chat-markdown .chat-markdown-codeblock {
@@ -1325,13 +1345,13 @@ html[data-appearance="dark"] .approval-card {
 .chat-markdown .chat-markdown-codeblock pre {
   border-radius: 0;
   background: transparent;
-  padding: 0.35rem 0.65rem;
-  line-height: 1.2;
+  padding: 0.7rem 0.85rem;
+  line-height: 1.55;
 }
 
 .chat-markdown .chat-markdown-codeblock pre code {
-  font-size: 0.8em;
-  line-height: 1.2;
+  font-size: 0.875em;
+  line-height: 1.55;
 }
 
 .chat-markdown .chat-markdown-shiki {
@@ -1342,8 +1362,8 @@ html[data-appearance="dark"] .approval-card {
   margin: 0;
   border-radius: 0;
   background: transparent !important;
-  padding: 0.35rem 0.65rem;
-  line-height: 1.2;
+  padding: 0.7rem 0.85rem;
+  line-height: 1.55;
 }
 
 .chat-markdown .chat-markdown-shiki code {
@@ -1351,8 +1371,8 @@ html[data-appearance="dark"] .approval-card {
   background: transparent;
   padding: 0;
   font-family: var(--font-mono);
-  font-size: 0.8em;
-  line-height: 1.2;
+  font-size: 0.875em;
+  line-height: 1.55;
 }
 
 .chat-markdown .katex {
@@ -1865,13 +1885,13 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
   gap: 0.5rem;
 }
 
-/* Sized to one prompt line box (line-height 1.4 plus the 0.2em block padding on
+/* Sized to one prompt line box (line-height 1.5 plus the 0.2em block padding on
    .chat-composer-input) so bottom alignment centers the glyph on the caret line
    instead of floating it above the text. */
 .composer-send {
   display: inline-flex;
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1.75rem;
+  width: 1.75rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -2916,18 +2936,231 @@ html[data-appearance="dark"] .app-menu {
   align-items: center;
   gap: 0.5rem;
   min-height: 1.65rem;
-  padding: 0.2rem 0.75rem;
+  padding: 0.2rem 0.5rem;
+  background: color-mix(in srgb, var(--code-foreground) 4%, var(--code-background));
   color: color-mix(in srgb, var(--code-foreground) 52%, var(--code-background));
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   line-height: 1;
 }
 
-.change-review-hunk-gap::before,
+/* Trailing rule fills the row so the band reads as a seam, not a floating chip. */
 .change-review-hunk-gap::after {
   height: 1px;
   flex: 1 1 auto;
   background: color-mix(in srgb, var(--code-background) 88%, var(--code-foreground));
+  content: "";
+}
+
+.change-review-hunk-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.change-review-hunk-expand:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--code-foreground) 14%, var(--code-background));
+  color: var(--code-foreground);
+}
+
+.change-review-hunk-expand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.change-review-hunk-expand:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.change-review-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.5rem;
+  width: 1.5rem;
+  flex-shrink: 0;
+  border-radius: var(--control-radius);
+  color: var(--muted-foreground);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.change-review-icon-button:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+.change-review-icon-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Stacked Changes card in the right sidebar; overlay is an optional expand. */
+
+.change-window-host {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+}
+
+.change-window {
+  pointer-events: auto;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: var(--radius);
+  background: var(--code-background);
+  color: var(--code-foreground);
+}
+
+.change-window-maximized {
+  inset: 0.75rem;
+  width: auto;
+  height: auto;
+}
+
+.change-window-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.35rem 0.55rem 0.35rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.change-window-title:active {
+  cursor: grabbing;
+}
+
+.change-window-sidebar .change-window-title,
+.change-window-sidebar .change-window-title:active {
+  cursor: default;
+}
+
+.change-window-arrow {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.change-window-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.change-window-sidebar {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0.75rem;
+  pointer-events: auto;
+}
+
+.change-window-overlay {
+  pointer-events: auto;
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.change-window-overlay > .change-window {
+  height: 100%;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.change-window-overlay-max {
+  position: absolute;
+  top: 0.4rem;
+  inset-inline-end: 2.15rem;
+  z-index: 2;
+}
+
+.change-window-file + .change-window-file {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.change-window-file-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.6rem;
+  background: color-mix(in srgb, var(--code-background) 92%, var(--code-foreground));
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.change-window-file-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  background: transparent;
+  padding: 0.1rem 0.2rem;
+  border-radius: var(--control-radius);
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.change-window-file-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.change-window-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.4rem 0.75rem;
+  background: var(--code-background);
+}
+
+.change-window-resize {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  height: 1rem;
+  width: 1rem;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.change-window-resize::after {
+  position: absolute;
+  inset-block-end: 0.25rem;
+  inset-inline-end: 0.25rem;
+  height: 0.45rem;
+  width: 0.45rem;
+  border-inline-end: 2px solid color-mix(in srgb, var(--code-foreground) 35%, transparent);
+  border-block-end: 2px solid color-mix(in srgb, var(--code-foreground) 35%, transparent);
   content: "";
 }
 
@@ -2944,7 +3177,10 @@ html[data-appearance="dark"] .app-menu {
   grid-template-columns: 2.75rem 1rem minmax(0, 1fr);
   align-items: start;
   min-height: 1.55em;
-  padding-inline-end: 0.75rem;
+}
+
+.change-review-diff-line[data-revealed="true"] .change-review-diff-gutter {
+  color: color-mix(in srgb, var(--code-foreground) 28%, var(--code-background));
 }
 
 .change-review-diff-line[data-kind="added"] {
@@ -2977,8 +3213,23 @@ html[data-appearance="dark"] .app-menu {
 
 .change-review-diff-text {
   min-width: 0;
+  padding-inline-end: 0.75rem;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Wrapped continuations hang under the code, not under the gutter. */
+  padding-inline-start: 2ch;
+  text-indent: -2ch;
+}
+
+/* Second tier of the row: only the bytes that actually moved. */
+.change-review-diff-line[data-kind="added"] [data-changed="true"] {
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.change-review-diff-line[data-kind="removed"] [data-changed="true"] {
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, var(--destructive) 30%, transparent);
 }
 
 .change-review-toolbar {

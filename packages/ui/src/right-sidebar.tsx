@@ -25,7 +25,11 @@ export function rightSidebarSurfaceAction(
   collapsed: boolean,
   current: RightSidebarSurface,
   clicked: RightSidebarSurface,
+  changesOverlayOpen = false,
 ): RightSidebarSurfaceAction {
+  if (clicked === "changes" && changesOverlayOpen) {
+    return "collapse";
+  }
   return !collapsed && current === clicked ? "collapse" : "select";
 }
 
@@ -44,6 +48,7 @@ export function RightSidebar({
   surface,
   contextPromptCustomized = false,
   planDocumentPresent = false,
+  changesOverlayOpen = false,
   onToggleCollapsed,
   onSelectSurface,
   children,
@@ -52,6 +57,7 @@ export function RightSidebar({
   surface: RightSidebarSurface;
   contextPromptCustomized?: boolean;
   planDocumentPresent?: boolean;
+  changesOverlayOpen?: boolean;
   onToggleCollapsed: () => void;
   onSelectSurface: (surface: RightSidebarSurface) => void;
   children?: ReactNode;
@@ -89,6 +95,7 @@ export function RightSidebar({
       surface={surface}
       contextPromptCustomized={contextPromptCustomized}
       planDocumentPresent={planDocumentPresent}
+      changesOverlayOpen={changesOverlayOpen}
       onToggleCollapsed={onToggleCollapsed}
       onSelectSurface={onSelectSurface}
     />
@@ -136,6 +143,7 @@ function RightSidebarIcons({
   surface,
   contextPromptCustomized,
   planDocumentPresent,
+  changesOverlayOpen,
   onToggleCollapsed,
   onSelectSurface,
 }: {
@@ -143,11 +151,12 @@ function RightSidebarIcons({
   surface: RightSidebarSurface;
   contextPromptCustomized: boolean;
   planDocumentPresent: boolean;
+  changesOverlayOpen: boolean;
   onToggleCollapsed: () => void;
   onSelectSurface: (surface: RightSidebarSurface) => void;
 }) {
   function activate(next: RightSidebarSurface): void {
-    const action = rightSidebarSurfaceAction(collapsed, surface, next);
+    const action = rightSidebarSurfaceAction(collapsed, surface, next, changesOverlayOpen);
     switch (action) {
       case "collapse":
         onToggleCollapsed();
@@ -162,17 +171,19 @@ function RightSidebarIcons({
     }
   }
 
+  const changesPressed = changesOverlayOpen || (!collapsed && surface === "changes");
+
   return (
     <>
       <Button
         variant="ghost"
         size="icon-sm"
         aria-label="Changes"
-        aria-pressed={!collapsed && surface === "changes"}
+        aria-pressed={changesPressed}
         data-testid="right-sidebar-surface-diff"
         className={cn(
           "no-drag size-6",
-          !collapsed && surface === "changes"
+          changesPressed
             ? "bg-accent text-foreground"
             : "text-sidebar-muted-foreground hover:text-sidebar-foreground",
         )}

@@ -47,7 +47,7 @@ import {
   applyAppearanceFonts,
   applyAppearanceTheme,
   ChatPaneLoading,
-  ChangeReviewSheet,
+  ChangeReviewWindow,
   Conversation,
   ContextPromptDialog,
   PlanDocumentPanel,
@@ -107,12 +107,17 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
   const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
+  const [changesWindowOpen, setChangesWindowOpen] = useState(false);
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
   const composerAfterRun = useRef(false);
   const bootstrapRefreshGeneration = useRef(0);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
+  const changesWindowOpenRef = useRef(changesWindowOpen);
+  changesWindowOpenRef.current = changesWindowOpen;
+  const rightSidebarSurfaceRef = useRef(rightSidebarSurface);
+  rightSidebarSurfaceRef.current = rightSidebarSurface;
   const conversation = selectedConversation(cache);
   const settings = cache.settings;
   // Live runs across every workspace, for the sidebar Stop-all control.
@@ -129,13 +134,61 @@ export function App() {
     });
   }, []);
 
+  const openLatestReviewIfNeeded = useCallback(() => {
+    if (changeReview.scope) {
+      return;
+    }
+    const selectedKey = cacheRef.current.selectedKey;
+    const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+    const latest = snap ? latestChangeReview(snap.changeReviews) : undefined;
+    if (!latest) {
+      return;
+    }
+    changeReview.open({
+      workspaceId: latest.workspaceId,
+      sessionId: latest.sessionId,
+      runId: latest.runId,
+    });
+  }, [changeReview.open, changeReview.scope]);
+
+  const dockChanges = useCallback(() => {
+    setRightSidebarSurface("changes");
+    setRightSidebarCollapsed(false);
+    writeRightSidebarCollapsed(false);
+    setChangesWindowOpen(false);
+    openLatestReviewIfNeeded();
+  }, [openLatestReviewIfNeeded]);
+
+  const expandChangesOverlay = useCallback(() => {
+    setRightSidebarSurface("changes");
+    setRightSidebarCollapsed(true);
+    writeRightSidebarCollapsed(true);
+    setChangesWindowOpen(true);
+    openLatestReviewIfNeeded();
+  }, [openLatestReviewIfNeeded]);
+
+  const closeChangesOverlay = useCallback((restoreSidebar: boolean) => {
+    setChangesWindowOpen(false);
+    if (restoreSidebar) {
+      setRightSidebarCollapsed(false);
+      writeRightSidebarCollapsed(false);
+    }
+  }, []);
+
   const toggleRightSidebar = useCallback(() => {
+    if (changesWindowOpenRef.current) {
+      closeChangesOverlay(false);
+      return;
+    }
     setRightSidebarCollapsed((current) => {
       const next = !current;
       writeRightSidebarCollapsed(next);
+      if (!next && rightSidebarSurfaceRef.current === "changes") {
+        openLatestReviewIfNeeded();
+      }
       return next;
     });
-  }, []);
+  }, [closeChangesOverlay, openLatestReviewIfNeeded]);
 
   const collapseRightSidebar = useCallback(() => {
     setRightSidebarCollapsed(true);
@@ -144,25 +197,16 @@ export function App() {
 
   const selectRightSurface = useCallback(
     (next: RightSidebarSurface) => {
+      if (next === "changes") {
+        dockChanges();
+        return;
+      }
+      setChangesWindowOpen(false);
       setRightSidebarSurface(next);
       setRightSidebarCollapsed(false);
       writeRightSidebarCollapsed(false);
-      if (next !== "changes") {
-        return;
-      }
-      const selectedKey = cacheRef.current.selectedKey;
-      const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
-      const latest = snap ? latestChangeReview(snap.changeReviews) : undefined;
-      if (!latest || changeReview.scope) {
-        return;
-      }
-      changeReview.open({
-        workspaceId: latest.workspaceId,
-        sessionId: latest.sessionId,
-        runId: latest.runId,
-      });
     },
-    [changeReview.open, changeReview.scope],
+    [dockChanges],
   );
 
   const openChangeReview = useCallback(
@@ -171,6 +215,7 @@ export function App() {
       setRightSidebarSurface("changes");
       setRightSidebarCollapsed(false);
       writeRightSidebarCollapsed(false);
+      setChangesWindowOpen(false);
     },
     [changeReview.open],
   );
@@ -185,6 +230,10 @@ export function App() {
       changeReview.close();
     }
   }, [changeReview.close, changeReview.scope, conversation.snapshot]);
+
+  useEffect(() => {
+    setChangesWindowOpen(false);
+  }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
 
   useEffect(() => {
     setContextPromptBusy(false);
@@ -888,6 +937,7 @@ export function App() {
         onOpenSettings={openSettings}
       />
     ) : null;
+
   let rightSidebarPanel: ReactNode = null;
   if (!rightSidebarCollapsed) {
     switch (rightSidebarSurface) {
@@ -919,15 +969,15 @@ export function App() {
         break;
       case "changes":
         rightSidebarPanel = changeReview.scope ? (
-          <ChangeReviewSheet
+          <ChangeReviewWindow
+            variant="sidebar"
             review={changeReview.review}
-            selectedPath={changeReview.selectedPath}
-            diff={changeReview.diff}
-            loading={changeReview.loading}
-            error={changeReview.error}
+            diffs={changeReview.diffs}
             busy={changeReview.busy}
+            error={changeReview.error}
             undoPreview={changeReview.undoPreview}
-            onSelectPath={changeReview.selectPath}
+            contextLines={changeReview.contextLines}
+            onEnsureDiff={changeReview.ensureDiff}
             onApprove={(relativePath) => {
               void changeReview.approve([relativePath]);
             }}
@@ -944,9 +994,9 @@ export function App() {
               void changeReview.applyUndo();
             }}
             onCancelUndo={changeReview.cancelUndo}
-            onLoadMore={changeReview.loadMore}
-            contextLines={changeReview.contextLines}
+            onRequestFileLines={changeReview.requestFileLines}
             onContextLinesChange={changeReview.setContextLines}
+            onExpand={expandChangesOverlay}
           />
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
@@ -1317,11 +1367,43 @@ export function App() {
           surface={rightSidebarSurface}
           contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
           planDocumentPresent={planDocumentPresent}
+          changesOverlayOpen={changesWindowOpen}
           onToggleCollapsed={toggleRightSidebar}
           onSelectSurface={selectRightSurface}
         >
           {rightSidebarPanel}
         </RightSidebar>
+      ) : null}
+      {changesWindowOpen ? (
+        <ChangeReviewWindow
+          variant="overlay"
+          review={changeReview.review}
+          diffs={changeReview.diffs}
+          busy={changeReview.busy}
+          error={changeReview.error}
+          undoPreview={changeReview.undoPreview}
+          contextLines={changeReview.contextLines}
+          onEnsureDiff={changeReview.ensureDiff}
+          onApprove={(relativePath) => {
+            void changeReview.approve([relativePath]);
+          }}
+          onApproveAll={() => {
+            const paths = changeReview.review?.files
+              .filter((file) => file.status === "pending" || file.status === "conflict")
+              .map((file) => file.relativePath);
+            void changeReview.approve(paths);
+          }}
+          onPrepareUndo={(relativePath) => {
+            void changeReview.prepareUndo(relativePath);
+          }}
+          onApplyUndo={() => {
+            void changeReview.applyUndo();
+          }}
+          onCancelUndo={changeReview.cancelUndo}
+          onRequestFileLines={changeReview.requestFileLines}
+          onContextLinesChange={changeReview.setContextLines}
+          onClose={() => closeChangesOverlay(true)}
+        />
       ) : null}
       </div>
       {settingsVisible && settings ? (

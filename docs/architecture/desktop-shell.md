@@ -106,7 +106,7 @@ Also require:
 
 - local renderer assets rather than remote pages;
 - a restrictive CSP;
-- default-deny Chromium permission handlers, with a narrow allow for `clipboard-sanitized-write` so transcript/code copy buttons can use `navigator.clipboard.writeText`;
+- default-deny Chromium permission handlers, with a narrow allow for `clipboard-sanitized-write` so transcript/code copy buttons can use `navigator.clipboard.writeText`, and `local-fonts` so Appearance can list installed families (`queryLocalFonts` family names only; never font file bytes);
 - navigation and new-window interception;
 - validated `http:`/`https:` external links opened through the OS;
 - sender and payload validation for privileged IPC;

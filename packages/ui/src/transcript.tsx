@@ -535,7 +535,7 @@ const AssistantTurn = memo(function AssistantTurn({
           return (
             <div
               key={`${messages[0]?.id ?? "turn"}:text:${index}`}
-              className={`chat-text relative min-w-0 px-1 py-0.5 text-foreground/80 ${isLast ? "pb-1" : "pb-4"}`}
+              className={`chat-text relative min-w-0 px-1 py-0.5 text-foreground ${isLast ? "pb-1" : "pb-6"}`}
             >
               <ConservativeMarkdown text={block.text} />
             </div>

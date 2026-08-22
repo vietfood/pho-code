@@ -41,6 +41,7 @@ import {
   type SettingsSectionId,
 } from "./lib/settings-section";
 import { ProviderAccountsSection } from "./provider-accounts";
+import { FontFamilyPicker } from "./font-family-picker";
 import { Button } from "./ui/button";
 
 const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
@@ -580,27 +581,95 @@ function AppearanceSection({
           />
         </label>
       </div>
-      <div className="grid gap-3 pt-1">
-        <FontSizeStepper
-          id="ui-font-size"
-          label="UI font size"
-          value={settings.appearance.uiFontSize}
-          min={MIN_UI_FONT_SIZE}
-          max={MAX_UI_FONT_SIZE}
-          disabled={busy}
+      <div className="grid gap-4 pt-1">
+        <AppearanceSettingRow
+          htmlFor="ui-font-size"
           testId="appearance-ui-font-size"
-          onChange={(uiFontSize) => onAppearanceChange({ uiFontSize })}
-        />
-        <FontSizeStepper
-          id="chat-font-size"
-          label="Chat font size"
-          value={settings.appearance.chatFontSize}
-          min={MIN_CHAT_FONT_SIZE}
-          max={MAX_CHAT_FONT_SIZE}
-          disabled={busy}
+          label="UI font size"
+          description="Font size for the user interface."
+        >
+          <FontSizeStepper
+            id="ui-font-size"
+            label="UI font size"
+            value={settings.appearance.uiFontSize}
+            min={MIN_UI_FONT_SIZE}
+            max={MAX_UI_FONT_SIZE}
+            disabled={busy}
+            testId="appearance-ui-font-size"
+            onChange={(uiFontSize) => onAppearanceChange({ uiFontSize })}
+          />
+        </AppearanceSettingRow>
+        <AppearanceSettingRow
+          htmlFor="chat-font-size"
           testId="appearance-chat-font-size"
-          onChange={(chatFontSize) => onAppearanceChange({ chatFontSize })}
-        />
+          label="Chat font size"
+          description="Font size for transcript and composer."
+        >
+          <FontSizeStepper
+            id="chat-font-size"
+            label="Chat font size"
+            value={settings.appearance.chatFontSize}
+            min={MIN_CHAT_FONT_SIZE}
+            max={MAX_CHAT_FONT_SIZE}
+            disabled={busy}
+            testId="appearance-chat-font-size"
+            onChange={(chatFontSize) => onAppearanceChange({ chatFontSize })}
+          />
+        </AppearanceSettingRow>
+        <AppearanceSettingRow
+          htmlFor="ui-font-family"
+          label="UI font family"
+          description="Override the user interface typeface."
+        >
+          <FontFamilyPicker
+            id="ui-font-family"
+            ariaLabel="UI font family"
+            value={settings.appearance.uiFontFamily}
+            disabled={busy}
+            testId="appearance-ui-font-family"
+            onChange={(uiFontFamily) => onAppearanceChange({ uiFontFamily })}
+          />
+        </AppearanceSettingRow>
+        <div className="grid gap-2">
+          <AppearanceSettingRow
+            htmlFor="code-font-family"
+            label="Code font family"
+            description="Override the font for code, diffs, and tool output."
+          >
+            <FontFamilyPicker
+              id="code-font-family"
+              ariaLabel="Code font family"
+              value={settings.appearance.codeFontFamily}
+              disabled={busy}
+              testId="appearance-code-font-family"
+              onChange={(codeFontFamily) => onAppearanceChange({ codeFontFamily })}
+            />
+          </AppearanceSettingRow>
+          <div
+            className="overflow-hidden rounded-md border border-border/70 bg-code-background font-mono text-[11px] leading-relaxed"
+            data-testid="appearance-code-font-preview"
+            aria-hidden="true"
+          >
+            <div className="bg-destructive/12 px-2.5 py-0.5 text-destructive">- return a + b;</div>
+            <div className="bg-success/12 px-2.5 py-0.5 text-success">+ const result = a + b;</div>
+            <div className="bg-success/12 px-2.5 py-0.5 text-success">+ return result;</div>
+          </div>
+        </div>
+        <AppearanceSettingRow
+          htmlFor="appearance-font-smoothing"
+          label="Font smoothing"
+          description="Grayscale anti-aliasing. Off uses native macOS rendering."
+        >
+          <input
+            id="appearance-font-smoothing"
+            type="checkbox"
+            className="size-4 accent-primary"
+            data-testid="appearance-font-smoothing"
+            checked={settings.appearance.fontSmoothing}
+            disabled={busy}
+            onChange={(event) => onAppearanceChange({ fontSmoothing: event.target.checked })}
+          />
+        </AppearanceSettingRow>
       </div>
     </section>
   );
@@ -730,6 +799,32 @@ function PermissionSection({
   );
 }
 
+function AppearanceSettingRow({
+  htmlFor,
+  testId,
+  label,
+  description,
+  children,
+}: {
+  htmlFor: string;
+  testId?: string;
+  label: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4" data-testid={testId}>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <label htmlFor={htmlFor} className="text-sm font-medium">
+          {label}
+        </label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="flex w-44 shrink-0 items-center justify-end">{children}</div>
+    </div>
+  );
+}
+
 function FontSizeStepper({
   id,
   label,
@@ -750,39 +845,32 @@ function FontSizeStepper({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="grid gap-1.5" data-testid={testId}>
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor={id} className="min-w-0 text-sm font-medium">
-          {label}
-        </label>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Decrease ${label.toLowerCase()}`}
-            data-testid={`${testId}-decrease`}
-            disabled={disabled || value <= min}
-            onClick={() => onChange(value - 1)}
-          >
-            −
-          </Button>
-          <output id={id} className="min-w-12 text-center text-sm tabular-nums" aria-live="polite">
-            {value}px
-          </output>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-label={`Increase ${label.toLowerCase()}`}
-            data-testid={`${testId}-increase`}
-            disabled={disabled || value >= max}
-            onClick={() => onChange(value + 1)}
-          >
-            +
-          </Button>
-        </div>
-      </div>
+    <div className="flex shrink-0 items-center gap-1.5">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={`Decrease ${label.toLowerCase()}`}
+        data-testid={`${testId}-decrease`}
+        disabled={disabled || value <= min}
+        onClick={() => onChange(value - 1)}
+      >
+        −
+      </Button>
+      <output id={id} className="min-w-10 text-center text-sm tabular-nums" aria-live="polite">
+        {value}px
+      </output>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={`Increase ${label.toLowerCase()}`}
+        data-testid={`${testId}-increase`}
+        disabled={disabled || value >= max}
+        onClick={() => onChange(value + 1)}
+      >
+        +
+      </Button>
     </div>
   );
 }

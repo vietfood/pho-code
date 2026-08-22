@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { coerceAppearance, glassCssTokens, paletteSupportsMode, resolveAppearanceMode } from "@pho-code/protocol";
+import { coerceAppearance, emptyAppearanceSettings, glassCssTokens, paletteSupportsMode, resolveAppearanceMode } from "@pho-code/protocol";
 import { applyAppearanceTheme, readAppearancePalette, readWorkEntryIconPack } from "../src/lib/appearance-theme";
 
 function fakeRoot() {
@@ -37,13 +37,12 @@ describe("appearance theme helpers", () => {
     const root = fakeRoot();
     const resolved = applyAppearanceTheme(
       {
+        ...emptyAppearanceSettings(),
         palette: "gruvbox",
         mode: "dark",
         workEntryIcons: "pho",
         glassEnabled: true,
         glassStrength: 80,
-        uiFontSize: 16,
-        chatFontSize: 14,
       },
       root as unknown as HTMLElement,
       { prefersDark: false },
@@ -70,13 +69,11 @@ describe("appearance theme helpers", () => {
     const root = fakeRoot();
     applyAppearanceTheme(
       {
+        ...emptyAppearanceSettings(),
         palette: "default",
         mode: "light",
         workEntryIcons: "pho",
         glassEnabled: false,
-        glassStrength: 55,
-        uiFontSize: 16,
-        chatFontSize: 14,
       },
       root as unknown as HTMLElement,
       { prefersDark: true },
@@ -141,13 +138,9 @@ describe("appearance theme helpers", () => {
     const root = fakeRoot();
     applyAppearanceTheme(
       {
-        palette: "default",
-        mode: "light",
+        ...emptyAppearanceSettings(),
         workEntryIcons: "lucide",
-        glassEnabled: false,
-        glassStrength: 55,
-        uiFontSize: 16,
-        chatFontSize: 14,
+        mode: "light",
       },
       root as unknown as HTMLElement,
       { prefersDark: false },

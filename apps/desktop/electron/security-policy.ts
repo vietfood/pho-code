@@ -1,11 +1,13 @@
 /**
  * Narrow Chromium permission allowlist for the trusted renderer.
  * `clipboard-sanitized-write` is required for `navigator.clipboard.writeText`
- * (async Clipboard API). Both request and check handlers must allow it.
+ * (async Clipboard API). `local-fonts` lets Appearance list installed families
+ * via `queryLocalFonts` (family names only). Both request and check handlers
+ * must allow listed permissions.
  */
 import { isSafeHttpUrl } from "@pho-code/protocol";
 
-export const ALLOWED_WEB_PERMISSIONS = new Set<string>(["clipboard-sanitized-write"]);
+export const ALLOWED_WEB_PERMISSIONS = new Set<string>(["clipboard-sanitized-write", "local-fonts"]);
 
 export function isAllowedWebPermission(permission: string): boolean {
   return ALLOWED_WEB_PERMISSIONS.has(permission);

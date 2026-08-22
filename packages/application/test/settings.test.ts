@@ -51,6 +51,9 @@ describe("application settings", () => {
     expect(migrated.glassStrength).toBe(DEFAULT_GLASS_STRENGTH);
     expect(migrated.uiFontSize).toBe(DEFAULT_UI_FONT_SIZE);
     expect(migrated.chatFontSize).toBe(DEFAULT_CHAT_FONT_SIZE);
+    expect(migrated.uiFontFamily).toBe("");
+    expect(migrated.codeFontFamily).toBe("");
+    expect(migrated.fontSmoothing).toBe(true);
     expect(migrated.workEntryIcons).toBe("lucide");
     expect(migrated.githubMcpEnabled).toBe(false);
     expect(migrated.recentWorkspaces).toHaveLength(1);
@@ -106,6 +109,9 @@ describe("application settings", () => {
       glassStrength: DEFAULT_GLASS_STRENGTH,
       uiFontSize: 18,
       chatFontSize: 16,
+      uiFontFamily: "",
+      codeFontFamily: "",
+      fontSmoothing: true,
     });
     expect(application.getSettings().appearance.uiFontSize).toBe(18);
     expect(application.getSettings().appearance.chatFontSize).toBe(16);
@@ -207,6 +213,48 @@ describe("application settings", () => {
     await expect(application.updateAppearanceSettings({ chatFontSize: 21 })).rejects.toMatchObject({
       code: HARNESS_ERROR_CODES.invalidCommand,
     });
+  });
+
+  test("persists installed font families and smoothing", async () => {
+    const { application } = createTestApplication();
+    const updated = await application.updateAppearanceSettings({
+      uiFontFamily: "  Lucida Grande  ",
+      codeFontFamily: "JetBrainsMono Nerd Font",
+      fontSmoothing: false,
+    });
+    expect(updated.appearance.uiFontFamily).toBe("Lucida Grande");
+    expect(updated.appearance.codeFontFamily).toBe("JetBrainsMono Nerd Font");
+    expect(updated.appearance.fontSmoothing).toBe(false);
+    const cleared = await application.updateAppearanceSettings({ uiFontFamily: "", codeFontFamily: "" });
+    expect(cleared.appearance.uiFontFamily).toBe("");
+    expect(cleared.appearance.codeFontFamily).toBe("");
+    expect(cleared.appearance.fontSmoothing).toBe(false);
+  });
+
+  test("rejects an unsafe font family name", async () => {
+    const { application } = createTestApplication();
+    await expect(application.updateAppearanceSettings({ codeFontFamily: "Menlo, monospace" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    await expect(application.updateAppearanceSettings({ uiFontFamily: "url(https://x)" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
+
+  test("coerces an unsafe stored font family to the system default", () => {
+    const migrated = parseMetadata({
+      version: 6,
+      recentWorkspaces: [],
+      palette: "default",
+      mode: "system",
+      uiFontFamily: "Menlo; color: red",
+      codeFontFamily: "url(https://x)",
+      fontSmoothing: "yes",
+      trustedPermissionWorkspaceIds: [],
+    });
+    expect(migrated.uiFontFamily).toBe("");
+    expect(migrated.codeFontFamily).toBe("");
+    expect(migrated.fontSmoothing).toBe(true);
   });
 
   test("rejects an empty appearance patch", async () => {

@@ -36,8 +36,8 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expandSettledWorkLog(page);
       await expect(page.getByTestId("tool-open-review")).toContainText("1 file");
       await page.getByTestId("tool-open-review").click();
-      const sheet = page.getByTestId("change-review-sheet");
-      await expect(sheet).toBeVisible();
+      const pane = page.getByTestId("change-review-window");
+      await expect(pane).toBeVisible();
       await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
       await expect(page.getByTestId("right-sidebar-surface-diff")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toContainText("before");
@@ -50,12 +50,21 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await page.getByTestId("change-review-whitespace").click();
       await expect(page.getByTestId("change-review-whitespace")).toHaveAttribute("aria-pressed", "true");
       await page.getByTestId("change-review-context").selectOption("8");
+      await page.getByTestId("change-review-expand-window").click();
+      await expect(page.getByTestId("change-review-window-host")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
+      await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
+      await page.getByTestId("change-review-window-close").click();
+      await expect(page.getByTestId("change-review-window-host")).toHaveCount(0);
+      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await page.getByTestId("right-sidebar-surface-diff").click();
       await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
       await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
-      await expect(page.getByTestId("change-review-diff")).toHaveCount(0);
+      await expect(page.getByTestId("change-review-window")).toHaveCount(0);
       await page.getByTestId("right-sidebar-surface-diff").click();
       await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toBeVisible();
       await page.getByTestId("change-review-approve").click();
       await expect(page.getByTestId("change-review-status")).toContainText("Approved");
@@ -72,7 +81,7 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expandSettledWorkLog(page);
       await expect(page.getByTestId("tool-open-review")).toContainText("1 file");
       await page.getByTestId("tool-open-review").click();
-      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-status")).toContainText("Approved");
       await expect(page.getByTestId("change-review-approve")).toHaveCount(0);
     } finally {
@@ -109,7 +118,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.", { timeout: 20_000 });
       await expandSettledWorkLog(page);
       await page.getByTestId("tool-open-review").click();
-      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-undo")).toBeVisible();
       await expect(page.getByTestId("change-review-undo-all")).toHaveCount(0);
       await page.getByTestId("change-review-undo").click();
@@ -133,7 +142,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       await expect(page.getByTestId("change-review-undo")).toHaveCount(0);
 
       await page.getByTestId("right-sidebar-surface-diff").click();
-      await expect(page.getByTestId("change-review-sheet")).toHaveCount(0);
+      await expect(page.getByTestId("change-review-window")).toHaveCount(0);
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("composer").fill("USE_EDIT");
@@ -142,7 +151,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       expect(await readFile(trackedPath, "utf8")).toBe("after from agent\n");
       await expandSettledWorkLog(page);
       await page.getByTestId("tool-open-review").click();
-      await expect(page.getByTestId("change-review-sheet")).toBeVisible();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-status")).toContainText("Pending");
       await writeFile(trackedPath, "owner edit\n");
       await page.getByTestId("change-review-undo").click();

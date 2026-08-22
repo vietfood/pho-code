@@ -613,6 +613,9 @@ describe("protocol serialization", () => {
         glassStrength: 55,
         uiFontSize: 18,
         chatFontSize: 16,
+        uiFontFamily: "",
+        codeFontFamily: "",
+        fontSmoothing: true,
       },
       permission: {
         profile: "developer" as const,

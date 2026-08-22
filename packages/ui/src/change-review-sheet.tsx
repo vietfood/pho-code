@@ -3,15 +3,13 @@
 // Pierre Diffs, review comments, split/before/after tabs, explorer, and extra rail
 // surfaces (terminal, files, browser) are omitted. The persistent pill/rail lives
 // in RightSidebar; this file is the changes surface only.
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { FileIcon } from "lucide-react";
+import { useMemo, useState, type KeyboardEvent } from "react";
+import { FileIcon, Maximize2Icon } from "lucide-react";
 import {
   CHANGE_REVIEW_COPY,
   DEFAULT_CHANGE_CONTEXT_LINES,
   MAX_CHANGE_CONTEXT_LINES,
   isUntrackedChangePath,
-  type ChangeDiffHunk,
-  type ChangeDiffLine,
   type ChangeDiffPage,
   type ChangeKind,
   type ChangeReviewSetSnapshot,
@@ -21,19 +19,8 @@ import {
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
 import { splitRelativePath } from "./lib/compact-path";
-import {
-  diffLineStat,
-  diffPrefix,
-  fileChangeVerb,
-  serializeDiff,
-  splitSearchPieces,
-  unifiedLineNumber,
-  unmodifiedCountBeforeHunk,
-  unmodifiedLabel,
-  visibleWhitespace,
-} from "./lib/change-review-diff";
-import { preferredShikiTheme, tokenizeCode } from "./shiki-highlight";
-import { useDocumentAppearance } from "./lib/use-resolved-appearance";
+import { diffLineStat, fileChangeVerb, serializeDiff } from "./lib/change-review-diff";
+import { DiffHunks, type RequestFileLines } from "./change-review-diff-view";
 import { Button } from "./ui/button";
 import { CopyButton } from "./copy-button";
 
@@ -54,6 +41,8 @@ export function ChangeReviewSheet({
   onLoadMore,
   contextLines = DEFAULT_CHANGE_CONTEXT_LINES,
   onContextLinesChange,
+  onRequestFileLines,
+  onExpandWindow,
 }: {
   review: ChangeReviewSetSnapshot | null;
   selectedPath: string | null;
@@ -71,6 +60,8 @@ export function ChangeReviewSheet({
   onLoadMore?: () => void;
   contextLines?: number;
   onContextLinesChange?: (value: number) => void;
+  onRequestFileLines?: RequestFileLines;
+  onExpandWindow?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [showWhitespace, setShowWhitespace] = useState(false);
@@ -147,6 +138,8 @@ export function ChangeReviewSheet({
                 onToggleWhitespace={() => setShowWhitespace((current) => !current)}
                 contextLines={contextLines}
                 onContextLinesChange={onContextLinesChange}
+                onRequestFileLines={onRequestFileLines}
+                onExpandWindow={onExpandWindow}
               />
             ) : null}
           </div>
@@ -305,6 +298,8 @@ function UnifiedDiffView({
   onToggleWhitespace,
   contextLines,
   onContextLinesChange,
+  onRequestFileLines,
+  onExpandWindow,
 }: {
   diff: ChangeDiffPage | null;
   kind: ChangeKind;
@@ -315,6 +310,8 @@ function UnifiedDiffView({
   onToggleWhitespace: () => void;
   contextLines: number;
   onContextLinesChange?: (value: number) => void;
+  onRequestFileLines?: RequestFileLines;
+  onExpandWindow?: () => void;
 }) {
   if (!diff) {
     return <p className="px-3 py-3 text-xs text-muted-foreground">Select a file to inspect the unified diff.</p>;
@@ -343,178 +340,91 @@ function UnifiedDiffView({
             <span className="text-destructive">-{stat.deletions}</span>
           </span>
           {copyText ? <CopyButton text={copyText} label="Copy" copiedLabel="Copied" /> : null}
-        </header>
-        <div className="change-review-toolbar">
-          <label className="change-review-search">
-            <span className="sr-only">Search diff</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search"
-              data-testid="change-review-search"
-              className="change-review-search-input"
-            />
-          </label>
-          <Button
-            size="sm"
-            variant={showWhitespace ? "default" : "outline"}
-            data-testid="change-review-whitespace"
-            aria-pressed={showWhitespace}
-            onClick={onToggleWhitespace}
-          >
-            Whitespace
-          </Button>
-          <label className="change-review-context">
-            <span className="text-[11px] text-muted-foreground">Context</span>
-            <select
-              data-testid="change-review-context"
-              value={contextLines}
-              onChange={(event) => onContextLinesChange?.(Number(event.target.value))}
-              disabled={!onContextLinesChange}
-              className="change-review-context-select"
+          {onExpandWindow ? (
+            <button
+              type="button"
+              className="change-review-icon-button"
+              data-testid="change-review-expand-window"
+              title="Open changes in a window"
+              aria-label="Open changes in a window"
+              onClick={onExpandWindow}
             >
-              <option value={0}>0</option>
-              <option value={DEFAULT_CHANGE_CONTEXT_LINES}>{DEFAULT_CHANGE_CONTEXT_LINES}</option>
-              <option value={MAX_CHANGE_CONTEXT_LINES}>{MAX_CHANGE_CONTEXT_LINES}</option>
-            </select>
-          </label>
-        </div>
-        <div className="change-review-diff">
-          {diff.hunks.map((hunk, index) => (
-            <HunkView
-              key={`${hunk.header}:${index}`}
-              hunk={hunk}
-              previous={index === 0 ? undefined : diff.hunks[index - 1]}
-              language={diff.language}
-              search={search}
-              showWhitespace={showWhitespace}
-            />
-          ))}
-        </div>
+              <Maximize2Icon className="size-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </header>
+        <DiffToolbar
+          search={search}
+          onSearchChange={onSearchChange}
+          showWhitespace={showWhitespace}
+          onToggleWhitespace={onToggleWhitespace}
+          contextLines={contextLines}
+          onContextLinesChange={onContextLinesChange}
+        />
+        <DiffHunks
+          diff={diff}
+          search={search}
+          showWhitespace={showWhitespace}
+          onRequestFileLines={onRequestFileLines}
+        />
         {diff.truncated ? <p className="px-3 py-2 text-xs text-muted-foreground">Diff truncated.</p> : null}
       </article>
     </div>
   );
 }
 
-function HunkView({
-  hunk,
-  previous,
-  language,
+export function DiffToolbar({
   search,
+  onSearchChange,
   showWhitespace,
+  onToggleWhitespace,
+  contextLines,
+  onContextLinesChange,
 }: {
-  hunk: ChangeDiffHunk;
-  previous: ChangeDiffHunk | undefined;
-  language?: string;
   search: string;
+  onSearchChange: (value: string) => void;
   showWhitespace: boolean;
+  onToggleWhitespace: () => void;
+  contextLines: number;
+  onContextLinesChange?: (value: number) => void;
 }) {
-  const skipped = unmodifiedCountBeforeHunk(hunk.header, previous);
   return (
-    <div className="change-review-hunk">
-      {skipped === null ? <div className="change-review-hunk-gap">{hunk.header}</div> : null}
-      {skipped !== null && skipped > 0 ? (
-        <div className="change-review-hunk-gap">
-          <span className="change-review-hunk-pill">{unmodifiedLabel(skipped)}</span>
-        </div>
-      ) : null}
-      {hunk.lines.map((line, lineIndex) => {
-        const number = unifiedLineNumber(line);
-        return (
-          <div
-            key={`${line.kind}:${line.beforeLine ?? ""}:${line.afterLine ?? ""}:${lineIndex}`}
-            className="change-review-diff-line"
-            data-kind={line.kind}
-          >
-            <span className="change-review-diff-gutter">{number ?? ""}</span>
-            <span className="change-review-diff-marker">{diffPrefix(line.kind)}</span>
-            <span className="change-review-diff-text">
-              <DiffLineText line={line} language={language} search={search} showWhitespace={showWhitespace} />
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const MAX_HIGHLIGHT_LINE_CHARS = 512;
-
-function DiffLineText({
-  line,
-  language,
-  search,
-  showWhitespace,
-}: {
-  line: ChangeDiffLine;
-  language?: string;
-  search: string;
-  showWhitespace: boolean;
-}) {
-  const { appearance, palette } = useDocumentAppearance();
-  const theme = preferredShikiTheme(appearance === "dark", palette);
-  const [tokens, setTokens] = useState<{ content: string; color?: string }[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!language || language === "text" || line.text.length > MAX_HIGHLIGHT_LINE_CHARS) {
-      setTokens(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-    void tokenizeCode(line.text, language, theme).then((next) => {
-      if (!cancelled) {
-        setTokens(next);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [language, line.text, theme]);
-
-  const pieces = tokens ?? [{ content: line.text }];
-  return (
-    <>
-      {pieces.map((token, index) => (
-        <ColoredText
-          key={`${index}:${token.content.slice(0, 12)}`}
-          text={token.content}
-          color={token.color}
-          search={search}
-          showWhitespace={showWhitespace}
+    <div className="change-review-toolbar">
+      <label className="change-review-search">
+        <span className="sr-only">Search diff</span>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search"
+          data-testid="change-review-search"
+          className="change-review-search-input"
         />
-      ))}
-    </>
-  );
-}
-
-function ColoredText({
-  text,
-  color,
-  search,
-  showWhitespace,
-}: {
-  text: string;
-  color?: string;
-  search: string;
-  showWhitespace: boolean;
-}) {
-  return (
-    <>
-      {splitSearchPieces(text, search).map((piece, index) => (
-        <span
-          key={`${index}:${piece.hit ? "hit" : "text"}`}
-          className={piece.hit ? "change-review-search-hit" : undefined}
-          data-testid={piece.hit ? "change-review-search-hit" : undefined}
-          style={color ? { color } : undefined}
+      </label>
+      <Button
+        size="sm"
+        variant={showWhitespace ? "default" : "outline"}
+        data-testid="change-review-whitespace"
+        aria-pressed={showWhitespace}
+        onClick={onToggleWhitespace}
+      >
+        Whitespace
+      </Button>
+      <label className="change-review-context">
+        <span className="text-[11px] text-muted-foreground">Context</span>
+        <select
+          data-testid="change-review-context"
+          value={contextLines}
+          onChange={(event) => onContextLinesChange?.(Number(event.target.value))}
+          disabled={!onContextLinesChange}
+          className="change-review-context-select"
         >
-          {showWhitespace ? visibleWhitespace(piece.text) : piece.text}
-        </span>
-      ))}
-    </>
+          <option value={0}>0</option>
+          <option value={DEFAULT_CHANGE_CONTEXT_LINES}>{DEFAULT_CHANGE_CONTEXT_LINES}</option>
+          <option value={MAX_CHANGE_CONTEXT_LINES}>{MAX_CHANGE_CONTEXT_LINES}</option>
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -536,7 +446,7 @@ function handleFileListKey(
   }
 }
 
-function StatusBadge({
+export function StatusBadge({
   status,
   compact = false,
   testId,
@@ -606,7 +516,7 @@ const LIMITATION_LABELS: Record<NonNullable<FileChangeSummary["limitation"]>, st
 
 const statusLabel = (status: ReviewStatus): string => STATUS_LABELS[status];
 const statusTone = (status: ReviewStatus): string => STATUS_TONES[status];
-const limitationLabel = (limitation: NonNullable<FileChangeSummary["limitation"]>): string =>
+export const limitationLabel = (limitation: NonNullable<FileChangeSummary["limitation"]>): string =>
   LIMITATION_LABELS[limitation];
 
 export function firstSelectablePath(review: ChangeReviewSetSnapshot | null): string | null {

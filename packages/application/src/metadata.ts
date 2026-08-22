@@ -4,9 +4,13 @@ import {
   clampUiFontSize,
   coerceAppearance,
   DEFAULT_CHAT_FONT_SIZE,
+  DEFAULT_CODE_FONT_FAMILY,
+  DEFAULT_FONT_SMOOTHING,
   DEFAULT_GLASS_ENABLED,
   DEFAULT_GLASS_STRENGTH,
+  DEFAULT_UI_FONT_FAMILY,
   DEFAULT_UI_FONT_SIZE,
+  sanitizeFontFamilyName,
   isAppearanceMode,
   isAppearancePalette,
   isChatFontSize,
@@ -48,6 +52,9 @@ export interface AppMetadata {
   glassStrength: number;
   uiFontSize: number;
   chatFontSize: number;
+  uiFontFamily: string;
+  codeFontFamily: string;
+  fontSmoothing: boolean;
   trustedPermissionWorkspaceIds: string[];
   sessionLifecycle: SessionLifecycleRecord[];
   enabledSkillSources: string[];
@@ -73,6 +80,9 @@ export function emptyMetadata(): AppMetadata {
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     chatFontSize: DEFAULT_CHAT_FONT_SIZE,
+    uiFontFamily: DEFAULT_UI_FONT_FAMILY,
+    codeFontFamily: DEFAULT_CODE_FONT_FAMILY,
+    fontSmoothing: DEFAULT_FONT_SMOOTHING,
     trustedPermissionWorkspaceIds: [],
     sessionLifecycle: [],
     enabledSkillSources: [],
@@ -144,6 +154,9 @@ export function setAppearance(
     glassStrength?: number;
     uiFontSize?: number;
     chatFontSize?: number;
+    uiFontFamily?: string;
+    codeFontFamily?: string;
+    fontSmoothing?: boolean;
   },
 ): AppMetadata {
   const coerced = coerceAppearance({
@@ -159,6 +172,9 @@ export function setAppearance(
     glassStrength: patch.glassStrength ?? metadata.glassStrength,
     uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
     chatFontSize: patch.chatFontSize ?? metadata.chatFontSize,
+    uiFontFamily: patch.uiFontFamily ?? metadata.uiFontFamily,
+    codeFontFamily: patch.codeFontFamily ?? metadata.codeFontFamily,
+    fontSmoothing: patch.fontSmoothing ?? metadata.fontSmoothing,
   };
 }
 
@@ -208,6 +224,9 @@ export function parseMetadata(value: unknown): AppMetadata {
       : typeof candidate.chatFontSize === "number"
         ? clampChatFontSize(candidate.chatFontSize)
         : DEFAULT_CHAT_FONT_SIZE,
+    uiFontFamily: sanitizeFontFamilyName(candidate.uiFontFamily) ?? DEFAULT_UI_FONT_FAMILY,
+    codeFontFamily: sanitizeFontFamilyName(candidate.codeFontFamily) ?? DEFAULT_CODE_FONT_FAMILY,
+    fontSmoothing: typeof candidate.fontSmoothing === "boolean" ? candidate.fontSmoothing : DEFAULT_FONT_SMOOTHING,
     trustedPermissionWorkspaceIds: Array.isArray(candidate.trustedPermissionWorkspaceIds)
       ? [...new Set(candidate.trustedPermissionWorkspaceIds.filter((entry): entry is string => typeof entry === "string"))]
       : [],

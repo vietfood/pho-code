@@ -632,7 +632,7 @@ export function Composer({
             )}
           </ComposerPickerMenu>
         ) : null}
-        <div className={cn("chat-composer-host", hero ? "px-3.5 py-3" : "px-3 py-2.5")}>
+        <div className={cn("chat-composer-host", hero ? "px-4 py-3" : "px-4 py-2.5")}>
           <div className="relative z-10 flex flex-col">
             {images.length > 0 ? (
               <div className="composer-image-row" data-testid="composer-images">

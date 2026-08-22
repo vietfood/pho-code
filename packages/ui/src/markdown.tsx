@@ -131,7 +131,7 @@ export const ConservativeMarkdown = memo(function ConservativeMarkdown({
   }
 
   return (
-    <div className={cn("chat-markdown w-full min-w-0 text-sm leading-relaxed text-foreground/80", className)} data-testid="markdown">
+    <div className={cn("chat-markdown w-full min-w-0 text-foreground", className)} data-testid="markdown">
       <ReactMarkdown
         remarkPlugins={useMath ? mathRemarkPlugins : gfmRemarkPlugins}
         rehypePlugins={useMath ? mathRehypePlugins : gfmRehypePlugins}
