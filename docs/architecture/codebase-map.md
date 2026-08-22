@@ -41,8 +41,8 @@ The three `@pho-agent/*` packages are versioned together by the pinned `packages
 
 ## Agent packages (V5 M0, implemented but not accepted)
 
-- `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Plan/Agent, skill, and GitHub MCP contracts. Matching files in `packages/protocol/src` are compatibility re-exports.
-- `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, and the fixed reviewed GitHub MCP lifecycle. It does not import Electron, React, or `@pho-code/*`.
+- `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Plan/Agent, skill, session-title, and GitHub MCP contracts. Matching files in `packages/protocol/src` are compatibility re-exports.
+- `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, the fixed reviewed GitHub MCP lifecycle, and tool-less session-title generation. It does not import Electron, React, or `@pho-code/*`.
 - `packages/pho-agent/packages/evals/src` owns append-only scenario/result records, source fingerprints, deterministic scoring, and cohort separation for harness evaluation.
 
 Pho Code still owns application identity, renderer contracts, metadata/settings policy, desktop adapters, resources/packaging, product-specific retrieval/web/sandbox/change review, and its wide `HarnessRuntime` facade.
@@ -54,6 +54,7 @@ Pho Code still owns application identity, renderer contracts, metadata/settings 
 - `version.ts`, `bridge.ts`, `command-result.ts`, `errors.ts`, `json.ts` — versioned facade, result envelope, normalized failures, JSON-safety.
 - `events.ts`, `conversation.ts`, `bootstrap.ts` — runtime envelopes, transcript/run projections, bootstrap snapshot and reducers.
 - `workspace.ts`, `session-lifecycle.ts` — composite identity, catalog, archive/restore/removal, recent projects.
+- `session-title.ts` (via `@pho-agent/protocol`) — short catalog titles from Pi `sessionName` or a sanitized first prompt.
 - `settings.ts`, `sandbox.ts`, `credentials.ts`, `github-mcp.ts`, `skills.ts` — typed settings and redacted account/skill/MCP/sandbox projections.
 - `attachments.ts`, `at-mention.ts`, `retrieval.ts`, `web.ts`, `http-url.ts` — bounded input/retrieval/network contracts.
 - `context-prompt.ts` — per-session prompt composition and active-tool selection.
@@ -82,7 +83,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `harness-runtime.ts` defines the privileged runtime interface.
 - `pi-runtime.ts` composes Pi services and public runtime operations, including the accepted bounded abort/controller-disposal path.
 - `session-registry.ts` adapts Pho Code `{workspaceId, sessionId}` identity to the bounded independent registry owned by `@pho-agent/runtime/session-registry`: eight resident controllers and four concurrent runs.
-- `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth.
+- `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth. Session catalog titles go through `sessionCatalogCopy` and may later persist a model summary with Pi `setSessionName`.
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.
 - `context-prompt.ts` and `assistant-rewrite.ts` own product compilation and display overlays; `context-prompt-feature.ts` re-exports the reusable Pi hook from `@pho-agent/runtime/context-prompt-feature`. Context-prompt injection looks up compiled A from the live session on `before_agent_start`; the factory does not capture a bind-time session key.
 

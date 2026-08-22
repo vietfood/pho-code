@@ -17,6 +17,7 @@ import {
   createInMemoryAgentSettings,
   createNewAgentSessionRuntime,
   createPiSessionRuntimeFactory,
+  generateSessionTitle,
   getAgentDir,
   listAgentSessions,
   openAgentSessionRuntime,
@@ -45,7 +46,9 @@ import {
   isExternalSkillSourceId,
   requireMatchingSessionKey,
   sandboxBashWasWrapped,
+  sessionCatalogCopy,
   sessionKeyId,
+  sessionTitleSeed,
   sessionActivityPhase,
   type AbortRunInput,
   type CancelProviderLoginInput,
@@ -137,7 +140,7 @@ import type {
 } from "./harness-runtime";
 import { validateSessionArtifact } from "./session-artifact";
 import { displayToolName } from "./tool-display";
-import { previewText, previewToolResult, previewUnknown } from "./preview";
+import { previewToolResult, previewUnknown } from "./preview";
 import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
@@ -209,7 +212,7 @@ import { createChangeCaptureService, type ChangeCaptureService } from "./change-
 import { createFileChangeLedgerStore } from "./change-ledger-store";
 import { createChangeReviewRuntime, type ChangeReviewRuntime } from "./change-review";
 import { createAtomicChangeRecoveryService } from "./change-recovery";
-import { firstUserPreview, projectMessages } from "./transcript";
+import { firstUserText, projectMessages } from "./transcript";
 import {
   applyRewriteOverlays,
   ASSISTANT_REWRITE_CUSTOM_TYPE,
@@ -299,6 +302,8 @@ interface LiveSession {
   unsubscribe?: Unsubscribe;
   extensionHost?: ExtensionHost;
   planTodos: PlanTodoItem[];
+  autoTitleAttempted?: boolean;
+  titleGeneration?: AbortController;
 }
 
 function liveSessionProtected(session: LiveSession): boolean {
@@ -696,6 +701,8 @@ export async function createPhoCodeRuntime(
       return;
     }
     session.disposing = true;
+    session.titleGeneration?.abort();
+    session.titleGeneration = undefined;
     session.extensionHost?.cancelPending();
     if (session.activeRun && !session.activeRun.settled) {
       session.activeRun.abortRequested = true;
@@ -977,13 +984,7 @@ export async function createPhoCodeRuntime(
     );
     const { usage, contextUsage } = projectSessionUsage(session);
     const snapshot: SessionSnapshot = {
-      session: {
-        id: session.sessionId,
-        workspaceId: workspace.id,
-        title: session.sessionName?.trim() || firstUserPreview(session.messages) || "New session",
-        updatedAt: new Date().toISOString(),
-        ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
-      },
+      session: liveSessionSummary(workspace.id, session),
       workspace,
       messages: projectSessionMessages(session),
       run: activeRun && !activeRun.settled ? { ...run, status: "streaming" } : idleRunState(),
@@ -1033,13 +1034,7 @@ export async function createPhoCodeRuntime(
         continue;
       }
       const session = live.runtime.session;
-      merged = mergeActiveSession(merged, {
-        id: session.sessionId,
-        workspaceId,
-        title: session.sessionName?.trim() || firstUserPreview(session.messages) || "New session",
-        updatedAt: new Date().toISOString(),
-        ...(firstUserPreview(session.messages) ? { preview: firstUserPreview(session.messages) } : {}),
-      });
+      merged = mergeActiveSession(merged, liveSessionSummary(workspaceId, session));
     }
     return merged;
   }
@@ -1309,9 +1304,55 @@ export async function createPhoCodeRuntime(
         });
         return;
       }
+      case "session_info_changed": {
+        emitFor(live, {
+          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+          sessionId,
+          payload: await buildSnapshot({ refreshCatalog: false, live }),
+        });
+        emitActivity();
+        return;
+      }
       default:
         return;
     }
+  }
+
+  function maybeStartSessionTitle(live: LiveSession): void {
+    if (options.deterministicTestModel || live.autoTitleAttempted || live.disposing) {
+      return;
+    }
+    if (live.runtime.session.sessionName?.trim()) {
+      return;
+    }
+    const seed = sessionTitleSeed(firstUserText(live.runtime.session.messages) ?? "");
+    if (!seed) {
+      return;
+    }
+    live.autoTitleAttempted = true;
+    const controller = new AbortController();
+    live.titleGeneration = controller;
+    void generateSessionTitle(live.runtime.session, seed, { signal: controller.signal })
+      .then(async (title) => {
+        if (!title || live.disposing || live.runtime.session.sessionName?.trim()) {
+          return;
+        }
+        live.runtime.session.setSessionName(title);
+        emitFor(live, {
+          type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+          sessionId: live.key.sessionId,
+          payload: await buildSnapshot({ refreshCatalog: false, live }),
+        });
+        emitActivity();
+      })
+      .catch((error) => {
+        console.error("Session title generation failed:", error);
+      })
+      .finally(() => {
+        if (live.titleGeneration === controller) {
+          live.titleGeneration = undefined;
+        }
+      });
   }
 
   async function finishRun(live: LiveSession, run: ActiveRun, error?: unknown): Promise<void> {
@@ -1362,6 +1403,7 @@ export async function createPhoCodeRuntime(
         payload: snapshot,
       });
       emitActivity();
+      maybeStartSessionTitle(live);
       return;
     }
 
@@ -1396,6 +1438,7 @@ export async function createPhoCodeRuntime(
       payload: snapshot,
     });
     emitActivity();
+    maybeStartSessionTitle(live);
   }
 
   const createRuntime = createPiSessionRuntimeFactory({
@@ -2476,14 +2519,25 @@ function mergeActiveSession(
   return [active, ...sessions];
 }
 
+function liveSessionSummary(workspaceId: string, session: AgentSession): SessionSummary {
+  const catalog = sessionCatalogCopy(session.sessionName, firstUserText(session.messages));
+  return {
+    id: session.sessionId,
+    workspaceId,
+    title: catalog.title,
+    updatedAt: new Date().toISOString(),
+    ...(catalog.preview ? { preview: catalog.preview } : {}),
+  };
+}
+
 function sessionSummaryFromInfo(workspaceId: string, info: SessionInfo): SessionSummary {
-  const preview = info.firstMessage.trim();
+  const catalog = sessionCatalogCopy(info.name, info.firstMessage);
   return {
     id: info.id,
     workspaceId,
-    title: info.name?.trim() || previewText(preview) || "New session",
+    title: catalog.title,
     updatedAt: info.modified.toISOString(),
-    ...(preview ? { preview: previewText(preview) } : {}),
+    ...(catalog.preview ? { preview: catalog.preview } : {}),
   };
 }
 

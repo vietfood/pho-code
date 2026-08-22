@@ -1,6 +1,11 @@
 import type { AgentSession } from "@pho-agent/runtime/feature-api";
-import { isImageMimeType, type TranscriptBlock, type TranscriptMessage } from "@pho-code/protocol";
-import { previewText, previewToolResult, previewUnknown } from "./preview";
+import {
+  isImageMimeType,
+  sessionPromptPreview,
+  type TranscriptBlock,
+  type TranscriptMessage,
+} from "@pho-code/protocol";
+import { previewToolResult, previewUnknown } from "./preview";
 import { displayToolName } from "./tool-display";
 import { isHiddenPlanExecutePrompt } from "./plan-agent-state";
 import { stripWorkspaceReferenceAppendix } from "./workspace-reference";
@@ -191,14 +196,35 @@ export function firstUserPreview(messages: readonly SessionMessage[]): string | 
     if (message.role !== "user") {
       continue;
     }
-    const raw = userText(message.content).trim();
-    if (isHiddenPlanExecutePrompt(raw)) {
+    const raw = firstUserTextFromContent(message.content);
+    if (!raw) {
       continue;
     }
-    const text = previewText(raw);
-    if (text.length > 0) {
+    const text = sessionPromptPreview(raw);
+    if (text) {
       return text;
     }
   }
   return undefined;
+}
+
+export function firstUserText(messages: readonly SessionMessage[]): string | undefined {
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    const raw = firstUserTextFromContent(message.content);
+    if (raw) {
+      return raw;
+    }
+  }
+  return undefined;
+}
+
+function firstUserTextFromContent(content: string | Array<{ type: string; text?: string }>): string | undefined {
+  const raw = userText(content).trim();
+  if (isHiddenPlanExecutePrompt(raw) || raw.length === 0) {
+    return undefined;
+  }
+  return raw;
 }

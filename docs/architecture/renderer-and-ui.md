@@ -49,12 +49,13 @@ Window-first lifecycle does not use this sequenced event path. `App.tsx` first l
 The conversation is primary:
 
 - project/session sidebar and welcome launcher;
+- session titles as a short summary (Pi session name or a humanized first-prompt fallback; expanded skill bodies never become the title);
 - transcript with user/assistant turns;
 - collapsed work log for thinking, tools, and pre-tool narration;
 - anchored or empty-session composer;
 - model/thinking/usage controls and prepared images;
 - permission/host interaction docks (Allow once, Allow for this session, No with optional reason);
-- static working and bounded error states.
+- live Working/Thinking shimmer labels and bounded error states.
 
 Live text uses conservative sanitized GFM. Expensive rich rendering waits until settle:
 
