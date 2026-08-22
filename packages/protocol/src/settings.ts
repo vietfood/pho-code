@@ -42,6 +42,12 @@ export const MAX_GLASS_STRENGTH = 100;
 export const DEFAULT_GLASS_STRENGTH = 55;
 export const DEFAULT_GLASS_ENABLED = false;
 
+/** Empty string means the platform default stack. */
+export const DEFAULT_UI_FONT_FAMILY = "";
+export const DEFAULT_CODE_FONT_FAMILY = "";
+export const DEFAULT_FONT_SMOOTHING = true;
+export const MAX_FONT_FAMILY_CHARS = 80;
+
 export interface AppearanceSettings {
   palette: AppearancePalette;
   mode: AppearanceMode;
@@ -50,6 +56,9 @@ export interface AppearanceSettings {
   glassStrength: number;
   uiFontSize: number;
   chatFontSize: number;
+  uiFontFamily: string;
+  codeFontFamily: string;
+  fontSmoothing: boolean;
 }
 
 export interface PermissionSettings {
@@ -78,6 +87,9 @@ export interface UpdateAppearanceSettingsInput {
   glassStrength?: number;
   uiFontSize?: number;
   chatFontSize?: number;
+  uiFontFamily?: string;
+  codeFontFamily?: string;
+  fontSmoothing?: boolean;
 }
 
 export interface UpdatePermissionSettingsInput {
@@ -145,6 +157,51 @@ export function clampChatFontSize(value: number): number {
 
 export function clampGlassStrength(value: number): number {
   return clampInteger(value, MIN_GLASS_STRENGTH, MAX_GLASS_STRENGTH, DEFAULT_GLASS_STRENGTH);
+}
+
+const FONT_FAMILY_FORBIDDEN = /url\s*\(|[;{}<>"'`\\]|,/i;
+
+/**
+ * One installed family name, or empty for the system stack.
+ * Rejects CSS/HTML injection; does not accept a font-family list.
+ */
+export function sanitizeFontFamilyName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  if (trimmed.length > MAX_FONT_FAMILY_CHARS) {
+    return null;
+  }
+  if (/[\n\r\t]/.test(trimmed) || FONT_FAMILY_FORBIDDEN.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function isFontFamilyName(value: unknown): value is string {
+  return sanitizeFontFamilyName(value) !== null;
+}
+
+/** Quote a sanitized family for CSS `font-family` when it is not a CSS ident. */
+export function cssQuotedFontFamily(name: string): string {
+  const sanitized = sanitizeFontFamilyName(name);
+  if (!sanitized) {
+    return "";
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9-]*$/.test(sanitized)) {
+    return sanitized;
+  }
+  return `"${sanitized}"`;
+}
+
+/** Custom family before a default stack, or null when the default should stand. */
+export function appearanceFontStack(custom: string, defaultStack: string): string | null {
+  const quoted = cssQuotedFontFamily(custom);
+  return quoted.length === 0 ? null : `${quoted}, ${defaultStack}`;
 }
 
 export function paletteSupportsMode(palette: AppearancePalette, mode: AppearanceMode): boolean {
@@ -243,6 +300,9 @@ export function emptyAppearanceSettings(): AppearanceSettings {
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
     chatFontSize: DEFAULT_CHAT_FONT_SIZE,
+    uiFontFamily: DEFAULT_UI_FONT_FAMILY,
+    codeFontFamily: DEFAULT_CODE_FONT_FAMILY,
+    fontSmoothing: DEFAULT_FONT_SMOOTHING,
   };
 }
 

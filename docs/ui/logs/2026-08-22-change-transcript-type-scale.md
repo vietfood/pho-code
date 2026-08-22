@@ -5,7 +5,7 @@ Status: in source
 Surface: chat transcript / markdown
 Owner: conversation UI track
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
-Related logs: [`2026-08-22-change-inline-code-chips.md`](./2026-08-22-change-inline-code-chips.md)
+Related logs: [`2026-08-22-change-inline-code-chips.md`](./2026-08-22-change-inline-code-chips.md), [`2026-08-22-change-appearance-installed-fonts.md`](./2026-08-22-change-appearance-installed-fonts.md)
 
 ## Intent
 

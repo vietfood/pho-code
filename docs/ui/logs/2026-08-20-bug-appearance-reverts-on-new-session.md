@@ -5,7 +5,7 @@ Status: implemented
 Surface: appearance settings / conversation cache  
 Owner: ui/conversation chrome  
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)  
-Related logs: [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md)
+Related logs: [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md), [`2026-08-22-change-appearance-installed-fonts.md`](./2026-08-22-change-appearance-installed-fonts.md)
 
 ## Intended change
 

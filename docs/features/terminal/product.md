@@ -44,7 +44,7 @@ These were open in the research note. They are now the product contract:
 | Hide vs kill | **Collapse, surface switch, and chat switch do not SIGTERM.** Restart and Close in the terminal chrome do. Removing a project or quitting disposes that workspace’s PTY. |
 | Keep-alive | **Keep the ghostty-web instance mounted and hidden** when switching to Changes or Context prompt. If the whole right sidebar unmounts, restore from the host replay buffer on next open. |
 | Shell binary | **Allowlisted login shell only.** `SHELL` when it is an absolute allowlisted path; otherwise `/bin/zsh` then `/bin/bash` on macOS. No Settings field for an arbitrary executable. |
-| Font | **No new Settings control.** Map the existing appearance chat font size into ghostty-web, clamped to 11–18px, with a monospace stack from theme tokens (`ui-monospace`, SF Mono, Menlo, monospace). Palette colors map from CSS variables. |
+| Font | **No new Terminal Settings control.** Map the existing appearance chat font size into ghostty-web, clamped to 11–18px, and the `--font-mono` theme token (owner-selected code family, else `ui-monospace`, SF Mono, Menlo, monospace). Palette colors map from CSS variables. |
 | Shortcut | **Deferred.** First release is the rail icon. A later chrome pass may add a toggle. |
 | Agent attach | **Out of scope.** Do not pipe Pi `bash` or tool output into this PTY. |
 | Scrollback persistence | **Memory only.** No disk log, no Pi JSONL, no change-ledger entries. |

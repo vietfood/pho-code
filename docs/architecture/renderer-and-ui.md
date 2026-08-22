@@ -105,7 +105,7 @@ FileDiff and a write/edit tool card expand the rail onto Changes. Re-click or âŒ
 
 The floating Settings UI renders typed protocol snapshots:
 
-- Appearance;
+- Appearance (palette, mode, glass, UI/chat sizes, installed UI and code font families, font smoothing);
 - Accounts/provider login;
 - GitHub MCP;
 - Skills and source trust;
@@ -113,7 +113,7 @@ The floating Settings UI renders typed protocol snapshots:
 - Permissions;
 - Sandbox (accepted agent-tool sandbox add-on; default on â€” see [`../archive/features/sandbox`](../archive/features/sandbox/README.md)).
 
-Settings never renders a generic schema, path picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
+Settings never renders a generic schema, path picker, font-file picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
 
 ## Accessibility and performance
 

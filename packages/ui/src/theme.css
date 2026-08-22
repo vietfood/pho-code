@@ -97,11 +97,20 @@
     color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 0.875rem;
-    /* Electron inherits Chromium's subpixel default, which thickens SF Pro on
-       the light palette and muddies the 15px transcript. Match the reference. */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    /* Smoothing is applied from appearance settings so the toggle can restore
+       native macOS stem darkening. Electron still inherits Chromium's subpixel
+       default when smoothing is off. */
     text-rendering: optimizeLegibility;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp,
+  .font-mono,
+  .assistant-rewrite-editor,
+  .change-review-diff {
+    font-variant-ligatures: none;
   }
 }
 
@@ -570,7 +579,7 @@ html[data-appearance="dark"] .approval-card {
   max-height: 6.5rem;
   overflow: auto;
   color: var(--muted-foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -727,7 +736,7 @@ html[data-appearance="dark"] .approval-card {
   border-radius: 0.3rem;
   padding: 0.05rem 0.35rem;
   color: var(--muted-foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
 }
 

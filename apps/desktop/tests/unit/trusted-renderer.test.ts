@@ -99,8 +99,9 @@ describe("security policy", () => {
     expect(isSafeExternalUrl("https://user:pass@example.com/")).toBe(false);
   });
 
-  test("allows only clipboard-sanitized-write among Chromium permissions", () => {
+  test("allows clipboard-sanitized-write and local-fonts among Chromium permissions", () => {
     expect(isAllowedWebPermission("clipboard-sanitized-write")).toBe(true);
+    expect(isAllowedWebPermission("local-fonts")).toBe(true);
     expect(isAllowedWebPermission("clipboard-read")).toBe(false);
     expect(isAllowedWebPermission("media")).toBe(false);
     expect(isAllowedWebPermission("geolocation")).toBe(false);

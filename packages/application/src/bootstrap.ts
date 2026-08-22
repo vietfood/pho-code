@@ -17,6 +17,7 @@ import {
   planDocumentTooLarge,
   isUiFontSize,
   isWorkEntryIconPack,
+  sanitizeFontFamilyName,
   isWorkspaceReferenceToken,
   isSessionCatalogScope,
   isSessionKey,
@@ -845,11 +846,24 @@ export function createApplicationService(input: {
           (patch as Record<string, unknown>)[field] = value;
         }
       }
-      if (command.glassEnabled !== undefined) {
-        if (typeof command.glassEnabled !== "boolean") {
-          failCommand("updateAppearanceSettings", "glassEnabled must be a boolean.");
+      for (const field of ["glassEnabled", "fontSmoothing"] as const) {
+        const value = command[field];
+        if (value !== undefined) {
+          if (typeof value !== "boolean") {
+            failCommand("updateAppearanceSettings", `${field} must be a boolean.`);
+          }
+          patch[field] = value;
         }
-        patch.glassEnabled = command.glassEnabled;
+      }
+      for (const field of ["uiFontFamily", "codeFontFamily"] as const) {
+        const value = command[field];
+        if (value !== undefined) {
+          const family = sanitizeFontFamilyName(value);
+          if (family === null) {
+            failCommand("updateAppearanceSettings", `${field} must be a single installed family name.`);
+          }
+          patch[field] = family;
+        }
       }
       if (Object.keys(patch).length === 0) {
         failCommand("updateAppearanceSettings", "No appearance settings were provided.");
@@ -1234,6 +1248,9 @@ export function createApplicationService(input: {
       glassStrength: current.glassStrength,
       uiFontSize: current.uiFontSize,
       chatFontSize: current.chatFontSize,
+      uiFontFamily: current.uiFontFamily,
+      codeFontFamily: current.codeFontFamily,
+      fontSmoothing: current.fontSmoothing,
     };
   }
 

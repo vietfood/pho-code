@@ -470,8 +470,8 @@ function configureSession(): void {
     });
   });
 
-  // Default-deny Chromium permissions. Allow only clipboard write so copy
-  // buttons can use navigator.clipboard.writeText in the sandboxed renderer.
+  // Default-deny Chromium permissions. Allow clipboard write for copy buttons
+  // and local-fonts so Appearance can list installed families.
   session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
     callback(isAllowedWebPermission(permission));
   });

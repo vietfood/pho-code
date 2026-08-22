@@ -294,7 +294,7 @@ Covered by `packages/runtime/test/permission-settings.test.ts`, `packages/applic
 
 1. Guarded/Balanced map to the reviewed policies; string catch-alls match a `*` map; Custom is preserved on unrelated YOLO changes;
 2. invalid/unrecognized existing permission config is refused; managed writes are atomic and keep unowned fields;
-3. application appearance (palette, mode, glass, UI font size, chat font size) persists independently of permission settings and migrates v1–v3 `theme` into Default palette + mode with glass defaults;
+3. application appearance (palette, mode, glass, UI font size, chat font size, installed UI/code font families, font smoothing) persists independently of permission settings and migrates v1–v3 `theme` into Default palette + mode with glass defaults;
 4. one Electron journey persists palette/mode/glass across relaunch, applies Guarded, and completes the next gated `USE_TOOL` call;
 5. typecheck, lint, unit/integration tests, and build pass.
 

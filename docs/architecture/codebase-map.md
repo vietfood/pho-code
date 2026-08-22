@@ -70,7 +70,7 @@ Pho Code still owns application identity, renderer contracts, metadata/settings 
 
 - `bootstrap.ts` implements `ApplicationService`, validates use-case identity/input, coordinates metadata and runtime, and maps errors.
 - `runtime-host.ts` owns the attach-once starting/ready/failed Pi connection, pre-attach event/config retention, and late-runtime disposal for window-first startup.
-- `metadata.ts` defines application metadata schema v6: recent-workspace order, selection, archive/view/outcome lifecycle, appearance, trusted projects, skill sources, and GitHub MCP enabled state.
+- `metadata.ts` defines application metadata schema v6: recent-workspace order, selection, archive/view/outcome lifecycle, appearance (including installed UI/code font families and font smoothing), trusted projects, skill sources, and GitHub MCP enabled state.
 - `session-catalog.ts` joins Pi session truth with application archive/attention state.
 - `index.ts` exports the application boundary.
 
@@ -158,7 +158,7 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
 - settings/accounts/skills/GitHub/archive/trust/sandbox dialogs;
 - right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `change-review-window.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
-- design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/`.
+- design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/` (`appearance-fonts.ts` applies size, installed family, and smoothing tokens).
 
 UI imports React and protocol only. It renders remote/tool/model content as untrusted data.
 
