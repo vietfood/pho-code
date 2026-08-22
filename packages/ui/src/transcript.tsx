@@ -27,6 +27,7 @@ import {
   workedForLabel,
 } from "./lib/work-log";
 import { isNearBottom } from "./lib/stick-to-bottom";
+import { splitMarkdownStreamTail } from "./lib/stream-text";
 import { ConservativeMarkdown } from "./markdown";
 import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
@@ -189,8 +190,7 @@ function LiveRunTail({
       ) : null}
       {run.streamingText ? (
         <article className="streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5" data-testid="streaming-text">
-          <ConservativeMarkdown text={run.streamingText} streaming />
-          {running ? <span className="streaming-caret" aria-hidden="true" /> : null}
+          <StreamingMarkdown text={run.streamingText} running={running} />
         </article>
       ) : null}
       {running && !run.streamingText && liveWorkCounts.steps === 0 ? (
@@ -227,6 +227,21 @@ function useStickScroll(
 
 function liveWorkKey(entry: RunWorkEntry, index: number): string {
   return entry.type === "thinking" ? `thinking:${index}` : `tool:${entry.callId}`;
+}
+
+function StreamingMarkdown({ text, running }: { text: string; running: boolean }) {
+  const { head, tail } = running ? splitMarkdownStreamTail(text) : { head: text, tail: "" };
+  return (
+    <>
+      {head ? <ConservativeMarkdown text={head} streaming /> : null}
+      {tail ? (
+        <span className="stream-tail" data-testid="stream-tail">
+          {tail}
+        </span>
+      ) : null}
+      {running ? <span className="stream-caret is-streaming" aria-hidden="true" /> : null}
+    </>
+  );
 }
 
 function WorkEntryView({

@@ -5,7 +5,7 @@ Status: in source
 Surface: live Working/Thinking labels; composer `@` mention and `/` skill menus
 Owner: conversation UI track
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
-Related logs: [`2026-08-22-change-composer-skill-chip-glyph.md`](./2026-08-22-change-composer-skill-chip-glyph.md), [`2026-08-21-change-composer-claude-code-layout.md`](./2026-08-21-change-composer-claude-code-layout.md), [`2026-08-22-feedback-composer-picker-overlap.md`](./2026-08-22-feedback-composer-picker-overlap.md)
+Related logs: [`2026-08-22-change-composer-skill-chip-glyph.md`](./2026-08-22-change-composer-skill-chip-glyph.md), [`2026-08-21-change-composer-claude-code-layout.md`](./2026-08-21-change-composer-claude-code-layout.md), [`2026-08-22-feedback-composer-picker-overlap.md`](./2026-08-22-feedback-composer-picker-overlap.md), [`2026-08-22-change-thinking-sparkle-stream-text.md`](./2026-08-22-change-thinking-sparkle-stream-text.md)
 
 ## Intent
 

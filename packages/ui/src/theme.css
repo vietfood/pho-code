@@ -2493,15 +2493,37 @@ html[data-glass="on"] .glass-field {
   contain: layout style;
 }
 
-.streaming-caret {
-  display: inline-block;
-  margin-left: 0.15rem;
-  color: var(--muted-foreground);
-  animation: streaming-blink 1.1s step-end infinite;
+/* Beautiful UI StreamText leading-edge blur + caret (MIT, Shane Levine). */
+.stream-tail {
+  filter: blur(1.6px);
+  -webkit-mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
+  mask-image: linear-gradient(to right, oklch(0 0 0) 20%, oklch(0 0 0 / 0.2));
 }
 
-.streaming-caret::before {
-  content: "▋";
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1.5px;
+  translate: 0 -0.5px;
+  border-radius: 1px;
+  background: var(--foreground);
+  vertical-align: text-bottom;
+  animation: caret-blink 1s step-end infinite;
+}
+
+.stream-caret.is-streaming {
+  animation: none;
+}
+
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 .thinking-block-body {
@@ -2735,12 +2757,6 @@ html[data-appearance="dark"] .app-menu {
   }
 }
 
-@keyframes streaming-blink {
-  50% {
-    opacity: 0;
-  }
-}
-
 /* Beautiful UI globals.css motion (MIT, Shane Levine). */
 @keyframes shimmer-text {
   from {
@@ -2775,10 +2791,6 @@ html[data-appearance="dark"] .app-menu {
   width: 1rem;
   height: 1rem;
   color: var(--muted-foreground);
-}
-
-.working-label-star.is-settled {
-  color: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
 }
 
 .working-shimmer {
@@ -3051,9 +3063,15 @@ html[data-appearance="dark"] .app-menu {
     backdrop-filter: none;
   }
 
-  .streaming-caret {
+  .stream-caret {
     animation: none;
     opacity: 1;
+  }
+
+  .stream-tail {
+    filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .empty-session-glow {

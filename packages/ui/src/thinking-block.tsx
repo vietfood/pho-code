@@ -3,6 +3,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { ConservativeMarkdown } from "./markdown";
 import { SparkleIcon } from "./sparkle-icon";
+import { StreamText } from "./stream-text";
 import { thoughtWorkEntryChip } from "./tool-presentation";
 import { WorkEntryIcon } from "./work-entry-icon";
 
@@ -56,7 +57,7 @@ export function ThinkingBlock({
       >
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground">
           {live ? (
-            <SparkleIcon className="working-label-star is-live block size-3.5" />
+            <SparkleIcon className="working-label-star block size-3.5" />
           ) : (
             <WorkEntryIcon name="bot" className="block size-3.5 shrink-0 stroke-[1.8] opacity-80" />
           )}
@@ -95,7 +96,7 @@ export function ThinkingBlock({
         >
           {live ? (
             <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-secondary-label">
-              {text}
+              <StreamText text={text} />
             </p>
           ) : (
             <ConservativeMarkdown

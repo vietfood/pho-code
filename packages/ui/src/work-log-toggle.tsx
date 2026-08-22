@@ -7,7 +7,8 @@ import { WorkingLabel } from "./working-label";
 // Codex-inspired single disclosure for an entire assistant turn.
 // Visual reference only (no Codex source). Collapses all thinking/tool steps at once.
 // Settled labels are activity summaries; live labels still use wall-clock “Working for …”.
-// Live chrome: Beautiful UI sparkle + shimmer-text (MIT, Shane Levine).
+// Live chrome: Beautiful UI shimmer-text on the Working label (MIT, Shane Levine).
+// The sparkle lives on the live Thinking row, not this turn summary.
 
 export function WorkLogToggle({
   label,

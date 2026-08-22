@@ -440,7 +440,7 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="agent-working"');
     expect(markup).toContain("Working");
     expect(markup).toContain("working-shimmer");
-    expect(markup).toContain('data-testid="working-star"');
+    expect(markup).not.toContain('data-testid="thinking-star"');
     expect(markup).not.toContain("loading-state-grid");
   });
 
@@ -458,7 +458,7 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="markdown"');
     expect(markup).toContain("<strong>");
     expect(markup).toContain("<code>");
-    expect(markup).toContain("streaming-caret");
+    expect(markup).toContain("stream-caret");
     expect(markup).not.toContain("katex");
   });
 });
