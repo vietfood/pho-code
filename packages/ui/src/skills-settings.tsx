@@ -11,6 +11,7 @@ import {
 import { Button } from "./ui/button";
 import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 import { SkillSourceIcon } from "./skill-source-icon";
+import { SettingsDisclosure } from "./settings-disclosure";
 
 const COMPATIBILITY_LABELS: Record<SkillCompatibility, string> = {
   compatible: "Compatible",
@@ -36,11 +37,9 @@ export function SkillsSettingsSection({
   return (
     <section className="grid gap-3" aria-labelledby="skills-heading" data-testid="skill-settings">
       <div className="flex items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <h2 id="skills-heading" className="text-sm font-medium">
-            Skills
-          </h2>
-          <p className="text-xs text-muted-foreground">{skills.trustNotice}</p>
+        <div className="flex items-center gap-1">
+          <h2 id="skills-heading" className="text-sm font-medium">Skills</h2>
+          <SettingsDisclosure label="About skill trust" text={skills.trustNotice} testId="skill-trust-disclosure" />
         </div>
         <Button size="sm" variant="outline" disabled={busy} data-testid="refresh-skills" onClick={onRefresh}>
           Refresh

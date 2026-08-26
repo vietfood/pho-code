@@ -43,6 +43,7 @@ export type RuntimeEventType = (typeof RUNTIME_EVENT_TYPES)[keyof typeof RUNTIME
 export interface RuntimeEventEnvelope<T = unknown> {
   protocolVersion: ProtocolVersion;
   sequence: number;
+  backendId?: string;
   sessionId?: string;
   workspaceId?: string;
   runId?: string;
@@ -290,6 +291,7 @@ function toolWorkEntry(tool: ToolActivity, existing?: TranscriptToolBlock): Tran
     type: "tool",
     callId: tool.callId,
     name: tool.name,
+    ...(tool.kind ?? existing?.kind ? { kind: tool.kind ?? existing?.kind } : {}),
     status: tool.status,
     // Empty end/update payloads must not wipe the command preview shown while running.
     inputPreview: existing ? tool.inputPreview || existing.inputPreview : tool.inputPreview,
@@ -454,6 +456,7 @@ function eventTargetsOtherSession(state: ConversationViewState, event: RuntimeEv
   const eventKey = eventSessionKey(event);
   if (eventKey) {
     return !sessionKeyEquals(eventKey, {
+      ...(state.snapshot.session.backendId ? { backendId: state.snapshot.session.backendId } : {}),
       workspaceId: state.snapshot.workspace.id,
       sessionId: state.snapshot.session.id,
     });
@@ -487,7 +490,11 @@ export function eventSessionKey(event: RuntimeEventEnvelope): SessionKey | undef
   if (!sessionId || !workspaceId) {
     return undefined;
   }
-  return { workspaceId, sessionId };
+  const backendId = event.backendId ??
+    (event.payload !== null && typeof event.payload === "object" && typeof (event.payload as { backendId?: unknown }).backendId === "string"
+      ? (event.payload as { backendId: string }).backendId
+      : undefined);
+  return { ...(backendId ? { backendId } : {}), workspaceId, sessionId };
 }
 
 /** Settings and auth flow belong to the process, never to the selected session. */
@@ -546,7 +553,7 @@ export function applyRuntimeEventToCache(
       selectedKey: cache.selectedKey === key ? null : cache.selectedKey,
       byKey: rest,
       activity: cache.activity.filter(
-        (entry) => !(entry.workspaceId === payload.workspaceId && entry.sessionId === payload.sessionId),
+        (entry) => !sessionKeyEquals(entry, payload),
       ),
     };
   }

@@ -41,7 +41,7 @@ describe("session lifecycle metadata", () => {
       selectedWorkspaceId: "/tmp/a",
       selectedSessionId: "s1",
     });
-    expect(migrated.version).toBe(6);
+    expect(migrated.version).toBe(7);
     expect(migrated.sessionLifecycle).toEqual([]);
     expect(migrated.palette).toBe("gruvbox");
     expect(migrated.mode).toBe("dark");

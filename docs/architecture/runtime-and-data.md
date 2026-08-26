@@ -29,6 +29,9 @@ The application coordinates use cases. Privileged runtime packages are the only 
 
 `packages/runtime` owns or adapts:
 
+- production session/run routing through the Pho Agent backend registry; Pi is the default registration and Codex is lazy/experimental while public `workspaceId` remains the product scope;
+- compatibility projection from backend-neutral snapshots into the existing Pho Code session snapshot, transcript row, live-work, activity, and catalog shapes;
+- backend-neutral interaction request/settlement routing into the existing host-dialog surface, with pending request ownership retained in privileged runtime state;
 - shared Pi model/settings/credential services where supported;
 - Pho Code composite identity over the shared bounded registry;
 - Pi session construction, subscription, replacement, prompt, queue, abort, and disposal;

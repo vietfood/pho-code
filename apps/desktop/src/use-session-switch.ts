@@ -12,6 +12,7 @@ import {
 import { getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey } from "@pho-code/ui";
 
 export type PendingSession = {
+  backendId?: string;
   workspaceId: string;
   sessionId: string | null;
 };
@@ -39,6 +40,7 @@ export function useSessionSwitch(options: {
     workspaceId: string,
     sessionId: string | null,
     action: () => Promise<SessionSnapshot>,
+    backendId?: string,
   ) => Promise<void>;
   clearSelectedSession: () => void;
   resetConversationChrome: () => void;
@@ -88,7 +90,11 @@ export function useSessionSwitch(options: {
 
   const putSnapshot = useCallback(
     (snapshot: SessionSnapshot, select: boolean): void => {
-      const key = sessionKeyId({ workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id });
+      const key = sessionKeyId({
+        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+        workspaceId: snapshot.workspace.id,
+        sessionId: snapshot.session.id,
+      });
       const run = mergeLiveRun(getLiveRunForKey(key), snapshot.run);
       const nextSnapshot = { ...snapshot, run };
       replaceLiveRun(run, { immediate: true, key });
@@ -153,32 +159,37 @@ export function useSessionSwitch(options: {
       workspaceId: string,
       sessionId: string | null,
       action: () => Promise<SessionSnapshot>,
+      backendId?: string,
     ): Promise<void> => {
       const currentKey = cacheRef.current.selectedKey;
       if (
         !sessionId &&
         pendingRef.current?.sessionId === null &&
+        (pendingRef.current.backendId ?? "pi") === (backendId ?? "pi") &&
         pendingRef.current.workspaceId === workspaceId
       ) {
         return;
       }
       if (sessionId) {
-        const nextKey = sessionKeyId({ workspaceId, sessionId });
+        const nextKey = sessionKeyId({ ...(backendId ? { backendId } : {}), workspaceId, sessionId });
         const pending = pendingRef.current;
         if (nextKey === currentKey && pending === null) {
           return;
         }
-        if (pending?.workspaceId === workspaceId && pending.sessionId === sessionId) {
+        if (pending?.workspaceId === workspaceId && pending.sessionId === sessionId &&
+          (pending.backendId ?? "pi") === (backendId ?? "pi")) {
           return;
         }
       }
       const gen = ++switchGen.current;
       saveComposer(currentKey);
-      setPendingSession({ workspaceId, sessionId });
+      setPendingSession({ ...(backendId ? { backendId } : {}), workspaceId, sessionId });
       setError(null);
       setSettingsOpen(false);
 
-      const nextKey = sessionId ? sessionKeyId({ workspaceId, sessionId }) : null;
+      const nextKey = sessionId
+        ? sessionKeyId({ ...(backendId ? { backendId } : {}), workspaceId, sessionId })
+        : null;
       const cached = nextKey ? cacheRef.current.byKey[nextKey] : undefined;
       const hadCache = Boolean(cached?.snapshot);
 
@@ -217,7 +228,11 @@ export function useSessionSwitch(options: {
           return;
         }
         if (!hadCache) {
-          restoreComposer(sessionKeyId({ workspaceId: opened.workspace.id, sessionId: opened.session.id }));
+          restoreComposer(sessionKeyId({
+            ...(opened.session.backendId ? { backendId: opened.session.backendId } : {}),
+            workspaceId: opened.workspace.id,
+            sessionId: opened.session.id,
+          }));
         }
         setPendingSession(null);
       } catch (cause) {

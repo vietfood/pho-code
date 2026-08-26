@@ -85,6 +85,16 @@ describe("session keys", () => {
     expect(sessionKeyId(key("/tmp/a", "s1"))).not.toBe(sessionKeyId(key("/tmp/a/s1", "")));
   });
 
+  test("defaults legacy ownership to Pi and separates identical backend-native session ids", () => {
+    const legacy = key("/tmp/a", "s1");
+    const pi = { ...legacy, backendId: "pi" };
+    const codex = { ...legacy, backendId: "codex" };
+    expect(sessionKeyEquals(legacy, pi)).toBe(true);
+    expect(sessionKeyEquals(pi, codex)).toBe(false);
+    expect(sessionKeyId(legacy)).toBe(sessionKeyId(pi));
+    expect(parseSessionKeyId(sessionKeyId(codex))).toEqual(codex);
+  });
+
   test("rejects mismatched workspace or session commands", () => {
     const expected = key("/tmp/a", "s1");
     expect(() => requireMatchingSessionKey(expected, { sessionId: "s1" }, "sendPrompt")).toThrow(

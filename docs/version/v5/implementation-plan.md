@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20. Milestone 0 implementation and required automated verification, including `package:mac` and `test:packaged`, are complete. Real-provider baseline remains not owner-verified. M0 is not formally accepted and M1 has not started. Planned later-milestone commands, tools, events, state, and UI described here do not exist until the owning milestone lands and its dated log records verification.
+Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20; revised by owner direction 2026-08-26. The earlier Pi-only Milestone 0 implementation and automated evidence remain historical evidence, but M0 acceptance is reopened. The backend-neutral foundation below now precedes the planned Task Brief, evidence, verification, and completion milestones. Planned commands, adapters, state, and UI do not exist until their owning slice lands and a dated log records verification.
 
 Read before implementation:
 
@@ -16,11 +16,63 @@ Read before implementation:
 
 This plan is read-mostly. Each bounded implementation slice gets a new file under [`logs/`](./logs/README.md). Do not put PASS counts or evolving implementation journals here.
 
+## 2026-08-27 backend-neutral direction
+
+Pho Agent is the reusable host, not a synonym for the Pi runtime. Common code must not depend on Pi, Codex app-server, or ACP types. Each adapter owns translation between its backend and the JSON-safe Pho Agent protocol.
+
+The first hard compatibility boundary is session identity:
+
+```ts
+interface AgentBackendScopeKey {
+  backendId: string;
+  scopeId: string;
+  sessionId: string;
+}
+```
+
+A session is pinned to one backend. Backend changes create or select another session; they do not reinterpret an existing transcript. Adapters publish explicit capability descriptors, and callers must not invoke an unsupported operation merely because another adapter supports it.
+
+Foundation slices:
+
+| Slice | Outcome | Status |
+| --- | --- | --- |
+| B0 | Backend identity, support-level capability descriptor, optional non-baseline operations, Pi-independent host package, and compatibility Pi adapter | In source; corrected after review; focused verification complete; not accepted |
+| B1 | Move Pho Code session routing behind the host while preserving current Pi behavior and `workspaceId` compatibility | In source; integration and focused desktop verification complete; not accepted |
+| B2a | Direct Codex app-server transport, lifecycle, streaming, cancellation, resume, and normalized native item projection against one generated schema version | Experimental production composition and focused desktop shell verification in source; not accepted |
+| B2b | Backend-neutral approvals/user input plus Codex command, file-change, MCP, web, image, plan, compaction, review, and auth presentation in Pho Code | Command/file/permission approvals and request-user-input use the existing dock in source; specialized surfaces remain incomplete |
+| B3a | ACP v1 adapter through the pinned official TypeScript SDK, including initialize negotiation, session lifecycle, prompt/cancel, tool calls, plans, and permissions | Prototype plus backend-neutral permission interaction in source; not agent-validated or accepted |
+| B3b | Validate one fixed external Claude-compatible ACP agent and project only negotiated capabilities into Pho Code | Lazy `claude-agent-acp` production registration in source; real agent/provider and desktop verification pending |
+| B4 | Capability-aware backend selection, cross-backend contract/evaluation fixtures, desktop verification, and acceptance review | Backend-pinned identity, metadata migration, Pi/Codex/Claude new-session selection, and focused Pi/Codex desktop verification in source; Claude desktop, evaluations, and acceptance pending |
+
+The older M1–M4 intelligence milestones remain deferred after B4. They may resume only after their contracts are reviewed for backend-neutral state ownership; no Pi custom-entry assumption automatically applies to Codex or ACP sessions.
+
+### Baseline adapter contract
+
+Every adapter must implement only create/open/read session, prompt admission, abort, authoritative snapshots/events, subscription, and disposal. Steering, queued follow-up, images, approvals, manual compaction, session fork, plans, goals, native review, subagents, skills, MCP, and structured file changes are optional. A descriptor maps each supported feature to `native`, `emulated`, or `experimental`; absence means unavailable. Host-emulated queued follow-up may submit a new turn after settlement, but it must never be advertised as native Codex steering.
+
+### Codex boundary
+
+Codex uses `codex app-server` over local stdio JSONL. The adapter owns JSON-RPC framing and narrow versioned wire types; generated schemas are development evidence rather than copied runtime source. B2a is characterized against Codex CLI `0.149.1`; initialization requires that exact app-server user-agent version and disposes the connection with a bounded error before sending `initialized` when it differs. By owner decision, Codex itself is an external prerequisite: Pho Code neither bundles it nor owns its installation, configuration, authentication, updates, MCP servers, skills, or provider usage. The adapter still fixes the per-turn `workspace-write` sandbox and `on-request` approval policy. The backend remains experimental while app-server compatibility and the external-command discovery path are not accepted.
+
+The current experimental desktop composition is lazy: Pho Code advertises Codex without starting a subprocess, then launches the installed `codex app-server` only when the owner chooses Codex for a new or existing backend-pinned session. This is not a packaged-binary claim. Failure to find or initialize a compatible installed command remains a bounded session-creation failure.
+
+The first projection recognizes agent text plus native command execution, structured file changes, MCP calls, web search, image view, review transitions, context compaction, and native collaboration/subagent items. Dynamic tools remain disabled. The adapter opts into the characterized experimental API and starts/resumes threads with `workspace-write` sandbox mode and `on-request` approval policy. Command, file-change, and additional-permission requests plus `request_user_input` are normalized into backend-neutral interactions and rendered through Pho Code's existing approval/questionnaire dock. Request IDs remain pinned to backend/session/run ownership; cancellation responds to app-server rather than leaving a turn waiting. Secret questions and unsupported server-request methods fail closed instead of being displayed or silently approved. MCP elicitation, dynamic tool calls, auth-token refresh, attestation, and specialized native surfaces remain unavailable. Context-compaction and collaboration items can be observed, but manual compaction and subagents are not advertised capabilities because Pho Agent exposes neither `thread/compact/start` nor a spawn/delegate/nested-session operation.
+
+### ACP boundary
+
+ACP targets stable protocol v1 through exact `@agentclientprotocol/sdk` `1.4.0`; v2 draft APIs are out of scope. The adapter spawns only a fixed product-selected agent command, negotiates capabilities during initialize, supports new plus negotiated load/resume, starts prompt work asynchronously, cancels through `session/cancel`, and projects message, tool, plan, and compaction updates. Stable `session/request_permission` options become the same backend-neutral approval interaction used by Codex, and the selected opaque ACP option ID returns to the agent. Abort, prompt failure/settlement, and disposal resolve pending permission requests as `cancelled`, as required by the protocol; no prompt waits indefinitely for absent UI. Manual ACP compaction remains unavailable unless a negotiated stable operation exposes it—receiving compaction updates is not a manual compaction command.
+
+By owner decision, Claude's ACP bridge is an external prerequisite rather than a Pho Code production dependency. The lazy production registration invokes the fixed `claude-agent-acp` executable over stdio only after the owner selects Claude. This process boundary isolates the bridge's Claude Agent SDK dependency graph from embedded Pi, so no Anthropic SDK version from the bridge enters Pho Code's lockfile or Electron bundle. Pho Code does not install, download, configure, authenticate, or update the bridge, and does not fall back to `npx` or parse Claude terminal output. The remaining B3b evidence is a compatible installed executable on the Electron process `PATH`, a real ACP initialization/prompt/permission/resume journey, and focused desktop verification. Sources: [official ACP registry entry](https://raw.githubusercontent.com/agentclientprotocol/registry/main/claude-acp/agent.json), [official bridge package manifest](https://raw.githubusercontent.com/agentclientprotocol/claude-agent-acp/main/package.json).
+
+### Frontend native-activity contract
+
+Pho Code keeps one transcript work-row component. Adapters project bounded `kind`, status, title/name, input, and output; the product bridge maps them to the existing tool block and live-event shapes. Known kinds are command, file change, MCP, web search, image, review, backend-owned subagent activity, and other. File-change activity may link to the accepted change-review surface, but Codex rollback/review state never acquires Pho Code V3 Approve/Undo meaning. Plans and compaction boundaries use their accepted native Pho Code surfaces where compatible. Approvals and request-user-input require named JSON-safe interactions with explicit choices and backend session/run ownership. The current subagent-shaped row is only a flattened display of activity emitted by a backend; Pho Agent has no subagent creation, routing, scheduling, nesting, or orchestration contract.
+
 ## Milestone map
 
 | Milestone | Outcome | Depends on |
 | --- | --- | --- |
-| M0 | Extract the private headless `pho-agent` boundary and freeze a measurable baseline without changing Pho Code behavior | Accepted current architecture |
+| M0 | Historical extraction of the private headless `pho-agent` boundary and measurable Pi baseline; acceptance reopened by B0–B4 | Accepted current architecture |
 | M1 | Branch-aware living Task Brief plus Pho Code Task surface | M0 |
 | M2 | Product-supplied, bounded, inspectable evidence packs | M1 |
 | M3 | Authoritative verification ledger with freshness and provenance | M1; M2 for UI integration, not record semantics |
@@ -32,18 +84,18 @@ Milestones are sequential acceptance gates. A later milestone may begin only aft
 
 Every milestone must:
 
-- keep Pi `0.84.1` authoritative for models/providers, the inner agent/tool loop, tool execution, streaming, session/tree persistence, JSONL, compaction, and extension lifecycle;
-- preserve the accepted direction `renderer -> protocol <- Electron adapter -> application -> runtime -> Pi SDK` within Pho Code while adding one-way `@pho-code/* -> @pho-agent/* -> Pi` package dependencies;
-- keep `@pho-agent/*` free of imports from `@pho-code/*`, React, Electron, UI packages, Git, PTY libraries, or product filesystem policy; reviewed host-neutral MCP lifecycle and optional source-controlled MCP features may live in Pho Agent, but ambient discovery, arbitrary server definitions, and product credential/UI policy may not;
+- keep the selected backend authoritative for its inner loop, tool execution, streaming, session persistence, and backend-native features; keep Pi `0.84.1` authoritative within the Pi adapter and do not reproduce Codex or ACP agent loops;
+- preserve the accepted Pho Code layers while adding one-way `@pho-code/* -> @pho-agent/host -> backend adapter`; no adapter may depend on Pho Code, Electron, React, or another adapter;
+- keep `@pho-agent/protocol` and `@pho-agent/host` free of Node, backend SDKs, `@pho-code/*`, React, Electron, UI packages, Git, PTY libraries, and product filesystem policy; backend adapters may import only the process/SDK dependencies their protocol requires;
 - keep the renderer free of Node, Pi, credentials, filesystem/process handles, evidence-provider authority, and raw tool/runtime objects;
 - use named JSON-safe commands/events with runtime validation and bounded strings, arrays, details, errors, and projections;
 - preserve composite ownership, stale run/event rejection, controller generation/lifecycle checks, and authoritative snapshot recovery;
-- leave Pho Code's current `workspaceId` desktop contract compatible through its adapter while core uses opaque `scopeId`; do not rewrite Pi JSONL or metadata merely to rename identity;
+- leave Pho Code's current `workspaceId` desktop contract compatible through its adapter while core uses opaque `{ backendId, scopeId, sessionId }`; do not rewrite Pi JSONL or metadata merely to rename identity;
 - preserve accepted Plan/Agent, ask-user, todo, context-prompt, permissions, sandbox, V3 review/Undo, Stop/Stop-all, session archive/Trash, accounts, skills, GitHub MCP, retrieval, and web behavior unless a milestone explicitly names an adapter change;
 - use isolated user-data, agent-data, and workspace fixtures; never evaluate or delete against owner data;
 - record unit, integration, desktop, packaged, owner-verified, and not-verified evidence distinctly;
 - keep evaluation fixtures and scoring frozen after M0 except through a dated correction record made before candidate results are scored;
-- keep generic memory, Pho Research, PDFs/citations, quiz/Socratic policy, session navigation, subagents, worktrees, browser automation, long-job scheduling, and persistent kernels out of scope;
+- keep generic memory, Pho Research, PDFs/citations, quiz/Socratic policy, session navigation, Pho Agent-owned subagent orchestration, worktrees, browser automation, long-job scheduling, and persistent kernels out of scope; backend-native collaboration remains ordinary bounded activity projection;
 - leave V4's utility-process, public diagnostics/privacy, migration, signing/notarization, release artifact, update, and website contracts untouched;
 - update accepted architecture/current state only when the final V5 gate passes; until then, link proposed behavior back to this workstream.
 
@@ -68,8 +120,12 @@ M0 extracts the source/package boundary and reusable harness capabilities alread
 packages/
 ├── pho-agent/        pinned git submodule: https://github.com/vietfood/pho-agent.git
 │   └── packages/
-│       ├── protocol/ @pho-agent/protocol: product-neutral JSON-safe contracts
-│       ├── runtime/  @pho-agent/runtime: Pi adapter, sessions, feature host, V5 state
+│       ├── protocol/ @pho-agent/protocol: backend-neutral JSON-safe contracts
+│       ├── host/     @pho-agent/host: routing, lifecycle, and capability dispatch
+│       ├── runtime/  @pho-agent/runtime: current Pi implementation and compatibility facade
+│       ├── backend-pi/    target adapter package after compatibility migration
+│       ├── backend-codex/ target direct Codex app-server adapter
+│       ├── backend-acp/   target ACP adapter
 │       └── evals/    @pho-agent/evals: deterministic fixtures, runner, scoring
 ├── protocol/         @pho-code/protocol: Pho Code bridge + re-exported agent contracts
 ├── runtime/          @pho-code/runtime: coding product profile and feature adapters
@@ -84,7 +140,10 @@ flowchart LR
     CodeUI["@pho-code/ui"] --> CodeProtocol["@pho-code/protocol"]
     CodeProtocol --> AgentProtocol["@pho-agent/protocol"]
     CodeApplication["@pho-code/application"] --> CodeRuntime["@pho-code/runtime"]
-    CodeRuntime --> AgentRuntime["@pho-agent/runtime"]
+    CodeRuntime --> AgentHost["@pho-agent/host"]
+    AgentHost --> AgentProtocol
+    CodeRuntime --> AgentRuntime["@pho-agent/runtime (Pi compatibility)"]
+    AgentRuntime --> AgentHost
     AgentRuntime --> AgentProtocol
     AgentRuntime --> Pi["Pi SDK 0.84.1"]
     AgentEvals["@pho-agent/evals"] --> AgentRuntime
@@ -94,6 +153,7 @@ flowchart LR
 Enforce in ESLint and package-boundary tests:
 
 - `@pho-agent/protocol` imports no Node, Pi, React, Electron, or product package;
+- `@pho-agent/host` imports only `@pho-agent/protocol` and no Node, backend SDK, React, Electron, or product package;
 - `@pho-agent/runtime` imports Node and Pi as required, but no Electron/React/`@pho-code/*`;
 - `@pho-agent/evals` imports only agent packages plus test-only libraries and owned fixtures;
 - Pho Code packages may depend on agent packages;
@@ -179,13 +239,13 @@ Do not copy the Pi transcript into application metadata. Do not treat renderer c
 
 ## Product-neutral identity and compatibility
 
-Core identity is an opaque non-empty `scopeId` plus Pi `sessionId`. Bounds match existing protocol ID limits. The agent layer cannot assume that a scope is a filesystem path.
+Core identity is an opaque non-empty `backendId`, `scopeId`, and backend-native `sessionId`. Bounds match existing protocol ID limits. The host cannot assume that a scope is a filesystem path or that session IDs are globally unique across backends.
 
 During V5:
 
 - Pho Code's bridge and product metadata may continue to say `workspaceId`;
 - the Pho Code application validates current ownership, then maps to `scopeId` at the runtime adapter;
-- agent events carry `scopeId`; the adapter emits compatible Pho Code events with `workspaceId`;
+- agent events carry `{ backendId, scopeId, sessionId }`; the Pho Code adapter emits compatible events and retains backend ownership in privileged state until the desktop protocol deliberately exposes it;
 - no path derivation occurs from renderer-controlled IDs;
 - Pi session headers/files are not rewritten;
 - archive/restore/Trash continue to use Pho Code's accepted exact-artifact path.

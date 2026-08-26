@@ -3,6 +3,7 @@ import {
   HARNESS_ERROR_CODES,
   emptySettingsSnapshot,
   type AbortRunInput,
+  type AgentBackendDescriptor,
   type CancelProviderLoginInput,
   type CredentialProviderSummary,
   type ImportProviderApiKeyInput,
@@ -81,13 +82,14 @@ export interface RemovedSessionResult {
 export interface HarnessRuntime {
   readonly disposeCount: number;
   getCapabilities(): RuntimeCapabilities;
+  listAgentBackends(): readonly AgentBackendDescriptor[];
   getAgentDir(): string;
   inspectWorkspace(input: InspectWorkspaceInput): Promise<WorkspaceSnapshot>;
   listWorkspaceSessions(workspaceId: string): Promise<SessionSummary[]>;
   listSessionActivity(): SessionActivitySummary[];
   getSessionSnapshot(key: SessionKey): Promise<SessionSnapshot>;
-  createSession(workspaceId: string): Promise<SessionSnapshot>;
-  openSession(workspaceId: string, sessionId: string): Promise<SessionSnapshot>;
+  createSession(workspaceId: string, backendId?: string): Promise<SessionSnapshot>;
+  openSession(workspaceId: string, sessionId: string, backendId?: string): Promise<SessionSnapshot>;
   inspectRemovableSession(key: SessionKey): Promise<RemovableSessionInspection>;
   removeValidatedSession(input: SessionKey & { fingerprint: string }): Promise<RemovedSessionResult>;
   sendPrompt(input: SendPromptInput): Promise<PromptAdmission>;
@@ -153,6 +155,7 @@ export function createDisposableStubHarnessRuntime(options?: {
       return state.disposeCount;
     },
     getCapabilities: () => ({ piRuntime: false }),
+    listAgentBackends: () => [],
     getAgentDir() {
       throw unavailable("getAgentDir");
     },

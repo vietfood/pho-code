@@ -2,6 +2,7 @@ import {
   completedPlanTodoCount,
   displayToolName,
   parsePlanTodoList,
+  type AgentToolKind,
   type PlanTodoItem,
   type ToolStatus,
 } from "@pho-code/protocol";
@@ -90,7 +91,19 @@ const ICON_BY_KEY: Readonly<Record<string, WorkEntryIconName>> = {
   thought: "thought",
 };
 
-export function toolWorkEntryIcon(name: string): WorkEntryIconName {
+const ICON_BY_KIND: Readonly<Partial<Record<AgentToolKind, WorkEntryIconName>>> = {
+  command: "run",
+  "file-change": "edit",
+  mcp: "wrench",
+  "web-search": "web-search",
+  image: "read",
+  review: "read",
+  subagent: "thought",
+  other: "wrench",
+};
+
+export function toolWorkEntryIcon(name: string, kind?: AgentToolKind): WorkEntryIconName {
+  if (kind && ICON_BY_KIND[kind]) return ICON_BY_KIND[kind];
   const key = normalizeToolName(name);
   if (key.startsWith("github")) {
     return "github";

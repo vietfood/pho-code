@@ -14,9 +14,13 @@ export const SESSION_OUTCOMES = ["completed", "failed"] as const;
 export type SessionOutcome = (typeof SESSION_OUTCOMES)[number];
 
 export interface SessionKey {
+  /** Missing on pre-V5 Pi data; absence is normalized to `pi`. */
+  backendId?: string;
   workspaceId: string;
   sessionId: string;
 }
+
+export const DEFAULT_AGENT_BACKEND_ID = "pi";
 
 export interface SessionActivitySummary extends SessionKey {
   phase: SessionActivityPhase;
@@ -146,6 +150,8 @@ export function isSessionKey(value: unknown): value is SessionKey {
   }
   const candidate = value as Partial<SessionKey>;
   return (
+    (candidate.backendId === undefined ||
+      (typeof candidate.backendId === "string" && candidate.backendId.trim() !== "")) &&
     typeof candidate.workspaceId === "string" &&
     candidate.workspaceId.trim() !== "" &&
     typeof candidate.sessionId === "string" &&
@@ -154,24 +160,35 @@ export function isSessionKey(value: unknown): value is SessionKey {
 }
 
 export function sessionKeyEquals(left: SessionKey, right: SessionKey): boolean {
-  return left.workspaceId === right.workspaceId && left.sessionId === right.sessionId;
+  return sessionBackendId(left) === sessionBackendId(right) &&
+    left.workspaceId === right.workspaceId &&
+    left.sessionId === right.sessionId;
 }
 
 export function sessionKeyId(key: SessionKey): string {
-  return `${encodeURIComponent(key.workspaceId)}\u001f${encodeURIComponent(key.sessionId)}`;
+  const parts = sessionBackendId(key) === DEFAULT_AGENT_BACKEND_ID
+    ? [key.workspaceId, key.sessionId]
+    : [sessionBackendId(key), key.workspaceId, key.sessionId];
+  return parts.map(encodeURIComponent).join("\u001f");
 }
 
 export function parseSessionKeyId(value: string): SessionKey | undefined {
-  const separator = value.indexOf("\u001f");
-  if (separator <= 0 || separator === value.length - 1) {
+  const parts = value.split("\u001f");
+  if (parts.length !== 2 && parts.length !== 3) {
     return undefined;
   }
-  const workspaceId = decodeURIComponent(value.slice(0, separator));
-  const sessionId = decodeURIComponent(value.slice(separator + 1));
-  if (workspaceId.trim() === "" || sessionId.trim() === "") {
+  const decoded = parts.map(decodeURIComponent);
+  const [backendId, workspaceId, sessionId] = decoded.length === 3
+    ? decoded
+    : [undefined, decoded[0], decoded[1]];
+  if (!workspaceId || !sessionId || (backendId !== undefined && backendId.trim() === "") || workspaceId.trim() === "" || sessionId.trim() === "") {
     return undefined;
   }
-  return { workspaceId, sessionId };
+  return { ...(backendId ? { backendId } : {}), workspaceId, sessionId };
+}
+
+export function sessionBackendId(key: Pick<SessionKey, "backendId">): string {
+  return key.backendId?.trim() || DEFAULT_AGENT_BACKEND_ID;
 }
 
 export function requireMatchingSessionKey(

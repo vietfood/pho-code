@@ -49,7 +49,8 @@ test("healthy sandbox skips bash asks, denies curl at the OS, and disable restor
       await page.getByTestId("about-close").click();
 
       await openSettingsSection(page, "sandbox");
-      await expect(page.getByTestId("sandbox-settings")).toContainText("Seatbelt for agent bash");
+      await page.getByTestId("sandbox-disclosure-trigger").click();
+      await expect(page.getByTestId("sandbox-disclosure")).toContainText("Seatbelt for agent bash");
       await expect(page.getByTestId("sandbox-enabled")).toBeChecked();
       await expect(page.getByTestId("sandbox-status")).toContainText(/Healthy/i, { timeout: 30_000 });
       await page.getByTestId("settings-close").click();

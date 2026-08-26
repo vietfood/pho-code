@@ -43,6 +43,7 @@ export function projectCatalogActivity(
   const unreadOutcome = unreadOutcomeFor(metadata, key, selected);
   const livePhase = live?.phase ?? "idle";
   return {
+    ...(key.backendId ? { backendId: key.backendId } : {}),
     workspaceId: key.workspaceId,
     sessionId: key.sessionId,
     phase: sessionActivityPhase({
@@ -65,8 +66,9 @@ export function projectCatalogEntry(
   live: SessionActivitySummary | undefined,
   selected: boolean,
 ): SessionCatalogEntry {
-  const key = { workspaceId: session.workspaceId, sessionId: session.id };
+  const key = { ...(session.backendId ? { backendId: session.backendId } : {}), workspaceId: session.workspaceId, sessionId: session.id };
   const entry: SessionCatalogEntry = {
+    ...(session.backendId ? { backendId: session.backendId } : {}),
     workspaceId: session.workspaceId,
     sessionId: session.id,
     title: session.title,
@@ -98,11 +100,15 @@ export function filterCatalogScope(
   }
 }
 
-export function selectedSessionKey(session: { session: { id: string }; workspace: { id: string } } | undefined): SessionKey | undefined {
+export function selectedSessionKey(session: { session: { id: string; backendId?: string }; workspace: { id: string } } | undefined): SessionKey | undefined {
   if (!session) {
     return undefined;
   }
-  return { workspaceId: session.workspace.id, sessionId: session.session.id };
+  return {
+    ...(session.session.backendId ? { backendId: session.session.backendId } : {}),
+    workspaceId: session.workspace.id,
+    sessionId: session.session.id,
+  };
 }
 
 export function isSelectedSession(selected: SessionKey | undefined, key: SessionKey): boolean {

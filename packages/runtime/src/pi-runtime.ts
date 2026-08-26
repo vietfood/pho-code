@@ -138,6 +138,9 @@ import type {
   RemovableSessionInspection,
   RemovedSessionResult,
 } from "./harness-runtime";
+import { hostPhoCodeRuntime } from "./hosted-runtime";
+import { createLazyAcpBackend } from "@pho-agent/backend-acp";
+import { createLazyCodexBackend } from "@pho-agent/backend-codex";
 import { validateSessionArtifact } from "./session-artifact";
 import { previewToolResult, previewUnknown } from "./preview";
 import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
@@ -1675,12 +1678,16 @@ export async function createPhoCodeRuntime(
     getCapabilities() {
       return { piRuntime: true };
     },
+    listAgentBackends() {
+      return [];
+    },
     getAgentDir() {
       return agentDir;
     },
     async inspectWorkspace(input: InspectWorkspaceInput) {
       assertNotDisposed();
       const cwd = await canonicalizeWorkspaceDirectory(input.path, "inspectWorkspace");
+      scopeAdapter.registerWorkspace(cwd, cwd);
       if (input.approveProjectResources) {
         approvedProjectPaths.add(cwd);
       }
@@ -2488,7 +2495,17 @@ export async function createPhoCodeRuntime(
     return admission;
   }
 
-  return runtime;
+  return hostPhoCodeRuntime(runtime, {
+    backends: [
+      createLazyCodexBackend({ scope: scopeAdapter }),
+      createLazyAcpBackend({
+        id: "claude-acp",
+        label: "Claude",
+        command: "claude-agent-acp",
+        scope: scopeAdapter,
+      }),
+    ],
+  });
 }
 
 function withTestHostUi(manifest: HarnessFeatureManifest, enabled: boolean): HarnessFeatureManifest {

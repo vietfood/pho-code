@@ -60,7 +60,7 @@ export function ToolRow({
   const failed = block.status === "failed";
   const completed = block.status === "completed";
   const running = block.status === "running";
-  const iconName = toolWorkEntryIcon(block.name);
+  const iconName = toolWorkEntryIcon(block.name, block.kind);
   const rowLabel = [heading, chip?.text, block.sandboxed ? SANDBOX_BASH_SHIELD_LABEL : undefined]
     .filter((part): part is string => Boolean(part))
     .join(" · ");

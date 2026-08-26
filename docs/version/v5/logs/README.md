@@ -19,3 +19,19 @@ Production repository extraction: [`2026-08-20-m0-pho-agent-submodule.md`](./202
 Checkout re-verification after submodule init: [`2026-08-20-m0-checkout-verification.md`](./2026-08-20-m0-checkout-verification.md).
 
 Packaged gate: [`2026-08-20-m0-packaged-verification.md`](./2026-08-20-m0-packaged-verification.md).
+
+Backend-neutral owner direction and first host seam: [`2026-08-26-backend-neutral-direction.md`](./2026-08-26-backend-neutral-direction.md).
+
+Codex lifecycle/native-activity prototype and corrected optional capability seam: [`2026-08-26-codex-native-activity-prototype.md`](./2026-08-26-codex-native-activity-prototype.md).
+
+Production Pi session routing through the backend registry: [`2026-08-26-b1-production-pi-host-routing.md`](./2026-08-26-b1-production-pi-host-routing.md).
+
+Backend-pinned application identity, experimental Codex desktop selection, native transcript projection, and the Claude ACP packaging blocker: [`2026-08-26-codex-desktop-vertical-slice.md`](./2026-08-26-codex-desktop-vertical-slice.md).
+
+Backend-neutral Codex approvals and request-user-input through the existing interaction dock: [`2026-08-26-codex-owner-interactions.md`](./2026-08-26-codex-owner-interactions.md).
+
+Stable ACP permission requests through the same interaction seam: [`2026-08-26-acp-permission-interactions.md`](./2026-08-26-acp-permission-interactions.md).
+
+Combined backend-foundation verification and remaining acceptance blockers: [`2026-08-26-backend-foundation-verification.md`](./2026-08-26-backend-foundation-verification.md).
+
+External-backend ownership decision, lazy Claude ACP production composition, and subagent-scope correction: [`2026-08-27-external-backend-ownership.md`](./2026-08-27-external-backend-ownership.md).

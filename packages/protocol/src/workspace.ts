@@ -56,6 +56,8 @@ export interface WorkspaceSnapshot {
 
 export interface SessionSummary {
   id: string;
+  /** Missing on pre-V5 Pi projections; absence is normalized to `pi`. */
+  backendId?: string;
   workspaceId: string;
   title: string;
   updatedAt: string;

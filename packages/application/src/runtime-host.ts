@@ -90,6 +90,7 @@ export function createApplicationRuntimeHost(): ApplicationRuntimeHost {
     getSkillSettings: () => runtime?.getSkillSettings() ?? pendingSkillSettings(),
     getGitHubMcpSettings: () => runtime?.getGitHubMcpSettings() ?? emptySettingsSnapshot().githubMcp,
     getSandboxSettings: () => runtime?.getSandboxSettings() ?? emptySettingsSnapshot().sandbox,
+    listAgentBackends: () => runtime?.listAgentBackends() ?? [],
     listSessionActivity: () => runtime?.listSessionActivity() ?? [],
     setEnabledSkillSources(sourceIds: readonly string[]) {
       enabledSkillSources = [...sourceIds];

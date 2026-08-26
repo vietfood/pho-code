@@ -7,6 +7,7 @@ import {
   type UpdateSandboxSettingsInput,
 } from "@pho-code/protocol";
 import { Button } from "./ui/button";
+import { SettingsDisclosure } from "./settings-disclosure";
 
 function linesFromList(values: readonly string[]): string {
   return values.join("\n");
@@ -65,11 +66,9 @@ export function SandboxSettingsSection({
 
   return (
     <section className="grid gap-3" aria-labelledby="sandbox-heading" data-testid="sandbox-settings">
-      <div className="grid gap-1">
-        <h2 id="sandbox-heading" className="text-sm font-medium">
-          Agent-tool sandbox
-        </h2>
-        {sandbox.disclosure ? <p className="text-xs text-muted-foreground">{sandbox.disclosure}</p> : null}
+      <div className="flex items-center gap-1">
+        <h2 id="sandbox-heading" className="text-sm font-medium">Agent-tool sandbox</h2>
+        <SettingsDisclosure label="About sandbox coverage" text={sandbox.disclosure} testId="sandbox-disclosure" />
       </div>
       {running ? (
         <p className="text-xs text-muted-foreground" data-testid="sandbox-idle-pending">

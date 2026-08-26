@@ -25,7 +25,7 @@ packages/ui components
 The renderer keeps four distinct classes of state:
 
 1. **Bootstrap and settings:** selected workspace/session, model catalog, feature diagnostics, appearance, permissions, skills, GitHub status, and provider accounts.
-2. **Keyed conversation cache:** authoritative snapshots by `{workspaceId, sessionId}`, selected key, drafts, and catalog projections.
+2. **Keyed conversation cache:** authoritative snapshots by normalized `{backendId, workspaceId, sessionId}`, selected key, drafts, and catalog projections. Missing backend identity means Pi for pre-V5 compatibility.
 3. **Live-run store:** high-frequency thinking/text/tool deltas keyed by composite session identity. The live transcript tail subscribes; settled turns and shell chrome do not rerender per token.
 4. **View state:** sidebar collapse/width, right-sidebar surface, settings/dialog visibility, focus, menus, and optimistic busy states.
 
@@ -49,6 +49,7 @@ Window-first lifecycle does not use this sequenced event path. `App.tsx` first l
 The conversation is primary:
 
 - project/session sidebar and welcome launcher;
+- one-click Pi session creation plus an adjacent backend chooser for advertised alternatives; the current Codex entry is explicitly Experimental and keeps its disclosure behind a small info control;
 - session titles as a short summary (Pi session name or a humanized first-prompt fallback; expanded skill bodies never become the title);
 - transcript with user/assistant turns;
 - collapsed work log for thinking, tools, and pre-tool narration;
@@ -77,6 +78,7 @@ The shell preserves:
 - Home returning to the welcome launcher without disposing background sessions;
 - per-chat drafts and live-run projections;
 - session catalog state for inactive workspaces;
+- the selected backend as part of every session key; changing backend creates or selects another session rather than reinterpreting a transcript;
 - right-sidebar collapsed state and width (default 520px, clamp 360–1100px or 62% of the window).
 
 Archive is metadata over Pi sessions. Removal is a confirmed privileged operation using recoverable Trash. A busy session or blocking review state may refuse removal.

@@ -2,6 +2,7 @@ import type { SessionSnapshot } from "./conversation";
 import type { HarnessError } from "./errors";
 import type { FeatureSnapshot } from "./resources";
 import type { ProtocolVersion } from "./version";
+import type { AgentBackendDescriptor } from "@pho-agent/protocol";
 import type { ModelSummary, RecentWorkspaceRecord, SessionSummary, WorkspaceSummary } from "./workspace";
 
 export interface BootstrapVersions {
@@ -35,6 +36,7 @@ export interface BootstrapState {
     enginesNode: string;
   };
   recentWorkspaces: RecentWorkspaceRecord[];
+  agentBackends: readonly AgentBackendDescriptor[];
   selectedWorkspace?: WorkspaceSummary;
   sessions: SessionSummary[];
   models: ModelSummary[];

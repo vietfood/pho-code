@@ -15,6 +15,8 @@ describe("sandbox settings", () => {
       }),
     );
     expect(markup).toContain('data-testid="sandbox-settings"');
+    expect(SANDBOX_DISCLOSURE).toContain("Seatbelt for agent bash");
+    expect(markup).toContain('data-testid="sandbox-disclosure-trigger"');
     expect(markup).toContain(SANDBOX_DISCLOSURE);
     expect(markup).toContain("Enable sandbox");
     expect(markup).toContain("Status: Off");

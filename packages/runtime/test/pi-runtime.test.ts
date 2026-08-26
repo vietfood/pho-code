@@ -87,6 +87,7 @@ describe("Pi harness runtime", () => {
         path: workspaceDir,
         approveProjectResources: true,
       });
+      expect(runtime.listAgentBackends().map(({ id }) => id)).toEqual(["pi", "codex", "claude-acp"]);
       expect(workspace.models).toEqual([
         {
           provider: "harness-test",

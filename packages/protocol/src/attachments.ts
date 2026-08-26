@@ -25,6 +25,7 @@ export interface PreparedImageSummary {
 }
 
 export interface PrepareImageInput {
+  backendId?: string;
   name: string;
   mimeType: string;
   /** Raw image bytes as base64. */
@@ -37,11 +38,13 @@ export interface PrepareImageInput {
 }
 
 export interface PickImagesInput {
+  backendId?: string;
   sessionId?: string;
   workspaceId?: string;
 }
 
 export interface RemovePreparedImageInput {
+  backendId?: string;
   imageId: string;
   sessionId?: string;
   workspaceId?: string;
@@ -59,6 +62,7 @@ export interface PastedImageBytes {
 }
 
 export interface PasteImagesInput {
+  backendId?: string;
   /** When omitted or empty, the shell reads the native clipboard image. */
   images?: PastedImageBytes[];
   sessionId?: string;

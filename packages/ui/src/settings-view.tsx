@@ -140,9 +140,9 @@ export function SettingsView({
   onOpenAuthLink: (flowId: string, linkId: string) => Promise<void>;
   onCancelAuth: (flowId: string) => Promise<void>;
   onLogoutProvider: (providerId: string) => Promise<void>;
-  onRestoreArchived: (workspaceId: string, sessionId: string) => void;
-  onOpenArchived: (workspaceId: string, sessionId: string) => void;
-  onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onRestoreArchived: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onOpenArchived: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onRemoveSession: (workspaceId: string, sessionId: string, backendId?: string) => void;
   onRemoveAllArchived: (workspaceId: string) => void;
   onSkillSourceChange: (input: UpdateSkillSourceSettingsInput) => void;
   onRefreshSkills: () => void;

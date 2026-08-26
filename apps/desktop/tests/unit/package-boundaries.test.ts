@@ -76,9 +76,23 @@ describe("workspace package dependency graph", () => {
 
   test("agent package manifests keep one-way private dependency direction", async () => {
     const protocol = await readPackage("packages/pho-agent/packages/protocol");
+    const host = await readPackage("packages/pho-agent/packages/host");
+    const codex = await readPackage("packages/pho-agent/packages/backend-codex");
+    const acp = await readPackage("packages/pho-agent/packages/backend-acp");
     const runtime = await readPackage("packages/pho-agent/packages/runtime");
     const evals = await readPackage("packages/pho-agent/packages/evals");
     expect(protocol.dependencies ?? {}).toEqual({});
+    expect(host.dependencies ?? {}).toEqual({ "@pho-agent/protocol": "workspace:*" });
+    expect(codex.dependencies ?? {}).toEqual({
+      "@pho-agent/host": "workspace:*",
+      "@pho-agent/protocol": "workspace:*",
+    });
+    expect(acp.dependencies ?? {}).toEqual({
+      "@agentclientprotocol/sdk": "1.4.0",
+      "@pho-agent/host": "workspace:*",
+      "@pho-agent/protocol": "workspace:*",
+    });
+    expect(runtime.dependencies?.["@pho-agent/host"]).toBe("workspace:*");
     expect(runtime.dependencies?.["@pho-agent/protocol"]).toBe("workspace:*");
     expect(runtime.dependencies?.["@earendil-works/pi-ai"]).toBe("0.84.1");
     expect(runtime.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.1");
@@ -93,7 +107,7 @@ describe("workspace package dependency graph", () => {
       Object.keys(evals.dependencies ?? {}).filter((name) => !name.startsWith("@pho-agent/")),
     ).toEqual([]);
 
-    for (const manifest of [protocol, runtime, evals]) {
+    for (const manifest of [protocol, host, codex, acp, runtime, evals]) {
       const names = [
         ...Object.keys(manifest.dependencies ?? {}),
         ...Object.keys(manifest.devDependencies ?? {}),
@@ -116,6 +130,9 @@ describe("workspace package dependency graph", () => {
 
   test("runtime depends only on protocol and reviewed pinned feature packages", async () => {
     const manifest = await readPackage("packages/runtime");
+    expect(manifest.dependencies?.["@pho-agent/backend-acp"]).toBe("workspace:*");
+    expect(manifest.dependencies?.["@pho-agent/backend-codex"]).toBe("workspace:*");
+    expect(manifest.dependencies?.["@pho-agent/host"]).toBe("workspace:*");
     expect(manifest.dependencies?.["@pho-agent/runtime"]).toBe("workspace:*");
     expect(manifest.dependencies?.["@pho-code/protocol"]).toBe("workspace:*");
     expect(Object.keys(manifest.dependencies ?? {}).filter((name) => name.startsWith("@earendil-works/"))).toEqual([]);
@@ -163,6 +180,9 @@ describe("workspace package dependency graph", () => {
   test("no workspace package bakes juicesharp or pi-tui", async () => {
     for (const relativePath of [
       "packages/pho-agent/packages/protocol",
+      "packages/pho-agent/packages/host",
+      "packages/pho-agent/packages/backend-codex",
+      "packages/pho-agent/packages/backend-acp",
       "packages/pho-agent/packages/runtime",
       "packages/pho-agent/packages/evals",
       "packages/protocol",
@@ -185,8 +205,11 @@ describe("workspace package dependency graph", () => {
 
 describe("workspace source dependency direction", () => {
   test("agent packages never import Pho Code, Electron, or React", async () => {
-    const [protocol, runtime, evals] = await Promise.all([
+    const [protocol, host, codex, acp, runtime, evals] = await Promise.all([
       readTypeScriptFiles("packages/pho-agent/packages/protocol/src"),
+      readTypeScriptFiles("packages/pho-agent/packages/host/src"),
+      readTypeScriptFiles("packages/pho-agent/packages/backend-codex/src"),
+      readTypeScriptFiles("packages/pho-agent/packages/backend-acp/src"),
       readTypeScriptFiles("packages/pho-agent/packages/runtime/src"),
       readTypeScriptFiles("packages/pho-agent/packages/evals/src"),
     ]);
@@ -195,6 +218,11 @@ describe("workspace source dependency direction", () => {
     expectNoImports(protocol, (specifier) =>
       isProductOrUi(specifier) || specifier.startsWith("node:") || specifier.startsWith("@earendil-works/"),
     );
+    expectNoImports(host, (specifier) =>
+      isProductOrUi(specifier) || specifier.startsWith("node:") || specifier.startsWith("@earendil-works/"),
+    );
+    expectNoImports(codex, (specifier) => isProductOrUi(specifier) || specifier.startsWith("@earendil-works/"));
+    expectNoImports(acp, (specifier) => isProductOrUi(specifier) || specifier.startsWith("@earendil-works/"));
     expectNoImports(runtime, isProductOrUi);
     expectNoImports(evals, (specifier) => isProductOrUi(specifier) || specifier.startsWith("@earendil-works/"));
   });
@@ -237,6 +265,9 @@ describe("workspace source dependency direction", () => {
   test("M0 does not expose later task-intelligence commands or persisted entries", async () => {
     const roots = [
       "packages/pho-agent/packages/protocol/src",
+      "packages/pho-agent/packages/host/src",
+      "packages/pho-agent/packages/backend-codex/src",
+      "packages/pho-agent/packages/backend-acp/src",
       "packages/pho-agent/packages/runtime/src",
       ...productSourceRoots,
     ];

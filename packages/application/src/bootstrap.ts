@@ -264,7 +264,7 @@ function createPendingRemovalStore<T>(expiredMessage: string) {
 type PendingSessionRemoval = { key: SessionKey; fingerprint: string };
 type PendingBulkRemoval = {
   workspaceId: string;
-  sessions: Array<{ sessionId: string; fingerprint: string }>;
+  sessions: Array<{ backendId?: string; sessionId: string; fingerprint: string }>;
 };
 
 export function createApplicationService(input: {
@@ -341,8 +341,16 @@ export function createApplicationService(input: {
     const entries = await loadSessionCatalog(workspaceId, scope);
     const sessions: PendingBulkRemoval["sessions"] = [];
     for (const entry of entries) {
-      const inspected = await input.runtime.inspectRemovableSession({ workspaceId, sessionId: entry.sessionId });
-      sessions.push({ sessionId: entry.sessionId, fingerprint: inspected.fingerprint });
+      const inspected = await input.runtime.inspectRemovableSession({
+        ...(entry.backendId ? { backendId: entry.backendId } : {}),
+        workspaceId,
+        sessionId: entry.sessionId,
+      });
+      sessions.push({
+        ...(entry.backendId ? { backendId: entry.backendId } : {}),
+        sessionId: entry.sessionId,
+        fingerprint: inspected.fingerprint,
+      });
     }
     return sessions;
   }
@@ -351,12 +359,17 @@ export function createApplicationService(input: {
     let method = "macos-trash";
     for (const target of pending.sessions) {
       const removed = await input.runtime.removeValidatedSession({
+        ...(target.backendId ? { backendId: target.backendId } : {}),
         workspaceId: pending.workspaceId,
         sessionId: target.sessionId,
         fingerprint: target.fingerprint,
       });
       method = removed.method;
-      await persist(forgetSessionLifecycle(metadata, { workspaceId: pending.workspaceId, sessionId: target.sessionId }));
+      await persist(forgetSessionLifecycle(metadata, {
+        ...(target.backendId ? { backendId: target.backendId } : {}),
+        workspaceId: pending.workspaceId,
+        sessionId: target.sessionId,
+      }));
     }
     return method;
   }
@@ -389,6 +402,7 @@ export function createApplicationService(input: {
           enginesNode: INTENDED_PI_SDK.enginesNode,
         },
         recentWorkspaces: metadata.recentWorkspaces,
+        agentBackends: input.runtime.listAgentBackends(),
         models: workspace?.models ?? session?.models ?? [],
         sessions: ordinarySessions(workspace?.sessions ?? session?.sessions ?? []),
       };
@@ -474,10 +488,11 @@ export function createApplicationService(input: {
       if (!workspace) {
         failCommand("createSession", "Select a workspace before creating a session.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
-      const snapshot = await input.runtime.createSession(workspace.workspace.id);
+      const snapshot = await input.runtime.createSession(workspace.workspace.id, command.backendId);
       replaceSelectedSnapshot(snapshot);
       await persist(
-        markSessionViewed(selectSession(metadata, snapshot.session.id), {
+        markSessionViewed(selectSession(metadata, snapshot.session.id, snapshot.session.backendId), {
+          ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
           workspaceId: snapshot.workspace.id,
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
@@ -493,10 +508,11 @@ export function createApplicationService(input: {
       if (!workspace) {
         failCommand("openSession", "Select a workspace before opening a session.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
-      const snapshot = await input.runtime.openSession(workspace.workspace.id, sessionId);
+      const snapshot = await input.runtime.openSession(workspace.workspace.id, sessionId, command.backendId);
       replaceSelectedSnapshot(snapshot);
       await persist(
-        markSessionViewed(selectSession(metadata, snapshot.session.id), {
+        markSessionViewed(selectSession(metadata, snapshot.session.id, snapshot.session.backendId), {
+          ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
           workspaceId: snapshot.workspace.id,
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
@@ -522,6 +538,7 @@ export function createApplicationService(input: {
       const entry = await loadCatalogEntry(key);
       const { confirmationToken, expiresAt } = sessionRemovals.mint({ key, fingerprint: inspected.fingerprint });
       return {
+        ...(key.backendId ? { backendId: key.backendId } : {}),
         workspaceId: key.workspaceId,
         sessionId: key.sessionId,
         title: inspected.title || entry.title,
@@ -538,10 +555,11 @@ export function createApplicationService(input: {
       const pending = sessionRemovals.redeem(token, "removeSession", (value) => sessionKeyEquals(value.key, key));
       const removed = await input.runtime.removeValidatedSession({ ...key, fingerprint: pending.fingerprint });
       await persist(forgetSessionLifecycle(metadata, key));
-      if (session && session.session.id === key.sessionId && session.workspace.id === key.workspaceId) {
+      if (sessionKeyEquals(selectedSessionKey(session) ?? key, key)) {
         session = undefined;
       }
       return {
+        ...(key.backendId ? { backendId: key.backendId } : {}),
         workspaceId: key.workspaceId,
         sessionId: key.sessionId,
         title: removed.title,
@@ -614,7 +632,14 @@ export function createApplicationService(input: {
       if (
         session &&
         session.workspace.id === workspaceId &&
-        pending.sessions.some((target) => target.sessionId === session?.session.id)
+        pending.sessions.some((target) => sessionKeyEquals(
+          {
+            ...(target.backendId ? { backendId: target.backendId } : {}),
+            workspaceId,
+            sessionId: target.sessionId,
+          },
+          selectedSessionKey(session)!,
+        ))
       ) {
         session = undefined;
       }
@@ -813,7 +838,7 @@ export function createApplicationService(input: {
       await input.runtime.resolveHostDialog({
         requestId,
         ...(typeof command.sessionId === "string" && command.sessionId.trim() !== ""
-          ? sessionCommandScope({ sessionId: command.sessionId, workspaceId: command.workspaceId }, "resolveHostDialog")
+          ? sessionCommandScope({ backendId: command.backendId, sessionId: command.sessionId, workspaceId: command.workspaceId }, "resolveHostDialog")
           : {}),
         ...(command.cancelled === true ? { cancelled: true } : {}),
         ...(command.confirmed === true ? { confirmed: true } : {}),
@@ -1169,11 +1194,9 @@ export function createApplicationService(input: {
           }
         }
         if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved) {
-          const removed = event.payload as { workspaceId: string; sessionId: string };
+          const removed = event.payload as SessionKey;
           if (
-            session &&
-            session.session.id === removed.sessionId &&
-            session.workspace.id === removed.workspaceId
+            session && sessionKeyEquals(selectedSessionKey(session)!, removed)
           ) {
             session = undefined;
           }
@@ -1311,7 +1334,11 @@ export function createApplicationService(input: {
 
   function adoptSelectedSnapshot(snapshot: SessionSnapshot): void {
     const selected = selectedSessionKey(session);
-    const key = { workspaceId: snapshot.workspace.id, sessionId: snapshot.session.id };
+    const key = {
+      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+      workspaceId: snapshot.workspace.id,
+      sessionId: snapshot.session.id,
+    };
     if (selected && !sessionKeyEquals(selected, key)) {
       return;
     }
@@ -1320,7 +1347,11 @@ export function createApplicationService(input: {
 
   function ordinarySessions(sessions: readonly SessionSummary[]): SessionSummary[] {
     return sessions.filter(
-      (entry) => !isArchivedSession(metadata, { workspaceId: entry.workspaceId, sessionId: entry.id }),
+      (entry) => !isArchivedSession(metadata, {
+        ...(entry.backendId ? { backendId: entry.backendId } : {}),
+        workspaceId: entry.workspaceId,
+        sessionId: entry.id,
+      }),
     );
   }
 
@@ -1333,21 +1364,49 @@ export function createApplicationService(input: {
 
   async function loadSessionCatalog(workspaceId: string, scope: ListSessionCatalogInput["scope"]): Promise<SessionCatalogEntry[]> {
     const path = resolveWorkspacePath(workspaceId);
-    const listed = await input.runtime.listWorkspaceSessions(path);
+    const runtimeSessions = await input.runtime.listWorkspaceSessions(path);
+    const runtimeKeys = new Set(runtimeSessions.map((entry) => sessionKeyId({
+      ...(entry.backendId ? { backendId: entry.backendId } : {}),
+      workspaceId: entry.workspaceId,
+      sessionId: entry.id,
+    })));
+    const persistedBackendSessions: SessionSummary[] = metadata.sessionLifecycle
+      .filter((entry) =>
+        entry.workspaceId === workspaceId &&
+        entry.backendId !== undefined &&
+        entry.backendId !== "pi" &&
+        !runtimeKeys.has(sessionKeyId(entry)),
+      )
+      .map((entry) => ({
+        id: entry.sessionId,
+        backendId: entry.backendId,
+        workspaceId: entry.workspaceId,
+        title: `${entry.backendId} session`,
+        updatedAt: entry.lastOutcomeAt ?? entry.lastViewedAt ?? "1970-01-01T00:00:00.000Z",
+      }));
+    const listed = [...runtimeSessions, ...persistedBackendSessions];
     const liveById = new Map(
       input.runtime.listSessionActivity().map((entry) => [sessionKeyId(entry), entry] as const),
     );
     const selected = selectedSessionKey(session);
     const known: SessionKey[] = [
       ...metadata.sessionLifecycle.filter((entry) => entry.workspaceId !== workspaceId),
-      ...listed.map((entry) => ({ workspaceId: entry.workspaceId, sessionId: entry.id })),
+      ...listed.map((entry) => ({
+        ...(entry.backendId ? { backendId: entry.backendId } : {}),
+        workspaceId: entry.workspaceId,
+        sessionId: entry.id,
+      })),
     ];
     const pruned = pruneOrphanSessionLifecycle(metadata, known);
     if (pruned !== metadata) {
       void persist(pruned);
     }
     const entries = listed.map((entry) => {
-      const key = { workspaceId: entry.workspaceId, sessionId: entry.id };
+      const key = {
+        ...(entry.backendId ? { backendId: entry.backendId } : {}),
+        workspaceId: entry.workspaceId,
+        sessionId: entry.id,
+      };
       return projectCatalogEntry(metadata, entry, liveById.get(sessionKeyId(key)), isSelectedSession(selected, key));
     });
     return filterCatalogScope(entries, scope);
@@ -1370,15 +1429,22 @@ export function createApplicationService(input: {
   }
 
   function sessionCommandScope(
-    command: { sessionId: string; workspaceId?: string },
+    command: { backendId?: string; sessionId: string; workspaceId?: string },
     operation: string,
-  ): { sessionId: string; workspaceId?: string } {
+  ): { backendId?: string; sessionId: string; workspaceId?: string } {
     const sessionId = requireNonEmptyString(command.sessionId, "sessionId", operation);
     const workspaceId =
       typeof command.workspaceId === "string" && command.workspaceId.trim() !== ""
         ? command.workspaceId.trim()
         : undefined;
-    return workspaceId ? { sessionId, workspaceId } : { sessionId };
+    const backendId = typeof command.backendId === "string" && command.backendId.trim() !== ""
+      ? command.backendId.trim()
+      : undefined;
+    return {
+      ...(backendId ? { backendId } : {}),
+      sessionId,
+      ...(workspaceId ? { workspaceId } : {}),
+    };
   }
 }
 

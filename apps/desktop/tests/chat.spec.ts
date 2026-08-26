@@ -8,6 +8,38 @@ import {
   removeTestDirectory,
 } from "./helpers/electron-app";
 
+test("chooses a backend for a new session without replacing the one-click Pi action", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  try {
+    const desktop = await launchDesktop(userDataDir, {
+      env: {
+        PHO_CODE_AGENT_DIR: agentDir,
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+      },
+    });
+    try {
+      const page = await desktop.firstWindow();
+      await page.getByTestId("backend-selector").click();
+      await expect(page.getByTestId("backend-menu")).toBeVisible();
+      await expect(page.getByTestId("backend-codex")).toContainText("Experimental");
+      await expect(page.getByTestId("backend-claude-acp")).toContainText("Experimental");
+      await page.getByLabel("Backend information").click();
+      await expect(page.getByText("Codex and Claude use separately installed agents", { exact: false })).toBeVisible();
+      await page.getByTestId("backend-pi").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+    } finally {
+      await desktop.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
 test("streams a tool run in an isolated workspace and restores the transcript after reopen", async () => {
   const userDataDir = await makeUserDataDir();
   const agentDir = await makeAgentDir();

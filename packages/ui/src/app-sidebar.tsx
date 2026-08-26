@@ -65,6 +65,7 @@ export function AppSidebar({
   projects,
   activeWorkspaceId,
   selectedSessionId,
+  selectedBackendId,
   sessionsByWorkspace,
   bootstrap,
   collapsed = false,
@@ -88,14 +89,15 @@ export function AppSidebar({
   projects: readonly RecentWorkspaceRecord[];
   activeWorkspaceId?: string;
   selectedSessionId?: string;
+  selectedBackendId?: string;
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   bootstrap: BootstrapState;
   collapsed?: boolean;
   onAddProject: () => void;
-  onNewSession: (workspaceId: string) => void;
-  onOpenSession: (workspaceId: string, sessionId: string) => void;
-  onArchiveSession: (workspaceId: string, sessionId: string) => void;
-  onRemoveSession: (workspaceId: string, sessionId: string) => void;
+  onNewSession: (workspaceId: string, backendId?: string) => void;
+  onOpenSession: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onArchiveSession: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onRemoveSession: (workspaceId: string, sessionId: string, backendId?: string) => void;
   onRemoveProject: (workspaceId: string) => void;
   onExpandProject: (workspaceId: string) => void;
   onReorderProjects: (workspaceIds: string[]) => void;
@@ -113,11 +115,13 @@ export function AppSidebar({
     activeWorkspaceId ? { [activeWorkspaceId]: true } : {},
   );
   const [menu, setMenu] = useState<
-    | { kind: "session"; workspaceId: string; sessionId: string; x: number; y: number }
+    | { kind: "session"; workspaceId: string; sessionId: string; backendId?: string; x: number; y: number }
     | { kind: "project"; workspaceId: string; x: number; y: number }
     | null
   >(null);
+  const [backendMenuOpen, setBackendMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const agentBackends = bootstrap.agentBackends ?? [];
   const canNewSession = Boolean(activeWorkspaceId);
   const projectIds = projects.map((project) => project.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -160,7 +164,7 @@ export function AppSidebar({
 
   function handleNewSession(): void {
     if (activeWorkspaceId) {
-      onNewSession(activeWorkspaceId);
+        onNewSession(activeWorkspaceId, "pi");
     }
   }
 
@@ -217,10 +221,10 @@ export function AppSidebar({
         <span className="sr-only">Projects</span>
       </header>
 
-      <div className="min-w-0 space-y-px overflow-hidden px-2 pb-2.5">
+      <div className="relative min-w-0 space-y-px px-2 pb-2.5">
         <button
           type="button"
-          className={cn(sidebarActionClass, "bg-sidebar-row-hover font-medium hover:bg-sidebar-row-selected")}
+          className={cn(sidebarActionClass, "bg-sidebar-row-hover pr-8 font-medium hover:bg-sidebar-row-selected")}
           data-testid="new-session"
           disabled={busy || !canNewSession}
           onClick={handleNewSession}
@@ -228,6 +232,51 @@ export function AppSidebar({
           <PlusIcon className={sidebarActionIconClass} strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 truncate">New session</span>
         </button>
+        {agentBackends.length > 1 ? (
+          <button
+            type="button"
+            className="absolute top-0 right-2 flex size-7 items-center justify-center rounded-lg text-[11px] text-sidebar-muted-foreground hover:bg-sidebar-row-selected hover:text-sidebar-foreground"
+            data-testid="backend-selector"
+            aria-label="Choose agent backend"
+            aria-haspopup="menu"
+            aria-expanded={backendMenuOpen}
+            disabled={busy || !canNewSession}
+            onClick={() => setBackendMenuOpen((open) => !open)}
+          >
+            ▾
+          </button>
+        ) : null}
+        {backendMenuOpen && activeWorkspaceId ? (
+          <div
+            className="absolute top-8 right-2 left-2 z-30 rounded-lg border border-sidebar-border bg-popover p-1 shadow-lg"
+            role="menu"
+            aria-label="Choose agent backend"
+            data-testid="backend-menu"
+          >
+            {agentBackends.map((backend) => (
+              <button
+                key={backend.id}
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-sidebar-row-hover"
+                data-testid={`backend-${backend.id}`}
+                onClick={() => {
+                  setBackendMenuOpen(false);
+                  onNewSession(activeWorkspaceId, backend.id);
+                }}
+              >
+                <span>{backend.label}</span>
+                {backend.id !== "pi" ? <span className="text-[10px] text-muted-foreground">Experimental</span> : null}
+              </button>
+            ))}
+            <details className="mt-1 border-t border-sidebar-border px-2 pt-1 text-[11px] text-muted-foreground">
+              <summary className="cursor-pointer list-none" aria-label="Backend information">ⓘ</summary>
+              <p className="mt-1 leading-4">
+                Codex and Claude use separately installed agents with their own accounts, configuration, tools, and process permissions.
+              </p>
+            </details>
+          </div>
+        ) : null}
         <button
           type="button"
           className={cn(
@@ -293,13 +342,21 @@ export function AppSidebar({
                       busy={busy}
                       sessions={sessions}
                       selectedSessionId={selectedSessionId}
+                      selectedBackendId={selectedBackendId}
                       onToggle={() => toggleProject(project.id)}
-                      onNewSession={() => onNewSession(project.id)}
-                      onOpenSession={(sessionId) => onOpenSession(project.id, sessionId)}
-                      onOpenMenu={(sessionId, point) => {
-                        setMenu({ kind: "session", workspaceId: project.id, sessionId, x: point.x, y: point.y });
+                      onNewSession={() => onNewSession(project.id, "pi")}
+                      onOpenSession={(sessionId, backendId) => onOpenSession(project.id, sessionId, backendId)}
+                      onOpenMenu={(sessionId, backendId, point) => {
+                        setMenu({
+                          kind: "session",
+                          workspaceId: project.id,
+                          sessionId,
+                          ...(backendId ? { backendId } : {}),
+                          x: point.x,
+                          y: point.y,
+                        });
                       }}
-                      onArchive={(sessionId) => onArchiveSession(project.id, sessionId)}
+                      onArchive={(sessionId, backendId) => onArchiveSession(project.id, sessionId, backendId)}
                       onOpenProjectMenu={(point) => {
                         setMenu({ kind: "project", workspaceId: project.id, x: point.x, y: point.y });
                       }}
@@ -328,8 +385,8 @@ export function AppSidebar({
           x={menu.x}
           y={menu.y}
           archived={false}
-          onArchive={() => onArchiveSession(menu.workspaceId, menu.sessionId)}
-          onRemove={() => onRemoveSession(menu.workspaceId, menu.sessionId)}
+          onArchive={() => onArchiveSession(menu.workspaceId, menu.sessionId, menu.backendId)}
+          onRemove={() => onRemoveSession(menu.workspaceId, menu.sessionId, menu.backendId)}
           onClose={() => setMenu(null)}
         />
       ) : null}
@@ -469,6 +526,7 @@ function SortableProjectRow({
   busy,
   sessions,
   selectedSessionId,
+  selectedBackendId,
   onToggle,
   onNewSession,
   onOpenSession,
@@ -482,11 +540,12 @@ function SortableProjectRow({
   busy: boolean;
   sessions: readonly SessionCatalogEntry[];
   selectedSessionId?: string;
+  selectedBackendId?: string;
   onToggle: () => void;
   onNewSession: () => void;
-  onOpenSession: (sessionId: string) => void;
-  onOpenMenu: (sessionId: string, point: { x: number; y: number }) => void;
-  onArchive: (sessionId: string) => void;
+  onOpenSession: (sessionId: string, backendId?: string) => void;
+  onOpenMenu: (sessionId: string, backendId: string | undefined, point: { x: number; y: number }) => void;
+  onArchive: (sessionId: string, backendId?: string) => void;
   onOpenProjectMenu: (point: { x: number; y: number }) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -558,13 +617,17 @@ function SortableProjectRow({
             <ul className="m-0 grid min-w-0 list-none gap-px p-0">
               {ordinary.map((session) => (
                 <SessionRow
-                  key={session.sessionId}
+                  key={`${session.backendId ?? "pi"}:${session.sessionId}`}
                   session={session}
-                  selected={session.sessionId === selectedSessionId && active}
+                  selected={
+                    session.sessionId === selectedSessionId &&
+                    (session.backendId ?? "pi") === (selectedBackendId ?? "pi") &&
+                    active
+                  }
                   busy={busy}
-                  onOpen={() => onOpenSession(session.sessionId)}
-                  onArchive={() => onArchive(session.sessionId)}
-                  onOpenMenu={(point) => onOpenMenu(session.sessionId, point)}
+                  onOpen={() => onOpenSession(session.sessionId, session.backendId)}
+                  onArchive={() => onArchive(session.sessionId, session.backendId)}
+                  onOpenMenu={(point) => onOpenMenu(session.sessionId, session.backendId, point)}
                 />
               ))}
             </ul>
@@ -616,6 +679,11 @@ function SessionRow({
           onClick={onOpen}
         >
           <SessionLeadingMark activity={session.activity} selected={selected} />
+          {session.backendId && session.backendId !== "pi" ? (
+            <span className="shrink-0 text-[9px] font-medium uppercase tracking-wide text-sidebar-muted-foreground">
+              {session.backendId}
+            </span>
+          ) : null}
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-[13px] leading-5 tracking-[-0.01em]",

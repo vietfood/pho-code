@@ -78,6 +78,7 @@ describe("skill source registry", () => {
     expect(builtIn.every((entry) => entry.compatibility === "compatible")).toBe(true);
     expect(registry.effectiveSkillPaths()).toEqual([]);
     expect(snapshot.trustNotice).toBe(SKILL_TRUST_NOTICE);
+    expect(snapshot.trustNotice).toContain("not a sandbox");
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(JSON.stringify(snapshot)).not.toMatch(/"skillDir"|SKILL\.md/u);
   });

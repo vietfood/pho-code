@@ -21,7 +21,7 @@ The renderer receives snapshots/events and sends named intents. It never receive
 - protocol version and command names;
 - JSON-safe request/result/event types;
 - normalized error codes;
-- bounded projections for accepted workspaces, sessions, runs, models, messages, tools, settings, credentials, queues, attachments, and features;
+- bounded projections for accepted workspaces, sessions, runs, models, messages, tools, settings, credentials, queues, attachments, and features, plus V5's in-source backend descriptors and backend-pinned compatibility identity;
 - runtime validators and JSON-safety helpers that can run without Node or Electron.
 
 It does not import Node, Electron, React, Pi, MCP, the application, or the runtime.
@@ -39,13 +39,15 @@ Every privileged operation has a fixed purpose. Renderer input is untrusted and 
 
 The authoritative command registry is `packages/protocol/src/version.ts`; method signatures live in `bridge.ts`, channel names in `apps/desktop/electron/ipc.ts`, and preload implements the same list. Current groups cover:
 
-- bootstrap, workspace recents/reorder, session catalog/snapshots, create/open/archive/restore/removal;
+- bootstrap, backend discovery, workspace recents/reorder, session catalog/snapshots, create/open/archive/restore/removal;
 - prompt, steer/follow-up, image preparation, abort, model/thinking, assistant rewrite, context prompt, host dialogs;
 - appearance, permissions/trust, skill sources, credentials/provider OAuth, GitHub MCP, and agent-tool sandbox Settings (`updateSandboxSettings`);
 - workspace-reference search;
 - implemented V3 review/diff/Approve/per-file Undo commands.
 
 Window-first startup adds no generic command. `BootstrapState.piRuntime` is the authoritative `starting | ready | failed` projection, while `capabilities.piRuntime` remains the ready boolean. `subscribePiRuntimeStatus` is a separate narrow wakeup that tells the renderer to re-query bootstrap. It does not enter the sequenced Pi event stream, so shell lifecycle messages cannot collide with runtime sequence numbers.
+
+V5's unaccepted compatibility slice also projects `BootstrapState.agentBackends`. Session-bearing commands, summaries, events, host-dialog requests, and host-dialog resolutions may carry `backendId`; absence is normalized to `pi` so metadata and Pi session keys written before schema v7 keep their existing identity. Non-Pi composite keys include the backend and are never reinterpreted as Pi sessions. Backend-neutral interaction events carry a bounded request ID and explicit approval choices or questionnaire fields; the product bridge maps them to the existing named `resolveHostDialog` command without exposing the backend connection. The owning contract and acceptance status remain in [`../version/v5/implementation-plan.md`](../version/v5/implementation-plan.md).
 
 `apps/desktop/tests/unit/bridge-commands.test.ts` asserts that preload, main, and IPC stay aligned with the registry. Do not maintain a copied full interface in architecture prose.
 
@@ -72,7 +74,7 @@ Expected command failures cross IPC as a typed JSON-safe result envelope and are
 
 ## Events and ordering
 
-Runtime events carry protocol version, sequence, composite session identity where relevant, run identity where relevant, type, bounded payload, and occurrence time.
+Runtime events carry protocol version, sequence, backend-pinned composite session identity where relevant, run identity where relevant, type, bounded payload, and occurrence time. A missing backend remains the compatibility spelling of Pi.
 
 The implemented event catalog in `packages/protocol/src/events.ts` covers:
 
@@ -85,7 +87,7 @@ The implemented event catalog in `packages/protocol/src/events.ts` covers:
 
 `controllerGeneration` is reserved in the envelope but is not currently populated by runtime; do not rely on it for ownership.
 
-Authoritative snapshots replace projections after reload or missed events. Incremental events never override another `{workspaceId, sessionId, runId}`. A valid admission or full snapshot may establish a successor run after the previous run settles; do not reject authoritative replacement events with a global run-ID mismatch guard.
+Authoritative snapshots replace projections after reload or missed events. Incremental events never override another `{backendId, workspaceId, sessionId, runId}` after normalizing a missing backend to Pi. A valid admission or full snapshot may establish a successor run after the previous run settles; do not reject authoritative replacement events with a global run-ID mismatch guard.
 
 Streaming deltas are rendering input, not final transcript truth. Final Pi message/session events reconcile settled state.
 

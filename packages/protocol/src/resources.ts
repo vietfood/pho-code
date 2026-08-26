@@ -36,6 +36,7 @@ export interface HostDialogRequest {
   options?: string[];
   placeholder?: string;
   questions?: AskUserQuestion[];
+  backendId?: string;
   workspaceId?: string;
   sessionId?: string;
 }
@@ -48,6 +49,7 @@ export interface ExtensionNotification {
 
 export interface ResolveHostDialogInput {
   requestId: string;
+  backendId?: string;
   workspaceId?: string;
   sessionId?: string;
   cancelled?: boolean;

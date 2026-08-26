@@ -1,3 +1,4 @@
+import type { AgentToolKind } from "@pho-agent/protocol";
 import type { ImageMimeType } from "./attachments";
 import type { ChangeReviewSetSummary } from "./change-review";
 import type { SessionContextPrompt } from "./context-prompt";
@@ -28,6 +29,8 @@ export interface TranscriptThinkingBlock {
 export interface ToolActivity {
   callId: string;
   name: string;
+  /** Backend-neutral presentation hint; backend-specific names remain available as fallback. */
+  kind?: AgentToolKind;
   status: ToolStatus;
   inputPreview: string;
   outputPreview: string;
@@ -149,6 +152,7 @@ export interface SessionSnapshot {
 }
 
 export interface PromptAdmission {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   runId: string;
@@ -156,17 +160,21 @@ export interface PromptAdmission {
 }
 
 export interface OpenSessionInput {
+  backendId?: string;
   sessionId: string;
   /** Composite session owner. Required when more than one live session exists. */
   workspaceId?: string;
 }
 
 export interface CreateSessionInput {
+  /** Defaults to Pi for compatibility with existing callers. */
+  backendId?: string;
   /** When set and different from the active workspace, switch workspace before creating. */
   workspaceId?: string;
 }
 
 export interface SendPromptInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   text: string;
@@ -177,6 +185,7 @@ export interface SendPromptInput {
 }
 
 export interface SteerRunInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   runId: string;
@@ -186,6 +195,7 @@ export interface SteerRunInput {
 }
 
 export interface QueueFollowUpInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   runId: string;
@@ -195,6 +205,7 @@ export interface QueueFollowUpInput {
 }
 
 export interface QueueAdmission {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   runId: string;
@@ -203,6 +214,7 @@ export interface QueueAdmission {
 }
 
 export interface AbortRunInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   runId: string;
@@ -221,6 +233,7 @@ export interface ReorderRecentWorkspacesInput {
 }
 
 export interface SetSessionModelInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   provider: string;
@@ -228,6 +241,7 @@ export interface SetSessionModelInput {
 }
 
 export interface SetThinkingLevelInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   level: ThinkingLevel;
@@ -237,6 +251,7 @@ export interface SetThinkingLevelInput {
 export const MAX_ASSISTANT_REWRITE_CHARS = 100_000;
 
 export interface RewriteAssistantOutputInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   messageId: string;

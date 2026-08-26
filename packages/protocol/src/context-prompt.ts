@@ -34,6 +34,7 @@ export interface SessionContextPrompt {
 }
 
 export interface UpdateSessionContextPromptInput {
+  backendId?: string;
   sessionId: string;
   workspaceId?: string;
   preamble?: string;

@@ -4,6 +4,7 @@ import { createDisposableStubHarnessRuntime } from "../src/index";
 describe("stub harness runtime", () => {
   test("reports that the Pi runtime is not available during bootstrap", () => {
     const runtime = createDisposableStubHarnessRuntime();
+    expect(runtime.listAgentBackends()).toEqual([]);
     expect(runtime.getCapabilities()).toEqual({ piRuntime: false });
   });
 

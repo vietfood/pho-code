@@ -389,14 +389,17 @@ function asRecord(payload: unknown): Record<string, unknown> {
   return payload as Record<string, unknown>;
 }
 
-function imageSessionScope(input: { sessionId?: string; workspaceId?: string }): {
+function imageSessionScope(input: { backendId?: string; sessionId?: string; workspaceId?: string }): {
+  backendId?: string;
   sessionId?: string;
   workspaceId?: string;
 } {
   const sessionId = typeof input.sessionId === "string" && input.sessionId.trim() !== "" ? input.sessionId.trim() : undefined;
+  const backendId = typeof input.backendId === "string" && input.backendId.trim() !== "" ? input.backendId.trim() : undefined;
   const workspaceId =
     typeof input.workspaceId === "string" && input.workspaceId.trim() !== "" ? input.workspaceId.trim() : undefined;
   return {
+    ...(backendId ? { backendId } : {}),
     ...(sessionId ? { sessionId } : {}),
     ...(workspaceId ? { workspaceId } : {}),
   };

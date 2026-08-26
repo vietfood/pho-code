@@ -18,9 +18,9 @@ export function ArchivedChatsSection({
   projects: readonly RecentWorkspaceRecord[];
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   busy: boolean;
-  onRestore: (workspaceId: string, sessionId: string) => void;
-  onOpen: (workspaceId: string, sessionId: string) => void;
-  onRemove: (workspaceId: string, sessionId: string) => void;
+  onRestore: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onOpen: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onRemove: (workspaceId: string, sessionId: string, backendId?: string) => void;
   onRemoveAll: (workspaceId: string) => void;
 }) {
   const groups = groupArchivedChatsByProject(projects, sessionsByWorkspace);
@@ -60,9 +60,9 @@ function ArchivedProjectGroup({
 }: {
   group: ArchivedChatGroup;
   busy: boolean;
-  onRestore: (workspaceId: string, sessionId: string) => void;
-  onOpen: (workspaceId: string, sessionId: string) => void;
-  onRemove: (workspaceId: string, sessionId: string) => void;
+  onRestore: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onOpen: (workspaceId: string, sessionId: string, backendId?: string) => void;
+  onRemove: (workspaceId: string, sessionId: string, backendId?: string) => void;
   onRemoveAll: (workspaceId: string) => void;
 }) {
   return (
@@ -90,12 +90,12 @@ function ArchivedProjectGroup({
       <ul className="m-0 grid list-none gap-1 p-0">
         {group.sessions.map((session) => (
           <ArchivedChatRow
-            key={session.sessionId}
+            key={`${session.backendId ?? "pi"}:${session.sessionId}`}
             session={session}
             busy={busy}
-            onRestore={() => onRestore(session.workspaceId, session.sessionId)}
-            onOpen={() => onOpen(session.workspaceId, session.sessionId)}
-            onRemove={() => onRemove(session.workspaceId, session.sessionId)}
+            onRestore={() => onRestore(session.workspaceId, session.sessionId, session.backendId)}
+            onOpen={() => onOpen(session.workspaceId, session.sessionId, session.backendId)}
+            onRemove={() => onRemove(session.workspaceId, session.sessionId, session.backendId)}
           />
         ))}
       </ul>

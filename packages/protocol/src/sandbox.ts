@@ -17,7 +17,8 @@ export const MAX_SANDBOX_DOMAIN_CHARS = 253;
 export const MAX_SANDBOX_PATH_LIST = 32;
 export const MAX_SANDBOX_PATH_CHARS = 1024;
 
-export const SANDBOX_DISCLOSURE = "";
+export const SANDBOX_DISCLOSURE =
+  "Seatbelt for agent bash keeps workspace and temporary files writable. In-policy read, write, and edit tools follow the same Settings policy but run in the Pho Code process. This does not sandbox Pho Code, Pi, MCP servers, Cursor agents, the owner terminal, or Undo.";
 
 export const SANDBOX_BASH_TOOL_NAMES = ["bash", "user_bash"] as const;
 export type SandboxBashToolName = (typeof SANDBOX_BASH_TOOL_NAMES)[number];

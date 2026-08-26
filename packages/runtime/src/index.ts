@@ -7,6 +7,8 @@ export type {
   RuntimeCapabilities,
 } from "./harness-runtime";
 export { createPhoCodeRuntime } from "./pi-runtime";
+export { hostPhoCodeRuntime, type HostPhoCodeRuntimeOptions } from "./hosted-runtime";
+export { projectBackendConversation, type BackendConversationProjection } from "./backend-conversation";
 export { createPhoCodeScopeAdapter, type PhoCodeScopeAdapter } from "./pho-code-scope-adapter";
 export type { PhoCodeRuntimeOptions } from "./pi-runtime";
 export {

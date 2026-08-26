@@ -2,18 +2,19 @@
 
 ## Status
 
-Owner-promoted numbered product boundary, 2026-08-20. Status: **Promoted; Milestone 0 implementation and required automated verification including packaged complete; real-provider not owner-verified; M0 not formally accepted**.
+Owner-promoted numbered product boundary, 2026-08-20; owner-directed backend-neutral revision, 2026-08-26. Status: **Promoted; backend-neutral foundation in progress; prior Pi-only M0 acceptance reopened; not accepted**.
 
 This document defines the V5 outcome. [`implementation-plan.md`](./implementation-plan.md) is the implementation contract. Planned package names, commands, state, and UI below are not current behavior until the owning milestone is implemented, verified, logged, and accepted.
 
 ## Outcome
 
-V5 separates a reusable, headless **`pho-agent`** foundation from Pho Code's coding product and makes the foundation's intelligence measurable.
+V5 separates a reusable, headless **`pho-agent`** foundation from Pho Code's coding product, makes backend selection explicit, and keeps common agent behavior measurable.
 
 At V5 acceptance:
 
-- Pi remains the embedded agent engine and authority for providers, the inner agent loop, tool execution, streaming, sessions, JSONL, compaction, and extension semantics;
-- product-neutral protocol, Pi-session hosting, task state, evidence assembly, verification evidence, and completion assessment live behind `@pho-agent/*` packages that do not import Pho Code, React, or Electron;
+- one backend-neutral host owns routing, lifecycle, capability discovery, and `{ backendId, scopeId, sessionId }` identity;
+- Pi, direct Codex app-server, ACP, and any future native Pho Agent engine live behind separate adapters and remain authoritative for their backend-specific sessions and persistence;
+- product-neutral protocol, session hosting, task state, evidence assembly, verification evidence, and completion assessment live behind `@pho-agent/*` packages that do not import Pho Code, React, or Electron;
 - Pho Code consumes `pho-agent` through a pinned [`vietfood/pho-agent`](https://github.com/vietfood/pho-agent) submodule and source-controlled product adapter while preserving its accepted coding behavior;
 - a non-code consumer fixture can construct and exercise `pho-agent` without importing Pho Code packages or coding features;
 - nontrivial tasks may carry a branch-aware living Task Brief;
@@ -33,29 +34,31 @@ This work changes the reusable foundation and the semantics of task understandin
 - every downstream product must be able to supply evidence and render state without importing another product;
 - evaluation gates become part of how foundational intelligence changes are accepted.
 
-The product boundary remains deliberately narrower than a generic agent framework. It is a Pi-powered foundation for owner-selected Pho products, not an engine marketplace, public SDK promise, or alternative agent loop.
+The product boundary remains deliberately narrower than a generic public agent framework. It is a host for owner-selected Pho products and reviewed backend adapters, not an engine marketplace, public SDK promise, or replacement for a backend's own agent loop.
 
 ## Selected product decisions
 
 | Decision | V5 selection |
 | --- | --- |
 | Foundation name | **`pho-agent`**. The concept may span several `@pho-agent/*` workspace packages; V5 does not force one monolithic package. |
-| Relationship to Pi | **Build on pinned Pi SDK `0.84.1`; do not fork or reproduce Pi's loop, providers, JSONL, resource loader, compaction, or session tree.** |
-| Consumer direction | `pho-code -> pho-agent -> Pi`. A future `pho-research -> pho-agent -> Pi`; `pho-research` must not depend on Pho Code. |
+| Backend model | **One backend-neutral host with separate adapters.** Pi remains pinned at `0.84.1`; Codex uses its direct app-server protocol; Claude and other ACP agents use an ACP adapter. Do not translate every backend through ACP or reproduce a backend's inner loop. |
+| Consumer direction | `pho-code -> pho-agent host -> selected backend adapter`. Future products may reuse the same host; they must not depend on Pho Code. |
 | Runtime process | Keep the accepted in-process Electron-main composition. Source/package extraction is not V4 `utilityProcess` extraction. |
 | Initial distribution | Private workspace packages compiled into Pho Code. No npm publication or public compatibility guarantee in V5. |
 | Product composition | Source-controlled product adapter and baked feature manifest. No user-installable plugins or ambient Pi composition. |
+| Backend installation | Pho Code owns and embeds Pho Agent, including its pinned Pi adapter. Codex and ACP agents are separately installed, configured, authenticated, and updated prerequisites. Pho Code invokes only fixed reviewed commands and does not download them or expose arbitrary executable settings. |
 | Harness capability ownership | Reusable headless session, feature, Plan/ask-user/todo, skill, MCP, and future task-intelligence mechanics belong to `pho-agent`; products retain identity authority, selected capability/profile policy, UI, storage roots, packaging paths, and domain adapters. |
-| Generic identity | Core uses opaque `{ scopeId, sessionId }`. Pho Code maps its existing canonical workspace identity at the adapter; V5 does not rewrite Pi session files or break current `workspaceId` IPC merely to rename it. |
+| Generic identity | Core uses opaque `{ backendId, scopeId, sessionId }`. A session is pinned to one backend. Pho Code maps its existing canonical workspace identity at the adapter; V5 does not rewrite Pi session files or break current `workspaceId` IPC merely to rename it. |
 | UI ownership | `pho-agent` is headless. Pho Code renders one **Task** right-sidebar surface; other products render the same contracts independently. |
-| Task state | Branch-aware Pi custom entries, not application metadata and not parsed from assistant prose. |
+| Task state | Backend-neutral state contract with adapter-owned persistence. Pi may use branch-aware custom entries; Codex and ACP mappings must be characterized before the intelligence milestones resume. |
 | Evidence | Product-supplied providers; core validates, ranks, deduplicates, bounds, persists the per-run pack, and projects safe metadata. |
 | Verification | Derived from authoritative tool/runtime/user observations with stable source references; never inferred from streaming or final prose. |
 | Completion | Criteria-to-evidence assessment. Unverified is allowed and visible; missing evidence cannot become passed. |
 | Memory | **Deferred.** No cross-session personal/workspace memory, ambient embeddings, or automatic fact promotion. |
 | Pho Research | Separate product and plan. V5 supplies foundation contracts only; no PDF, citation, quiz, Socratic, or research-job implementation. |
 | Compaction | Independent add-on. V5 state must be branch-aware and compaction-compatible, but V5 does not accept or replace that add-on. |
-| Subagents/long jobs | Deferred. V5 must not smuggle in multi-agent orchestration, unattended loops, scheduler state, or worktrees. |
+| Capability differences | Adapters publish explicit capabilities. Pho Code disables or hides unsupported operations instead of pretending all engines implement Pi semantics. |
+| Subagents/long jobs | **Not a Pho Agent feature.** Pho Agent has no subagent orchestration. A backend may already emit nested or collaboration activity; Pho Code may display that as bounded backend-owned activity, but V5 adds no scheduler, agent creation API, unattended loop, or worktree orchestration. |
 
 ### Harness capability rule
 
@@ -70,10 +73,13 @@ flowchart TB
     CodeUI["Pho Code UI and Electron adapter"] --> CodeAdapter["Pho Code product adapter"]
     Research["Future Pho Research UI and features"] -. future .-> ResearchAdapter["Pho Research product adapter"]
     CodeAdapter --> AgentProtocol["@pho-agent/protocol"]
-    CodeAdapter --> AgentRuntime["@pho-agent/runtime"]
+    CodeAdapter --> AgentHost["@pho-agent/host"]
     ResearchAdapter -.-> AgentProtocol
-    ResearchAdapter -.-> AgentRuntime
-    AgentRuntime --> Pi["Pinned Pi SDK"]
+    ResearchAdapter -.-> AgentHost
+    AgentHost --> PiAdapter["Pi adapter"]
+    AgentHost -.-> CodexAdapter["Codex app-server adapter"]
+    AgentHost -.-> AcpAdapter["ACP adapter"]
+    PiAdapter --> Pi["Pinned Pi SDK"]
     CodeAdapter --> CodeFeatures["Coding features: workspace, Git, review, sandbox, terminal adapters"]
     ResearchAdapter -.-> ResearchFeatures["Research features: artifacts, citations, learning"]
 ```
@@ -170,6 +176,15 @@ Completion does not terminate Pi's agent loop or suppress the final assistant me
 
 ## User-visible Pho Code contract
 
+Before the task-intelligence surface lands, backend selection and backend-native activity reuse the conversation-first UI:
+
+- each session is visibly owned by Pi, Codex, or a named ACP agent, and changing the backend creates or selects another session rather than reinterpreting the current transcript;
+- normalized command, file-change, MCP, web-search, image, review, compaction, and later subagent activity render through the existing transcript work rows with bounded input/output details;
+- adapter capability support is `native`, `emulated`, `experimental`, or absent. Unsupported composer actions and surfaces are hidden or disabled with a short explanation;
+- native approval and user-input requests use one backend-neutral interaction contract, while their choices and consequences remain backend-owned;
+- Codex native review is not Pho Code V3 Approve/Undo. A backend review item may open review-oriented presentation, but only Pho Code's accepted ledger owns Approve and Undo semantics;
+- high-volume native events are projected into stable common items; raw JSON-RPC, ACP SDK objects, process handles, absolute private paths, and unsanitized tool output never cross into the renderer.
+
 V5 adds one **Task** surface to Pho Code's existing right-sidebar host. The surface is the Pho Code adapter for headless `pho-agent` state and contains:
 
 - **Brief:** objective, constraints, criteria, assumptions, questions, non-goals, revision, and idle-only owner edit/reset;
@@ -182,10 +197,10 @@ The surface follows existing host rules: conversation remains primary, re-click 
 
 | Data | Owner | Location/lifetime | Consequence |
 | --- | --- | --- | --- |
-| Task Brief entries | Pi/`pho-agent` feature | Pi JSONL active branch | Restored with the session; task-scoped, not global memory |
-| Evidence pack message and manifest | Pi/`pho-agent` feature | Bounded hidden custom message on the run's branch | Auditable context input; may contain source excerpts already allowed into the session |
-| Verification normalization | `pho-agent` with source references | Pi custom entries or reconstruction from authoritative Pi entries, as frozen by M3 | Cannot outlive or detach from its source silently |
-| Completion assessment | `pho-agent` | Pi custom entry keyed to brief revision | Restored and invalidated when criteria or evidence change |
+| Task Brief entries | Pho Agent contract; selected adapter persistence | Backend-owned session record; Pi uses active-branch JSONL | Restored with the same backend session; task-scoped, not global memory |
+| Evidence pack message and manifest | Pho Agent feature plus selected adapter | Bounded backend-native context/session entry | Auditable context input; may contain source excerpts already allowed into the session |
+| Verification normalization | Pho Agent with backend source references | Adapter mapping to authoritative backend entries | Cannot outlive or detach from its source silently |
+| Completion assessment | Pho Agent | Adapter-owned session entry keyed to brief revision | Restored and invalidated when criteria or evidence change |
 | Evaluation cases/results | Repository/development owner | Source fixtures plus dated V5 logs; secrets excluded | Reproducible baseline and acceptance evidence |
 | UI expansion/edit drafts | Product renderer | Renderer memory until saved | Never authorizes runtime state |
 
@@ -210,7 +225,7 @@ V5 will not:
 - build, fork, or replace Pi's provider runtime, loop, tool executor, resource discovery, context builder, compaction algorithm, session tree, or JSONL format;
 - create Pho Research, its UI, PDFs/OCR, citation system, paper graph, quizzes, Socratic teaching, learner model, or research workflows;
 - add generic memory, cross-session memory, inferred preferences, ambient embeddings, automatic fact promotion, or a workspace knowledge graph;
-- add session tree/fork/clone UI, subagents, advisor roles, worktrees, browser automation, long-job scheduling, unattended loops, or persistent evaluation kernels;
+- add session tree/fork/clone UI, Pho Agent-owned subagent orchestration, advisor roles, worktrees, browser automation, long-job scheduling, unattended loops, or persistent evaluation kernels; backend-owned collaboration may appear only as ordinary bounded activity;
 - move `HarnessRuntime` to a utility process or take over any held V4 distribution, migration, diagnostics/privacy, signing, update, or website contract;
 - merge the Task Brief with Plan, todos, context prompt, transcript, change ledger, or product metadata;
 - treat an evidence pack as truth, a verification record as proof beyond its source, or completion as a guarantee of correctness;

@@ -1,4 +1,5 @@
 import {
+  sessionKeyEquals,
   sessionKeyId,
   type SessionActivitySummary,
   type SessionCatalogEntry,
@@ -7,6 +8,7 @@ import {
 
 export function idleCatalogActivity(session: SessionSummary, archived = false): SessionActivitySummary {
   return {
+    ...(session.backendId ? { backendId: session.backendId } : {}),
     workspaceId: session.workspaceId,
     sessionId: session.id,
     phase: "idle",
@@ -23,9 +25,11 @@ export function upsertCatalogSession(
 ): Record<string, SessionCatalogEntry[]> {
   const workspaceId = session.workspaceId;
   const entries = current[workspaceId] ?? [];
-  const index = entries.findIndex((entry) => entry.sessionId === session.id);
+  const key = { ...(session.backendId ? { backendId: session.backendId } : {}), workspaceId, sessionId: session.id };
+  const index = entries.findIndex((entry) => sessionKeyEquals(entry, key));
   if (index < 0) {
     const entry: SessionCatalogEntry = {
+      ...(session.backendId ? { backendId: session.backendId } : {}),
       workspaceId,
       sessionId: session.id,
       title: session.title,
@@ -63,12 +67,14 @@ export function removeCatalogSession(
   current: Record<string, SessionCatalogEntry[]>,
   workspaceId: string,
   sessionId: string,
+  backendId?: string,
 ): Record<string, SessionCatalogEntry[]> {
   const entries = current[workspaceId];
   if (!entries) {
     return current;
   }
-  const next = entries.filter((entry) => entry.sessionId !== sessionId);
+  const key = { ...(backendId ? { backendId } : {}), workspaceId, sessionId };
+  const next = entries.filter((entry) => !sessionKeyEquals(entry, key));
   if (next.length === entries.length) {
     return current;
   }

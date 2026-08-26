@@ -56,6 +56,9 @@ describe("tool presentation", () => {
     expect(toolWorkEntryIcon("update_plan_document")).toBe("plan");
     expect(toolWorkEntryIcon("github_get_file_contents")).toBe("github");
     expect(toolWorkEntryIcon("mystery_tool")).toBe("wrench");
+    expect(toolWorkEntryIcon("backend-specific-name", "command")).toBe("run");
+    expect(toolWorkEntryIcon("backend-specific-name", "file-change")).toBe("edit");
+    expect(toolWorkEntryIcon("backend-specific-name", "subagent")).toBe("thought");
   });
 
   test("parses shell input into a command section without raw JSON", () => {

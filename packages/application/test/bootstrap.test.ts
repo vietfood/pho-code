@@ -134,8 +134,20 @@ describe("application host dialogs", () => {
     };
     const application = createTestApplication(runtime);
 
-    await application.resolveHostDialog({ requestId: "dlg-1", selected: "Yes" });
-    expect(forwarded).toEqual([{ requestId: "dlg-1", selected: "Yes" }]);
+    await application.resolveHostDialog({
+      requestId: "dlg-1",
+      backendId: "codex",
+      workspaceId: "/tmp/ws",
+      sessionId: "thread-1",
+      selected: "Yes",
+    });
+    expect(forwarded).toEqual([{
+      requestId: "dlg-1",
+      backendId: "codex",
+      workspaceId: "/tmp/ws",
+      sessionId: "thread-1",
+      selected: "Yes",
+    }]);
   });
 
   test("forwards questionnaire answers without fabricating permission fields", async () => {

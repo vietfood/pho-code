@@ -303,11 +303,14 @@ export function App() {
   });
 
   const startNewSession = useCallback(
-    (workspaceId: string) => {
+    (workspaceId: string, backendId = "pi") => {
       changeReview.close();
       collapseRightSidebar();
-      void switchSession(workspaceId, null, () =>
-        getDesktopBridge().createSession({ workspaceId }),
+      void switchSession(
+        workspaceId,
+        null,
+        () => getDesktopBridge().createSession({ workspaceId, backendId }),
+        backendId,
       );
     },
     [changeReview.close, collapseRightSidebar, switchSession],
@@ -342,6 +345,7 @@ export function App() {
     if (next.activeSession) {
       void refreshCatalog(next.activeSession.workspace.id).catch(() => undefined);
       const key = sessionKeyId({
+        ...(next.activeSession.session.backendId ? { backendId: next.activeSession.session.backendId } : {}),
         workspaceId: next.activeSession.workspace.id,
         sessionId: next.activeSession.session.id,
       });
@@ -365,7 +369,11 @@ export function App() {
       if (keepWelcomeSelection(current.selectedKey, Object.keys(current.byKey).length)) {
         return { ...current, settings };
       }
-      const key = sessionKeyId({ workspaceId: active.workspace.id, sessionId: active.session.id });
+      const key = sessionKeyId({
+        ...(active.session.backendId ? { backendId: active.session.backendId } : {}),
+        workspaceId: active.workspace.id,
+        sessionId: active.session.id,
+      });
       const existing = current.byKey[key];
       if (current.selectedKey === key && existing) {
         return { ...current, settings, selectedKey: key };
@@ -428,7 +436,7 @@ export function App() {
         );
       } else if (event.type === RUNTIME_EVENT_TYPES.sessionRemoved && eventKey) {
         setSessionsByWorkspace((current) =>
-          removeCatalogSession(current, eventKey.workspaceId, eventKey.sessionId),
+          removeCatalogSession(current, eventKey.workspaceId, eventKey.sessionId, eventKey.backendId),
         );
       } else if (
         (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
@@ -533,6 +541,7 @@ export function App() {
       const dialog = conversation.dialog;
       void getDesktopBridge().resolveHostDialog({
         requestId: dialog?.requestId ?? "",
+        ...(dialog?.backendId ? { backendId: dialog.backendId } : {}),
         ...(dialog?.workspaceId ? { workspaceId: dialog.workspaceId } : {}),
         ...(dialog?.sessionId ? { sessionId: dialog.sessionId } : {}),
         ...resolution,
@@ -640,9 +649,12 @@ export function App() {
     await refreshBootstrap();
   }
 
-  function openSessionEntry(workspaceId: string, sessionId: string): void {
-    void switchSession(workspaceId, sessionId, () =>
-      getDesktopBridge().openSession({ workspaceId, sessionId }),
+  function openSessionEntry(workspaceId: string, sessionId: string, backendId?: string): void {
+    void switchSession(
+      workspaceId,
+      sessionId,
+      () => getDesktopBridge().openSession({ ...(backendId ? { backendId } : {}), workspaceId, sessionId }),
+      backendId,
     );
   }
 
@@ -705,6 +717,7 @@ export function App() {
       try {
         setError(null);
         const next = await getDesktopBridge().rewriteAssistantOutput({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
           sessionId: snap.session.id,
           workspaceId: snap.workspace.id,
           messageId,
@@ -728,6 +741,7 @@ export function App() {
       try {
         setError(null);
         const next = await getDesktopBridge().updateSessionContextPrompt({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
           sessionId: snap.session.id,
           workspaceId: snap.workspace.id,
           ...(input.reset
@@ -760,6 +774,7 @@ export function App() {
       try {
         setError(null);
         const next = await getDesktopBridge().setSessionMode({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
           sessionId: snap.session.id,
           workspaceId: snap.workspace.id,
           mode,
@@ -806,6 +821,7 @@ export function App() {
       }
       await withPlanBusy(async () => {
         const next = await getDesktopBridge().updateSessionPlanDocument({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
           sessionId: snap.session.id,
           workspaceId: snap.workspace.id,
           documentMarkdown,
@@ -823,6 +839,7 @@ export function App() {
     }
     await withPlanBusy(async () => {
       await getDesktopBridge().executeSessionPlan({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
         sessionId: snap.session.id,
         workspaceId: snap.workspace.id,
       });
@@ -839,6 +856,7 @@ export function App() {
       await withPlanBusy(async () => {
         try {
           await getDesktopBridge().sendPrompt({
+            ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
             sessionId: snap.session.id,
             workspaceId: snap.workspace.id,
             text: comment,
@@ -892,12 +910,17 @@ export function App() {
   const projects = bootstrap.recentWorkspaces;
   const pendingCached = Boolean(
     pendingSession?.sessionId &&
-      cache.byKey[sessionKeyId({ workspaceId: pendingSession.workspaceId, sessionId: pendingSession.sessionId })]
+      cache.byKey[sessionKeyId({
+        ...(pendingSession.backendId ? { backendId: pendingSession.backendId } : {}),
+        workspaceId: pendingSession.workspaceId,
+        sessionId: pendingSession.sessionId,
+      })]
         ?.snapshot,
   );
   const chatLoading = pendingSession !== null && !pendingCached;
   const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
   const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
+  const selectedBackendId = pendingSession?.backendId ?? snapshot?.session.backendId;
   const settingsVisible = settingsOpen && Boolean(settings);
   const showTrustBanner = Boolean(
     trustPending &&
@@ -1030,22 +1053,44 @@ export function App() {
     }
   }
 
-  function leaveSessionIfCurrent(workspaceId: string, sessionId: string, entries: readonly SessionCatalogEntry[]): void {
-    if (snapshot?.workspace.id !== workspaceId || snapshot.session.id !== sessionId) {
+  function leaveSessionIfCurrent(
+    workspaceId: string,
+    sessionId: string,
+    entries: readonly SessionCatalogEntry[],
+    backendId?: string,
+  ): void {
+    if (
+      snapshot?.workspace.id !== workspaceId ||
+      snapshot.session.id !== sessionId ||
+      (snapshot.session.backendId ?? "pi") !== (backendId ?? "pi")
+    ) {
       return;
     }
-    const next = entries.find((entry) => !entry.archived && entry.sessionId !== sessionId);
+    const next = entries.find((entry) => !entry.archived && (
+      entry.sessionId !== sessionId || (entry.backendId ?? "pi") !== (backendId ?? "pi")
+    ));
     if (next) {
-      void switchSession(workspaceId, next.sessionId, () =>
-        getDesktopBridge().openSession({ workspaceId, sessionId: next.sessionId }),
+      void switchSession(
+        workspaceId,
+        next.sessionId,
+        () => getDesktopBridge().openSession({
+          ...(next.backendId ? { backendId: next.backendId } : {}),
+          workspaceId,
+          sessionId: next.sessionId,
+        }),
+        next.backendId,
       );
       return;
     }
     startNewSession(workspaceId);
   }
 
-  function requestRemoveSession(workspaceId: string, sessionId: string): void {
-    requestRemoval(() => getDesktopBridge().prepareRemoveSession({ workspaceId, sessionId }), setPendingRemoval);
+  function requestRemoveSession(workspaceId: string, sessionId: string, backendId?: string): void {
+    requestRemoval(() => getDesktopBridge().prepareRemoveSession({
+      ...(backendId ? { backendId } : {}),
+      workspaceId,
+      sessionId,
+    }), setPendingRemoval);
   }
 
   function requestRemoveProject(workspaceId: string): void {
@@ -1075,6 +1120,7 @@ export function App() {
       setPreparedImages([]);
       const references = extractAtMentionPaths(text).map((path) => ({ path }));
       const payload = {
+        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
         sessionId: snapshot.session.id,
         workspaceId: snapshot.workspace.id,
         text,
@@ -1141,12 +1187,16 @@ export function App() {
             }}
             onNewSession={startNewSession}
             onOpenSession={openSessionEntry}
-            onArchiveSession={(workspaceId, sessionId) => {
+            onArchiveSession={(workspaceId, sessionId, backendId) => {
               void runCommand(
                 async () => {
-                  await getDesktopBridge().archiveSession({ workspaceId, sessionId });
+                  await getDesktopBridge().archiveSession({
+                    ...(backendId ? { backendId } : {}),
+                    workspaceId,
+                    sessionId,
+                  });
                   const entries = await refreshCatalog(workspaceId);
-                  leaveSessionIfCurrent(workspaceId, sessionId, entries);
+                  leaveSessionIfCurrent(workspaceId, sessionId, entries, backendId);
                 },
                 { busy: false },
               );
@@ -1180,6 +1230,7 @@ export function App() {
                 await Promise.allSettled(
                   targets.map((entry) =>
                     getDesktopBridge().abortRun({
+                      ...(entry.backendId ? { backendId: entry.backendId } : {}),
                       workspaceId: entry.workspaceId,
                       sessionId: entry.sessionId,
                       runId: entry.runId as string,
@@ -1190,6 +1241,7 @@ export function App() {
             }}
             {...(activeWorkspaceId ? { activeWorkspaceId } : {})}
             {...(selectedSessionId ? { selectedSessionId } : {})}
+            {...(selectedBackendId ? { selectedBackendId } : {})}
           />
       }
     >
@@ -1234,6 +1286,7 @@ export function App() {
                 onPickImages={() => {
                   void runCommand(async () => {
                     const result = await getDesktopBridge().pickImages({
+                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                       sessionId: snapshot.session.id,
                       workspaceId: snapshot.workspace.id,
                     });
@@ -1252,6 +1305,7 @@ export function App() {
                     const result =
                       files.length > 0
                         ? await getDesktopBridge().pasteImages({
+                            ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                             sessionId: snapshot.session.id,
                             workspaceId: snapshot.workspace.id,
                             images: await Promise.all(
@@ -1267,6 +1321,7 @@ export function App() {
                             ),
                           })
                         : await getDesktopBridge().pasteImages({
+                            ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                             sessionId: snapshot.session.id,
                             workspaceId: snapshot.workspace.id,
                           });
@@ -1279,6 +1334,7 @@ export function App() {
                 onRemoveImage={(imageId) => {
                   void runCommand(async () => {
                     await getDesktopBridge().removePreparedImage({
+                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                       imageId,
                       sessionId: snapshot.session.id,
                       workspaceId: snapshot.workspace.id,
@@ -1297,6 +1353,7 @@ export function App() {
                   }
                   void runCommand(async () => {
                     await getDesktopBridge().abortRun({
+                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                       sessionId: snapshot.session.id,
                       workspaceId: snapshot.workspace.id,
                       runId,
@@ -1317,6 +1374,7 @@ export function App() {
                     },
                     () =>
                       getDesktopBridge().setSessionModel({
+                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                         sessionId: snapshot.session.id,
                         workspaceId: snapshot.workspace.id,
                         provider: model.provider,
@@ -1331,6 +1389,7 @@ export function App() {
                     (current) => ({ ...current, thinkingLevel: previous }),
                     () =>
                       getDesktopBridge().setThinkingLevel({
+                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
                         sessionId: snapshot.session.id,
                         workspaceId: snapshot.workspace.id,
                         level,
@@ -1465,22 +1524,37 @@ export function App() {
               await refreshBootstrap();
             });
           }}
-          onRestoreArchived={(workspaceId, sessionId) => {
+          onRestoreArchived={(workspaceId, sessionId, backendId) => {
             void runCommand(
               async () => {
-                await getDesktopBridge().restoreSession({ workspaceId, sessionId });
+                await getDesktopBridge().restoreSession({
+                  ...(backendId ? { backendId } : {}),
+                  workspaceId,
+                  sessionId,
+                });
                 await refreshCatalog(workspaceId);
               },
               { busy: false },
             );
           }}
-          onOpenArchived={(workspaceId, sessionId) => {
+          onOpenArchived={(workspaceId, sessionId, backendId) => {
             void runCommand(async () => {
-              await getDesktopBridge().restoreSession({ workspaceId, sessionId });
+              await getDesktopBridge().restoreSession({
+                ...(backendId ? { backendId } : {}),
+                workspaceId,
+                sessionId,
+              });
               await refreshCatalog(workspaceId);
               setSettingsOpen(false);
-              await switchSession(workspaceId, sessionId, () =>
-                getDesktopBridge().openSession({ workspaceId, sessionId }),
+              await switchSession(
+                workspaceId,
+                sessionId,
+                () => getDesktopBridge().openSession({
+                  ...(backendId ? { backendId } : {}),
+                  workspaceId,
+                  sessionId,
+                }),
+                backendId,
               );
             });
           }}

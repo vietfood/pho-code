@@ -28,8 +28,7 @@ describe("sandbox protocol", () => {
     expect(snapshot.allowedDomains).toEqual([]);
     expect(snapshot.includePackageRegistryDefaults).toBe(false);
     expect(snapshot.disclosure).toBe(SANDBOX_DISCLOSURE);
-    // fb65320 removed the standing trust disclosure; the field stays on the wire.
-    expect(snapshot.disclosure).toBe("");
+    expect(snapshot.disclosure).toContain("Seatbelt for agent bash");
     expect(isJsonSafeValue(snapshot)).toBe(true);
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
     expect(JSON.stringify(snapshot)).not.toContain("sandbox-exec");

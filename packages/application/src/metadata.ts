@@ -31,9 +31,9 @@ import {
   type SessionOutcome,
 } from "@pho-code/protocol";
 
-export const METADATA_VERSION = 6 as const;
+export const METADATA_VERSION = 7 as const;
 export const MAX_RECENT_WORKSPACES = 8;
-const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4, 5]);
+const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
 
 export interface SessionLifecycleRecord extends SessionKey {
   archivedAt?: string;
@@ -62,6 +62,7 @@ export interface AppMetadata {
   githubMcpAccountLogin?: string;
   selectedWorkspaceId?: string;
   selectedSessionId?: string;
+  selectedBackendId?: string;
 }
 
 export interface AppMetadataStore {
@@ -135,11 +136,13 @@ export function reorderRecentWorkspaces(metadata: AppMetadata, workspaceIds: rea
   };
 }
 
-export function selectSession(metadata: AppMetadata, sessionId: string | undefined): AppMetadata {
+export function selectSession(metadata: AppMetadata, sessionId: string | undefined, backendId?: string): AppMetadata {
   const next = { ...metadata };
   delete next.selectedSessionId;
+  delete next.selectedBackendId;
   if (sessionId) {
     next.selectedSessionId = sessionId;
+    if (backendId && backendId !== "pi") next.selectedBackendId = backendId;
   }
   return next;
 }
@@ -243,6 +246,9 @@ export function parseMetadata(value: unknown): AppMetadata {
   }
   if (typeof candidate.selectedSessionId === "string") {
     metadata.selectedSessionId = candidate.selectedSessionId;
+  }
+  if (typeof candidate.selectedBackendId === "string" && candidate.selectedBackendId.trim() !== "") {
+    metadata.selectedBackendId = candidate.selectedBackendId.trim();
   }
   return metadata;
 }
@@ -370,6 +376,7 @@ export function forgetSessionLifecycle(metadata: AppMetadata, key: SessionKey): 
   const next = { ...metadata, sessionLifecycle };
   if (
     metadata.selectedSessionId === key.sessionId &&
+    (metadata.selectedBackendId ?? "pi") === (key.backendId ?? "pi") &&
     (metadata.selectedWorkspaceId === undefined || metadata.selectedWorkspaceId === key.workspaceId)
   ) {
     return selectSession(next, undefined);
@@ -406,7 +413,9 @@ function upsertSessionLifecycle(
   }
   const index = metadata.sessionLifecycle.findIndex((entry) => sessionKeyEquals(entry, key));
   const current: SessionLifecycleRecord =
-    index >= 0 ? metadata.sessionLifecycle[index]! : { workspaceId: key.workspaceId, sessionId: key.sessionId };
+    index >= 0
+      ? metadata.sessionLifecycle[index]!
+      : { ...(key.backendId ? { backendId: key.backendId } : {}), workspaceId: key.workspaceId, sessionId: key.sessionId };
   const next = update(current);
   const sessionLifecycle =
     index >= 0
@@ -462,6 +471,7 @@ function parseLifecycleRecord(value: unknown): SessionLifecycleRecord | undefine
   }
   const candidate = value as SessionLifecycleRecord & Record<string, unknown>;
   const record: SessionLifecycleRecord = {
+    ...(candidate.backendId ? { backendId: candidate.backendId } : {}),
     workspaceId: candidate.workspaceId,
     sessionId: candidate.sessionId,
   };

@@ -15,6 +15,9 @@ packages/
 ├── pho-agent/       Pinned production submodule (V5 M0, not yet accepted)
 │   └── packages/
 │       ├── protocol/ Host-neutral harness contracts and validation
+│       ├── host/     Backend registry, routing, capability dispatch, lifecycle
+│       ├── backend-codex/ Experimental direct Codex app-server adapter
+│       ├── backend-acp/   Generic stable-v1 ACP adapter
 │       ├── runtime/  Reusable Pi lifecycle and harness features
 │       └── evals/    Versioned harness-evaluation records and scoring
 ├── protocol/        JSON-safe contracts, reducers, validation
@@ -29,19 +32,24 @@ The enforced direction is:
 ```text
 apps/desktop/src -> packages/ui -> packages/protocol
 apps/desktop/src -> packages/protocol
-apps/desktop/electron -> packages/application -> packages/runtime -> packages/pho-agent/packages/runtime -> Pi SDK
+apps/desktop/electron -> packages/application -> packages/runtime -> packages/pho-agent/packages/host
+packages/runtime -> packages/pho-agent/packages/runtime -> Pi SDK
 apps/desktop/electron -> packages/protocol
 packages/protocol -> packages/pho-agent/packages/protocol
+packages/runtime -> packages/pho-agent/packages/host
 packages/runtime -> packages/pho-agent/packages/runtime
 ```
 
 Electron main is the composition root and may import application/runtime packages. Renderer code may not.
 
-The three `@pho-agent/*` packages are versioned together by the pinned `packages/pho-agent` gitlink to [`vietfood/pho-agent`](https://github.com/vietfood/pho-agent). They remain unaccepted until the V5 Milestone 0 exit gate closes. `@pho-code/*` compatibility surfaces remain the product-facing boundary during the migration.
+The six `@pho-agent/*` packages are versioned together by the pinned `packages/pho-agent` gitlink to [`vietfood/pho-agent`](https://github.com/vietfood/pho-agent). They remain unaccepted until the redirected V5 foundation gate closes. `@pho-code/*` compatibility surfaces remain the product-facing boundary during the migration.
 
 ## Agent packages (V5 M0, implemented but not accepted)
 
 - `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Plan/Agent, skill, session-title, and GitHub MCP contracts. Matching files in `packages/protocol/src` are compatibility re-exports.
+- `packages/pho-agent/packages/host/src` owns normalized backend registration, descriptor/capability discovery, session and interaction routing, aggregate event identity, optional-operation rejection, and disposal without importing Node or a backend SDK.
+- `packages/pho-agent/packages/backend-codex/src` owns the experimental direct Codex app-server stdio/JSON-RPC adapter, bounded native item and interaction projection, and lazy adapter factory. Pho Code composes it experimentally without launching a process until a Codex session is chosen.
+- `packages/pho-agent/packages/backend-acp/src` owns the generic stable-v1 ACP adapter through the pinned official SDK. No Claude-compatible agent artifact is yet selected or packaged.
 - `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, the fixed reviewed GitHub MCP lifecycle, and tool-less session-title generation. It does not import Electron, React, or `@pho-code/*`.
 - `packages/pho-agent/packages/evals/src` owns append-only scenario/result records, source fingerprints, deterministic scoring, and cohort separation for harness evaluation.
 
@@ -70,7 +78,7 @@ Pho Code still owns application identity, renderer contracts, metadata/settings 
 
 - `bootstrap.ts` implements `ApplicationService`, validates use-case identity/input, coordinates metadata and runtime, and maps errors.
 - `runtime-host.ts` owns the attach-once starting/ready/failed Pi connection, pre-attach event/config retention, and late-runtime disposal for window-first startup.
-- `metadata.ts` defines application metadata schema v6: recent-workspace order, selection, archive/view/outcome lifecycle, appearance (including installed UI/code font families and font smoothing), trusted projects, skill sources, and GitHub MCP enabled state.
+- `metadata.ts` defines application metadata schema v7: recent-workspace order, backend-pinned selection and archive/view/outcome lifecycle, appearance (including installed UI/code font families and font smoothing), trusted projects, skill sources, and GitHub MCP enabled state. Missing backend identity from v6 and older records normalizes to Pi.
 - `session-catalog.ts` joins Pi session truth with application archive/attention state.
 - `index.ts` exports the application boundary.
 
@@ -82,6 +90,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 
 - `harness-runtime.ts` defines the privileged runtime interface.
 - `pi-runtime.ts` composes Pi services and public runtime operations, including the accepted bounded abort/controller-disposal path.
+- `hosted-runtime.ts` registers production Pi routing and the lazy experimental Codex adapter with the Pho Agent host, projects backend snapshots/events into the product facade, and explicitly rejects product operations a selected backend does not support.
 - `session-registry.ts` adapts Pho Code `{workspaceId, sessionId}` identity to the bounded independent registry owned by `@pho-agent/runtime/session-registry`: eight resident controllers and four concurrent runs.
 - `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth. Session catalog titles go through `sessionCatalogCopy` and may later persist a model summary with Pi `setSessionName`.
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.

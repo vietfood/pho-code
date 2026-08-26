@@ -33,6 +33,8 @@ describe("skills settings", () => {
       }),
     );
     expect(markup).toContain('data-testid="skill-settings"');
+    expect(SKILL_TRUST_NOTICE.length).toBeGreaterThan(80);
+    expect(markup).toContain('data-testid="skill-trust-disclosure-trigger"');
     expect(markup).toContain(SKILL_TRUST_NOTICE);
     expect(markup).toContain("Built in");
     expect(markup).toContain("~/.cursor/skills");
