@@ -1,7 +1,6 @@
 import type { AgentSession } from "@pho-agent/runtime/feature-api";
 import {
   isImageMimeType,
-  sessionPromptPreview,
   type TranscriptBlock,
   type TranscriptMessage,
 } from "@pho-code/protocol";
@@ -188,23 +187,6 @@ function userText(content: string | Array<{ type: string; text?: string }>): str
     .filter((part) => part.type === "text" && typeof part.text === "string")
     .map((part) => stripWorkspaceReferenceAppendix(part.text ?? ""))
     .join("");
-}
-
-export function firstUserPreview(messages: readonly SessionMessage[]): string | undefined {
-  for (const message of messages) {
-    if (message.role !== "user") {
-      continue;
-    }
-    const raw = firstUserTextFromContent(message.content);
-    if (!raw) {
-      continue;
-    }
-    const text = sessionPromptPreview(raw);
-    if (text) {
-      return text;
-    }
-  }
-  return undefined;
 }
 
 export function firstUserText(messages: readonly SessionMessage[]): string | undefined {

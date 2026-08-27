@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ChevronDownIcon, InfoIcon } from "lucide-react";
 import type { AgentBackendDescriptor } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
+import { useDismissOnOutside } from "./lib/use-dismiss";
 
 export function BackendPicker({
   backends,
@@ -22,25 +23,10 @@ export function BackendPicker({
   useEffect(() => {
     if (!open) {
       setInfoOpen(false);
-      return;
     }
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
   }, [open]);
+
+  useDismissOnOutside({ open, ref: rootRef, onDismiss: () => setOpen(false) });
 
   if (backends.length < 2) {
     return null;

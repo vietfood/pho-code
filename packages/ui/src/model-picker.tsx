@@ -5,6 +5,7 @@ import { formatRatePerMillion, formatTokenCount } from "./lib/format-tokens";
 import { filterModels, groupModelsByProvider } from "./lib/model-picker-groups";
 import { cn } from "./lib/cn";
 import { ProviderIcon } from "./provider-icon";
+import { useDismissOnOutside } from "./lib/use-dismiss";
 
 export function ModelPicker({
   models,
@@ -40,18 +41,14 @@ export function ModelPicker({
   useEffect(() => {
     if (!open) {
       setFilter("");
-      return;
     }
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        return;
-      }
+  }, [open]);
+
+  useDismissOnOutside({
+    open,
+    ref: rootRef,
+    onDismiss: () => setOpen(false),
+    onKeyDown: (event) => {
       // Type-to-filter without stealing focus on open.
       if (
         event.key.length === 1 &&
@@ -64,14 +61,8 @@ export function ModelPicker({
         setFilter((value) => value + event.key);
         filterRef.current?.focus();
       }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+    },
+  });
 
   return (
     <div className="relative min-w-0" ref={rootRef}>

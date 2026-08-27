@@ -1,0 +1,108 @@
+# Prerequisite — decompose the runtime, renderer, and bootstrap god-files
+
+**Kind:** prerequisite
+**Status:** In implementation — four runtime state owners and the renderer's layout chrome extracted 2026-08-27; step 2 and step 4 not started
+**Owner outcome:** the three largest source files stop being single closures, so a reviewer can read one concern at a time and V4's runtime extraction moves a graph that is already modular.
+
+This is a **proposal**, not accepted architecture and not an implementation contract. Step 1 is partly in source (see the progress table below); steps 2–4 are not. It exists because a deslop pass on 2026-08-27 removed every unreferenced export in the tree and found that the remaining bulk is not dead code — it is three files that each hold one very large function.
+
+## Why this is a prerequisite and not ordinary polish
+
+`docs/urgent/README.md` scopes this folder to work that should happen *before adding more capability*. These files are where new capability lands. Each new backend, command, or sidebar surface currently appends to a closure that no longer fits in a reviewer's head, so the cost of the next feature rises with every feature already added.
+
+## Measured starting point (2026-08-27, after the deslop pass)
+
+| File | Lines | Shape |
+| --- | --- | --- |
+| `packages/runtime/src/pi-runtime.ts` | 2,680 | `createPhoCodeRuntime` spans lines 333–2523 — one ~2,190-line function holding ~70 inner functions over ~35 closure bindings (lines 337–500), ending in a `const runtime: HarnessRuntime = { … }` literal at 1676 with ~60 methods across ~690 lines. 58 imports. |
+| `apps/desktop/src/App.tsx` | 1,756 | `App()` spans 89–1722 — one ~1,630-line component with 20+ `useState` hooks declared at 90–112. |
+| `packages/application/src/bootstrap.ts` | 1,623 | Single bootstrap module restating the bridge command surface. |
+
+The closure bindings are the real coupling: every inner function reads shared mutable state (`selected`, `sequence`, `generation`, `catalogCache`, `registry`, `sandbox`, `modelRuntime`, …) directly, so no cluster can move without first naming that state.
+
+## Hard boundary — this must not absorb V4
+
+V4 Milestone 2 owns moving "the complete `HarnessRuntime` graph—not a partial duplicate—into one Electron utility process", and V4 is **Pending** (held 2026-08-20). See [`version/v4/implementation-plan.md`](../version/v4/implementation-plan.md).
+
+This proposal therefore:
+
+- changes **module organization inside `packages/runtime` only** — no process boundary, no IPC, no serialization change;
+- keeps `HarnessRuntime`'s public shape byte-identical, including its synchronous getters, so V4 inherits the same contract it planned against;
+- must not be described, in code or docs, as progress on V4 Milestone 2.
+
+It makes V4 cheaper rather than competing with it: "move the complete graph" is easier to verify when the graph is a set of named modules over one explicit context than when it is one closure.
+
+## Proposed shape
+
+**Step 1 — name the state.** *Revised during implementation.* The original plan proposed one `RuntimeContext` object holding all ~35 closure bindings. That was rejected in practice: the mutable `let` bindings (`selected` alone has 25 references) would require rewriting every read and write across ~2,200 lines in a single unreviewable change.
+
+The working approach instead extracts **one self-contained state owner at a time**, each with its own module, interface, and unit test. Every step is independently reviewable and leaves the tree green, and each one removes mutable state from the closure rather than relocating all of it at once.
+
+Progress on 2026-08-27 — mutable `let` bindings in the closure went from **10 to 3**:
+
+| Extracted | Owns | Was |
+| --- | --- | --- |
+| `runtime-event-emitter.ts` | `listeners`, `sequence`, envelope stamping, listener fan-out | `let sequence` + a listener `Set` + inlined `emit`/`subscribe` |
+| `workspace-catalog-cache.ts` | the one-slot model/session catalog for the active workspace | `let catalogCache` + duplicated projection in `resolveCatalog` |
+| `dispose-latch.ts` | the one-way disposal flag and its count | `let disposed` + `let disposeCount`, updated at separate statements |
+| `sandbox-settings.ts` → `createSandboxSettingsStore` | current sandbox settings and their persistence | `let storedSandbox` + a `saveSandboxSettings` call the caller had to remember |
+| `session-selection.ts` | which session is active and which workspace to fall back to | `let selected` + `let lastWorkspace`, set together in one place and separately in three others |
+
+`activeWorkspacePath()` now names `selected?.workspace.path ?? lastWorkspace?.path`, which appeared at four command sites — one of which evaluated it twice and used a `!` non-null assertion to satisfy the compiler.
+
+Two coupled invariants were also collapsed rather than wrapped: `githubBindingRevision += 1` immediately followed by `rebindIdleGitHubSessions()` appeared at three command sites and is now `invalidateGitHubBinding()` — bumping without rebinding would leave idle sessions on a stale binding.
+
+`createSessionSelection` is generic over the session type so the runtime's `LiveSession` stays private to `pi-runtime.ts`. It captures the invariant that selecting a session must also record its workspace, while *clearing* the selection must not forget it — global commands still need a workspace to act on after the last chat closes.
+
+Remaining closure state: `testProvider`, `generation`, `githubBindingRevision`. The last two are bare counters and the first is test scaffolding; wrapping any of them would add indirection without removing duplication or protecting an invariant. They should move with whichever cluster step 2 relocates, not on their own.
+
+**Step 2 — move one cluster at a time.** The inner functions already cluster cleanly. Each becomes a module once the state it reads has its own owner from step 1; the line ranges below are from the 2,680-line starting point and shift as step 1 proceeds:
+
+| Proposed module | Current lines | Concern |
+| --- | --- | --- |
+| `runtime-events.ts` | 498–652 | `emitFor`, `toolEventPayload`, snapshot/activity emission (`emit` itself already moved) |
+| `runtime-sessions.ts` | 653–863 | controller pool: instantiate, open, dispose, relocate, busy refusal |
+| `runtime-catalog.ts` | 864–1045 | models, accounts, workspace/session catalog, `buildSnapshot` |
+| `runtime-features.ts` | 1046–1211 | resource loader, sandbox/GitHub rebinding, host-UI bind |
+| `runtime-run-loop.ts` | 1212–1484 | `handleAgentEvent`, `finishRun`, session titling |
+| `runtime-plan-context.ts` | 1485–1560 | context prompt and Plan/Agent projection |
+| `runtime-admission.ts` | 1561–1660 | tool policy, admission, run publication |
+
+`pi-runtime.ts` keeps `createPhoCodeRuntime`, the context construction, and the `HarnessRuntime` literal — the literal's methods become thin delegations.
+
+**Step 3 — `App.tsx`.** Group the 20+ `useState` hooks into the containers that already exist implicitly. `use-change-review.ts` is the precedent. The component keeps its JSX; only state ownership moves.
+
+Done 2026-08-27: `use-layout-chrome.ts` owns `sidebarCollapsed`, `rightSidebarCollapsed`, `rightSidebarSurface`, `changesWindowOpen`, their two mirror refs, and the eight callbacks that drive them. The motivating defect was a coupled invariant, not size: `setRightSidebarCollapsed(x)` had to be paired by hand with `writeRightSidebarCollapsed(x)` at five call sites, and missing the write silently loses the collapse preference across relaunch. That pairing now exists once. `App.tsx` 1,756 → 1,690.
+
+Assessed and deliberately **not** extracted:
+
+- **Removal dialogs** (`pendingRemoval`, `pendingProjectRemoval`, `pendingArchivedRemoval`) — already share a `requestRemoval(prepare, setState)` helper, and each is read by exactly one JSX block. A hook would add indirection and remove no duplication.
+- **The three removal dialog JSX blocks** — they share a five-line wrapper skeleton but their confirm bodies genuinely differ (project removal tears down workspace state, session removal leaves the current chat). A generic wrapper would cost about as much as it saves.
+- **Project trust** (`trustDialogOpen` and the two dismissed-id sets) — plausible, but its setters are threaded through eight JSX sites, so the extraction is wider than the layout one for less gain. Worth doing only alongside a trust-surface change.
+
+`useLayoutChrome` is **desktop-verified, not unit-tested**: the repository has no hook-test harness (no testing-library, no jsdom/happy-dom — UI tests use `renderToStaticMarkup` only), and adding a DOM environment for it would be a new dependency nobody asked for. `change-review.spec.ts`, `settings.spec.ts`, and `chat.spec.ts` drive the real chrome.
+
+**Step 4 — `bootstrap.ts`. Resolved 2026-08-27: will not deduplicate.** The clone scan ranked the command-surface interface restated across `protocol/src/bridge.ts`, `runtime/src/harness-runtime.ts`, and `application/src/bootstrap.ts` as the tree's largest clone. Inspection showed it is not one: `HarnessRuntime` takes positional arguments and exposes synchronous getters the other two do not have, and `DesktopBridge` diverges from `ApplicationService` precisely at the IPC boundary (async everywhere, shell-only pickers, a different `subscribe` payload). Drift is already prevented by a compile-time assertion in `preload.ts`, the `keyof ApplicationService & keyof typeof IPC_CHANNELS` constraint in `main.ts`, and `bridge-commands.test.ts`. Merging would also have to be unpicked when V4 moves `HarnessRuntime` into a utility process and its getters become asynchronous.
+
+The reasoning is recorded where the next reader will look before touching it: [`architecture/protocol-and-ipc.md`](../architecture/protocol-and-ipc.md) → *Three command declarations, deliberately not merged*. `bootstrap.ts` may still be split by concern later, but that is a separate, smaller question than the interface.
+
+This leaves the runtime session cluster as the only remaining structural item.
+
+## Acceptance gates
+
+Behaviour-preserving refactors need behavioural proof, not just a green typecheck:
+
+- `bun run typecheck`, `bun run lint`, `bun test` clean at every step;
+- `bun run test:desktop` after each cluster move — per AGENTS.md, unit tests alone are insufficient for renderer/IPC-adjacent change;
+- `HarnessRuntime`'s public surface diffed and shown unchanged;
+- no step lands as a partial duplicate of the runtime graph.
+
+## Sequencing
+
+Steps are individually promotable and individually abandonable. Each step 1 extraction stands on its own — it removes shared mutable state and lands a tested module — and together they unblock steps 2–4. Do not run this concurrently with a resumed V4 Milestone 2.
+
+## Related
+
+- [`version/v4/implementation-plan.md`](../version/v4/implementation-plan.md) — owns runtime-process extraction; held.
+- [`architecture/runtime-and-data.md`](../architecture/runtime-and-data.md) — accepted runtime boundaries this must preserve.
+- [`2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md`](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) — defects surfaced by the same pass.

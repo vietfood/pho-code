@@ -123,26 +123,6 @@ export function resolveRipgrepPath(input: {
   return findExecutableOnPath("rg", input.pathEnv ?? process.env.PATH ?? "");
 }
 
-export function resolveRipgrepDirectory(resourcesRoot?: string): string | undefined {
-  const binary = resolveRipgrepPath({ resourcesRoot, pathEnv: "" });
-  return binary ? path.dirname(binary) : undefined;
-}
-
-export function prependRipgrepDirectoryToPath(
-  resourcesRoot?: string,
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  const directory = resolveRipgrepDirectory(resourcesRoot);
-  if (!directory) {
-    return undefined;
-  }
-  const current = env.PATH?.split(path.delimiter).filter(Boolean) ?? [];
-  if (!current.includes(directory)) {
-    env.PATH = [directory, ...current].join(path.delimiter);
-  }
-  return directory;
-}
-
 export function createAnthropicSandboxEngine(): SandboxEngine {
   return {
     initialize(config) {

@@ -58,17 +58,12 @@ import {
   ProjectTrustBanner,
   ProjectTrustDialog,
   projectPermissionTrustPending,
-  readSidebarCollapsed,
-  readRightSidebarCollapsed,
   RemoveArchivedSessionsDialog,
   RemoveProjectDialog,
   RemoveSessionDialog,
   RightSidebar,
-  type RightSidebarSurface,
   SettingsView,
   WorkspacePicker,
-  writeSidebarCollapsed,
-  writeRightSidebarCollapsed,
   dropLiveRun,
   getLiveRunForKey,
   replaceLiveRun,
@@ -83,6 +78,7 @@ import {
   upsertCatalogSession,
 } from "./session-catalog-state";
 import { useSessionSwitch } from "./use-session-switch";
+import { useLayoutChrome } from "./use-layout-chrome";
 
 const COMMAND_BANNER_DISMISS_MS = 5_000;
 
@@ -104,20 +100,12 @@ export function App() {
   const [trustBannerDismissedIds, setTrustBannerDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [providerAccounts, setProviderAccounts] = useState<ProviderAccountsResult>(idleProviderAccountsResult);
   const piReady = bootstrap?.capabilities.piRuntime === true;
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => readRightSidebarCollapsed());
-  const [rightSidebarSurface, setRightSidebarSurface] = useState<RightSidebarSurface>("changes");
-  const [changesWindowOpen, setChangesWindowOpen] = useState(false);
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
   const composerAfterRun = useRef(false);
   const bootstrapRefreshGeneration = useRef(0);
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
-  const changesWindowOpenRef = useRef(changesWindowOpen);
-  changesWindowOpenRef.current = changesWindowOpen;
-  const rightSidebarSurfaceRef = useRef(rightSidebarSurface);
-  rightSidebarSurfaceRef.current = rightSidebarSurface;
   const conversation = selectedConversation(cache);
   const settings = cache.settings;
   // Live runs across every workspace, for the sidebar Stop-all control.
@@ -125,14 +113,6 @@ export function App() {
     (entry) => entry.runId !== undefined && (entry.phase === "working" || entry.phase === "attention"),
   );
   const changeReview = useChangeReview(cache);
-
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((current) => {
-      const next = !current;
-      writeSidebarCollapsed(next);
-      return next;
-    });
-  }, []);
 
   const openLatestReviewIfNeeded = useCallback(() => {
     if (changeReview.scope) {
@@ -151,73 +131,27 @@ export function App() {
     });
   }, [changeReview.open, changeReview.scope]);
 
-  const dockChanges = useCallback(() => {
-    setRightSidebarSurface("changes");
-    setRightSidebarCollapsed(false);
-    writeRightSidebarCollapsed(false);
-    setChangesWindowOpen(false);
-    openLatestReviewIfNeeded();
-  }, [openLatestReviewIfNeeded]);
-
-  const expandChangesOverlay = useCallback(() => {
-    setRightSidebarSurface("changes");
-    setRightSidebarCollapsed(true);
-    writeRightSidebarCollapsed(true);
-    setChangesWindowOpen(true);
-    openLatestReviewIfNeeded();
-  }, [openLatestReviewIfNeeded]);
-
-  const closeChangesOverlay = useCallback((restoreSidebar: boolean) => {
-    setChangesWindowOpen(false);
-    if (restoreSidebar) {
-      setRightSidebarCollapsed(false);
-      writeRightSidebarCollapsed(false);
-    }
-  }, []);
-
-  const toggleRightSidebar = useCallback(() => {
-    if (changesWindowOpenRef.current) {
-      closeChangesOverlay(false);
-      return;
-    }
-    setRightSidebarCollapsed((current) => {
-      const next = !current;
-      writeRightSidebarCollapsed(next);
-      if (!next && rightSidebarSurfaceRef.current === "changes") {
-        openLatestReviewIfNeeded();
-      }
-      return next;
-    });
-  }, [closeChangesOverlay, openLatestReviewIfNeeded]);
-
-  const collapseRightSidebar = useCallback(() => {
-    setRightSidebarCollapsed(true);
-    writeRightSidebarCollapsed(true);
-  }, []);
-
-  const selectRightSurface = useCallback(
-    (next: RightSidebarSurface) => {
-      if (next === "changes") {
-        dockChanges();
-        return;
-      }
-      setChangesWindowOpen(false);
-      setRightSidebarSurface(next);
-      setRightSidebarCollapsed(false);
-      writeRightSidebarCollapsed(false);
-    },
-    [dockChanges],
-  );
+  const {
+    sidebarCollapsed,
+    rightSidebarCollapsed,
+    rightSidebarSurface,
+    changesWindowOpen,
+    toggleSidebar,
+    toggleRightSidebar,
+    collapseRightSidebar,
+    expandChangesOverlay,
+    closeChangesOverlay,
+    selectRightSurface,
+    revealChanges,
+    closeChangesWindow,
+  } = useLayoutChrome(openLatestReviewIfNeeded);
 
   const openChangeReview = useCallback(
     (scope: Parameters<typeof changeReview.open>[0]) => {
       changeReview.open(scope);
-      setRightSidebarSurface("changes");
-      setRightSidebarCollapsed(false);
-      writeRightSidebarCollapsed(false);
-      setChangesWindowOpen(false);
+      revealChanges();
     },
-    [changeReview.open],
+    [changeReview.open, revealChanges],
   );
 
   useEffect(() => {
@@ -232,8 +166,8 @@ export function App() {
   }, [changeReview.close, changeReview.scope, conversation.snapshot]);
 
   useEffect(() => {
-    setChangesWindowOpen(false);
-  }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
+    closeChangesWindow();
+  }, [closeChangesWindow, conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
 
   useEffect(() => {
     setContextPromptBusy(false);

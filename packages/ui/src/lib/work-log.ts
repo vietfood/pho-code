@@ -66,26 +66,6 @@ export function isTurnOutputText(blocks: readonly TranscriptBlock[], index: numb
   return block?.type === "text" && !hasLaterTool(blocks, index);
 }
 
-export function isWorkLogBlock(blocks: readonly TranscriptBlock[], index: number): boolean {
-  const block = blocks[index];
-  if (!block) {
-    return false;
-  }
-  switch (block.type) {
-    case "thinking":
-    case "tool":
-      return true;
-    case "text":
-      return hasLaterTool(blocks, index);
-    case "image":
-      return false;
-    default: {
-      const exhaustive: never = block;
-      return exhaustive;
-    }
-  }
-}
-
 export function turnOutputTextBlocks(
   blocks: readonly TranscriptBlock[],
 ): Extract<TranscriptBlock, { type: "text" }>[] {

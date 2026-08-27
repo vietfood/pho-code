@@ -6,10 +6,8 @@ import {
   emptyFeatureSnapshot,
   emptySessionContextPrompt,
   idleRunState,
-  isContextPromptSectionKind,
   isJsonSafeValue,
   jsonRoundTrip,
-  parseToolSectionId,
   PI_DOCS_SECTION_ID,
   toolSectionId,
   type SessionContextPrompt,
@@ -19,13 +17,9 @@ import {
 describe("context prompt protocol", () => {
   test("section ids and kinds are stable", () => {
     expect(toolSectionId("read")).toBe("tool:read");
-    expect(parseToolSectionId("tool:read")).toBe("read");
-    expect(parseToolSectionId("agents:AGENTS.md")).toBeUndefined();
     expect(agentsSectionId("AGENTS.md")).toBe("agents:AGENTS.md");
     expect(PI_DOCS_SECTION_ID).toBe("optional:pi-docs");
     expect(CONTEXT_PROMPT_SECTION_KINDS).toEqual(["agents", "tool", "optional"]);
-    expect(isContextPromptSectionKind("tool")).toBe(true);
-    expect(isContextPromptSectionKind("skill")).toBe(false);
   });
 
   test("session context prompt survives a JSON round trip", () => {

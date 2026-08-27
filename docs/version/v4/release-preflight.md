@@ -18,7 +18,7 @@ Owner-recorded freeze for public identity, distribution rights, signing, platfor
 | Minimum macOS | 14.0 |
 | Proof artifact label | `m0-proof` — never `4.0.0-beta` |
 
-Source of truth: [`scripts/release-identity.ts`](../../../scripts/release-identity.ts). Changing the bundle identifier after a public build would require a data/Keychain migration log before source changes.
+Source of truth: [`scripts/release-identity.ts`](../../../scripts/release-identity.ts), which now carries only the constants the proof packager consumes. The frozen channel/version-line/data-identity constants were removed 2026-08-27; re-establish them here when V4 resumes. Changing the bundle identifier after a public build would require a data/Keychain migration log before source changes.
 
 ## Public-name review
 
@@ -61,7 +61,7 @@ Template: [`.env.example`](../../../.env.example). Missing credentials fail befo
 
 ## Website / release origins
 
-Exact HTTPS locations are **named placeholders** until the separate website work publishes them ([`scripts/release-origins.ts`](../../../scripts/release-origins.ts)):
+Exact HTTPS locations are **named placeholders** until the separate website work publishes them. `scripts/release-origins.ts` held these values and was removed 2026-08-27 because nothing consumed it; this table is now the only record until V4 resumes:
 
 - download, release notes, privacy, security contact, update feed, and payload host under `https://website-pending.pho-code.invalid`
 - TLS, feed publication, artifact replacement, and revocation are owned by that website/release host, not this repository

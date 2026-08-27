@@ -10,8 +10,6 @@ export type SandboxFileToolName = "read" | "write" | "edit";
 export type SandboxFileToolDecision = "allow" | "deny";
 export type SandboxFileToolDenyKind = "outside-policy" | "protected";
 
-export const SANDBOX_FILE_TOOL_NAMES = ["read", "write", "edit"] as const;
-
 export interface SandboxPolicyInput {
   workspacePath: string;
   networkMode: SandboxNetworkMode;

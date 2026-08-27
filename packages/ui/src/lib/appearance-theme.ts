@@ -2,7 +2,6 @@ import {
   DEFAULT_WORK_ENTRY_ICONS,
   glassCssTokens,
   isAppearancePalette,
-  isWorkEntryIconPack,
   resolveAppearanceMode,
   type AppearancePalette,
   type AppearanceSettings,
@@ -75,10 +74,6 @@ export function readResolvedAppearance(root: HTMLElement = document.documentElem
 
 export function readAppearancePalette(root: HTMLElement = document.documentElement): AppearancePalette {
   return isAppearancePalette(root.dataset.palette) ? root.dataset.palette : "default";
-}
-
-export function readWorkEntryIconPack(root: HTMLElement = document.documentElement): WorkEntryIconPack {
-  return isWorkEntryIconPack(root.dataset.workIcons) ? root.dataset.workIcons : DEFAULT_WORK_ENTRY_ICONS;
 }
 
 export function getWorkEntryIconPack(): WorkEntryIconPack {

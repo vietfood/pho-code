@@ -10,7 +10,6 @@ import {
   applyCaptureBegin,
   applyCaptureSettle,
   applyCurrentHashConflict,
-  isCompletePendingRecord,
 } from "../src/change-record";
 import { createChangeCaptureService, projectSnapshot, projectSummary } from "../src/change-capture";
 import { createChangeReviewRuntime } from "../src/change-review";
@@ -70,7 +69,6 @@ describe("change records", () => {
     expect(capturing.status).toBe("capturing");
     const incomplete = applyCaptureSettle(capturing, { toolCallId: "c1", now: "t1", isError: true });
     expect(incomplete.status).toBe("indeterminate");
-    expect(isCompletePendingRecord(incomplete)).toBe(false);
     const pending = applyCaptureSettle(capturing, {
       toolCallId: "c1",
       now: "t1",
@@ -78,7 +76,6 @@ describe("change records", () => {
       isError: false,
     });
     expect(pending.status).toBe("pending");
-    expect(isCompletePendingRecord(pending)).toBe(true);
   });
 
   test("modified files stay indeterminate without both hashes", () => {
@@ -90,7 +87,6 @@ describe("change records", () => {
     });
     const settled = applyCaptureSettle(capturing, { toolCallId: "c1", now: "t1", afterHash: "after", isError: false });
     expect(settled.status).toBe("indeterminate");
-    expect(isCompletePendingRecord(settled)).toBe(false);
   });
 
   test("approve requires current bytes to match the after-hash", () => {

@@ -75,7 +75,3 @@ export const PINNED_ELECTRON = {
   version: "43.4.0",
   minimumEmbeddedNode: "22.19.0",
 } as const;
-
-export function isSupportedProtocolVersion(version: unknown): version is ProtocolVersion {
-  return version === PROTOCOL_VERSION;
-}

@@ -315,6 +315,22 @@ function locateOffset(
 ): { node: Node; offset: number } | null {
   let remaining = target;
 
+  // Mentions, skills, GitHub links, and <br> are atomic: the caret lands before
+  // or after the element, never inside it. Charge the token's length and keep
+  // walking when the target is past this element.
+  const consumeAtomic = (el: HTMLElement, length: number): { node: Node; offset: number } | null => {
+    if (remaining > length) {
+      remaining -= length;
+      return null;
+    }
+    const parent = el.parentNode;
+    if (!parent) {
+      return { node: root, offset: 0 };
+    }
+    const index = Array.from(parent.childNodes).indexOf(el);
+    return { node: parent, offset: remaining === 0 ? index : index + 1 };
+  };
+
   const visit = (node: Node): { node: Node; offset: number } | null => {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent ?? "";
@@ -330,68 +346,19 @@ function locateOffset(
     const el = node as HTMLElement;
     const mentionPath = el.dataset.mentionPath;
     if (mentionPath !== undefined && mentionPath !== "") {
-      const token = formatAtMentionToken(mentionPath);
-      if (remaining <= token.length) {
-        const parent = el.parentNode;
-        if (!parent) {
-          return { node: root, offset: 0 };
-        }
-        const index = Array.from(parent.childNodes).indexOf(el);
-        if (remaining === 0) {
-          return { node: parent, offset: index };
-        }
-        return { node: parent, offset: index + 1 };
-      }
-      remaining -= token.length;
-      return null;
+      return consumeAtomic(el, formatAtMentionToken(mentionPath).length);
     }
     const skillSource = el.dataset.skillSource;
     const skillName = el.dataset.skillName;
     if (skillSource && skillName) {
-      const token = formatSkillToken(skillSource as SkillSourceId, skillName);
-      if (remaining <= token.length) {
-        const parent = el.parentNode;
-        if (!parent) {
-          return { node: root, offset: 0 };
-        }
-        const index = Array.from(parent.childNodes).indexOf(el);
-        if (remaining === 0) {
-          return { node: parent, offset: index };
-        }
-        return { node: parent, offset: index + 1 };
-      }
-      remaining -= token.length;
-      return null;
+      return consumeAtomic(el, formatSkillToken(skillSource as SkillSourceId, skillName).length);
     }
     const githubUrl = el.dataset.githubUrl;
     if (githubUrl !== undefined && githubUrl !== "") {
-      if (remaining <= githubUrl.length) {
-        const parent = el.parentNode;
-        if (!parent) {
-          return { node: root, offset: 0 };
-        }
-        const index = Array.from(parent.childNodes).indexOf(el);
-        if (remaining === 0) {
-          return { node: parent, offset: index };
-        }
-        return { node: parent, offset: index + 1 };
-      }
-      remaining -= githubUrl.length;
-      return null;
+      return consumeAtomic(el, githubUrl.length);
     }
     if (el.tagName === "BR") {
-      if (remaining <= 1) {
-        const parent = el.parentNode;
-        if (!parent) {
-          return { node: root, offset: 0 };
-        }
-        const index = Array.from(parent.childNodes).indexOf(el);
-        return remaining === 0
-          ? { node: parent, offset: index }
-          : { node: parent, offset: index + 1 };
-      }
-      remaining -= 1;
-      return null;
+      return consumeAtomic(el, 1);
     }
     for (const child of Array.from(el.childNodes)) {
       const found = visit(child);

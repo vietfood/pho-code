@@ -38,8 +38,6 @@ export const RUNTIME_EVENT_TYPES = {
   changeReviewUpdated: "changeReviewUpdated",
 } as const;
 
-export type RuntimeEventType = (typeof RUNTIME_EVENT_TYPES)[keyof typeof RUNTIME_EVENT_TYPES];
-
 export interface RuntimeEventEnvelope<T = unknown> {
   protocolVersion: ProtocolVersion;
   sequence: number;
@@ -168,11 +166,6 @@ const LIVE_RUN_DELTA_TYPES: ReadonlySet<string> = new Set([
 /** High-frequency run events. Renderer should not rebuild conversation chrome for these. */
 export function isLiveRunDeltaType(type: string): boolean {
   return LIVE_RUN_DELTA_TYPES.has(type);
-}
-
-/** Events that add or remove sidebar catalog rows. Title and activity patch locally. */
-export function runtimeEventUpdatesSessionList(type: string): boolean {
-  return type === RUNTIME_EVENT_TYPES.sessionRemoved;
 }
 
 const PROCESS_SCOPED_TYPES: ReadonlySet<string> = new Set([

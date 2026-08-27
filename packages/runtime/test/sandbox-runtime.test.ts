@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
@@ -9,7 +9,6 @@ import {
   AgentBashUnavailableError,
   agentBashUnavailableMessage,
   createAgentSandbox,
-  prependRipgrepDirectoryToPath,
   resolveRipgrepPath,
   type SandboxEngine,
 } from "../src/sandbox-runtime";
@@ -18,7 +17,7 @@ import {
   buildSandboxRuntimeConfig,
   SANDBOX_BASH_OS_DENY_REASON,
 } from "../src/sandbox-policy";
-import { SANDBOX_RUNTIME_PACKAGE, SANDBOX_RUNTIME_VERSION, RIPGREP_VERSION, ripgrepPackagedRelativePath } from "../src/sandbox-artifact";
+import { SANDBOX_RUNTIME_PACKAGE, SANDBOX_RUNTIME_VERSION, RIPGREP_VERSION } from "../src/sandbox-artifact";
 import { findExecutableOnPath } from "../src/process-launch";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 
@@ -161,26 +160,6 @@ describe("sandbox status mapping", () => {
     expect(snapshot.status).toBe("failed");
     expect(snapshot.statusReason).toBe("sandbox-exec");
     await sandbox.reset();
-  });
-
-  test("prepends only a staged ripgrep directory onto PATH", async () => {
-    const { root } = await isolatedWorkspace();
-    const previous = process.env.PATH;
-    const relative = ripgrepPackagedRelativePath();
-    if (!relative) {
-      expect(prependRipgrepDirectoryToPath(root)).toBeUndefined();
-      return;
-    }
-    const staged = path.join(root, "features", relative);
-    await mkdir(path.dirname(staged), { recursive: true });
-    await writeFile(staged, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    try {
-      const directory = prependRipgrepDirectoryToPath(root);
-      expect(directory).toBe(path.dirname(staged));
-      expect(process.env.PATH?.startsWith(`${directory}${path.delimiter}`)).toBe(true);
-    } finally {
-      process.env.PATH = previous;
-    }
   });
 
   test("engine init failure is failed/init and reset does not hang", async () => {

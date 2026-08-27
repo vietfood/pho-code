@@ -182,10 +182,6 @@ export function sanitizeFontFamilyName(value: unknown): string | null {
   return trimmed;
 }
 
-export function isFontFamilyName(value: unknown): value is string {
-  return sanitizeFontFamilyName(value) !== null;
-}
-
 /** Quote a sanitized family for CSS `font-family` when it is not a CSS ident. */
 export function cssQuotedFontFamily(name: string): string {
   const sanitized = sanitizeFontFamilyName(name);
@@ -209,13 +205,6 @@ export function paletteSupportsMode(palette: AppearancePalette, mode: Appearance
     return true;
   }
   return mode === "dark";
-}
-
-export function supportedAppearanceModes(palette: AppearancePalette): readonly AppearanceMode[] {
-  if (DARK_ONLY_PALETTES.has(palette)) {
-    return ["dark"];
-  }
-  return APPEARANCE_MODES;
 }
 
 /**

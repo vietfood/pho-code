@@ -127,13 +127,6 @@ export function isProviderAuthMethod(value: unknown): value is ProviderAuthMetho
   return value === "api_key" || value === "oauth";
 }
 
-export function isProviderAuthFlowPhase(value: unknown): value is ProviderAuthFlowPhase {
-  return (
-    typeof value === "string" &&
-    (PROVIDER_AUTH_FLOW_PHASES as readonly string[]).includes(value)
-  );
-}
-
 export function idleProviderAccountsResult(
   providers: ProviderAccountSummary[] = [],
 ): ProviderAccountsResult {

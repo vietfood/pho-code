@@ -3,7 +3,6 @@ import {
   CURSOR_SDK_HARNESS_ENV,
   CURSOR_SDK_PROVIDER_ID,
   applyCursorSdkHarnessPolicy,
-  isCursorProviderId,
   registerCursorProviderAccount,
 } from "../src/cursor-sdk-policy";
 
@@ -16,12 +15,6 @@ describe("cursor sdk harness policy", () => {
     applyCursorSdkHarnessPolicy(env);
     expect(env[CURSOR_SDK_HARNESS_ENV.runtime]).toBe("local");
     expect(env[CURSOR_SDK_HARNESS_ENV.settingSources]).toBe("none");
-  });
-
-  test("recognizes the cursor provider id", () => {
-    expect(isCursorProviderId("cursor")).toBe(true);
-    expect(isCursorProviderId("Cursor")).toBe(true);
-    expect(isCursorProviderId("anthropic")).toBe(false);
   });
 
   test("registers a Cursor API-key account stub for Settings before session bind", () => {

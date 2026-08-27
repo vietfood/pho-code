@@ -63,10 +63,6 @@ export const QUEUE_MODES = ["all", "one-at-a-time"] as const;
 
 export type QueueMode = (typeof QUEUE_MODES)[number];
 
-export function isQueueMode(value: unknown): value is QueueMode {
-  return value === "all" || value === "one-at-a-time";
-}
-
 export interface QueueMessagePreview {
   text: string;
 }

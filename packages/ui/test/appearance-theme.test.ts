@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { coerceAppearance, emptyAppearanceSettings, glassCssTokens, paletteSupportsMode, resolveAppearanceMode } from "@pho-code/protocol";
-import { applyAppearanceTheme, readAppearancePalette, readWorkEntryIconPack } from "../src/lib/appearance-theme";
+import { applyAppearanceTheme, readAppearancePalette } from "../src/lib/appearance-theme";
 
 function fakeRoot() {
   const dataset: Record<string, string> = {};
@@ -146,15 +146,5 @@ describe("appearance theme helpers", () => {
       { prefersDark: false },
     );
     expect(root.dataset.workIcons).toBe("lucide");
-    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
-  });
-
-  test("readWorkEntryIconPack falls back to lucide", () => {
-    const root = fakeRoot();
-    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
-    root.dataset.workIcons = "pho";
-    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("pho");
-    root.dataset.workIcons = "fluent";
-    expect(readWorkEntryIconPack(root as unknown as HTMLElement)).toBe("lucide");
   });
 });

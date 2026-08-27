@@ -23,21 +23,3 @@ export const MAX_WEB_CONCURRENT_REQUESTS = 2;
 export function isWebSourceProvider(value: unknown): value is WebSourceProvider {
   return typeof value === "string" && (WEB_SOURCE_PROVIDERS as readonly string[]).includes(value);
 }
-
-export function isWebSearchProvider(value: unknown): value is WebSearchProvider {
-  return typeof value === "string" && (WEB_SEARCH_PROVIDERS as readonly string[]).includes(value);
-}
-
-export function isWebSourceRecord(value: unknown): value is WebSourceRecord {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const candidate = value as Partial<WebSourceRecord>;
-  return (
-    typeof candidate.title === "string" &&
-    typeof candidate.url === "string" &&
-    candidate.url.startsWith("http") &&
-    isWebSourceProvider(candidate.provider) &&
-    (candidate.publishedAt === undefined || typeof candidate.publishedAt === "string")
-  );
-}

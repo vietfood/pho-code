@@ -1,15 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import {
-  APPLICATION_DATA_IDENTITY,
-  BUNDLE_IDENTIFIER,
-  PROOF_ARTIFACT_LABEL,
-  PUBLIC_PRODUCT_NAME,
-  PUBLIC_VERSION_LINE,
-  RELEASE_CHANNEL,
-} from "./release-identity.ts";
-import { RELEASE_ORIGINS, RELEASE_ORIGINS_ARE_PLACEHOLDERS, assertReleaseOriginsShape } from "./release-origins.ts";
-import { REQUIRED_NESTED_CODE_PATH_PATTERNS, isNestedCodeRelativePath } from "./mac-nested-code.ts";
+import { BUNDLE_IDENTIFIER, PROOF_ARTIFACT_LABEL } from "./release-identity.ts";
 import {
   FORBIDDEN_ENTITLEMENT_KEYS,
   LOCAL_MAC_OUTPUT_DIR,
@@ -18,12 +9,22 @@ import {
   MISSING_RELEASE_CREDENTIALS_MESSAGE,
   PROOF_MAC_OUTPUT_DIR,
   assertMacEntitlementsAreMinimal,
-  assertProofConfigCannotFallbackUnsigned,
   createMacElectronBuilderConfig,
   electronBuilderMacArgs,
   parseMacPackageFlavor,
   requireProofSigningInputs,
 } from "./mac-packaging-config.ts";
+
+/** Proof packaging must never emit an unsigned or un-notarized app. */
+function assertCannotFallbackUnsigned(config: Record<string, unknown>): void {
+  if (config.forceCodeSigning !== true) {
+    throw new Error("Proof packaging must set forceCodeSigning.");
+  }
+  const mac = config.mac as Record<string, unknown> | undefined;
+  if (!mac || mac.identity === null || mac.hardenedRuntime !== true || mac.notarize !== true) {
+    throw new Error("Proof packaging cannot fall back to an unsigned or un-notarized app.");
+  }
+}
 
 const builderPaths = {
   outputDir: "/tmp/pho-code-package-out",
@@ -40,7 +41,6 @@ describe("macOS package flavors", () => {
     const config = createMacElectronBuilderConfig("local", builderPaths);
     const mac = config.mac as Record<string, unknown>;
     expect(config.appId).toBe(BUNDLE_IDENTIFIER);
-    expect(config.appId).toBe(APPLICATION_DATA_IDENTITY);
     expect(config.forceCodeSigning).toBeUndefined();
     expect(mac.identity).toBeNull();
     expect(mac.hardenedRuntime).toBe(false);
@@ -86,9 +86,8 @@ describe("macOS package flavors", () => {
     ]);
     expect(String(config.artifactName)).toContain(PROOF_ARTIFACT_LABEL);
     expect(String(config.artifactName)).not.toContain("beta");
-    expect(String(config.artifactName)).not.toContain(PUBLIC_VERSION_LINE);
     expect(PROOF_MAC_OUTPUT_DIR.endsWith("apps/desktop/release-proof")).toBe(true);
-    assertProofConfigCannotFallbackUnsigned(config);
+    assertCannotFallbackUnsigned(config);
   });
 
   test("proof entitlements omit debug and library-validation exceptions", () => {
@@ -100,39 +99,5 @@ describe("macOS package flavors", () => {
       expect(mainPlist.includes(key)).toBe(false);
       expect(inheritPlist.includes(key)).toBe(false);
     }
-  });
-});
-
-describe("release identity and origins", () => {
-  test("keeps the frozen public identity and placeholder HTTPS origins", () => {
-    expect(PUBLIC_PRODUCT_NAME).toBe("Pho Code");
-    expect(BUNDLE_IDENTIFIER).toBe("dev.vietfood.phocode");
-    expect(RELEASE_CHANNEL).toBe("beta");
-    expect(RELEASE_ORIGINS_ARE_PLACEHOLDERS).toBe(true);
-    assertReleaseOriginsShape();
-    expect(RELEASE_ORIGINS.downloadPage.startsWith("https://")).toBe(true);
-    expect(RELEASE_ORIGINS.updateFeed.includes(".invalid")).toBe(true);
-  });
-});
-
-describe("nested native code inventory", () => {
-  test("classifies bundled executables and native libraries", () => {
-    expect(isNestedCodeRelativePath("Contents/Resources/features/ripgrep/15.2.0/darwin-arm64/rg")).toBe(true);
-    expect(isNestedCodeRelativePath("Contents/Resources/features/github/github-mcp-server/1.9.0/darwin-arm64/github-mcp-server")).toBe(
-      true,
-    );
-    expect(isNestedCodeRelativePath("Contents/Resources/app.asar.unpacked/node_modules/@ff-labs/fff-darwin-arm64/fff.node")).toBe(
-      true,
-    );
-    expect(isNestedCodeRelativePath("Contents/Resources/LICENSE")).toBe(false);
-    expect(
-      REQUIRED_NESTED_CODE_PATH_PATTERNS.every((pattern) =>
-        [
-          "Contents/Resources/features/ripgrep/15.2.0/darwin-arm64/rg",
-          "Contents/Resources/features/github/github-mcp-server/1.9.0/darwin-arm64/github-mcp-server",
-          "Contents/Resources/app.asar.unpacked/node_modules/@ff-labs/fff.node",
-        ].some((sample) => pattern.test(sample)),
-      ),
-    ).toBe(true);
   });
 });

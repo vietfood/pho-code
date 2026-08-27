@@ -182,28 +182,33 @@ export function hostPhoCodeRuntime(
     return [...workspace.sessions, ...backend];
   }
 
+  const agentEnvelope = (event: {
+    backendId: string;
+    scopeId: string;
+    sessionId: string;
+    occurredAt: string;
+  }) => ({
+    protocolVersion: PROTOCOL_VERSION,
+    sequence: 0,
+    backendId: event.backendId,
+    workspaceId: event.scopeId,
+    sessionId: event.sessionId,
+    occurredAt: event.occurredAt,
+  });
+
   function projectAgentEvent(event: AgentBackendEvent): void {
     if (event.type === "text_delta") {
       emit({
-        protocolVersion: PROTOCOL_VERSION,
-        sequence: 0,
-        backendId: event.backendId,
-        workspaceId: event.scopeId,
-        sessionId: event.sessionId,
+        ...agentEnvelope(event),
         runId: event.runId,
         type: RUNTIME_EVENT_TYPES.textDelta,
         payload: { runId: event.runId, delta: event.delta },
-        occurredAt: event.occurredAt,
       });
       return;
     }
     if (event.type === "tool_update") {
       emit({
-        protocolVersion: PROTOCOL_VERSION,
-        sequence: 0,
-        backendId: event.backendId,
-        workspaceId: event.scopeId,
-        sessionId: event.sessionId,
+        ...agentEnvelope(event),
         runId: event.runId,
         type: RUNTIME_EVENT_TYPES.toolEvent,
         payload: {
@@ -215,22 +220,16 @@ export function hostPhoCodeRuntime(
           inputPreview: event.tool.input ?? "",
           outputPreview: event.tool.output ?? "",
         },
-        occurredAt: event.occurredAt,
       });
       return;
     }
     if (event.type === "interaction_requested") {
       agentInteractions.set(event.request.requestId, { event, request: event.request });
       emit({
-        protocolVersion: PROTOCOL_VERSION,
-        sequence: 0,
-        backendId: event.backendId,
-        workspaceId: event.scopeId,
-        sessionId: event.sessionId,
+        ...agentEnvelope(event),
         runId: event.runId,
         type: RUNTIME_EVENT_TYPES.extensionDialogRequest,
         payload: projectInteractionDialog(event),
-        occurredAt: event.occurredAt,
       });
       emitActivity();
       return;
@@ -238,15 +237,10 @@ export function hostPhoCodeRuntime(
     if (event.type === "interaction_settled") {
       agentInteractions.delete(event.requestId);
       emit({
-        protocolVersion: PROTOCOL_VERSION,
-        sequence: 0,
-        backendId: event.backendId,
-        workspaceId: event.scopeId,
-        sessionId: event.sessionId,
+        ...agentEnvelope(event),
         runId: event.runId,
         type: RUNTIME_EVENT_TYPES.extensionDialogSettled,
         payload: { requestId: event.requestId, workspaceId: event.scopeId, sessionId: event.sessionId },
-        occurredAt: event.occurredAt,
       });
       emitActivity();
       return;
@@ -254,15 +248,10 @@ export function hostPhoCodeRuntime(
     if (event.type === "session_snapshot") {
       const snapshot = rememberAgentSnapshot(event.snapshot);
       emit({
-        protocolVersion: PROTOCOL_VERSION,
-        sequence: 0,
-        backendId: event.backendId,
-        workspaceId: event.scopeId,
-        sessionId: event.sessionId,
+        ...agentEnvelope(event),
         ...(event.snapshot.run.runId ? { runId: event.snapshot.run.runId } : {}),
         type: RUNTIME_EVENT_TYPES.sessionSnapshot,
         payload: snapshot,
-        occurredAt: event.occurredAt,
       });
       emitActivity();
     }

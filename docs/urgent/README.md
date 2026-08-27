@@ -44,7 +44,9 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
-| — | No active urgent tracks | — | — | Promote new owner-priority work deliberately |
+| Proposed | [Flaky process-cancellation test](./2026-08-27-defect-flaky-process-cancellation-test.md) | defect | Proposed | The package lanes are green or red for reasons that depend only on the change under test |
+| Proposed | [Gaps left by unwired validators](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) | defect | Proposed | Dead guards removed 2026-08-27; decide the protocol-version, retention-disclosure, and preset-migration behaviour they only pretended to cover |
+| Proposed | [Runtime/renderer decomposition](./2026-08-27-prerequisite-runtime-and-renderer-decomposition.md) | prerequisite | In implementation | The three god-files stop being single closures; V4 inherits a modular graph |
 
 ## Completed
 

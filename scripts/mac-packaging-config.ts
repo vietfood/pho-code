@@ -211,16 +211,6 @@ export function electronBuilderMacArgs(flavor: MacPackageFlavor): readonly strin
   }
 }
 
-export function assertProofConfigCannotFallbackUnsigned(config: Record<string, unknown>): void {
-  if (config.forceCodeSigning !== true) {
-    throw new Error("Proof packaging must set forceCodeSigning.");
-  }
-  const mac = config.mac as Record<string, unknown> | undefined;
-  if (!mac || mac.identity === null || mac.hardenedRuntime !== true || mac.notarize !== true) {
-    throw new Error("Proof packaging cannot fall back to an unsigned or un-notarized app.");
-  }
-}
-
 export function proofBuildNumber(env: NodeJS.Dict<string>): string {
   return envValue(env, BUILD_NUMBER_ENV) ?? "1";
 }

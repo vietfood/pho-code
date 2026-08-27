@@ -2,10 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   PROTOCOL_VERSION,
   RUNTIME_EVENT_TYPES,
-  activityRank,
   applyRuntimeEvent,
   applyRuntimeEventToCache,
-  compareSessionActivity,
   emptyConversationCache,
   emptyConversationState,
   emptyFeatureSnapshot,
@@ -57,18 +55,6 @@ function snapshotFor(workspaceId: string, sessionId: string, runId = "run-a"): S
   };
 }
 
-function activity(partial: Partial<SessionActivitySummary> & { sessionId: string }): SessionActivitySummary {
-  return {
-    workspaceId: "/tmp/ws",
-    phase: "idle",
-    selected: false,
-    archived: false,
-    unread: false,
-    updatedAt: "2026-08-14T00:00:00.000Z",
-    ...partial,
-  };
-}
-
 describe("session keys", () => {
   test("equal only when workspace and session both match", () => {
     expect(sessionKeyEquals(key("/tmp/a", "s1"), key("/tmp/a", "s1"))).toBe(true);
@@ -114,20 +100,6 @@ describe("session keys", () => {
 });
 
 describe("session activity precedence", () => {
-  test("ranks attention above working, failed, unread completed, and idle", () => {
-    const ranked = [
-      activity({ sessionId: "idle", phase: "idle" }),
-      activity({ sessionId: "done", phase: "completed", unread: true }),
-      activity({ sessionId: "failed", phase: "failed", unread: true }),
-      activity({ sessionId: "work", phase: "working" }),
-      activity({ sessionId: "ask", phase: "attention" }),
-    ].sort(compareSessionActivity);
-    expect(ranked.map((entry) => entry.sessionId)).toEqual(["ask", "work", "failed", "done", "idle"]);
-    expect(activityRank(activity({ sessionId: "read", phase: "completed", unread: false }))).toBe(
-      activityRank(activity({ sessionId: "idle", phase: "idle" })),
-    );
-  });
-
   test("derives owner-facing phase from attention, working, and unread outcome", () => {
     expect(sessionActivityPhase({ attention: true, working: true, unreadOutcome: "failed" })).toBe("attention");
     expect(sessionActivityPhase({ attention: false, working: true })).toBe("working");

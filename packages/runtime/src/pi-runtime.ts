@@ -25,10 +25,8 @@ import {
 } from "@pho-agent/runtime";
 import type { FauxProviderHandle } from "@pho-agent/runtime/feature-api";
 import {
-  PROTOCOL_VERSION,
   RUNTIME_EVENT_TYPES,
   CHANGE_REVIEW_COPY,
-  assertJsonSafe,
   createHarnessError,
   failCommand,
   HARNESS_ERROR_CODES,
@@ -72,7 +70,6 @@ import {
   type ResolveHostDialogInput,
   type RespondProviderAuthPromptInput,
   type RewriteAssistantOutputInput,
-  type RuntimeEvent,
   type UpdateSessionContextPromptInput,
   type SearchWorkspaceReferencesInput,
   type SearchWorkspaceReferencesResult,
@@ -197,11 +194,9 @@ import { createGitHubMcpRuntime } from "./github-mcp-runtime";
 import { createAgentSandbox, type SandboxRuntimeSnapshot } from "./sandbox-runtime";
 import { createSandboxFeature, SANDBOX_FEATURE_ID } from "./sandbox-feature";
 import {
-  applyStoredSandboxPatch,
   canonicalizeSandboxPathList,
-  loadSandboxSettings,
+  createSandboxSettingsStore,
   sandboxSettingsPath,
-  saveSandboxSettings,
   toSandboxSettingsSnapshot,
 } from "./sandbox-settings";
 import { createOsSecretStore, type SecretStore } from "./secret-store";
@@ -236,6 +231,10 @@ import {
 } from "./workspace-reference";
 import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
 import { createPhoCodeScopeAdapter } from "./pho-code-scope-adapter";
+import { createRuntimeEventEmitter, type RuntimeEventDraft } from "./runtime-event-emitter";
+import { createWorkspaceCatalogCache, type WorkspaceCatalog } from "./workspace-catalog-cache";
+import { createDisposeLatch } from "./dispose-latch";
+import { createSessionSelection } from "./session-selection";
 
 export interface PhoCodeRuntimeOptions {
   agentDir?: string;
@@ -343,7 +342,8 @@ export async function createPhoCodeRuntime(
   const trustStore = createAgentProjectTrustStore(agentDir);
   const approvedProjectPaths = new Set<string>();
   const scopeAdapter = createPhoCodeScopeAdapter();
-  const listeners = new Set<(event: RuntimeEvent) => void>();
+  const events = createRuntimeEventEmitter();
+  const emit = events.emit;
   const compiledContextPromptByKey = new Map<string, string>();
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
@@ -366,19 +366,19 @@ export async function createPhoCodeRuntime(
   });
   await githubMcp.startIfEnabled();
   const sandboxDataDir = options.applicationDataDir ?? agentDir;
-  let storedSandbox = loadSandboxSettings(sandboxDataDir);
+  const sandboxSettings = createSandboxSettingsStore(sandboxDataDir);
   // Deterministic tests keep unsandboxed bash unless a settings file opts in, so
   // permission journeys stay stable while production defaults sandbox on.
   if (options.deterministicTestModel === true && !existsSync(sandboxSettingsPath(sandboxDataDir))) {
-    storedSandbox = { ...storedSandbox, enabled: false };
+    sandboxSettings.disableWithoutPersisting();
   }
   const sandbox = createAgentSandbox({
-    enabled: storedSandbox.enabled,
-    networkMode: storedSandbox.networkMode,
-    allowedDomains: storedSandbox.allowedDomains,
-    includePackageRegistryDefaults: storedSandbox.includePackageRegistryDefaults,
-    additionalReadPaths: storedSandbox.additionalReadPaths,
-    additionalWritePaths: storedSandbox.additionalWritePaths,
+    enabled: sandboxSettings.current.enabled,
+    networkMode: sandboxSettings.current.networkMode,
+    allowedDomains: sandboxSettings.current.allowedDomains,
+    includePackageRegistryDefaults: sandboxSettings.current.includePackageRegistryDefaults,
+    additionalReadPaths: sandboxSettings.current.additionalReadPaths,
+    additionalWritePaths: sandboxSettings.current.additionalWritePaths,
     agentDir,
     ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
     ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
@@ -454,21 +454,11 @@ export async function createPhoCodeRuntime(
 
   const testTool = options.deterministicTestModel ? createHarnessMarkTool() : undefined;
 
-  let sequence = 0;
-  let disposeCount = 0;
-  let disposed = false;
-  let selected: LiveSession | undefined;
-  let lastWorkspace: WorkspaceSummary | undefined;
+  const disposal = createDisposeLatch();
+  const selection = createSessionSelection<LiveSession>();
   let generation = 0;
   let githubBindingRevision = 0;
-  let catalogCache:
-    | {
-        workspacePath: string;
-        models: ModelSummary[];
-        modelError?: string;
-        sessions: SessionSummary[];
-      }
-    | undefined;
+  const catalogCache = createWorkspaceCatalogCache();
 
   const registry = createSessionRegistry<LiveSession>({
     async openController(key) {
@@ -495,28 +485,7 @@ export async function createPhoCodeRuntime(
     },
   });
 
-  function emit(event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">): void {
-    sequence += 1;
-    const envelope = {
-      ...event,
-      protocolVersion: PROTOCOL_VERSION,
-      sequence,
-      occurredAt: new Date().toISOString(),
-    } as RuntimeEvent;
-    assertJsonSafe(envelope, "runtimeEvent");
-    for (const listener of [...listeners]) {
-      try {
-        listener(envelope);
-      } catch (error) {
-        console.error("Runtime event listener failed:", error);
-      }
-    }
-  }
-
-  function emitFor(
-    session: LiveSession,
-    event: Omit<RuntimeEvent, "protocolVersion" | "sequence" | "occurredAt">,
-  ): void {
+  function emitFor(session: LiveSession, event: RuntimeEventDraft): void {
     emit({
       ...event,
       workspaceId: session.key.workspaceId,
@@ -631,7 +600,7 @@ export async function createPhoCodeRuntime(
       workspaceId: session.key.workspaceId,
       sessionId: session.key.sessionId,
       phase: sessionActivityPhase({ attention, working }),
-      selected: selected === session,
+      selected: selection.current === session,
       archived: false,
       unread: false,
       updatedAt,
@@ -737,9 +706,7 @@ export async function createPhoCodeRuntime(
       console.error("Failed to flush Pi settings during session dispose:", error);
     }
     await session.runtime.dispose();
-    if (selected === session) {
-      selected = undefined;
-    }
+    selection.clearIf(session);
     await releaseWorkspaceIfUnused(session.workspace.path);
   }
 
@@ -748,7 +715,7 @@ export async function createPhoCodeRuntime(
   // from the authoritative Pi JSONL under the same session id.
   async function reopenStuckController(live: LiveSession): Promise<void> {
     const key = live.key;
-    const wasSelected = selected === live;
+    const wasSelected = selection.current === live;
     try {
       await registry.remove(key);
       const reopened = await registry.open(key);
@@ -771,7 +738,7 @@ export async function createPhoCodeRuntime(
     if (!workspacePath) {
       return;
     }
-    if (workspaceHasResidentController(workspacePath) || lastWorkspace?.path === workspacePath) {
+    if (workspaceHasResidentController(workspacePath) || selection.lastWorkspace?.path === workspacePath) {
       return;
     }
     await retrieval.unbind(workspacePath);
@@ -789,8 +756,8 @@ export async function createPhoCodeRuntime(
     if (matches.length === 1 && matches[0]) {
       return matches[0];
     }
-    if (selected?.key.sessionId === sessionId) {
-      return selected;
+    if (selection.current?.key.sessionId === sessionId) {
+      return selection.current;
     }
     failCommand(operation, "The target session is not the active session.", HARNESS_ERROR_CODES.sessionNotFound);
   }
@@ -931,37 +898,19 @@ export async function createPhoCodeRuntime(
   }
 
   function clearCatalogCache(): void {
-    catalogCache = undefined;
+    catalogCache.clear();
   }
 
-  async function resolveCatalog(
-    workspacePath: string,
-    refreshCatalog: boolean,
-  ): Promise<{ models: ModelSummary[]; modelError?: string; sessions: SessionSummary[] }> {
-    if (
-      !refreshCatalog &&
-      catalogCache &&
-      catalogCache.workspacePath === workspacePath
-    ) {
-      return {
-        models: catalogCache.models,
-        sessions: catalogCache.sessions,
-        ...(catalogCache.modelError ? { modelError: catalogCache.modelError } : {}),
-      };
+  async function resolveCatalog(workspacePath: string, refreshCatalog: boolean): Promise<WorkspaceCatalog> {
+    if (!refreshCatalog) {
+      const cached = catalogCache.get(workspacePath);
+      if (cached) {
+        return cached;
+      }
     }
     const { models, modelError } = await listModels();
     const sessions = await listSessions(workspacePath);
-    catalogCache = {
-      workspacePath,
-      models,
-      sessions,
-      ...(modelError ? { modelError } : {}),
-    };
-    return {
-      models,
-      sessions,
-      ...(modelError ? { modelError } : {}),
-    };
+    return catalogCache.set(workspacePath, { models, sessions, ...(modelError ? { modelError } : {}) });
   }
 
   async function buildSnapshot(options: { refreshCatalog?: boolean; live?: LiveSession } = {}): Promise<SessionSnapshot> {
@@ -1062,12 +1011,12 @@ export async function createPhoCodeRuntime(
   }
 
   async function rebindIdleGitHubSessions(): Promise<void> {
-    const selectedKey = selected?.key;
+    const selectedKey = selection.current?.key;
     await registry.evictUnprotected();
     if (!selectedKey) {
       return;
     }
-    selected = await registry.open(selectedKey);
+    selection.rebind(await registry.open(selectedKey));
     registry.select(selectedKey);
   }
 
@@ -1083,21 +1032,27 @@ export async function createPhoCodeRuntime(
 
   async function applyStoredSandboxToEngine(workspacePath?: string): Promise<SandboxRuntimeSnapshot> {
     return sandbox.initialize({
-      enabled: storedSandbox.enabled,
-      networkMode: storedSandbox.networkMode,
-      allowedDomains: storedSandbox.allowedDomains,
-      includePackageRegistryDefaults: storedSandbox.includePackageRegistryDefaults,
-      additionalReadPaths: canonicalizeSandboxPathList(storedSandbox.additionalReadPaths),
-      additionalWritePaths: canonicalizeSandboxPathList(storedSandbox.additionalWritePaths),
+      enabled: sandboxSettings.current.enabled,
+      networkMode: sandboxSettings.current.networkMode,
+      allowedDomains: sandboxSettings.current.allowedDomains,
+      includePackageRegistryDefaults: sandboxSettings.current.includePackageRegistryDefaults,
+      additionalReadPaths: canonicalizeSandboxPathList(sandboxSettings.current.additionalReadPaths),
+      additionalWritePaths: canonicalizeSandboxPathList(sandboxSettings.current.additionalWritePaths),
       ...(workspacePath ? { workspacePath } : {}),
     });
   }
 
   async function ensureSandboxInitialized(workspacePath: string): Promise<void> {
-    if (!storedSandbox.enabled) {
+    if (!sandboxSettings.current.enabled) {
       return;
     }
     await applyStoredSandboxToEngine(workspacePath);
+  }
+
+  /** Bumping the revision without rebinding leaves idle sessions on a stale binding. */
+  async function invalidateGitHubBinding(): Promise<void> {
+    githubBindingRevision += 1;
+    await rebindIdleGitHubSessions();
   }
 
   async function refreshGitHubBinding(live: LiveSession): Promise<void> {
@@ -1110,7 +1065,7 @@ export async function createPhoCodeRuntime(
   }
 
   async function loadWorkspaceFeatures(cwd: string): Promise<FeatureSnapshot> {
-    const live = registry.list().find((entry) => entry.key.workspaceId === cwd) ?? selected;
+    const live = registry.list().find((entry) => entry.key.workspaceId === cwd) ?? selection.current;
     if (live?.runtime.session && live.key.workspaceId === cwd) {
       return withHostDiagnostics(
         projectFeatureSnapshot(featureManifest, live.runtime.session.resourceLoader, compositionDiagnostics),
@@ -1144,10 +1099,11 @@ export async function createPhoCodeRuntime(
   }
 
   function requireLiveSession(): LiveSession {
-    if (!selected) {
+    const live = selection.current;
+    if (!live) {
       failCommand("session", "No active session is open.", HARNESS_ERROR_CODES.sessionNotFound);
     }
-    return selected;
+    return live;
   }
 
   function bindSession(live: LiveSession): void {
@@ -1638,8 +1594,7 @@ export async function createPhoCodeRuntime(
   }
 
   async function selectLiveSession(live: LiveSession): Promise<SessionSnapshot> {
-    selected = live;
-    lastWorkspace = live.workspace;
+    selection.select(live);
     registry.select(live.key);
     await retrieval.bind(live.workspace.path);
     clearCatalogCache();
@@ -1675,7 +1630,7 @@ export async function createPhoCodeRuntime(
 
   const runtime: HarnessRuntime = {
     get disposeCount() {
-      return disposeCount;
+      return disposal.count;
     },
     getCapabilities() {
       return { piRuntime: true };
@@ -1693,8 +1648,7 @@ export async function createPhoCodeRuntime(
       if (input.approveProjectResources) {
         approvedProjectPaths.add(cwd);
       }
-      const previousWorkspace = lastWorkspace?.path;
-      lastWorkspace = workspaceSummary(cwd);
+      const previousWorkspace = selection.rememberWorkspace(workspaceSummary(cwd));
       await retrieval.bind(cwd);
       if (previousWorkspace && previousWorkspace !== cwd) {
         await releaseWorkspaceIfUnused(previousWorkspace);
@@ -2111,13 +2065,12 @@ export async function createPhoCodeRuntime(
       if (hasAnyActiveRun()) {
         failCommand("updatePermissionSettings", "Wait for the current run to finish before changing permission settings.", HARNESS_ERROR_CODES.sessionBusy);
       }
+      const permissionWorkspacePath = selection.activeWorkspacePath();
       applyPermissionSettingsPatch({
         agentDir,
         appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
         patch: input,
-        ...(selected?.workspace.path ?? lastWorkspace?.path
-          ? { workspacePath: selected?.workspace.path ?? lastWorkspace!.path }
-          : {}),
+        ...(permissionWorkspacePath ? { workspacePath: permissionWorkspacePath } : {}),
         yoloActive: registry.list().some((entry) => entry.extensionHost?.yoloActive === true),
       });
       try {
@@ -2130,8 +2083,9 @@ export async function createPhoCodeRuntime(
           detail: error instanceof Error ? error.message : "reload failed",
         });
       }
-      if (selected) {
-        emitFullSnapshot(selected, await buildSnapshot({ live: selected }));
+      const activeSession = selection.current;
+      if (activeSession) {
+        emitFullSnapshot(activeSession, await buildSnapshot({ live: activeSession }));
       }
       return currentPermissionSettings();
     },
@@ -2211,7 +2165,7 @@ export async function createPhoCodeRuntime(
     },
     async searchWorkspaceReferences(input: SearchWorkspaceReferencesInput): Promise<SearchWorkspaceReferencesResult> {
       assertNotDisposed();
-      const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
+      const workspacePath = selection.activeWorkspacePath();
       if (!workspacePath) {
         failCommand("searchWorkspaceReferences", "Select a workspace before searching files.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
@@ -2261,34 +2215,30 @@ export async function createPhoCodeRuntime(
       if (!parsed.ok) {
         failCommand("updateSandboxSettings", parsed.message);
       }
-      storedSandbox = applyStoredSandboxPatch(storedSandbox, parsed.patch);
-      saveSandboxSettings(sandboxDataDir, storedSandbox);
-      const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
+      sandboxSettings.apply(parsed.patch);
+      const workspacePath = selection.activeWorkspacePath();
       const live = await applyStoredSandboxToEngine(workspacePath);
-      const snapshot = toSandboxSettingsSnapshot(storedSandbox, live);
+      const snapshot = toSandboxSettingsSnapshot(sandboxSettings.current, live);
       await rebindIdleSandboxSessions();
       return snapshot;
     },
     async updateGitHubMcpSettings(input: UpdateGitHubMcpSettingsInput) {
       assertNotDisposed();
       const snapshot = await githubMcp.setEnabled(input.enabled === true);
-      githubBindingRevision += 1;
-      await rebindIdleGitHubSessions();
+      await invalidateGitHubBinding();
       return snapshot;
     },
     async importGitHubPat(input: ImportGitHubPatInput) {
       assertNotDisposed();
       const snapshot = await githubMcp.importPat(input.token);
-      githubBindingRevision += 1;
-      await rebindIdleGitHubSessions();
+      await invalidateGitHubBinding();
       assertNoCanaries(snapshot, [input.token], "importGitHubPat");
       return snapshot;
     },
     async removeGitHubPat() {
       assertNotDisposed();
       const snapshot = await githubMcp.removePat();
-      githubBindingRevision += 1;
-      await rebindIdleGitHubSessions();
+      await invalidateGitHubBinding();
       return snapshot;
     },
     async getChangeReviewSet(scope: ChangeScope): Promise<ChangeReviewSetSnapshot> {
@@ -2336,21 +2286,14 @@ export async function createPhoCodeRuntime(
         previewToken: command.previewToken,
       });
     },
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: events.subscribe,
     async dispose() {
-      if (disposed) {
+      if (!disposal.claim()) {
         return;
       }
-      disposed = true;
-      disposeCount += 1;
       clearCatalogCache();
       await authFlow.dispose();
-      listeners.clear();
+      events.clear();
       try {
         await registry.disposeAll();
       } finally {
@@ -2358,14 +2301,14 @@ export async function createPhoCodeRuntime(
         await web.dispose();
         await githubMcp.dispose();
         await sandbox.reset();
-        selected = undefined;
+        selection.clear();
         restoreAgentDirEnv(previousAgentDirEnv, options.agentDir);
       }
     },
   };
 
   function currentPermissionSettings() {
-    const workspacePath = selected?.workspace.path ?? lastWorkspace?.path;
+    const workspacePath = selection.activeWorkspacePath();
     const settings = readPermissionSettings({
       agentDir,
       appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
@@ -2379,11 +2322,11 @@ export async function createPhoCodeRuntime(
   }
 
   function currentSandboxSettings(): SandboxSettingsSnapshot {
-    return toSandboxSettingsSnapshot(storedSandbox, sandbox.snapshot());
+    return toSandboxSettingsSnapshot(sandboxSettings.current, sandbox.snapshot());
   }
 
   function assertNotDisposed(): void {
-    if (disposed) {
+    if (disposal.disposed) {
       throw createHarnessError({
         code: HARNESS_ERROR_CODES.shuttingDown,
         message: "The runtime is disposed.",

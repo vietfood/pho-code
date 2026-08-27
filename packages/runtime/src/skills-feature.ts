@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { HarnessFeature } from "./features";
@@ -43,25 +43,12 @@ export function resolveCuratedSkillsRoot(resourcesRoot?: string): string {
   return curatedSkillsRoot();
 }
 
-export function curatedSkillPaths(root = curatedSkillsRoot()): string[] {
-  return CURATED_SKILL_NAMES.map((name) => path.join(root, name));
-}
-
 export function createCuratedSkillsFeature(_root = curatedSkillsRoot()): HarnessFeature {
   return {
     id: CURATED_SKILLS_FEATURE_ID,
     version: CURATED_SKILLS_FEATURE_VERSION,
     expected: { skills: 0 },
   };
-}
-
-export function listCuratedSkillDirectories(root = curatedSkillsRoot()): string[] {
-  if (!existsSync(root)) {
-    return [];
-  }
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(root, entry.name));
 }
 
 function skillsRootLooksValid(root: string): boolean {

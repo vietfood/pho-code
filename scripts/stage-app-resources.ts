@@ -100,10 +100,6 @@ export function copyResolvedPackage(packageName: string, destination: string, fr
   copyPackageTree(resolveWorkspacePackageRoot(packageName, fromPackageJson), destination);
 }
 
-export function stagedPermissionPackageRoot(resourcesRoot: string): string {
-  return path.join(resourcesRoot, PACKAGED_FEATURES_DIR, ...PERMISSION_PACKAGE_NAME.split("/"));
-}
-
 export function stagedCuratedSkillsRoot(resourcesRoot: string): string {
   return path.join(resourcesRoot, PACKAGED_FEATURES_DIR, "@pho-code", "curated-coding-skills", "skills");
 }
@@ -248,22 +244,12 @@ export function stagedCursorSdkPackageRoot(resourcesRoot: string): string {
   return path.join(resourcesRoot, PACKAGED_FEATURES_DIR, CURSOR_SDK_PACKAGE_NAME);
 }
 
-export function stagedGitHubMcpServerPath(resourcesRoot: string): string | undefined {
-  const relative = githubMcpPackagedRelativePath();
-  return relative ? path.join(resourcesRoot, PACKAGED_FEATURES_DIR, relative) : undefined;
-}
-
 export function githubMcpCacheDir(): string {
   return path.join(WORKSPACE_ROOT, "packages", "runtime", "features", "github", "github-mcp-server", "cache");
 }
 
 export function ripgrepCacheDir(): string {
   return path.join(WORKSPACE_ROOT, "packages", "runtime", "features", "ripgrep", "cache");
-}
-
-export function stagedRipgrepPath(resourcesRoot: string): string | undefined {
-  const relative = ripgrepPackagedRelativePath();
-  return relative ? path.join(resourcesRoot, PACKAGED_FEATURES_DIR, relative) : undefined;
 }
 
 export function sha256File(filePath: string): string {

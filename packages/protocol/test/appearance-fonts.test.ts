@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   appearanceFontStack,
   cssQuotedFontFamily,
-  isFontFamilyName,
   MAX_FONT_FAMILY_CHARS,
   sanitizeFontFamilyName,
 } from "../src/index";
@@ -11,13 +10,11 @@ describe("font family sanitizer", () => {
   test("treats blank input as the system default", () => {
     expect(sanitizeFontFamilyName("")).toBe("");
     expect(sanitizeFontFamilyName("   ")).toBe("");
-    expect(isFontFamilyName("")).toBe(true);
   });
 
   test("accepts a single installed family name", () => {
     expect(sanitizeFontFamilyName("  JetBrainsMono Nerd Font  ")).toBe("JetBrainsMono Nerd Font");
     expect(sanitizeFontFamilyName("Menlo")).toBe("Menlo");
-    expect(isFontFamilyName("Menlo")).toBe(true);
   });
 
   test("rejects CSS or HTML injection and family lists", () => {
@@ -28,7 +25,6 @@ describe("font family sanitizer", () => {
     expect(sanitizeFontFamilyName("<script>")).toBeNull();
     expect(sanitizeFontFamilyName("Menlo\nMono")).toBeNull();
     expect(sanitizeFontFamilyName(1)).toBeNull();
-    expect(isFontFamilyName("Menlo, monospace")).toBe(false);
   });
 
   test("rejects names over the character cap", () => {

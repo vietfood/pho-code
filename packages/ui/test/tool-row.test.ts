@@ -10,6 +10,7 @@ import {
   toolWorkEntryHeading,
   toolWorkEntryIcon,
 } from "../src/tool-presentation";
+import { formatChangedFileCount } from "@pho-code/protocol";
 import type { TranscriptToolBlock } from "@pho-code/protocol";
 
 const block: TranscriptToolBlock = {
@@ -344,5 +345,23 @@ describe("tool row", () => {
     expect(markup).toContain("Body");
     expect(markup).not.toContain(">URL<");
     expect(markup).not.toContain('data-testid="tool-chip"');
+  });
+});
+
+describe("tool row review opener", () => {
+  test("shows a changed-file count and opener for write/edit cards", () => {
+    const reviewBlock: TranscriptToolBlock = {
+      type: "tool",
+      callId: "call_edit",
+      name: "edit",
+      status: "completed",
+      inputPreview: '{"path":"tracked.txt"}',
+      outputPreview: "ok",
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ToolRow, { block: reviewBlock, reviewCount: 1, onOpenReview: () => undefined }),
+    );
+    expect(markup).toContain(formatChangedFileCount(1));
+    expect(markup).toContain('data-testid="tool-open-review"');
   });
 });

@@ -35,9 +35,7 @@ export type { HarnessFeature, HarnessFeatureManifest } from "./features";
 export {
   CURSOR_SDK_HARNESS_ENV,
   CURSOR_SDK_PROVIDER_ID,
-  CURSOR_API_KEY_CONFIG_VALUE,
   applyCursorSdkHarnessPolicy,
-  isCursorProviderId,
   registerCursorProviderAccount,
 } from "./cursor-sdk-policy";
 export { ASSISTANT_REWRITE_CUSTOM_TYPE } from "./assistant-rewrite";
@@ -77,7 +75,6 @@ export {
 } from "./resource-locator";
 export type { ResourceLocator } from "./resource-locator";
 export {
-  PERMISSION_PRESET_VERSION,
   applyPermissionSettingsPatch,
   detectPermissionProfile,
   patchPermissionConfig,
@@ -103,7 +100,6 @@ export {
 } from "./sandbox-artifact";
 export {
   BAKED_PACKAGE_REGISTRY_DOMAINS,
-  SANDBOX_FILE_TOOL_NAMES,
   SANDBOX_FILE_TOOL_OUTSIDE_REASON,
   SANDBOX_FILE_TOOL_PROTECTED_REASON,
   SANDBOX_BASH_OS_DENY_REASON,
@@ -119,7 +115,6 @@ export {
   agentBashUnavailableMessage,
   createAgentSandbox,
   createAnthropicSandboxEngine,
-  resolveRipgrepDirectory,
   resolveRipgrepPath,
   sandboxPlatformSupported,
 } from "./sandbox-runtime";

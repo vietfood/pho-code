@@ -132,10 +132,6 @@ const ACTIVITY_RANK: Record<SessionActivityPhase, number> = {
   idle: 1,
 };
 
-export function isSessionActivityPhase(value: unknown): value is SessionActivityPhase {
-  return typeof value === "string" && (SESSION_ACTIVITY_PHASES as readonly string[]).includes(value);
-}
-
 export function isSessionCatalogScope(value: unknown): value is SessionCatalogScope {
   return value === "active" || value === "archived" || value === "all";
 }
@@ -223,13 +219,6 @@ export function activityRank(summary: Pick<SessionActivitySummary, "phase" | "un
     return ACTIVITY_RANK.idle;
   }
   return ACTIVITY_RANK[summary.phase];
-}
-
-export function compareSessionActivity(
-  left: Pick<SessionActivitySummary, "phase" | "unread">,
-  right: Pick<SessionActivitySummary, "phase" | "unread">,
-): number {
-  return activityRank(right) - activityRank(left);
 }
 
 /** Owner-facing indicator phase, or undefined when the row should look idle. */

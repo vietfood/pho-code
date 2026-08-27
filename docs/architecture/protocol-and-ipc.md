@@ -51,6 +51,17 @@ V5's unaccepted compatibility slice also projects `BootstrapState.agentBackends`
 
 `apps/desktop/tests/unit/bridge-commands.test.ts` asserts that preload, main, and IPC stay aligned with the registry. Do not maintain a copied full interface in architecture prose.
 
+### Three command declarations, deliberately not merged
+
+`DesktopBridge` (`packages/protocol/src/bridge.ts`), `ApplicationService` (`packages/application/src/bootstrap.ts`), and `HarnessRuntime` (`packages/runtime/src/harness-runtime.ts`) restate overlapping method lists. This is intentional layering, **not** duplication to clean up. A 2026-08-27 deslop pass flagged it as the largest apparent clone in the tree and, on inspection, left it alone:
+
+- **`HarnessRuntime` is a different interface, not a copy.** It takes positional arguments (`createSession(workspaceId, backendId?)`) where the other two take input objects, exposes synchronous getters (`getCapabilities`, `getAgentDir`, `listSessionActivity`, `getPermissionSettings`, `disposeCount`), and omits archive/restore/prepare-removal entirely.
+- **`DesktopBridge` and `ApplicationService` overlap heavily but diverge exactly at the process boundary.** The bridge is asynchronous everywhere because every call crosses IPC, and it owns shell-only affordances (`pickWorkspace`, `pickImages`, `pasteImages`, `subscribePiRuntimeStatus`). The application service is in-process, so `getBootstrapState` and `getSettings` stay synchronous, and it exposes `openPickedWorkspace(path)`, `prepareImage`, and `shutdown` instead. Their `subscribe` payloads differ too (`RuntimeEventEnvelope` vs `RuntimeEvent`).
+- **Drift is already impossible.** `preload.ts` carries a compile-time assertion that the `DesktopBridge` command set and the IPC channel set are mutually exhaustive; `main.ts` derives its registration type from `keyof ApplicationService & keyof typeof IPC_CHANNELS`; `bridge-commands.test.ts` checks the channel list against `PROTOCOL_COMMANDS`. A method added to one layer and forgotten in another fails the build or the test.
+- **Merging would fight V4.** [`../version/v4/implementation-plan.md`](../version/v4/implementation-plan.md) moves `HarnessRuntime` into a utility process, where "synchronous cross-process calls are forbidden" — its getters must become asynchronous. A shared base interface would have to be unpicked with `Omit<>` at that point, which is worse than the current restatement.
+
+Extract a shared base only if a future change makes two of these layers genuinely identical *and* keeps them so. Signature restatement that the compiler already checks is cheaper than the coupling.
+
 `resolveHostDialog` for `kind: "select"` may include `value` as an optional permission denial reason. The extension host applies that string to the permission package's follow-up `input()` without emitting a second dialog. A select without `value` still shows the follow-up input when the package asks for a reason.
 
 ## JSON-safe values

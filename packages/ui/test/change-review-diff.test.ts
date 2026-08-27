@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   diffLineStat,
-  fileChangeVerb,
   parseHunkHeader,
-  splitSearchPieces,
   unmodifiedCountBeforeHunk,
   unmodifiedLabel,
   visibleWhitespace,
@@ -23,12 +21,7 @@ describe("change-review unified diff helpers", () => {
     expect(unmodifiedLabel(11)).toBe("11 unmodified lines");
   });
 
-  test("splits search hits and maps whitespace glyphs", () => {
-    expect(splitSearchPieces("hello agent world", "agent")).toEqual([
-      { text: "hello ", hit: false },
-      { text: "agent", hit: true },
-      { text: " world", hit: false },
-    ]);
+  test("maps whitespace glyphs", () => {
     expect(visibleWhitespace("a b\tc")).toBe("a·b→c");
   });
 
@@ -45,7 +38,5 @@ describe("change-review unified diff helpers", () => {
         },
       ]),
     ).toEqual({ additions: 1, deletions: 1 });
-    expect(fileChangeVerb("created")).toBe("Created");
-    expect(fileChangeVerb("modified")).toBe("Edited");
   });
 });

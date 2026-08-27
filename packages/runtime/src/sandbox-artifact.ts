@@ -3,8 +3,6 @@ export const RIPGREP_TAG = "15.2.0";
 export const RIPGREP_UPSTREAM = "https://github.com/BurntSushi/ripgrep";
 export const RIPGREP_LICENSE = "Unlicense OR MIT";
 export const RIPGREP_EXECUTABLE = "rg";
-export const RIPGREP_RELEASED_AT = "2026-07-15";
-
 export const SANDBOX_RUNTIME_PACKAGE = "@anthropic-ai/sandbox-runtime";
 export const SANDBOX_RUNTIME_VERSION = "0.0.73";
 export const SANDBOX_RUNTIME_LICENSE = "Apache-2.0";

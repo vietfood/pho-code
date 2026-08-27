@@ -1,21 +1,8 @@
 import {
-  completedPlanTodoCount,
   type PlanTodoItem,
   type PlanTodoStatus,
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
-
-export function sessionTodoChipLabel(todos: readonly PlanTodoItem[]): string | null {
-  if (todos.length === 0) {
-    return null;
-  }
-  const completed = completedPlanTodoCount(todos);
-  const inProgress = todos.find((item) => item.status === "in_progress");
-  if (inProgress) {
-    return `${completed}/${todos.length} · ${inProgress.content}`;
-  }
-  return `${completed}/${todos.length}`;
-}
 
 export function SessionTodoList({
   todos,

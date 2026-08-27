@@ -26,19 +26,6 @@ export interface StoredFileChangeRecord {
   undoTempName?: string;
 }
 
-export function isCompletePendingRecord(record: StoredFileChangeRecord): boolean {
-  if (record.status !== "pending") {
-    return false;
-  }
-  if (record.limitation) {
-    return false;
-  }
-  if (record.kind === "created") {
-    return typeof record.afterHash === "string";
-  }
-  return typeof record.beforeHash === "string" && typeof record.afterHash === "string";
-}
-
 export function toFileChangeSummary(record: StoredFileChangeRecord): FileChangeSummary {
   const summary: FileChangeSummary = {
     relativePath: record.relativePath,

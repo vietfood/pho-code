@@ -1,4 +1,4 @@
-export { PROTOCOL_COMMANDS, PROTOCOL_VERSION, INTENDED_PI_SDK, PINNED_ELECTRON, isSupportedProtocolVersion } from "./version";
+export { PROTOCOL_COMMANDS, PROTOCOL_VERSION, INTENDED_PI_SDK, PINNED_ELECTRON } from "./version";
 export type { ProtocolCommandName, ProtocolVersion } from "./version";
 
 export { displayToolName } from "./tool-display";
@@ -21,7 +21,6 @@ export {
   isProcessScopedEventType,
   mergeLiveRun,
   RUNTIME_EVENT_TYPES,
-  runtimeEventUpdatesSessionList,
   upsertToolWork,
 } from "./events";
 export type {
@@ -30,7 +29,6 @@ export type {
   ExtensionDialogSettledPayload,
   RuntimeEvent,
   RuntimeEventEnvelope,
-  RuntimeEventType,
   RunFailedPayload,
   SessionRemovedPayload,
   TextDeltaPayload,
@@ -70,7 +68,6 @@ export type {
 } from "./credentials";
 export {
   idleProviderAccountsResult,
-  isProviderAuthFlowPhase,
   isProviderAuthMethod,
   MAX_PROVIDER_AUTH_MESSAGE,
   MAX_PROVIDER_AUTH_OPTIONS,
@@ -93,17 +90,13 @@ export {
   CHANGE_FILE_VERSIONS,
   CHANGE_KINDS,
   CHANGE_CONTENT_HASH_PATTERN,
-  CHANGE_LEDGER_DISCLOSURE,
   CHANGE_LIMITATIONS,
   CHANGE_LINE_ENDINGS,
   CHANGE_REVIEW_COPY,
-  CHANGE_SCOPE_FIELDS,
   CHANGE_UNREADABLE_RUN_ID,
   CHANGE_UNTRACKED_PATH_PREFIX,
   changeScopeEquals,
-  changeScopeId,
   DEFAULT_CHANGE_CONTEXT_LINES,
-  emptyChangeReviews,
   formatChangeDiffCursor,
   formatChangedFileCount,
   formatChangeFileViewCursor,
@@ -111,12 +104,8 @@ export {
   hasDisallowedControlChars,
   isChangeContentHash,
   isChangeFileVersion,
-  isChangeKind,
-  isChangeLimitation,
   isChangeScope,
   isPersistableRelativePath,
-  isReviewStatus,
-  isUndoAction,
   isUntrackedChangePath,
   MAX_CHANGE_BLOB_BYTES_PER_RUN,
   MAX_CHANGE_CONTEXT_LINES,
@@ -183,9 +172,7 @@ export {
   agentsSectionId,
   DEFAULT_CONTEXT_PROMPT_PREAMBLE,
   emptySessionContextPrompt,
-  isContextPromptSectionKind,
   MAX_CONTEXT_PROMPT_PREAMBLE_CHARS,
-  parseToolSectionId,
   PI_DOCS_SECTION_BODY,
   PI_DOCS_SECTION_ID,
   toolSectionId,
@@ -225,9 +212,7 @@ export type {
 } from "./retrieval";
 
 export {
-  isWebSearchProvider,
   isWebSourceProvider,
-  isWebSourceRecord,
   MAX_WEB_CONCURRENT_REQUESTS,
   MAX_WEB_EXTRACTED_CHARS,
   MAX_WEB_REDIRECTS,
@@ -271,8 +256,6 @@ export {
   emptySandboxSettingsSnapshot,
   isSandboxBashToolName,
   isSandboxNetworkMode,
-  isSandboxStatus,
-  isSandboxStatusReason,
   MAX_SANDBOX_ALLOWED_DOMAINS,
   MAX_SANDBOX_DOMAIN_CHARS,
   MAX_SANDBOX_PATH_CHARS,
@@ -292,7 +275,6 @@ export {
   sandboxStatusReasonLabel,
 } from "./sandbox";
 export type {
-  SandboxBashToolName,
   SandboxNetworkMode,
   SandboxSettingsSnapshot,
   SandboxStatus,
@@ -323,7 +305,6 @@ export {
   isAppearanceMode,
   isAppearancePalette,
   isChatFontSize,
-  isFontFamilyName,
   isGlassStrength,
   isManagedPermissionProfileId,
   isUiFontSize,
@@ -341,7 +322,6 @@ export {
   PERMISSION_PROFILE_IDS,
   resolveAppearanceMode,
   sanitizeFontFamilyName,
-  supportedAppearanceModes,
   windowBackgroundForAppearance,
 } from "./settings";
 export type {
@@ -414,7 +394,7 @@ export type {
   RemovePreparedImageInput,
 } from "./attachments";
 
-export { emptyQueueState, idleRunState, isQueueMode, MAX_ASSISTANT_REWRITE_CHARS, QUEUE_MODES } from "./conversation";
+export { emptyQueueState, idleRunState, MAX_ASSISTANT_REWRITE_CHARS, QUEUE_MODES } from "./conversation";
 export type {
   AbortRunInput,
   ContextUsageSummary,
@@ -453,8 +433,6 @@ export type {
 
 export {
   activityRank,
-  compareSessionActivity,
-  isSessionActivityPhase,
   isSessionCatalogScope,
   isSessionKey,
   isSessionOutcome,

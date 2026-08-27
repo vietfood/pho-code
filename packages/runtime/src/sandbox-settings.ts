@@ -121,16 +121,18 @@ export function canonicalizeSandboxPathList(values: readonly string[]): string[]
   return result;
 }
 
+export interface StoredSandboxSettingsPatch {
+  enabled?: boolean;
+  networkMode?: SandboxNetworkMode;
+  allowedDomains?: string[];
+  includePackageRegistryDefaults?: boolean;
+  additionalReadPaths?: string[];
+  additionalWritePaths?: string[];
+}
+
 export function applyStoredSandboxPatch(
   current: StoredSandboxSettings,
-  patch: {
-    enabled?: boolean;
-    networkMode?: SandboxNetworkMode;
-    allowedDomains?: string[];
-    includePackageRegistryDefaults?: boolean;
-    additionalReadPaths?: string[];
-    additionalWritePaths?: string[];
-  },
+  patch: StoredSandboxSettingsPatch,
 ): StoredSandboxSettings {
   return {
     enabled: patch.enabled ?? current.enabled,
@@ -161,4 +163,40 @@ export function toSandboxSettingsSnapshot(
     snapshot.statusReason = live.statusReason;
   }
   return snapshot;
+}
+
+export interface SandboxSettingsStore {
+  readonly current: StoredSandboxSettings;
+  /** Apply a validated patch and persist it. The two must not drift apart. */
+  apply(patch: StoredSandboxSettingsPatch): StoredSandboxSettings;
+  /**
+   * Disable in memory without writing a settings file, so a deterministic test
+   * run opts out of the sandbox without leaving state behind for the next run.
+   */
+  disableWithoutPersisting(): void;
+}
+
+/**
+ * Owns the runtime's current sandbox settings and their persistence.
+ *
+ * Extracted from `createPhoCodeRuntime` so a patch can never be applied without
+ * being saved. Reads stay a plain property so call sites read like the field
+ * this replaced.
+ */
+export function createSandboxSettingsStore(applicationDataDir: string): SandboxSettingsStore {
+  let settings = loadSandboxSettings(applicationDataDir);
+
+  return {
+    get current() {
+      return settings;
+    },
+    apply(patch) {
+      settings = applyStoredSandboxPatch(settings, patch);
+      saveSandboxSettings(applicationDataDir, settings);
+      return settings;
+    },
+    disableWithoutPersisting() {
+      settings = { ...settings, enabled: false };
+    },
+  };
 }

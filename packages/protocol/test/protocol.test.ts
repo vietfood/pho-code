@@ -23,15 +23,12 @@ import {
   isJsonSafeValue,
   isSafeHttpUrl,
   hostnameFromHttpUrl,
-  isSupportedProtocolVersion,
   isWorkspaceReferenceToken,
-  isWebSourceRecord,
   isLiveRunDeltaType,
   jsonRoundTrip,
   mergeLiveRun,
   nodeVersionMeetsMinimum,
   providerDisclosureCopy,
-  runtimeEventUpdatesSessionList,
   unwrapCommandResult,
   type BootstrapState,
   type SessionSnapshot,
@@ -103,12 +100,6 @@ describe("protocol serialization", () => {
     );
   });
 
-  test("accepts protocol version 1 and rejects unknown versions", () => {
-    expect(isSupportedProtocolVersion(1)).toBe(true);
-    expect(isSupportedProtocolVersion(2)).toBe(false);
-    expect(isSupportedProtocolVersion("1")).toBe(false);
-  });
-
   test("normalizes harness errors without leaking extra fields", () => {
     const error = createHarnessError({
       code: "untrusted_sender",
@@ -137,10 +128,6 @@ describe("protocol serialization", () => {
 
   test("keeps web source records JSON-safe", () => {
     const source = { title: "Example", url: "https://example.com/doc", provider: "duckduckgo" as const };
-    expect(isWebSourceRecord(source)).toBe(true);
-    expect(isWebSourceRecord({ title: "Jina", url: "https://example.com/doc", provider: "jina" })).toBe(true);
-    expect(isWebSourceRecord({ title: "Talk", url: "https://www.youtube.com/watch?v=abcdefghijk", provider: "youtube" })).toBe(true);
-    expect(isWebSourceRecord({ title: "x", url: "file:///etc/passwd", provider: "http" })).toBe(false);
     expect(isJsonSafeValue({ sources: [source] })).toBe(true);
     expect(jsonRoundTrip(source)).toEqual(source);
   });
@@ -191,11 +178,6 @@ describe("protocol serialization", () => {
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.toolEvent)).toBe(true);
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runAdmitted)).toBe(false);
     expect(isLiveRunDeltaType(RUNTIME_EVENT_TYPES.runSettled)).toBe(false);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionSnapshot)).toBe(false);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.runSettled)).toBe(false);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionActivity)).toBe(false);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.sessionRemoved)).toBe(true);
-    expect(runtimeEventUpdatesSessionList(RUNTIME_EVENT_TYPES.textDelta)).toBe(false);
   });
 
   test("establishes a second run after a terminal snapshot and ignores a late first-run delta", () => {

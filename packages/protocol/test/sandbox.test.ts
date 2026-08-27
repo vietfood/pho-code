@@ -5,7 +5,6 @@ import {
   isJsonSafeValue,
   isSandboxBashToolName,
   isSandboxNetworkMode,
-  isSandboxStatus,
   jsonRoundTrip,
   MAX_SANDBOX_ALLOWED_DOMAINS,
   MAX_SANDBOX_PATH_LIST,
@@ -43,8 +42,6 @@ describe("sandbox protocol", () => {
   });
 
   test("accepts only known statuses and network modes", () => {
-    expect(isSandboxStatus("healthy")).toBe(true);
-    expect(isSandboxStatus("running")).toBe(false);
     expect(isSandboxNetworkMode("deny")).toBe(true);
     expect(isSandboxNetworkMode("allowlist")).toBe(true);
     expect(isSandboxNetworkMode("allow-all")).toBe(false);

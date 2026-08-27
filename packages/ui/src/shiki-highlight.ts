@@ -106,44 +106,6 @@ export function preferredShikiTheme(
   }
 }
 
-const tokenCache = new Map<string, { content: string; color?: string }[]>();
-
-export async function tokenizeCode(
-  code: string,
-  language: string,
-  theme: ShikiThemeName,
-): Promise<{ content: string; color?: string }[]> {
-  const key = `tok\0${theme}\0${language || "text"}\0${code}`;
-  const cached = tokenCache.get(key);
-  if (cached) {
-    return cached;
-  }
-  const highlighter = await getHighlighter();
-  const resolvedTheme = await ensureTheme(highlighter, theme);
-  const lang = language || "text";
-  const loaded = highlighter.getLoadedLanguages();
-  if (!loaded.includes(lang as BundledLanguage) && lang !== "text") {
-    try {
-      await highlighter.loadLanguage(lang as BundledLanguage);
-    } catch {
-      return rememberTokens(key, [{ content: code }]);
-    }
-  }
-  try {
-    const result = highlighter.codeToTokens(code, { lang: lang as BundledLanguage, theme: resolvedTheme });
-    const tokens = result.tokens.flat().map((token) => {
-      const item: { content: string; color?: string } = { content: token.content };
-      if (token.color) {
-        item.color = token.color;
-      }
-      return item;
-    });
-    return rememberTokens(key, tokens.length > 0 ? tokens : [{ content: code }]);
-  } catch {
-    return rememberTokens(key, [{ content: code }]);
-  }
-}
-
 const lineTokenCache = new Map<string, { content: string; color?: string }[][]>();
 
 /**
@@ -204,17 +166,6 @@ function rememberLineTokens(
   }
   lineTokenCache.set(key, lines);
   return lines;
-}
-
-function rememberTokens(key: string, tokens: { content: string; color?: string }[]): { content: string; color?: string }[] {
-  if (tokenCache.size >= MAX_CACHE_ENTRIES) {
-    const oldest = tokenCache.keys().next().value;
-    if (oldest !== undefined) {
-      tokenCache.delete(oldest);
-    }
-  }
-  tokenCache.set(key, tokens);
-  return tokens;
 }
 
 export async function highlightCode(code: string, language: string, theme: ShikiThemeName): Promise<string> {

@@ -27,10 +27,6 @@ export function decodeBase64Bytes(data: string): Uint8Array {
   return new Uint8Array(Buffer.from(data, "base64"));
 }
 
-export function encodeBase64Bytes(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
-}
-
 export function mimeAgreesWithBytes(mimeType: string, bytes: Uint8Array): mimeType is ImageMimeType {
   const sniffed = sniffImageMime(bytes);
   return sniffed !== undefined && sniffed === mimeType && isImageMimeType(mimeType);

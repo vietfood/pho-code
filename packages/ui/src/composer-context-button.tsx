@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { BotIcon, ListTreeIcon, PaperclipIcon } from "lucide-react";
 import type { SessionAgentMode } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
+import { useDismissOnOutside } from "./lib/use-dismiss";
 
 const MODE_OPTIONS = [
   {
@@ -37,28 +38,7 @@ export function ComposerContextButton({
   const showMode = Boolean(onModeChange);
   const showAttach = Boolean(onAttach);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    function onPointerDown(event: MouseEvent): void {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismissOnOutside({ open, ref: rootRef, onDismiss: () => setOpen(false), preventDefaultOnEscape: true });
 
   if (!showMode && !showAttach) {
     return null;

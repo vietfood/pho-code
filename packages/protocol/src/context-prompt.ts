@@ -42,20 +42,12 @@ export interface UpdateSessionContextPromptInput {
   reset?: boolean;
 }
 
-export function isContextPromptSectionKind(value: unknown): value is ContextPromptSectionKind {
-  return value === "agents" || value === "tool" || value === "optional";
-}
-
 export function toolSectionId(name: string): string {
   return `tool:${name}`;
 }
 
 export function agentsSectionId(relativePath: string): string {
   return `agents:${relativePath}`;
-}
-
-export function parseToolSectionId(id: string): string | undefined {
-  return id.startsWith("tool:") ? id.slice("tool:".length) : undefined;
 }
 
 export function emptySessionContextPrompt(): SessionContextPrompt {

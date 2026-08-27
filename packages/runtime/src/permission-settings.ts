@@ -16,7 +16,6 @@ import {
   MANAGED_WEB_PERMISSION,
 } from "./permission-presets";
 
-export const PERMISSION_PRESET_VERSION = 4 as const;
 /** Named permission-system authorizer; skip-ask is a no-op until this name is in `authorizerChain`. */
 export const SANDBOX_PERMISSION_AUTHORIZER_NAME = "pho-code-sandbox";
 export const PERMISSION_CONFIG_RELATIVE_PATH = path.join(

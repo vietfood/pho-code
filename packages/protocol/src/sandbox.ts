@@ -21,8 +21,6 @@ export const SANDBOX_DISCLOSURE =
   "Seatbelt for agent bash keeps workspace and temporary files writable. In-policy read, write, and edit tools follow the same Settings policy but run in the Pho Code process. This does not sandbox Pho Code, Pi, MCP servers, Cursor agents, the owner terminal, or Undo.";
 
 export const SANDBOX_BASH_TOOL_NAMES = ["bash", "user_bash"] as const;
-export type SandboxBashToolName = (typeof SANDBOX_BASH_TOOL_NAMES)[number];
-
 const SANDBOX_BASH_TOOL_NAME_SET = new Set<string>(SANDBOX_BASH_TOOL_NAMES);
 
 export function isSandboxBashToolName(name: string): boolean {
@@ -58,20 +56,10 @@ export interface UpdateSandboxSettingsInput {
 }
 
 const NETWORK_MODE_SET = new Set<string>(SANDBOX_NETWORK_MODES);
-const STATUS_SET = new Set<string>(SANDBOX_STATUSES);
-const STATUS_REASON_SET = new Set<string>(SANDBOX_STATUS_REASONS);
 const DOMAIN_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu;
 
 export function isSandboxNetworkMode(value: unknown): value is SandboxNetworkMode {
   return typeof value === "string" && NETWORK_MODE_SET.has(value);
-}
-
-export function isSandboxStatus(value: unknown): value is SandboxStatus {
-  return typeof value === "string" && STATUS_SET.has(value);
-}
-
-export function isSandboxStatusReason(value: unknown): value is SandboxStatusReason {
-  return typeof value === "string" && STATUS_REASON_SET.has(value);
 }
 
 export function emptySandboxSettingsSnapshot(): SandboxSettingsSnapshot {

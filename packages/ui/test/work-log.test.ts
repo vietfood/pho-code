@@ -6,7 +6,6 @@ import {
   formatWorkDuration,
   groupTranscriptSegments,
   isTurnOutputText,
-  isWorkLogBlock,
   lastTextBearingMessage,
   settledWorkSummary,
   turnTextOutput,
@@ -105,8 +104,6 @@ describe("work log helpers", () => {
       },
       { type: "text" as const, text: "Here is the answer." },
     ];
-    expect(isWorkLogBlock(blocks, 0)).toBe(true);
-    expect(isWorkLogBlock(blocks, 1)).toBe(true);
     expect(isTurnOutputText(blocks, 1)).toBe(false);
     expect(isTurnOutputText(blocks, 3)).toBe(true);
     expect(turnTextOutput(blocks)).toBe("Here is the answer.");

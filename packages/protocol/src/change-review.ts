@@ -1,7 +1,5 @@
 import { createHarnessError, HARNESS_ERROR_CODES } from "./errors";
 
-export const CHANGE_SCOPE_FIELDS = ["workspaceId", "sessionId", "runId"] as const;
-
 export interface ChangeScope {
   workspaceId: string;
   sessionId: string;
@@ -71,9 +69,6 @@ export const DEFAULT_CHANGE_CONTEXT_LINES = 3;
 export const CHANGE_UNTRACKED_PATH_PREFIX = ".pho-code-untracked/";
 export const CHANGE_UNREADABLE_RUN_ID = ".pho-code-unreadable";
 export const CHANGE_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/u;
-
-export const CHANGE_LEDGER_DISCLOSURE =
-  "Tracked write/edit snapshots are stored in Pho Code's application data directory. They are not encrypted at rest in personal v3 and are not part of the Pi transcript or Git history. Pending review is kept until you Approve or Undo. Approved and undone records are retained rather than silently deleted; if the 250 MiB ledger budget is reached, new snapshots are marked unavailable.";
 
 export const CHANGE_REVIEW_COPY = {
   alreadyApplied: "",
@@ -192,24 +187,8 @@ export interface ChangeFileViewPage {
   limitation?: ChangeLimitation;
 }
 
-export function isReviewStatus(value: unknown): value is ReviewStatus {
-  return typeof value === "string" && (REVIEW_STATUSES as readonly string[]).includes(value);
-}
-
-export function isChangeKind(value: unknown): value is ChangeKind {
-  return value === "created" || value === "modified";
-}
-
-export function isChangeLimitation(value: unknown): value is ChangeLimitation {
-  return typeof value === "string" && (CHANGE_LIMITATIONS as readonly string[]).includes(value);
-}
-
 export function isChangeFileVersion(value: unknown): value is ChangeFileVersion {
   return value === "before" || value === "agent" || value === "current";
-}
-
-export function isUndoAction(value: unknown): value is UndoAction {
-  return typeof value === "string" && (UNDO_ACTIONS as readonly string[]).includes(value);
 }
 
 export function hasDisallowedControlChars(value: string): boolean {
@@ -246,10 +225,6 @@ export function isChangeScope(value: unknown): value is ChangeScope {
   }
   const candidate = value as Partial<ChangeScope>;
   return isBoundedScopeId(candidate.workspaceId) && isBoundedScopeId(candidate.sessionId) && isBoundedScopeId(candidate.runId);
-}
-
-export function changeScopeId(scope: ChangeScope): string {
-  return `${scope.workspaceId}\0${scope.sessionId}\0${scope.runId}`;
 }
 
 export function changeScopeEquals(left: ChangeScope, right: ChangeScope): boolean {
@@ -463,10 +438,6 @@ function invalidCursor(operation: string) {
     operation,
     recoverable: true,
   });
-}
-
-export function emptyChangeReviews(): ChangeReviewSetSummary[] {
-  return [];
 }
 
 export function reviewSummaryForToolCall(

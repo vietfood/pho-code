@@ -26,12 +26,12 @@ export { AboutDialog } from "./about-dialog";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { FastModeChip } from "./fast-mode-chip";
-export { ChangeReviewSheet, firstSelectablePath } from "./change-review-sheet";
+export { firstSelectablePath } from "./change-review-sheet";
 export { ChangeReviewWindow } from "./change-review-window";
 export type { RequestFileLines } from "./change-review-diff-view";
 export { RightSidebar, type RightSidebarSurface } from "./right-sidebar";
 export { PlanDocumentPanel } from "./plan-document-panel";
-export { SessionTodoList, sessionTodoChipLabel } from "./session-todo-list";
+export { SessionTodoList } from "./session-todo-list";
 export { readRightSidebarCollapsed, writeRightSidebarCollapsed } from "./lib/right-sidebar-collapsed";
 export { ToolRow } from "./tool-row";
 export { composerHighlight } from "./lib/composer-highlight";
@@ -94,7 +94,6 @@ export {
   getWorkEntryIconPack,
   readAppearancePalette,
   readResolvedAppearance,
-  readWorkEntryIconPack,
   subscribeWorkEntryIconPack,
 } from "./lib/appearance-theme";
 export { sessionActivityLabel, sessionRowActivity } from "./lib/session-activity";

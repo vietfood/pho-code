@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import {
   canonicalizeSandboxPath,
   coerceStoredSandboxSettings,
+  createSandboxSettingsStore,
   emptyStoredSandboxSettings,
   loadSandboxSettings,
   saveSandboxSettings,
@@ -42,5 +43,51 @@ describe("sandbox settings persistence", () => {
   test("canonicalizes ~ and rejects parent traversal after resolve", () => {
     expect(canonicalizeSandboxPath("/tmp/pho-extra")).toBe(path.resolve("/tmp/pho-extra"));
     expect(canonicalizeSandboxPath("~/Documents").startsWith("/")).toBe(true);
+  });
+});
+
+describe("sandbox settings store", () => {
+  async function isolatedDataDir(): Promise<string> {
+    return mkdtemp(path.join(tmpdir(), "pho-code-sandbox-store-"));
+  }
+
+  test("starts from whatever is on disk", async () => {
+    const root = await isolatedDataDir();
+    saveSandboxSettings(root, { ...emptyStoredSandboxSettings(), enabled: true, networkMode: "allowlist" });
+    const store = createSandboxSettingsStore(root);
+    expect(store.current.enabled).toBe(true);
+    expect(store.current.networkMode).toBe("allowlist");
+  });
+
+  test("apply patches and persists in one step", async () => {
+    const root = await isolatedDataDir();
+    const store = createSandboxSettingsStore(root);
+    store.apply({ enabled: true, allowedDomains: ["github.com"] });
+
+    expect(store.current.enabled).toBe(true);
+    // A second store reading the same directory proves the patch reached disk.
+    expect(createSandboxSettingsStore(root).current).toEqual(store.current);
+  });
+
+  test("apply leaves unpatched fields alone", async () => {
+    const root = await isolatedDataDir();
+    const store = createSandboxSettingsStore(root);
+    store.apply({ enabled: true, allowedDomains: ["github.com"] });
+    store.apply({ networkMode: "allowlist" });
+
+    expect(store.current.networkMode).toBe("allowlist");
+    expect(store.current.enabled).toBe(true);
+    expect(store.current.allowedDomains).toEqual(["github.com"]);
+  });
+
+  test("disableWithoutPersisting never writes a settings file", async () => {
+    const root = await isolatedDataDir();
+    saveSandboxSettings(root, { ...emptyStoredSandboxSettings(), enabled: true });
+    const store = createSandboxSettingsStore(root);
+    store.disableWithoutPersisting();
+
+    expect(store.current.enabled).toBe(false);
+    // On-disk state is untouched, so the next run still opts in.
+    expect(createSandboxSettingsStore(root).current.enabled).toBe(true);
   });
 });

@@ -4,9 +4,6 @@
  */
 export const CURSOR_SDK_PROVIDER_ID = "cursor";
 
-/** Must match pi-cursor-sdk's sentinel so stored keys resolve the same way. */
-export const CURSOR_API_KEY_CONFIG_VALUE = "pi-cursor-sdk-cursor-api-key-placeholder";
-
 export const CURSOR_SDK_HARNESS_ENV = {
   runtime: "PI_CURSOR_RUNTIME",
   settingSources: "PI_CURSOR_SETTING_SOURCES",
@@ -15,10 +12,6 @@ export const CURSOR_SDK_HARNESS_ENV = {
 export function applyCursorSdkHarnessPolicy(env: NodeJS.ProcessEnv = process.env): void {
   env[CURSOR_SDK_HARNESS_ENV.runtime] = "local";
   env[CURSOR_SDK_HARNESS_ENV.settingSources] = "none";
-}
-
-export function isCursorProviderId(provider: string): boolean {
-  return provider.trim().toLowerCase() === CURSOR_SDK_PROVIDER_ID;
 }
 
 /**

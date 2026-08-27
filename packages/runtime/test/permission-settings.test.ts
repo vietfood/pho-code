@@ -18,7 +18,6 @@ import {
   readPermissionSettings,
   SANDBOX_PERMISSION_AUTHORIZER_NAME,
   syncHarnessPermissionPolicy,
-  PERMISSION_PRESET_VERSION,
 } from "../src/permission-settings";
 
 async function makeAgentDir() {
@@ -30,7 +29,6 @@ async function makeAgentDir() {
 
 describe("permission settings adapter", () => {
   test("keeps stable keys for the three v3 owner-facing modes", () => {
-    expect(PERMISSION_PRESET_VERSION).toBe(4);
     expect(permissionPolicyForProfile("guarded")).toEqual(GUARDED_PERMISSION);
     expect(permissionPolicyForProfile("balanced")).toEqual(BALANCED_PERMISSION);
     expect(permissionPolicyForProfile("developer")).toEqual(DEVELOPER_PERMISSION);

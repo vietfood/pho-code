@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   applyRuntimeEvent,
   blockingReviewStatuses,
-  CHANGE_LEDGER_DISCLOSURE,
   CHANGE_REVIEW_COPY,
   changeScopeEquals,
   emptyConversationState,
@@ -103,9 +102,6 @@ describe("change-review protocol", () => {
     expect(CHANGE_REVIEW_COPY.alreadyApplied).toBe("");
     expect(CHANGE_REVIEW_COPY.trackedOnly).toBe("Changes");
     expect(CHANGE_REVIEW_COPY.notAllChanges).toBe("");
-    expect(CHANGE_LEDGER_DISCLOSURE).toContain("application data");
-    expect(CHANGE_LEDGER_DISCLOSURE).toContain("250 MiB");
-    expect(CHANGE_LEDGER_DISCLOSURE).toContain("Approve or Undo");
     expect(formatChangedFileCount(1)).toBe("1 file");
     expect(formatChangedFileCount(2)).toBe("2 files");
     expect(reviewFileCount({ ...summary, fileCount: 80, filesTruncated: true })).toBe(80);
