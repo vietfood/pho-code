@@ -138,6 +138,7 @@ test("boots the typed bootstrap bridge behind renderer isolation", async () => {
       "rewriteAssistantOutput",
       "searchWorkspaceReferences",
       "sendPrompt",
+      "setFastMode",
       "setSessionMode",
       "setSessionModel",
       "setThinkingLevel",

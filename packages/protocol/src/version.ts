@@ -29,6 +29,7 @@ export const PROTOCOL_COMMANDS = {
   abortRun: "abortRun",
   setSessionModel: "setSessionModel",
   setThinkingLevel: "setThinkingLevel",
+  setFastMode: "setFastMode",
   setSessionMode: "setSessionMode",
   updateSessionPlanDocument: "updateSessionPlanDocument",
   executeSessionPlan: "executeSessionPlan",

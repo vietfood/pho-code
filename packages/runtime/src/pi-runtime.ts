@@ -84,6 +84,7 @@ import {
   type SessionActivitySummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetFastModeInput,
   type SetSessionModeInput,
   type UpdateSessionPlanDocumentInput,
   type ExecuteSessionPlanInput,
@@ -141,6 +142,7 @@ import type {
 import { hostPhoCodeRuntime } from "./hosted-runtime";
 import { createLazyAcpBackend } from "@pho-agent/backend-acp";
 import { createLazyCodexBackend } from "@pho-agent/backend-codex";
+import { CODEX_DEVELOPER_INSTRUCTIONS, createCodexWorkspaceSearchTool } from "./external-backend-tools";
 import { validateSessionArtifact } from "./session-artifact";
 import { previewToolResult, previewUnknown } from "./preview";
 import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
@@ -1934,8 +1936,14 @@ export async function createPhoCodeRuntime(
       if (!isThinkingLevel(input.level)) {
         failCommand("setThinkingLevel", "Unknown thinking level.");
       }
+      if (input.level === "default" || input.level === "none" || input.level === "ultra") {
+        failCommand("setThinkingLevel", "That reasoning level is not supported by Pi.");
+      }
       session.setThinkingLevel(input.level);
       return publishSnapshot(live);
+    },
+    async setFastMode(_input: SetFastModeInput) {
+      failCommand("setFastMode", "Fast mode is not supported by Pi.");
     },
     async setSessionMode(input: SetSessionModeInput) {
       assertNotDisposed();
@@ -2497,7 +2505,11 @@ export async function createPhoCodeRuntime(
 
   return hostPhoCodeRuntime(runtime, {
     backends: [
-      createLazyCodexBackend({ scope: scopeAdapter }),
+      createLazyCodexBackend({
+        scope: scopeAdapter,
+        developerInstructions: CODEX_DEVELOPER_INSTRUCTIONS,
+        dynamicTools: [createCodexWorkspaceSearchTool(scopeAdapter, retrieval)],
+      }),
       createLazyAcpBackend({
         id: "claude-acp",
         label: "Claude",

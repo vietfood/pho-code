@@ -1618,6 +1618,13 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
   max-width: 14rem;
 }
 
+.composer-backend-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 8rem;
+}
+
 .composer-thinking-select {
   width: fit-content;
   max-width: 11rem;
@@ -1633,6 +1640,15 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 .composer-thinking-select.is-max {
   color: #7e22ce;
   font-weight: 600;
+}
+
+.composer-fast-toggle {
+  gap: 0.25rem;
+}
+
+.composer-fast-toggle.is-active {
+  color: var(--accent-foreground);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .composer-mode-menu {
@@ -2066,6 +2082,54 @@ html[data-appearance="dark"] .composer-thinking-option.is-max {
   box-shadow:
     0 1px 2px rgb(0 0 0 / 4%),
     0 12px 32px -16px rgb(0 0 0 / 28%);
+}
+
+.composer-backend-picker-panel {
+  min-width: 15rem;
+  max-width: min(19rem, 84vw);
+  padding: 0.35rem;
+}
+
+.composer-backend-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.composer-backend-picker-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  padding: 0.35rem 0.2rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  line-height: 1.4;
+}
+
+.composer-backend-picker-info p {
+  margin: 0.08rem 0.2rem 0.15rem 0;
+}
+
+.composer-backend-picker-info-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.composer-backend-picker-info-button:hover,
+.composer-backend-picker-info-button:focus-visible {
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 html[data-appearance="dark"] .composer-model-picker-panel {

@@ -14,6 +14,7 @@ import type {
   SessionSnapshot,
   RewriteAssistantOutputInput,
   SetSessionModelInput,
+  SetFastModeInput,
   SetThinkingLevelInput,
   SteerRunInput,
 } from "./conversation";
@@ -113,6 +114,7 @@ export interface DesktopBridge {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;

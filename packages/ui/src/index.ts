@@ -25,6 +25,7 @@ export { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
 export { AboutDialog } from "./about-dialog";
 export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
+export { FastModeChip } from "./fast-mode-chip";
 export { ChangeReviewSheet, firstSelectablePath } from "./change-review-sheet";
 export { ChangeReviewWindow } from "./change-review-window";
 export type { RequestFileLines } from "./change-review-diff-view";

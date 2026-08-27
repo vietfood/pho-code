@@ -21,7 +21,7 @@ The renderer receives snapshots/events and sends named intents. It never receive
 - protocol version and command names;
 - JSON-safe request/result/event types;
 - normalized error codes;
-- bounded projections for accepted workspaces, sessions, runs, models, messages, tools, settings, credentials, queues, attachments, and features, plus V5's in-source backend descriptors and backend-pinned compatibility identity;
+- bounded projections for accepted workspaces, sessions, runs, models, messages, tools, settings, credentials, queues, attachments, and features, plus V5's in-source backend descriptors, backend-pinned compatibility identity, backend-owned model/reasoning/Fast state, and text/tool-delta events;
 - runtime validators and JSON-safety helpers that can run without Node or Electron.
 
 It does not import Node, Electron, React, Pi, MCP, the application, or the runtime.
@@ -40,7 +40,7 @@ Every privileged operation has a fixed purpose. Renderer input is untrusted and 
 The authoritative command registry is `packages/protocol/src/version.ts`; method signatures live in `bridge.ts`, channel names in `apps/desktop/electron/ipc.ts`, and preload implements the same list. Current groups cover:
 
 - bootstrap, backend discovery, workspace recents/reorder, session catalog/snapshots, create/open/archive/restore/removal;
-- prompt, steer/follow-up, image preparation, abort, model/thinking, assistant rewrite, context prompt, host dialogs;
+- prompt, steer/follow-up, image preparation, abort, model/thinking/Fast, assistant rewrite, context prompt, host dialogs;
 - appearance, permissions/trust, skill sources, credentials/provider OAuth, GitHub MCP, and agent-tool sandbox Settings (`updateSandboxSettings`);
 - workspace-reference search;
 - implemented V3 review/diff/Approve/per-file Undo commands.

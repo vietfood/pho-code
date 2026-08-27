@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type {
+  AgentBackendDescriptor,
   ChangeScope,
   HostDialogRequest,
   ModelSummary,
@@ -35,6 +36,10 @@ export function Conversation({
   onStop,
   onModelChange,
   onThinkingChange,
+  onFastModeChange,
+  agentBackends,
+  backendId,
+  onBackendChange,
   onSessionModeChange,
   dialog,
   onResolveDialog,
@@ -63,6 +68,10 @@ export function Conversation({
   onStop: () => void;
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
+  onFastModeChange?: (enabled: boolean) => void;
+  agentBackends?: readonly AgentBackendDescriptor[];
+  backendId?: string;
+  onBackendChange?: (backendId: string) => void;
   onSessionModeChange?: (mode: SessionAgentMode) => void;
   dialog?: HostDialogRequest | null;
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
@@ -124,9 +133,14 @@ export function Conversation({
       thinkingLevel={snapshot.thinkingLevel}
       availableThinkingLevels={snapshot.availableThinkingLevels}
       supportsThinking={snapshot.supportsThinking}
+      {...(snapshot.fastMode ? { fastMode: snapshot.fastMode } : {})}
       selectorsDisabled={running}
       onModelChange={requestModelChange}
       onThinkingChange={onThinkingChange}
+      {...(onFastModeChange ? { onFastModeChange } : {})}
+      {...(agentBackends ? { agentBackends } : {})}
+      {...(backendId ? { backendId } : {})}
+      {...(onBackendChange ? { onBackendChange } : {})}
       sessionMode={snapshot.plan?.mode ?? "agent"}
       {...(onSessionModeChange ? { onSessionModeChange } : {})}
       variant={empty ? "hero" : "docked"}

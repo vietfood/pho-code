@@ -35,3 +35,11 @@ Stable ACP permission requests through the same interaction seam: [`2026-08-26-a
 Combined backend-foundation verification and remaining acceptance blockers: [`2026-08-26-backend-foundation-verification.md`](./2026-08-26-backend-foundation-verification.md).
 
 External-backend ownership decision, lazy Claude ACP production composition, and subagent-scope correction: [`2026-08-27-external-backend-ownership.md`](./2026-08-27-external-backend-ownership.md).
+
+Codex version-gate correction and composer backend switcher: [`2026-08-27-codex-compatibility-and-composer-switcher.md`](./2026-08-27-codex-compatibility-and-composer-switcher.md).
+
+Codex/ACP model discovery, text-delta streaming, and same-run merge correction: [`2026-08-27-external-models-and-streaming.md`](./2026-08-27-external-models-and-streaming.md).
+
+Backend-advertised reasoning, Fast service tier, incremental tool updates, and the prompt/tool ownership boundary: [`2026-08-27-external-reasoning-fast-and-tool-stream.md`](./2026-08-27-external-reasoning-fast-and-tool-stream.md).
+
+Product-owned Codex developer instructions, the first curated dynamic tool, and owner-reported Codex/Claude provider verification: [`2026-08-27-codex-instructions-and-tool-bridge.md`](./2026-08-27-codex-instructions-and-tool-bridge.md).

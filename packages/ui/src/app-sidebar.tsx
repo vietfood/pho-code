@@ -119,9 +119,7 @@ export function AppSidebar({
     | { kind: "project"; workspaceId: string; x: number; y: number }
     | null
   >(null);
-  const [backendMenuOpen, setBackendMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const agentBackends = bootstrap.agentBackends ?? [];
   const canNewSession = Boolean(activeWorkspaceId);
   const projectIds = projects.map((project) => project.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -224,7 +222,7 @@ export function AppSidebar({
       <div className="relative min-w-0 space-y-px px-2 pb-2.5">
         <button
           type="button"
-          className={cn(sidebarActionClass, "bg-sidebar-row-hover pr-8 font-medium hover:bg-sidebar-row-selected")}
+          className={cn(sidebarActionClass, "bg-sidebar-row-hover font-medium hover:bg-sidebar-row-selected")}
           data-testid="new-session"
           disabled={busy || !canNewSession}
           onClick={handleNewSession}
@@ -232,51 +230,6 @@ export function AppSidebar({
           <PlusIcon className={sidebarActionIconClass} strokeWidth={1.75} aria-hidden="true" />
           <span className="min-w-0 truncate">New session</span>
         </button>
-        {agentBackends.length > 1 ? (
-          <button
-            type="button"
-            className="absolute top-0 right-2 flex size-7 items-center justify-center rounded-lg text-[11px] text-sidebar-muted-foreground hover:bg-sidebar-row-selected hover:text-sidebar-foreground"
-            data-testid="backend-selector"
-            aria-label="Choose agent backend"
-            aria-haspopup="menu"
-            aria-expanded={backendMenuOpen}
-            disabled={busy || !canNewSession}
-            onClick={() => setBackendMenuOpen((open) => !open)}
-          >
-            ▾
-          </button>
-        ) : null}
-        {backendMenuOpen && activeWorkspaceId ? (
-          <div
-            className="absolute top-8 right-2 left-2 z-30 rounded-lg border border-sidebar-border bg-popover p-1 shadow-lg"
-            role="menu"
-            aria-label="Choose agent backend"
-            data-testid="backend-menu"
-          >
-            {agentBackends.map((backend) => (
-              <button
-                key={backend.id}
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-sidebar-row-hover"
-                data-testid={`backend-${backend.id}`}
-                onClick={() => {
-                  setBackendMenuOpen(false);
-                  onNewSession(activeWorkspaceId, backend.id);
-                }}
-              >
-                <span>{backend.label}</span>
-                {backend.id !== "pi" ? <span className="text-[10px] text-muted-foreground">Experimental</span> : null}
-              </button>
-            ))}
-            <details className="mt-1 border-t border-sidebar-border px-2 pt-1 text-[11px] text-muted-foreground">
-              <summary className="cursor-pointer list-none" aria-label="Backend information">ⓘ</summary>
-              <p className="mt-1 leading-4">
-                Codex and Claude use separately installed agents with their own accounts, configuration, tools, and process permissions.
-              </p>
-            </details>
-          </div>
-        ) : null}
         <button
           type="button"
           className={cn(

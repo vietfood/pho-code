@@ -1,13 +1,16 @@
 import type { ThinkingLevel } from "@pho-code/protocol";
 
 const LABELS: Record<ThinkingLevel, string> = {
+  default: "Default",
   off: "Off",
+  none: "Off",
   minimal: "Minimal",
   low: "Low",
   medium: "Medium",
   high: "High",
   xhigh: "Extra high",
   max: "Max",
+  ultra: "Ultra",
 };
 
 export function thinkingLevelLabel(level: ThinkingLevel): string {
@@ -20,7 +23,7 @@ export function thinkingIntensity(
   available: readonly ThinkingLevel[],
 ): number {
   if (available.length <= 1) {
-    return level === "off" ? 0 : 1;
+    return level === "off" || level === "none" ? 0 : 1;
   }
   const index = available.indexOf(level);
   if (index < 0) {

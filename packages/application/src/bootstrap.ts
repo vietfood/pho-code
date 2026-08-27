@@ -89,6 +89,7 @@ import {
   type AppearanceSettings,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetFastModeInput,
   type SetSessionModeInput,
   type UpdateSessionPlanDocumentInput,
   type ExecuteSessionPlanInput,
@@ -199,6 +200,7 @@ export interface ApplicationService {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
@@ -729,6 +731,14 @@ export function createApplicationService(input: {
         failCommand("setThinkingLevel", "Unknown thinking level.");
       }
       const snapshot = await input.runtime.setThinkingLevel({ ...scope, level: command.level });
+      adoptSelectedSnapshot(snapshot);
+      return snapshot;
+    },
+    async setFastMode(command: SetFastModeInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "setFastMode");
+      if (typeof command.enabled !== "boolean") failCommand("setFastMode", "Fast mode must be enabled or disabled.");
+      const snapshot = await input.runtime.setFastMode({ ...scope, enabled: command.enabled });
       adoptSelectedSnapshot(snapshot);
       return snapshot;
     },

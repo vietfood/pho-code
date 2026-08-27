@@ -29,17 +29,20 @@ export interface ModelSummary {
   supportsImages?: boolean;
 }
 
-/** Pi thinking levels projected for JSON-safe UI selectors. */
-export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+/** Backend-neutral reasoning levels projected for JSON-safe UI selectors. */
+export type ThinkingLevel = "default" | "off" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 
 export const THINKING_LEVELS: readonly ThinkingLevel[] = [
+  "default",
   "off",
+  "none",
   "minimal",
   "low",
   "medium",
   "high",
   "xhigh",
   "max",
+  "ultra",
 ] as const;
 
 export function isThinkingLevel(value: unknown): value is ThinkingLevel {

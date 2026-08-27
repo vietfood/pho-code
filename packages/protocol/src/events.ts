@@ -211,8 +211,8 @@ export function mergeLiveRun(current: RunState | undefined, incoming: RunState):
   }
   return {
     ...incoming,
-    streamingText: current.streamingText || incoming.streamingText,
-    work: current.work.length > 0 ? current.work : incoming.work,
+    streamingText: incoming.streamingText || current.streamingText,
+    work: incoming.work.length > 0 ? incoming.work : current.work,
     startedAt: current.startedAt ?? incoming.startedAt,
   };
 }

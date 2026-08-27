@@ -151,6 +151,7 @@ function LiveRunTail({
   const wasRunningRef = useRef(false);
   const [liveWorkExpanded, setLiveWorkExpanded] = useState(true);
   const liveWorkCounts = countWorkBlocks(run.work);
+  const hasStreamingText = /\S/u.test(run.streamingText);
 
   useLayoutEffect(() => {
     if (running && !wasRunningRef.current) {
@@ -188,12 +189,12 @@ function LiveRunTail({
           </div>
         </div>
       ) : null}
-      {run.streamingText ? (
+      {hasStreamingText ? (
         <article className="streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5" data-testid="streaming-text">
           <StreamingMarkdown text={run.streamingText} running={running} />
         </article>
       ) : null}
-      {running && !run.streamingText && liveWorkCounts.steps === 0 ? (
+      {running && !hasStreamingText && liveWorkCounts.steps === 0 ? (
         <p className="chat-column px-1 pb-2.5 pt-1 text-sm text-muted-foreground" data-testid="agent-working">
           <WorkingLabel text="Working" live />
         </p>

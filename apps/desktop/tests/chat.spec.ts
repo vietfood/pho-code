@@ -8,7 +8,7 @@ import {
   removeTestDirectory,
 } from "./helpers/electron-app";
 
-test("chooses a backend for a new session without replacing the one-click Pi action", async () => {
+test("chooses a backend from the composer without replacing the one-click Pi action", async () => {
   const userDataDir = await makeUserDataDir();
   const agentDir = await makeAgentDir();
   const workspaceDir = await makeWorkspaceDir();
@@ -22,12 +22,15 @@ test("chooses a backend for a new session without replacing the one-click Pi act
     });
     try {
       const page = await desktop.firstWindow();
+      await expect(page.getByTestId("backend-selector")).toHaveCount(0);
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("backend-selector").click();
       await expect(page.getByTestId("backend-menu")).toBeVisible();
       await expect(page.getByTestId("backend-codex")).toContainText("Experimental");
       await expect(page.getByTestId("backend-claude-acp")).toContainText("Experimental");
-      await page.getByLabel("Backend information").click();
-      await expect(page.getByText("Codex and Claude use separately installed agents", { exact: false })).toBeVisible();
+      await page.getByRole("button", { name: "Backend information" }).click();
+      await expect(page.getByTestId("backend-disclosure")).toContainText("Codex and Claude are separately installed agents");
       await page.getByTestId("backend-pi").click();
       await expect(page.getByTestId("composer")).toBeVisible();
     } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CornerDownLeftIcon, FileIcon, FolderIcon, ListPlusIcon, SquareIcon, WaypointsIcon, XIcon } from "lucide-react";
 import type {
+  AgentBackendDescriptor,
   ContextUsageSummary,
   ModelSummary,
   PathSuggestion,
@@ -44,10 +45,12 @@ import {
   setComposerCaretOffset,
 } from "./lib/composer-editable-dom";
 import { ComposerContextButton } from "./composer-context-button";
+import { BackendPicker } from "./backend-picker";
 import { ComposerRail } from "./composer-rail";
 import { ComposerToolbar } from "./composer-toolbar";
 import { isMaxThinkingLevel } from "./lib/thinking-labels";
 import { ThinkingLevelChip } from "./thinking-level-chip";
+import { FastModeChip } from "./fast-mode-chip";
 import { MarkdownImage } from "./markdown-image";
 import { ModelPicker } from "./model-picker";
 import { ComposerPickerMenu } from "./composer-picker-menu";
@@ -79,9 +82,14 @@ export function Composer({
   thinkingLevel,
   availableThinkingLevels,
   supportsThinking,
+  fastMode,
   selectorsDisabled,
   onModelChange,
   onThinkingChange,
+  onFastModeChange,
+  agentBackends = [],
+  backendId = "pi",
+  onBackendChange,
   sessionMode = "agent",
   onSessionModeChange,
   metaHint,
@@ -109,9 +117,14 @@ export function Composer({
   thinkingLevel: ThinkingLevel;
   availableThinkingLevels: readonly ThinkingLevel[];
   supportsThinking: boolean;
+  fastMode?: { enabled: boolean; description?: string };
   selectorsDisabled: boolean;
   onModelChange: (model: ModelSummary) => void;
   onThinkingChange: (level: ThinkingLevel) => void;
+  onFastModeChange?: (enabled: boolean) => void;
+  agentBackends?: readonly AgentBackendDescriptor[];
+  backendId?: string;
+  onBackendChange?: (backendId: string) => void;
   sessionMode?: SessionAgentMode;
   onSessionModeChange?: (mode: SessionAgentMode) => void;
   metaHint?: string;
@@ -403,6 +416,15 @@ export function Composer({
     />
   );
 
+  const backend = onBackendChange ? (
+    <BackendPicker
+      backends={agentBackends}
+      selectedBackendId={backendId}
+      disabled={selectorsDisabled}
+      onBackendChange={onBackendChange}
+    />
+  ) : null;
+
   const selectors = (
     <>
       <label className="sr-only" htmlFor="model-selector">
@@ -420,6 +442,14 @@ export function Composer({
           availableLevels={availableThinkingLevels}
           disabled={selectorsDisabled}
           onChange={onThinkingChange}
+        />
+      ) : null}
+      {fastMode && onFastModeChange ? (
+        <FastModeChip
+          enabled={fastMode.enabled}
+          disabled={selectorsDisabled}
+          {...(fastMode.description ? { description: fastMode.description } : {})}
+          onChange={onFastModeChange}
         />
       ) : null}
     </>
@@ -785,6 +815,7 @@ export function Composer({
       <ComposerToolbar
         leading={
           <>
+            {backend}
             {mode}
             {queueControls}
           </>

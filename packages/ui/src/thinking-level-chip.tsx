@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ThinkingLevel } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
-import { thinkingLevelLabel } from "./lib/thinking-labels";
+import { isMaxThinkingLevel, thinkingLevelLabel } from "./lib/thinking-labels";
 
 export function ThinkingLevelChip({
   level,
@@ -18,7 +18,7 @@ export function ThinkingLevelChip({
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const label = thinkingLevelLabel(level);
-  const isMax = level === "max";
+  const isMax = isMaxThinkingLevel(level, availableLevels);
 
   useEffect(() => {
     if (!open) {
@@ -79,7 +79,7 @@ export function ThinkingLevelChip({
                   className={cn(
                     "composer-mode-option composer-thinking-option",
                     selected && "is-selected",
-                    option === "max" && "is-max",
+                    isMaxThinkingLevel(option, availableLevels) && "is-max",
                   )}
                   aria-selected={selected}
                   onClick={() => {

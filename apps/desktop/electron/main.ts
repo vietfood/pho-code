@@ -298,6 +298,7 @@ function registerIpc(): void {
     "queueFollowUp",
     "setSessionModel",
     "setThinkingLevel",
+    "setFastMode",
     "setSessionMode",
     "updateSessionPlanDocument",
     "executeSessionPlan",

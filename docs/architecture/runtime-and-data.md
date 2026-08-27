@@ -29,9 +29,10 @@ The application coordinates use cases. Privileged runtime packages are the only 
 
 `packages/runtime` owns or adapts:
 
-- production session/run routing through the Pho Agent backend registry; Pi is the default registration and Codex is lazy/experimental while public `workspaceId` remains the product scope;
-- compatibility projection from backend-neutral snapshots into the existing Pho Code session snapshot, transcript row, live-work, activity, and catalog shapes;
+- production session/run/model routing through the Pho Agent backend registry; Pi is the default registration while Codex and Claude ACP are lazy/experimental and public `workspaceId` remains the product scope;
+- compatibility projection from backend-neutral snapshots into the existing Pho Code session snapshot, model/reasoning/Fast controls, transcript row, keyed live-work deltas, activity, and catalog shapes;
 - backend-neutral interaction request/settlement routing into the existing host-dialog surface, with pending request ownership retained in privileged runtime state;
+- product-owned Codex developer instructions plus the scoped read-only workspace-reference dynamic tool; Pi's compiled prompt/tool registry remains owned by the Pi path, and ACP client-tool parity is not implied;
 - shared Pi model/settings/credential services where supported;
 - Pho Code composite identity over the shared bounded registry;
 - Pi session construction, subscription, replacement, prompt, queue, abort, and disposal;
@@ -93,7 +94,7 @@ Pi JSONL is not copied into application metadata. Assistant rewrites are explici
 
 - drafts before durable persistence;
 - focus, hover, expansion, scroll, and optimistic interaction state;
-- keyed live streaming projections that can be replaced by authoritative snapshots.
+- keyed live streaming projections that prefer newer cumulative snapshots, preserve current live content across empty same-run snapshots, and are replaced by authoritative terminal snapshots.
 
 Renderer state never authorizes filesystem, session, credential, or process behavior.
 

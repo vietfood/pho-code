@@ -148,14 +148,16 @@ export function ModelPicker({
                             <span className="composer-model-picker-option-name">
                               {model.name || `${model.provider}/${model.id}`}
                             </span>
-                            <span className="composer-model-picker-option-meta">
-                              {formatRatePerMillion(model.cost.input)}/
-                              {formatRatePerMillion(model.cost.output)}
-                              <span className="composer-model-picker-option-sep" aria-hidden="true">
-                                ·
+                            {model.contextWindow > 0 ? (
+                              <span className="composer-model-picker-option-meta">
+                                {formatRatePerMillion(model.cost.input)}/
+                                {formatRatePerMillion(model.cost.output)}
+                                <span className="composer-model-picker-option-sep" aria-hidden="true">
+                                  ·
+                                </span>
+                                {formatTokenCount(model.contextWindow)} ctx
                               </span>
-                              {formatTokenCount(model.contextWindow)} ctx
-                            </span>
+                            ) : null}
                           </span>
                           {selected ? (
                             <CheckIcon className="composer-model-picker-check" aria-hidden="true" />

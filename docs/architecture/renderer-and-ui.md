@@ -40,7 +40,7 @@ Runtime snapshots replace projected truth after open/reload. Incremental events 
 5. Settled transcript snapshots replace temporary projections.
 6. Sidebar activity is derived without selecting the background chat.
 
-The renderer never parses streaming text as final state and never invents filesystem/session truth after a missed event.
+The renderer never parses streaming text as final state and never invents filesystem/session truth after a missed event. It shows the streaming caret only after substantive assistant text; before that, a running session with no work entries shows the Working state.
 
 Window-first lifecycle does not use this sequenced event path. `App.tsx` first loads metadata bootstrap/settings, renders welcome/recents with a starting or bounded failed status, and defers provider accounts/catalogs while Pi is unavailable. A separate runtime-status wakeup triggers another authoritative bootstrap query. Pi-backed launcher/sidebar controls remain disabled until ready; Settings Appearance and About remain available.
 
@@ -49,12 +49,12 @@ Window-first lifecycle does not use this sequenced event path. `App.tsx` first l
 The conversation is primary:
 
 - project/session sidebar and welcome launcher;
-- one-click Pi session creation plus an adjacent backend chooser for advertised alternatives; the current Codex entry is explicitly Experimental and keeps its disclosure behind a small info control;
+- one-click Pi session creation plus a compact composer backend chooser for advertised alternatives; changing the selection starts a distinct backend-pinned session, external backends are explicitly Experimental, and the disclosure stays behind a small info control;
 - session titles as a short summary (Pi session name or a humanized first-prompt fallback; expanded skill bodies never become the title);
 - transcript with user/assistant turns;
 - collapsed work log for thinking, tools, and pre-tool narration;
 - anchored or empty-session composer;
-- model/thinking/usage controls and prepared images;
+- backend-advertised model/thinking controls, a separate Fast toggle when supported, usage controls, and prepared images;
 - permission/host interaction docks (Allow once, Allow for this session, No with optional reason);
 - live Working/Thinking shimmer labels and bounded error states.
 

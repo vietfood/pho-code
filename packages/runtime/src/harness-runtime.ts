@@ -34,6 +34,7 @@ import {
   type SessionSummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
+  type SetFastModeInput,
   type SetSessionModeInput,
   type UpdateSessionPlanDocumentInput,
   type ExecuteSessionPlanInput,
@@ -100,6 +101,7 @@ export interface HarnessRuntime {
   abortRun(input: AbortRunInput): Promise<void>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
+  setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
@@ -175,6 +177,7 @@ export function createDisposableStubHarnessRuntime(options?: {
     abortRun: reject("abortRun"),
     setSessionModel: reject("setSessionModel"),
     setThinkingLevel: reject("setThinkingLevel"),
+    setFastMode: reject("setFastMode"),
     setSessionMode: reject("setSessionMode"),
     updateSessionPlanDocument: reject("updateSessionPlanDocument"),
     executeSessionPlan: reject("executeSessionPlan"),

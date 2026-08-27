@@ -600,6 +600,10 @@ describe("protocol serialization", () => {
     );
     const opened = { ...idleRunState(), runId: "run-a", status: "streaming" as const };
     expect(mergeLiveRun(live, opened).work).toEqual([{ type: "thinking", text: "keep me" }]);
+    expect(mergeLiveRun(
+      { ...live, streamingText: "old", work: [{ type: "thinking", text: "old" }] },
+      { ...opened, streamingText: "new", work: [{ type: "thinking", text: "new" }] },
+    )).toMatchObject({ streamingText: "new", work: [{ type: "thinking", text: "new" }] });
     expect(mergeLiveRun(live, idleRunState()).work).toEqual([]);
   });
 

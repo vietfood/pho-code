@@ -25,6 +25,7 @@ export const IPC_CHANNELS = {
   abortRun: "pho-code:v1:abortRun",
   setSessionModel: "pho-code:v1:setSessionModel",
   setThinkingLevel: "pho-code:v1:setThinkingLevel",
+  setFastMode: "pho-code:v1:setFastMode",
   setSessionMode: "pho-code:v1:setSessionMode",
   updateSessionPlanDocument: "pho-code:v1:updateSessionPlanDocument",
   executeSessionPlan: "pho-code:v1:executeSessionPlan",

@@ -437,6 +437,7 @@ export type {
   SessionSnapshot,
   SessionUsageSummary,
   SetSessionModelInput,
+  SetFastModeInput,
   SetThinkingLevelInput,
   SteerRunInput,
   ToolActivity,

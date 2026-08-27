@@ -140,6 +140,10 @@ export interface SessionSnapshot {
   thinkingLevel: ThinkingLevel;
   availableThinkingLevels: ThinkingLevel[];
   supportsThinking: boolean;
+  fastMode?: {
+    enabled: boolean;
+    description?: string;
+  };
   modelError?: string;
   contextUsage?: ContextUsageSummary;
   usage?: SessionUsageSummary;
@@ -245,6 +249,13 @@ export interface SetThinkingLevelInput {
   sessionId: string;
   workspaceId?: string;
   level: ThinkingLevel;
+}
+
+export interface SetFastModeInput {
+  backendId?: string;
+  sessionId: string;
+  workspaceId?: string;
+  enabled: boolean;
 }
 
 /** Owner-edited assistant markdown. Display overlay only; Pi JSONL messages stay unchanged. */

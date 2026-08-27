@@ -5,6 +5,7 @@ import {
   RUNTIME_EVENT_TYPES,
   createHarnessError,
   emptyQueueState,
+  isThinkingLevel,
   HARNESS_ERROR_CODES,
   sessionBackendId,
   sessionKeyId,
@@ -13,6 +14,7 @@ import {
   type AgentInteractionRequest,
   type AgentSessionSnapshot,
   type HostDialogRequest,
+  type ModelSummary,
   type RuntimeEvent,
   type SessionActivitySummary,
   type SessionKey,
@@ -155,17 +157,22 @@ export function hostPhoCodeRuntime(
       updatedAt: new Date().toISOString(),
     };
     const conversation = projectBackendConversation(snapshot as AgentSessionSnapshot);
+    const models = projectAgentModels(snapshot);
+    const model = models.find((candidate) => candidate.id === snapshot.model?.currentId);
+    const thinking = projectAgentThinking(snapshot);
     return {
       session,
       workspace: workspace.workspace,
       messages: conversation.messages,
       run: conversation.run,
-      models: [],
+      ...(model ? { model } : {}),
+      models,
       sessions: combinedSessions(workspace),
       features: workspace.features,
-      thinkingLevel: "off",
-      availableThinkingLevels: ["off"],
-      supportsThinking: false,
+      thinkingLevel: thinking.current,
+      availableThinkingLevels: thinking.available,
+      supportsThinking: thinking.available.length > 0,
+      ...(snapshot.fastMode ? { fastMode: snapshot.fastMode } : {}),
       queue: emptyQueueState(),
     };
   }
@@ -176,6 +183,42 @@ export function hostPhoCodeRuntime(
   }
 
   function projectAgentEvent(event: AgentBackendEvent): void {
+    if (event.type === "text_delta") {
+      emit({
+        protocolVersion: PROTOCOL_VERSION,
+        sequence: 0,
+        backendId: event.backendId,
+        workspaceId: event.scopeId,
+        sessionId: event.sessionId,
+        runId: event.runId,
+        type: RUNTIME_EVENT_TYPES.textDelta,
+        payload: { runId: event.runId, delta: event.delta },
+        occurredAt: event.occurredAt,
+      });
+      return;
+    }
+    if (event.type === "tool_update") {
+      emit({
+        protocolVersion: PROTOCOL_VERSION,
+        sequence: 0,
+        backendId: event.backendId,
+        workspaceId: event.scopeId,
+        sessionId: event.sessionId,
+        runId: event.runId,
+        type: RUNTIME_EVENT_TYPES.toolEvent,
+        payload: {
+          runId: event.runId,
+          callId: event.tool.id,
+          name: event.tool.title?.trim() || event.tool.name,
+          ...(event.tool.kind ? { kind: event.tool.kind } : {}),
+          status: event.tool.status,
+          inputPreview: event.tool.input ?? "",
+          outputPreview: event.tool.output ?? "",
+        },
+        occurredAt: event.occurredAt,
+      });
+      return;
+    }
     if (event.type === "interaction_requested") {
       agentInteractions.set(event.request.requestId, { event, request: event.request });
       emit({
@@ -317,12 +360,19 @@ export function hostPhoCodeRuntime(
   runtime.removePreparedImage = (input) => usePi(input)
     ? piOnly.removePreparedImage(input)
     : Promise.reject(unsupported("images", input.backendId));
-  runtime.setSessionModel = (input) => usePi(input)
-    ? piOnly.setSessionModel(input)
-    : Promise.reject(unsupported("model selection", input.backendId));
+  runtime.setSessionModel = (input) => {
+    if (usePi(input)) return piOnly.setSessionModel(input);
+    if (input.provider !== sessionBackendId(input)) {
+      return Promise.reject(unsupported("model selection", input.backendId));
+    }
+    return agentHost.setModel({ ...backendKey(input), modelId: input.id }).then(rememberAgentSnapshot);
+  };
   runtime.setThinkingLevel = (input) => usePi(input)
     ? piOnly.setThinkingLevel(input)
-    : Promise.reject(unsupported("thinking selection", input.backendId));
+    : agentHost.setReasoning({ ...backendKey(input), reasoningId: input.level }).then(rememberAgentSnapshot);
+  runtime.setFastMode = (input) => usePi(input)
+    ? Promise.reject(unsupported("Fast mode", input.backendId))
+    : agentHost.setFastMode({ ...backendKey(input), enabled: input.enabled }).then(rememberAgentSnapshot);
   runtime.setSessionMode = (input) => usePi(input)
     ? piOnly.setSessionMode(input)
     : Promise.reject(unsupported("Plan/Agent mode", input.backendId));
@@ -375,6 +425,32 @@ export function hostPhoCodeRuntime(
     }
   };
   return runtime;
+}
+
+function projectAgentModels(snapshot: AgentBackendSessionSnapshot): ModelSummary[] {
+  return snapshot.model?.available.map((model) => ({
+    provider: snapshot.key.backendId,
+    id: model.id,
+    name: model.label,
+    contextWindow: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    ...(model.supportsImages !== undefined ? { supportsImages: model.supportsImages } : {}),
+  })) ?? [];
+}
+
+function projectAgentThinking(snapshot: AgentBackendSessionSnapshot): {
+  current: SessionSnapshot["thinkingLevel"];
+  available: SessionSnapshot["availableThinkingLevels"];
+} {
+  const available = snapshot.reasoning?.available
+    .map((option) => normalizeThinkingLevel(option.id))
+    .filter((level): level is SessionSnapshot["thinkingLevel"] => level !== undefined) ?? [];
+  const current = normalizeThinkingLevel(snapshot.reasoning?.currentId) ?? available[0] ?? "off";
+  return { current, available: [...new Set(available)] };
+}
+
+function normalizeThinkingLevel(value: string | undefined): SessionSnapshot["thinkingLevel"] | undefined {
+  return isThinkingLevel(value) ? value : undefined;
 }
 
 function agentSummaryId(snapshot: AgentBackendSessionSnapshot): string {

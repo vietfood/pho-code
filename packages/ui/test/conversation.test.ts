@@ -266,6 +266,17 @@ describe("empty session hero", () => {
     expect(markup).toContain("Can you read ");
   });
 
+  test("renders backend Fast mode as a separate toggle", () => {
+    const markup = renderToStaticMarkup(createElement(Conversation, {
+      snapshot: snapshot({ fastMode: { enabled: true, description: "Faster responses" } }),
+      ...handlers,
+      onFastModeChange: () => undefined,
+    }));
+    expect(markup).toContain('data-testid="fast-mode-toggle"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("composer-fast-toggle is-active");
+  });
+
   test("renders skill tokens in user messages as name-only chips", () => {
     const markup = renderToStaticMarkup(
       createElement(Conversation, {
@@ -429,7 +440,7 @@ describe("empty session hero", () => {
           run: {
             status: "streaming",
             runId: "r1",
-            streamingText: "",
+            streamingText: "\n  ",
             work: [],
             startedAt: "2026-08-13T00:00:00.000Z",
           },
@@ -442,6 +453,7 @@ describe("empty session hero", () => {
     expect(markup).toContain("working-shimmer");
     expect(markup).not.toContain('data-testid="thinking-star"');
     expect(markup).not.toContain("loading-state-grid");
+    expect(markup).not.toContain("stream-caret");
   });
 
   test("renders live tokens as sanitized markdown without KaTeX or Mermaid", () => {

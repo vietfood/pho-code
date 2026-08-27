@@ -1396,8 +1396,28 @@ export function App() {
                       }),
                   );
                 }}
+                onFastModeChange={(enabled) => {
+                  const previous = snapshot.fastMode;
+                  if (!previous) return;
+                  optimisticSnapshotCommand(
+                    (current) => ({ ...current, fastMode: { ...previous, enabled } }),
+                    (current) => ({ ...current, fastMode: previous }),
+                    () =>
+                      getDesktopBridge().setFastMode({
+                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+                        sessionId: snapshot.session.id,
+                        workspaceId: snapshot.workspace.id,
+                        enabled,
+                      }),
+                  );
+                }}
                 onSessionModeChange={(mode) => {
                   void onSetSessionMode(mode);
+                }}
+                agentBackends={bootstrap.agentBackends}
+                backendId={snapshot.session.backendId ?? "pi"}
+                onBackendChange={(backendId) => {
+                  startNewSession(snapshot.workspace.id, backendId);
                 }}
               />
         ) : (
