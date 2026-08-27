@@ -17,9 +17,9 @@ export function SkillSourceIcon({
 }) {
   switch (sourceId) {
     case "codex":
-      return <ProviderIcon provider="openai-codex" className={className} />;
+      return <ProviderIcon provider="codex" className={className} />;
     case "claude":
-      return <ProviderIcon provider="anthropic" className={className} />;
+      return <ProviderIcon provider="claude" className={className} />;
     case "cursor":
       return <ProviderIcon provider="cursor" className={className} title={SKILL_SOURCE_LABELS[sourceId]} />;
     case "pho-code":

@@ -31,6 +31,7 @@ Actual: `DEFAULT_WORK_ENTRY_ICONS` was `pho`, and missing/invalid `data-work-ico
 ## Owner feedback
 
 2026-08-22: keep the switchable packs, but make Lucide the default.
+2026-08-27: add CodeX Icons and Meteocons packs. Follow-up: [`2026-08-27-change-work-entry-icon-packs.md`](./2026-08-27-change-work-entry-icon-packs.md).
 
 ## Handoff
 

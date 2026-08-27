@@ -20,6 +20,7 @@ import {
   paletteSupportsMode,
   type AppearanceMode,
   type AppearancePalette,
+  type BrandIconStyle,
   type WorkEntryIconPack,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
@@ -67,6 +68,13 @@ const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
 const ICON_PACKS: ReadonlyArray<{ id: WorkEntryIconPack; label: string }> = [
   { id: "lucide", label: "Lucide" },
   { id: "pho", label: "Pho" },
+  { id: "codex-team", label: "CodeX" },
+  { id: "meteocons", label: "Meteocons" },
+];
+
+const BRAND_STYLES: ReadonlyArray<{ id: BrandIconStyle; label: string }> = [
+  { id: "color", label: "Color" },
+  { id: "mono", label: "Mono" },
 ];
 
 const MODES: ReadonlyArray<{ id: AppearanceMode; label: string }> = [
@@ -532,6 +540,24 @@ function AppearanceSection({
               onClick={() => onAppearanceChange({ workEntryIcons: pack.id })}
             >
               {pack.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        <p className="text-xs font-medium text-foreground">Brand marks</p>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Brand marks">
+          {BRAND_STYLES.map((style) => (
+            <Button
+              key={style.id}
+              size="sm"
+              variant={settings.appearance.brandIcons === style.id ? "default" : "outline"}
+              aria-pressed={settings.appearance.brandIcons === style.id}
+              data-testid={`appearance-brand-icons-${style.id}`}
+              disabled={busy}
+              onClick={() => onAppearanceChange({ brandIcons: style.id })}
+            >
+              {style.label}
             </Button>
           ))}
         </div>

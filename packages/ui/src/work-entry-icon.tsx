@@ -16,8 +16,12 @@ import {
 } from "lucide-react";
 import { DEFAULT_WORK_ENTRY_ICONS, type WorkEntryIconPack } from "@pho-code/protocol";
 import { getWorkEntryIconPack, subscribeWorkEntryIconPack } from "./lib/appearance-theme";
-import { ProviderIcon } from "./provider-icon";
+import { githubWorkGlyph } from "./lib/work-entry-github";
+import { codexTeamGlyph } from "./lib/work-entry-codex";
+import { meteoconsGlyph } from "./lib/work-entry-meteocons";
 import type { WorkEntryIconName } from "./tool-presentation";
+
+export { METEOCONS_OPTICAL_SCALE } from "./lib/work-entry-meteocons";
 
 const STROKE = {
   fill: "none",
@@ -48,14 +52,31 @@ export function WorkEntryIcon({
   const resolved = pack ?? documentPack;
   return (
     <span data-work-icon={name} data-work-icon-pack={resolved} className="contents">
-      {resolved === "lucide" ? lucideGlyph(name, className) : phoGlyph(name, className)}
+      {workEntryGlyph(resolved, name, className)}
     </span>
   );
 }
 
+function workEntryGlyph(pack: WorkEntryIconPack, name: WorkEntryIconName, className?: string): ReactNode {
+  switch (pack) {
+    case "lucide":
+      return lucideGlyph(name, className);
+    case "pho":
+      return phoGlyph(name, className);
+    case "codex-team":
+      return codexTeamGlyph(name, className);
+    case "meteocons":
+      return meteoconsGlyph(name, className);
+    default: {
+      const exhaustive: never = pack;
+      return exhaustive;
+    }
+  }
+}
+
 function phoGlyph(name: WorkEntryIconName, className?: string): ReactNode {
   if (name === "github") {
-    return <ProviderIcon provider="github" className={className} />;
+    return githubWorkGlyph(className);
   }
   const paths = PHO_PATHS[name];
   return (
@@ -96,7 +117,7 @@ function lucideGlyph(name: WorkEntryIconName, className?: string): ReactNode {
     case "thought":
       return <BotIcon className={className} aria-hidden="true" />;
     case "github":
-      return <ProviderIcon provider="github" className={className} />;
+      return githubWorkGlyph(className);
     case "wrench":
       return <WrenchIcon className={className} aria-hidden="true" />;
     default: {

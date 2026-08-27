@@ -298,6 +298,7 @@ export {
   DEFAULT_GLASS_STRENGTH,
   DEFAULT_UI_FONT_FAMILY,
   DEFAULT_UI_FONT_SIZE,
+  DEFAULT_BRAND_ICONS,
   DEFAULT_WORK_ENTRY_ICONS,
   emptyAppearanceSettings,
   emptySettingsSnapshot,
@@ -308,7 +309,9 @@ export {
   isGlassStrength,
   isManagedPermissionProfileId,
   isUiFontSize,
+  isBrandIconStyle,
   isWorkEntryIconPack,
+  BRAND_ICON_STYLES,
   WORK_ENTRY_ICON_PACKS,
   MAX_CHAT_FONT_SIZE,
   MAX_FONT_FAMILY_CHARS,
@@ -328,6 +331,7 @@ export type {
   AppearanceMode,
   AppearancePalette,
   AppearanceSettings,
+  BrandIconStyle,
   HarnessSettingsSnapshot,
   ManagedPermissionProfileId,
   PermissionProfileId,
@@ -340,6 +344,7 @@ export type {
 } from "./settings";
 
 export {
+  availableAgentSkills,
   availableSlashSkills,
   emptySkillSettingsSnapshot,
   extractSkillTokens,

@@ -4,7 +4,7 @@ import type { ModelSummary } from "@pho-code/protocol";
 import { formatRatePerMillion, formatTokenCount } from "./lib/format-tokens";
 import { filterModels, groupModelsByProvider } from "./lib/model-picker-groups";
 import { cn } from "./lib/cn";
-import { ProviderIcon } from "./provider-icon";
+import { ModelBrandIcon, ProviderIcon } from "./provider-icon";
 import { useDismissOnOutside } from "./lib/use-dismiss";
 
 export function ModelPicker({
@@ -65,7 +65,7 @@ export function ModelPicker({
   });
 
   return (
-    <div className="relative min-w-0" ref={rootRef}>
+    <div className="composer-model-picker relative min-w-0" ref={rootRef}>
       <button
         type="button"
         id="model-selector"
@@ -77,7 +77,9 @@ export function ModelPicker({
         aria-controls={listId}
         onClick={() => setOpen((value) => !value)}
       >
-        {selectedModel ? <ProviderIcon provider={selectedModel.provider} /> : null}
+        {selectedModel ? (
+          <ModelBrandIcon provider={selectedModel.provider} modelId={selectedModel.id} />
+        ) : null}
         <span className="min-w-0 truncate">{label}</span>
       </button>
       {open ? (
@@ -135,6 +137,7 @@ export function ModelPicker({
                             setOpen(false);
                           }}
                         >
+                          <ModelBrandIcon provider={model.provider} modelId={model.id} />
                           <span className="min-w-0 flex-1">
                             <span className="composer-model-picker-option-name">
                               {model.name || `${model.provider}/${model.id}`}

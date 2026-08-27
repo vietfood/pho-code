@@ -52,6 +52,7 @@ describe("appearance theme helpers", () => {
     expect(root.dataset.palette).toBe("gruvbox");
     expect(root.dataset.appearance).toBe("dark");
     expect(root.dataset.workIcons).toBe("pho");
+    expect(root.dataset.brandIcons).toBe("mono");
     expect(root.dataset.glass).toBe("on");
     const tokens = glassCssTokens(80);
     expect(root.style.properties.get("--glass-blur")).toBe(`${tokens.blurPx}px`);
@@ -94,6 +95,9 @@ describe("appearance theme helpers", () => {
     expect(css).not.toContain("data-chat-fill");
     expect(css).toContain(".composer-context-button.is-agent {\n  color: var(--destructive-foreground);");
     expect(css).toContain(".composer-thinking-select {\n  width: fit-content;");
+    expect(css).toContain(".composer-toolbar-group.is-trailing {\n  margin-left: auto;\n  min-width: 0;\n  flex: 1 1 0;\n  justify-content: flex-end;");
+    expect(css).toContain(".composer-toolbar-group.is-trailing .composer-model-picker-panel,\n.composer-thinking-menu {\n  left: auto;\n  right: 0;");
+    expect(css).toContain("max-width: min(22rem, 100cqi);");
     expect(css).toContain(".composer-model-picker-toolbar {\n  z-index: 2;\n  flex-shrink: 0;");
     expect(css).toContain(".composer-model-picker-list {\n  flex: 1 1 auto;\n  min-height: 0;\n  overflow: auto;\n  margin: 0;\n  padding: 0 0.35rem 0.4rem;");
     expect(css).toContain(".composer-model-picker-group-title {\n  position: sticky;\n  top: 0;\n  z-index: 1;");
@@ -111,6 +115,8 @@ describe("appearance theme helpers", () => {
     expect(css).toContain("html[data-glass=\"on\"] .app-shell-chat,\nhtml[data-glass=\"on\"] .right-sidebar-host {");
     expect(css).toContain("html[data-glass=\"on\"] .app-sidebar-panel {");
     expect(css).toContain("html[data-glass=\"on\"] .plan-document-panel,");
+    expect(css).toContain("html[data-glass=\"on\"] .change-window,");
+    expect(css).not.toContain("html[data-glass=\"on\"] .change-window-file-head");
     expect(css).toContain(".empty-session[data-left-overlay=\"true\"] .empty-session-center {");
     expect(css).toContain("html[data-glass=\"on\"] .chat-composer-shell::before {");
     expect(css).toContain(
@@ -143,5 +149,26 @@ describe("appearance theme helpers", () => {
       { prefersDark: false },
     );
     expect(root.dataset.workIcons).toBe("lucide");
+  });
+
+  test("applyAppearanceTheme writes the brand icon style", () => {
+    const root = fakeRoot();
+    applyAppearanceTheme(
+      {
+        ...emptyAppearanceSettings(),
+        brandIcons: "color",
+        mode: "light",
+      },
+      root as unknown as HTMLElement,
+      { prefersDark: false },
+    );
+    expect(root.dataset.brandIcons).toBe("color");
+  });
+
+  test("color brand marks sit on a light contrast plate", async () => {
+    const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
+    expect(css).toContain(".brand-mark.is-color {");
+    expect(css).toContain("box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 32%, transparent);");
+    expect(css).toContain('html[data-appearance="dark"] .brand-mark.is-color {\n  background: #f4f4f5;');
   });
 });

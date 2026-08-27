@@ -115,9 +115,11 @@ export { WorkEntryIcon } from "./work-entry-icon";
 export { applyAppearanceFonts } from "./lib/appearance-fonts";
 export {
   applyAppearanceTheme,
+  getBrandIconStyle,
   getWorkEntryIconPack,
   readAppearancePalette,
   readResolvedAppearance,
+  subscribeBrandIconStyle,
   subscribeWorkEntryIconPack,
 } from "./lib/appearance-theme";
 export { sessionActivityLabel, sessionRowActivity } from "./lib/session-activity";

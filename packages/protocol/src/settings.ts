@@ -15,9 +15,13 @@ export type AppearancePalette = (typeof APPEARANCE_PALETTES)[number];
 export const APPEARANCE_MODES = ["system", "light", "dark"] as const;
 export type AppearanceMode = (typeof APPEARANCE_MODES)[number];
 
-export const WORK_ENTRY_ICON_PACKS = ["pho", "lucide"] as const;
+export const WORK_ENTRY_ICON_PACKS = ["pho", "lucide", "codex-team", "meteocons"] as const;
 export type WorkEntryIconPack = (typeof WORK_ENTRY_ICON_PACKS)[number];
 export const DEFAULT_WORK_ENTRY_ICONS: WorkEntryIconPack = "lucide";
+
+export const BRAND_ICON_STYLES = ["mono", "color"] as const;
+export type BrandIconStyle = (typeof BRAND_ICON_STYLES)[number];
+export const DEFAULT_BRAND_ICONS: BrandIconStyle = "mono";
 
 /** Resolved light/dark after System follows the OS. */
 export type ResolvedAppearance = "light" | "dark";
@@ -52,6 +56,7 @@ export interface AppearanceSettings {
   palette: AppearancePalette;
   mode: AppearanceMode;
   workEntryIcons: WorkEntryIconPack;
+  brandIcons: BrandIconStyle;
   glassEnabled: boolean;
   glassStrength: number;
   uiFontSize: number;
@@ -83,6 +88,7 @@ export interface UpdateAppearanceSettingsInput {
   palette?: AppearancePalette;
   mode?: AppearanceMode;
   workEntryIcons?: WorkEntryIconPack;
+  brandIcons?: BrandIconStyle;
   glassEnabled?: boolean;
   glassStrength?: number;
   uiFontSize?: number;
@@ -105,6 +111,7 @@ export interface PermissionStatusPayload {
 const PALETTE_SET = new Set<string>(APPEARANCE_PALETTES);
 const MODE_SET = new Set<string>(APPEARANCE_MODES);
 const WORK_ENTRY_ICON_PACK_SET = new Set<string>(WORK_ENTRY_ICON_PACKS);
+const BRAND_ICON_STYLE_SET = new Set<string>(BRAND_ICON_STYLES);
 
 /** Palettes that only expose dark tokens. Light and System are unavailable. */
 const DARK_ONLY_PALETTES = new Set<AppearancePalette>(["one-dark"]);
@@ -129,6 +136,10 @@ export function isAppearanceMode(value: unknown): value is AppearanceMode {
 
 export function isWorkEntryIconPack(value: unknown): value is WorkEntryIconPack {
   return typeof value === "string" && WORK_ENTRY_ICON_PACK_SET.has(value);
+}
+
+export function isBrandIconStyle(value: unknown): value is BrandIconStyle {
+  return typeof value === "string" && BRAND_ICON_STYLE_SET.has(value);
 }
 
 export function isManagedPermissionProfileId(value: unknown): value is ManagedPermissionProfileId {
@@ -287,6 +298,7 @@ export function emptyAppearanceSettings(): AppearanceSettings {
     palette: "default",
     mode: "system",
     workEntryIcons: DEFAULT_WORK_ENTRY_ICONS,
+    brandIcons: DEFAULT_BRAND_ICONS,
     glassEnabled: DEFAULT_GLASS_ENABLED,
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,

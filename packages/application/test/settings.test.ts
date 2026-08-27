@@ -55,6 +55,7 @@ describe("application settings", () => {
     expect(migrated.codeFontFamily).toBe("");
     expect(migrated.fontSmoothing).toBe(true);
     expect(migrated.workEntryIcons).toBe("lucide");
+    expect(migrated.brandIcons).toBe("mono");
     expect(migrated.githubMcpEnabled).toBe(false);
     expect(migrated.recentWorkspaces).toHaveLength(1);
   });
@@ -105,6 +106,7 @@ describe("application settings", () => {
       palette: "default",
       mode: "system",
       workEntryIcons: "lucide",
+      brandIcons: "mono",
       glassEnabled: DEFAULT_GLASS_ENABLED,
       glassStrength: DEFAULT_GLASS_STRENGTH,
       uiFontSize: 18,
@@ -124,7 +126,41 @@ describe("application settings", () => {
     const updated = await application.updateAppearanceSettings({ workEntryIcons: "pho" });
     expect(updated.appearance.workEntryIcons).toBe("pho");
     expect(application.getSettings().appearance.workEntryIcons).toBe("pho");
-    expect(appearances).toHaveLength(2);
+    const meteocons = await application.updateAppearanceSettings({ workEntryIcons: "meteocons" });
+    expect(meteocons.appearance.workEntryIcons).toBe("meteocons");
+    const codexTeam = await application.updateAppearanceSettings({ workEntryIcons: "codex-team" });
+    expect(codexTeam.appearance.workEntryIcons).toBe("codex-team");
+    expect(appearances).toHaveLength(4);
+  });
+
+  test("persists brand icon style", async () => {
+    const { application, appearances } = createTestApplication();
+    expect(application.getSettings().appearance.brandIcons).toBe("mono");
+    const updated = await application.updateAppearanceSettings({ brandIcons: "color" });
+    expect(updated.appearance.brandIcons).toBe("color");
+    expect(application.getSettings().appearance.brandIcons).toBe("color");
+    const mono = await application.updateAppearanceSettings({ brandIcons: "mono" });
+    expect(mono.appearance.brandIcons).toBe("mono");
+    expect(appearances).toHaveLength(3);
+  });
+
+  test("rejects an unknown brand icon style", async () => {
+    const { application } = createTestApplication();
+    await expect(application.updateAppearanceSettings({ brandIcons: "duotone" as "mono" })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+  });
+
+  test("coerces an unknown stored brand icon style to mono", () => {
+    const migrated = parseMetadata({
+      version: 6,
+      recentWorkspaces: [],
+      palette: "default",
+      mode: "system",
+      brandIcons: "duotone",
+      trustedPermissionWorkspaceIds: [],
+    });
+    expect(migrated.brandIcons).toBe("mono");
   });
 
   test("rejects an unknown icon pack", async () => {

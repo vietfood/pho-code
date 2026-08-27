@@ -14,8 +14,10 @@ import {
   isAppearanceMode,
   isAppearancePalette,
   isChatFontSize,
-  isWorkEntryIconPack,
+  DEFAULT_BRAND_ICONS,
   DEFAULT_WORK_ENTRY_ICONS,
+  isBrandIconStyle,
+  isWorkEntryIconPack,
   isGlassStrength,
   isSessionKey,
   isSessionOutcome,
@@ -25,6 +27,7 @@ import {
   sessionKeyEquals,
   type AppearanceMode,
   type AppearancePalette,
+  type BrandIconStyle,
   type WorkEntryIconPack,
   type RecentWorkspaceRecord,
   type SessionKey,
@@ -48,6 +51,7 @@ export interface AppMetadata {
   palette: AppearancePalette;
   mode: AppearanceMode;
   workEntryIcons: WorkEntryIconPack;
+  brandIcons: BrandIconStyle;
   glassEnabled: boolean;
   glassStrength: number;
   uiFontSize: number;
@@ -77,6 +81,7 @@ export function emptyMetadata(): AppMetadata {
     palette: "default",
     mode: "system",
     workEntryIcons: DEFAULT_WORK_ENTRY_ICONS,
+    brandIcons: DEFAULT_BRAND_ICONS,
     glassEnabled: DEFAULT_GLASS_ENABLED,
     glassStrength: DEFAULT_GLASS_STRENGTH,
     uiFontSize: DEFAULT_UI_FONT_SIZE,
@@ -153,6 +158,7 @@ export function setAppearance(
     palette?: AppearancePalette;
     mode?: AppearanceMode;
     workEntryIcons?: WorkEntryIconPack;
+    brandIcons?: BrandIconStyle;
     glassEnabled?: boolean;
     glassStrength?: number;
     uiFontSize?: number;
@@ -171,6 +177,7 @@ export function setAppearance(
     palette: coerced.palette,
     mode: coerced.mode,
     workEntryIcons: patch.workEntryIcons ?? metadata.workEntryIcons,
+    brandIcons: patch.brandIcons ?? metadata.brandIcons,
     glassEnabled: patch.glassEnabled ?? metadata.glassEnabled,
     glassStrength: patch.glassStrength ?? metadata.glassStrength,
     uiFontSize: patch.uiFontSize ?? metadata.uiFontSize,
@@ -211,6 +218,7 @@ export function parseMetadata(value: unknown): AppMetadata {
     workEntryIcons: isWorkEntryIconPack(candidate.workEntryIcons)
       ? candidate.workEntryIcons
       : DEFAULT_WORK_ENTRY_ICONS,
+    brandIcons: isBrandIconStyle(candidate.brandIcons) ? candidate.brandIcons : DEFAULT_BRAND_ICONS,
     glassEnabled: typeof candidate.glassEnabled === "boolean" ? candidate.glassEnabled : DEFAULT_GLASS_ENABLED,
     glassStrength: isGlassStrength(candidate.glassStrength)
       ? candidate.glassStrength

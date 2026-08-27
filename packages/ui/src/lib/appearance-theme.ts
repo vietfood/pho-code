@@ -1,10 +1,12 @@
 import {
+  DEFAULT_BRAND_ICONS,
   DEFAULT_WORK_ENTRY_ICONS,
   glassCssTokens,
   isAppearancePalette,
   resolveAppearanceMode,
   type AppearancePalette,
   type AppearanceSettings,
+  type BrandIconStyle,
   type ResolvedAppearance,
   type WorkEntryIconPack,
 } from "@pho-code/protocol";
@@ -14,8 +16,8 @@ export type { ResolvedAppearance };
 let systemMedia: MediaQueryList | null = null;
 let systemListener: ((event: MediaQueryListEvent) => void) | null = null;
 let lastAppearance: AppearanceSettings | null = null;
-let currentWorkEntryIcons: WorkEntryIconPack = DEFAULT_WORK_ENTRY_ICONS;
-const workEntryIconListeners = new Set<() => void>();
+const workEntryIconStore = createValueStore<WorkEntryIconPack>(DEFAULT_WORK_ENTRY_ICONS);
+const brandIconStore = createValueStore<BrandIconStyle>(DEFAULT_BRAND_ICONS);
 
 /**
  * Apply palette, resolved light/dark, and glass CSS tokens to the document root.
@@ -41,7 +43,9 @@ export function applyAppearanceTheme(
   root.dataset.palette = appearance.palette;
   root.dataset.appearance = resolved;
   root.dataset.workIcons = appearance.workEntryIcons;
-  setCurrentWorkEntryIconPack(appearance.workEntryIcons);
+  root.dataset.brandIcons = appearance.brandIcons;
+  workEntryIconStore.set(appearance.workEntryIcons);
+  brandIconStore.set(appearance.brandIcons);
   root.style.colorScheme = resolved;
 
   if (appearance.glassEnabled) {
@@ -77,24 +81,44 @@ export function readAppearancePalette(root: HTMLElement = document.documentEleme
 }
 
 export function getWorkEntryIconPack(): WorkEntryIconPack {
-  return currentWorkEntryIcons;
+  return workEntryIconStore.get();
 }
 
 export function subscribeWorkEntryIconPack(onStoreChange: () => void): () => void {
-  workEntryIconListeners.add(onStoreChange);
-  return () => {
-    workEntryIconListeners.delete(onStoreChange);
-  };
+  return workEntryIconStore.subscribe(onStoreChange);
 }
 
-function setCurrentWorkEntryIconPack(pack: WorkEntryIconPack): void {
-  if (currentWorkEntryIcons === pack) {
-    return;
-  }
-  currentWorkEntryIcons = pack;
-  for (const listener of workEntryIconListeners) {
-    listener();
-  }
+export function getBrandIconStyle(): BrandIconStyle {
+  return brandIconStore.get();
+}
+
+export function subscribeBrandIconStyle(onStoreChange: () => void): () => void {
+  return brandIconStore.subscribe(onStoreChange);
+}
+
+function createValueStore<T>(initial: T) {
+  let current = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get(): T {
+      return current;
+    },
+    subscribe(onStoreChange: () => void): () => void {
+      listeners.add(onStoreChange);
+      return () => {
+        listeners.delete(onStoreChange);
+      };
+    },
+    set(next: T): void {
+      if (current === next) {
+        return;
+      }
+      current = next;
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+  };
 }
 
 function attachSystemListener(

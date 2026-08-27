@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, ChevronDownIcon, InfoIcon } from "lucide-react";
+import { CheckIcon, InfoIcon } from "lucide-react";
 import type { AgentBackendDescriptor } from "@pho-code/protocol";
+import { BackendIcon, backendIconKind } from "./backend-icon";
 import { cn } from "./lib/cn";
 import { useDismissOnOutside } from "./lib/use-dismiss";
 
@@ -19,6 +20,7 @@ export function BackendPicker({
   const [infoOpen, setInfoOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = backends.find((backend) => backend.id === selectedBackendId);
+  const selectedKind = backendIconKind(selectedBackendId);
 
   useEffect(() => {
     if (!open) {
@@ -36,16 +38,17 @@ export function BackendPicker({
     <div className="relative min-w-0" ref={rootRef}>
       <button
         type="button"
-        className="composer-meta-select composer-field-select composer-backend-picker-trigger"
+        className={cn("composer-backend-picker-trigger", `is-${selectedKind}`)}
         data-testid="backend-selector"
+        data-backend-kind={selectedKind}
         disabled={disabled}
         aria-label={`Agent backend: ${selected?.label ?? selectedBackendId}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="min-w-0 truncate">{selected?.label ?? selectedBackendId}</span>
-        <ChevronDownIcon className="size-3 shrink-0 opacity-60" aria-hidden="true" />
+        <BackendIcon backendId={selectedBackendId} />
+        <span className="composer-backend-picker-label">{selected?.label ?? selectedBackendId}</span>
       </button>
       {open ? (
         <div className="composer-model-picker-panel composer-backend-picker-panel" data-testid="backend-menu">
@@ -67,6 +70,7 @@ export function BackendPicker({
                     }
                   }}
                 >
+                  <BackendIcon backendId={backend.id} />
                   <span className="min-w-0 flex-1">
                     <span className="composer-model-picker-option-name">{backend.label}</span>
                     <span className="composer-model-picker-option-meta">

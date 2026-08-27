@@ -42,7 +42,7 @@ describe("skills settings", () => {
     expect(markup).toContain("Refresh");
     expect(markup).toContain('data-testid="skill-source-enabled-pho-code"');
     expect(markup).toContain("disabled");
-    expect(markup).toContain('data-provider="openai-codex"');
+    expect(markup).toContain('data-provider="codex"');
     expect(markup).not.toContain("SKILL.md");
     expect(markup).not.toContain("skillDir");
   });
