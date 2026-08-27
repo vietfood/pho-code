@@ -54,6 +54,21 @@ describe("skill frontmatter", () => {
     });
   });
 
+  test("reads disable-model-invocation", () => {
+    expect(
+      parseSkillFrontmatter(`---
+name: slash-only
+description: Owner insert only.
+disable-model-invocation: true
+---
+`),
+    ).toEqual({
+      name: "slash-only",
+      description: "Owner insert only.",
+      disableModelInvocation: true,
+    });
+  });
+
   test("rejects missing description", () => {
     expect(
       parseSkillFrontmatter(`---
@@ -76,6 +91,7 @@ describe("skill source registry", () => {
     const builtIn = snapshot.inventory.filter((entry) => entry.sourceId === "pho-code");
     expect(builtIn.map((entry) => entry.skillName).sort()).toEqual([...CURATED_SKILL_NAMES].sort());
     expect(builtIn.every((entry) => entry.compatibility === "compatible")).toBe(true);
+    expect(registry.listInvocableSkills().map((skill) => skill.skillName).sort()).toEqual([...CURATED_SKILL_NAMES].sort());
     expect(registry.effectiveSkillPaths()).toEqual([]);
     expect(snapshot.trustNotice).toBe(SKILL_TRUST_NOTICE);
     expect(snapshot.trustNotice).toContain("not a sandbox");
@@ -196,6 +212,36 @@ describe("skill source registry", () => {
     expect(snapshot.inventory.find((entry) => entry.skillName === "scripted")?.compatibility).toBe("limited");
     expect(registry.readSkillMarkdown("cursor", "scripted")).toContain("Do not invent files.");
     expect(registry.effectiveSkillPaths()).toEqual([]);
+  });
+
+  test("lists invocable skills for the agent and keeps slash-only skills loadable by name", async () => {
+    const { home, pho } = await makeHome();
+    await writeSkill(pho, "shared-name", TEXT_SKILL.replace("demo-skill", "shared-name"));
+    const cursorRoot = path.join(home, ".cursor", "skills");
+    await writeSkill(cursorRoot, "shared-name", TEXT_SKILL.replace("demo-skill", "shared-name"));
+    await writeSkill(cursorRoot, "scripted", TEXT_SKILL.replace("demo-skill", "scripted"), { script: true });
+    await writeSkill(
+      cursorRoot,
+      "slash-only",
+      `---
+name: slash-only
+description: Owner insert only.
+disable-model-invocation: true
+---
+
+# Slash only
+`,
+    );
+
+    const registry = createSkillSourceRegistry({
+      homedir: home,
+      phoCodeSkillsRoot: pho,
+      enabledExternalSources: ["cursor"],
+    });
+    expect(registry.listInvocableSkills().map((skill) => skill.skillName).sort()).toEqual(["scripted", "shared-name"]);
+    expect(registry.listInvocableSkills().find((skill) => skill.skillName === "shared-name")?.sourceId).toBe("pho-code");
+    expect(registry.loadNamedSkill("slash-only")?.sourceId).toBe("cursor");
+    expect(registry.expandInsertedSkills("Use /cursor:slash-only.")).toContain("<<<pho-skill source=\"cursor\" name=\"slash-only\">>>");
   });
 
   test("ignores arbitrary source ids", () => {

@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  availableAgentSkills,
   availableSlashSkills,
   emptySkillSettingsSnapshot,
   extractSkillTokens,
   findCompletedSkillTokens,
   formatSkillToken,
   skillNeedsCompatibilityNotice,
+  SKILL_TRUST_NOTICE,
   sourceCompatibilityWarnings,
   stripExpandedSkillBodies,
   wrapSkillBody,
@@ -28,6 +30,14 @@ describe("skill tokens", () => {
     const token = formatSkillToken("codex", "demo-skill");
     const expanded = `${token}\n\n${wrapSkillBody("codex", "demo-skill", "# Demo\n\nDo the work.")}`;
     expect(stripExpandedSkillBodies(expanded)).toBe(token);
+  });
+});
+
+describe("skill trust notice", () => {
+  test("says the agent can load enabled skills without a slash insert", () => {
+    expect(SKILL_TRUST_NOTICE).toContain("to the agent");
+    expect(SKILL_TRUST_NOTICE).toContain("names and descriptions");
+    expect(SKILL_TRUST_NOTICE).not.toContain("until you insert one or ask");
   });
 });
 
@@ -66,5 +76,40 @@ describe("slash availability", () => {
     expect(sourceCompatibilityWarnings(snapshot, "cursor")).toHaveLength(1);
     expect(skillNeedsCompatibilityNotice("limited")).toBe(true);
     expect(skillNeedsCompatibilityNotice("compatible")).toBe(false);
+  });
+
+  test("advertises compatible and limited skills to the agent, not slash-only or shadowed", () => {
+    const snapshot = emptySkillSettingsSnapshot();
+    snapshot.inventory = [
+      {
+        sourceId: "pho-code",
+        skillName: "repository-investigation",
+        displayName: "repository-investigation",
+        compatibility: "compatible",
+      },
+      {
+        sourceId: "cursor",
+        skillName: "scripted",
+        displayName: "scripted",
+        compatibility: "limited",
+      },
+      {
+        sourceId: "cursor",
+        skillName: "slash-only",
+        displayName: "slash-only",
+        compatibility: "compatible",
+        disableModelInvocation: true,
+      },
+      {
+        sourceId: "claude",
+        skillName: "hidden",
+        displayName: "hidden",
+        compatibility: "shadowed",
+      },
+    ];
+    expect(availableAgentSkills(snapshot).map((entry) => entry.skillName)).toEqual([
+      "repository-investigation",
+      "scripted",
+    ]);
   });
 });

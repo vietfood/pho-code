@@ -99,7 +99,7 @@ export function SkillsSettingsSection({
       {pendingEnable ? (
         <SkillCompatibilityDialog
           title={`Some ${SKILL_SOURCE_LABELS[pendingEnable]} skills aren't fully compatible`}
-          message={`${pendingWarnings.length} skill${pendingWarnings.length === 1 ? "" : "s"} in ${SKILL_SOURCE_LABELS[pendingEnable]} include scripts, executables, or invalid Markdown. Enabling the source makes all of its skills available in /. Pho Code will not run those scripts or assets.`}
+          message={`${pendingWarnings.length} skill${pendingWarnings.length === 1 ? "" : "s"} in ${SKILL_SOURCE_LABELS[pendingEnable]} include scripts, executables, or invalid Markdown. Enabling the source makes all of its skills available in / and to the agent. Pho Code will not run those scripts or assets.`}
           confirmLabel="Enable anyway"
           onCancel={() => setPendingEnable(null)}
           onConfirm={() => {
