@@ -17,6 +17,7 @@ export {
   createSessionRegistry,
 } from "./session-registry";
 export type { SessionRegistry, SessionRegistryHost } from "./session-registry";
+export { advertisedCatalogModel, catalogHasModel } from "./model-catalog";
 export { sniffImageMime } from "./image-bytes";
 export {
   CURSOR_SDK_FEATURE_ID,
@@ -35,8 +36,17 @@ export type { HarnessFeature, HarnessFeatureManifest } from "./features";
 export {
   CURSOR_SDK_HARNESS_ENV,
   CURSOR_SDK_PROVIDER_ID,
+  CURSOR_API_KEY_ENV_VAR,
+  CURSOR_API_KEY_PLACEHOLDER,
   applyCursorSdkHarnessPolicy,
   registerCursorProviderAccount,
+  isCursorProviderId,
+  resolveOwnerCursorApiKey,
+  cursorHasOwnerCredentials,
+  cursorProviderHasOwnerCredentials,
+  filterCursorModelsUnlessAuthenticated,
+  providerAccountAuthSource,
+  providerAccountConfigured,
 } from "./cursor-sdk-policy";
 export { ASSISTANT_REWRITE_CUSTOM_TYPE } from "./assistant-rewrite";
 export { CONTEXT_PROMPT_CUSTOM_TYPE } from "./context-prompt";

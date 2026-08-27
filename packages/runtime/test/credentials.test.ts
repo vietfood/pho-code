@@ -75,6 +75,8 @@ describe("credential import", () => {
   });
 
   test("lists Cursor for API-key import when the baked cursor-sdk feature is present", async () => {
+    const previous = process.env.CURSOR_API_KEY;
+    delete process.env.CURSOR_API_KEY;
     const { agentDir } = await makeIsolatedDirs();
     const runtime = await createPhoCodeRuntime({ agentDir });
 
@@ -102,7 +104,15 @@ describe("credential import", () => {
       expect(auth.cursor?.type).toBe("api_key");
       expect(auth.cursor?.key).toBe(secret);
     } finally {
-      await runtime.dispose();
+      try {
+        await runtime.dispose();
+      } finally {
+        if (previous === undefined) {
+          delete process.env.CURSOR_API_KEY;
+        } else {
+          process.env.CURSOR_API_KEY = previous;
+        }
+      }
     }
   });
 });

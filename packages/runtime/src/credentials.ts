@@ -9,6 +9,7 @@ import {
   type ProviderAuthMethod,
   type ProviderDisclosureKey,
 } from "@pho-code/protocol";
+import { providerAccountAuthSource, providerAccountConfigured } from "./cursor-sdk-policy";
 
 const MAX_API_KEY_LENGTH = 16_384;
 
@@ -46,17 +47,18 @@ export async function listProviderAccounts(modelRuntime: ModelRuntime): Promise<
     const status = modelRuntime.getProviderAuthStatus(provider.id);
     const subscriptionClassified = provider.auth.oauth?.isSubscription === true;
     const disclosureKey = DISCLOSURE_BY_PROVIDER[provider.id] ?? (subscriptionClassified ? "subscription-classified" : undefined);
+    const configured = providerAccountConfigured(provider.id, stored.has(provider.id), status.configured);
     const summary: ProviderAccountSummary = {
       id: provider.id,
       name: accountDisplayName(provider.name, provider.auth.oauth?.name, provider.auth.apiKey?.name, methods),
       methods,
-      configured: stored.has(provider.id) || status.configured,
+      configured,
       subscriptionClassified,
     };
     if (storedType) {
       summary.activeMethod = storedType;
     }
-    const authSource = status.label ?? status.source;
+    const authSource = providerAccountAuthSource(provider.id, configured, storedType, status);
     if (authSource) {
       summary.authSource = authSource;
     }

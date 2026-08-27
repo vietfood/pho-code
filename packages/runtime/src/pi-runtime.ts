@@ -119,7 +119,8 @@ import {
   type PlanTodoItem,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
-import { applyCursorSdkHarnessPolicy, registerCursorProviderAccount } from "./cursor-sdk-policy";
+import { applyCursorSdkHarnessPolicy, cursorProviderHasOwnerCredentials, filterCursorModelsUnlessAuthenticated, registerCursorProviderAccount } from "./cursor-sdk-policy";
+import { advertisedCatalogModel, catalogHasModel } from "./model-catalog";
 import {
   createDefaultFeatureManifest,
   emptyFeatureManifest,
@@ -657,6 +658,7 @@ export async function createPhoCodeRuntime(
     bindSession(live);
     await bindHostUi(live);
     hydratePlanTodos(live);
+    await ensureSessionModelIsSelectable(live);
     await retrieval.bind(cwd);
     return live;
   }
@@ -830,7 +832,9 @@ export async function createPhoCodeRuntime(
 
   async function refreshModelsAfterAuth(): Promise<void> {
     clearCatalogCache();
+    const { models } = await listModels();
     for (const session of registry.list()) {
+      await ensureSessionModelIsSelectable(session, models);
       emitSessionSnapshot(session, await buildSnapshot({ live: session }));
     }
   }
@@ -865,7 +869,11 @@ export async function createPhoCodeRuntime(
 
     try {
       const available = await modelRuntime.getAvailable();
-      const models = available.map((model) => projectModelSummary(model));
+      const cursorAuthenticated = await cursorProviderHasOwnerCredentials(modelRuntime);
+      const models = filterCursorModelsUnlessAuthenticated(
+        available.map((model) => projectModelSummary(model)),
+        cursorAuthenticated,
+      );
       if (models.length === 0) {
         return {
           models,
@@ -879,6 +887,29 @@ export async function createPhoCodeRuntime(
         models: [],
         modelError: error instanceof Error ? error.message : "Unable to list models.",
       };
+    }
+  }
+
+  async function ensureSessionModelIsSelectable(
+    live: LiveSession,
+    listedModels?: readonly ModelSummary[],
+  ): Promise<void> {
+    const models = listedModels ?? (await listModels()).models;
+    if (catalogHasModel(models, live.runtime.session.model)) {
+      return;
+    }
+    const next = models[0];
+    if (!next) {
+      return;
+    }
+    const model = modelRuntime.getModel(next.provider, next.id);
+    if (!model) {
+      return;
+    }
+    try {
+      await live.runtime.session.setModel(model);
+    } catch (error) {
+      console.error("Failed to bind a selectable session model:", error);
     }
   }
 
@@ -920,7 +951,7 @@ export async function createPhoCodeRuntime(
     const workspace = live.workspace;
     const activeRun = live.activeRun;
     const { models, modelError, sessions } = await resolveCatalog(workspace.path, refreshCatalog);
-    const model = session.model ? projectModelSummary(session.model) : models[0];
+    const model = advertisedCatalogModel(session.model, models, projectModelSummary);
     const run = activeRun
       ? {
           runId: activeRun.runId,
@@ -1543,8 +1574,13 @@ export async function createPhoCodeRuntime(
   async function assertTurnAdmission(live: LiveSession, operation: string): Promise<void> {
     registry.assertCanAdmitRun(operation);
     const { models, modelError } = await listModels();
-    if (!live.runtime.session.model && models.length === 0) {
-      failCommand(operation, modelError ?? "No authenticated model is available.", HARNESS_ERROR_CODES.noAuthenticatedModel);
+    const bound = live.runtime.session.model;
+    if ((bound && !catalogHasModel(models, bound)) || (!bound && models.length === 0)) {
+      failCommand(
+        operation,
+        modelError ?? "Sign in to a provider account in Settings before using this model.",
+        HARNESS_ERROR_CODES.noAuthenticatedModel,
+      );
     }
   }
 
@@ -1871,6 +1907,14 @@ export async function createPhoCodeRuntime(
       const live = locateController(input.sessionId, input.workspaceId, "setSessionModel");
       const session = live.runtime.session;
       refuseIfBusy(live, "setSessionModel", "Wait for the current run to finish before changing the model.");
+      const { models } = await listModels();
+      if (!catalogHasModel(models, input)) {
+        failCommand(
+          "setSessionModel",
+          "Sign in to a provider account in Settings before selecting this model.",
+          HARNESS_ERROR_CODES.noAuthenticatedModel,
+        );
+      }
       const model = modelRuntime.getModel(input.provider, input.id);
       if (!model) {
         failCommand("setSessionModel", `Model ${input.provider}/${input.id} is not available.`);

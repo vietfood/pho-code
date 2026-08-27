@@ -103,7 +103,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
 - `plan-agent-feature.ts` supplies Pho Code tool-policy context to `@pho-agent/runtime/plan-agent`; the remaining compatibility modules re-export the shared `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` implementation (accepted product behavior; V5 package ownership not yet accepted).
 - `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
-- `cursor-sdk-policy.ts` fixes the baked Cursor provider policy.
+- `cursor-sdk-policy.ts` fixes the baked Cursor provider policy (local-only runtime; hide Cursor models until a stored key or `CURSOR_API_KEY`).
 
 `createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, V3 change capture, and the agent-tool sandbox factory (bash wrap plus file-tool intercept while enabled). Both stages are source-selected and immutable to the user.
 
@@ -112,7 +112,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `local-retrieval.ts`, `retrieval-feature.ts`, `workspace-reference.ts`, `workspace-path.ts` own the workspace-bounded FFF index and references.
 - `web-feature.ts`, `web-client.ts`, `web-url.ts`, `web-search-providers.ts`, `web-youtube.ts` own bounded public web search/fetch.
 - `image-store.ts`, `image-bytes.ts` own prepared image lifetime and validation.
-- `skill-source.ts` and `skill-invoke.ts` re-export host-neutral source/invocation primitives from `@pho-agent/runtime/skills`; `skills-feature.ts` owns the curated Pho Code resource adapter.
+- `skill-source.ts` and `skill-invoke.ts` re-export host-neutral source/invocation primitives from `@pho-agent/runtime/skills`; `skills-feature.ts` owns the curated Pho Code resource adapter. `read_skill` advertises invocable name+description and loads Markdown on demand; `/` remains an owner insert.
 
 ### Accounts and MCP
 
