@@ -92,8 +92,7 @@ describe("appearance theme helpers", () => {
     expect(css).toContain(".transcript-scroller,\n.transcript-scroller * {");
     expect(css).toContain(".chat-column {");
     expect(css).toContain(".empty-session-column {\n  width: 100%;\n  min-width: 0;\n  margin-inline: auto;\n  max-width: 42rem;");
-    expect(css).toContain('[data-chat-fill="true"] .chat-column,\n[data-chat-fill="true"] .empty-session-column {');
-    expect(css).toContain("max-width: none;");
+    expect(css).not.toContain("data-chat-fill");
     expect(css).toContain(".composer-context-button.is-agent {\n  color: var(--destructive-foreground);");
     expect(css).toContain(".composer-thinking-select {\n  width: fit-content;");
     expect(css).toContain(".composer-model-picker-toolbar {\n  z-index: 2;\n  flex-shrink: 0;");

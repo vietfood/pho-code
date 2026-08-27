@@ -10,11 +10,11 @@ import type {
   TranscriptMessage,
   TranscriptToolBlock,
 } from "@pho-code/protocol";
-import { reviewFileCount, reviewSummaryForToolCall, stripExpandedSkillBodies } from "@pho-code/protocol";
+import { reviewFileCount, reviewSummaryForToolCall, sessionKeyId, stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
 import { inferMentionKind } from "./lib/at-mention";
 import { parseComposerSegments } from "./lib/composer-tokens";
-import { useLiveRun } from "./lib/live-run-store";
+import { useLiveRunForKey } from "./lib/live-run-store";
 import {
   collectTurnBlocks,
   countWorkBlocks,
@@ -37,6 +37,7 @@ import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
 import { WorkingLabel } from "./working-label";
+import { ErrorToast } from "./error-toast";
 import { Button } from "./ui/button";
 
 // Transcript layout adapted from refs/t3code MessagesTimeline.tsx (MIT, T3 Tools Inc., 6bc6cb6).
@@ -88,6 +89,11 @@ export function Transcript({
         {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
       />
       <LiveRunTail
+        liveKey={sessionKeyId({
+          ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+          workspaceId: snapshot.workspace.id,
+          sessionId: snapshot.session.id,
+        })}
         runId={snapshot.run.runId}
         snapshotRun={snapshot.run}
         changeReviews={snapshot.changeReviews}
@@ -131,6 +137,7 @@ const SettledTurns = memo(function SettledTurns({
 });
 
 function LiveRunTail({
+  liveKey,
   runId,
   snapshotRun,
   changeReviews,
@@ -138,6 +145,7 @@ function LiveRunTail({
   stickToBottomRef,
   onOpenChangeReview,
 }: {
+  liveKey: string;
   runId?: string;
   snapshotRun: RunState;
   changeReviews?: readonly ChangeReviewSetSummary[];
@@ -145,11 +153,13 @@ function LiveRunTail({
   stickToBottomRef: RefObject<boolean>;
   onOpenChangeReview?: (scope: ChangeScope) => void;
 }) {
-  const live = useLiveRun();
+  const live = useLiveRunForKey(liveKey);
   const run = live.runId && live.runId === runId ? live : snapshotRun;
   const running = run.status === "admitted" || run.status === "streaming";
   const wasRunningRef = useRef(false);
   const [liveWorkExpanded, setLiveWorkExpanded] = useState(true);
+  // Keyed by message so a fresh failure re-opens the toast after an earlier dismiss.
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
   const liveWorkCounts = countWorkBlocks(run.work);
   const hasStreamingText = /\S/u.test(run.streamingText);
 
@@ -199,10 +209,13 @@ function LiveRunTail({
           <WorkingLabel text="Working" live />
         </p>
       ) : null}
-      {run.error ? (
-        <p className="chat-column px-1 pb-2.5 text-sm text-destructive" role="alert">
-          {run.error.message}
-        </p>
+      {run.error && run.error.message !== dismissedError ? (
+        <ErrorToast
+          title="Run failed"
+          message={run.error.message}
+          testId="run-error"
+          onDismiss={() => setDismissedError(run.error?.message ?? null)}
+        />
       ) : null}
     </>
   );

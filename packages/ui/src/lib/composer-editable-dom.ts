@@ -14,6 +14,10 @@ const FILE_ICON_SVG =
 const FOLDER_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>';
 
+// Lucide BookOpen (same kind glyph as Settings Skills). Not Type, not a source mark.
+const SKILL_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mention-chip-icon" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>';
+
 function wrapMentionChipShell(chip: HTMLSpanElement, documentRef: Document): HTMLSpanElement {
   const shell = documentRef.createElement("span");
   shell.className = "mention-chip-shell";
@@ -78,6 +82,7 @@ export function createSkillChipElement(
       dataset: { skillSource: sourceId, skillName },
       title: skillName,
       ariaLabel: formatSkillToken(sourceId, skillName),
+      iconSvg: SKILL_ICON_SVG,
       label: skillName,
     },
     documentRef,

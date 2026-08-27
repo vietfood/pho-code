@@ -29,10 +29,34 @@ export { FastModeChip } from "./fast-mode-chip";
 export { firstSelectablePath } from "./change-review-sheet";
 export { ChangeReviewWindow } from "./change-review-window";
 export type { RequestFileLines } from "./change-review-diff-view";
-export { RightSidebar, type RightSidebarSurface } from "./right-sidebar";
+export { RightSidebar, RightSurfaceIcons, type RightSidebarSurface } from "./right-sidebar";
+export { ChatTabHost } from "./chat-tab-host";
+export {
+  closeChatTab,
+  emptyChatTabs,
+  focusChatTab,
+  isChatTabOpen,
+  openChatTab,
+  readChatTabs,
+  replaceChatTabKey,
+  writeChatTabs,
+  type ChatTabs,
+} from "./lib/chat-tabs";
+export {
+  activateTile,
+  closeTile,
+  ensureVisibleTile,
+  isTileOpen,
+  minimizeTile,
+  openTile,
+  readRightSidebarTiles,
+  setTileSplit,
+  toggleTile,
+  writeRightSidebarTiles,
+  type RightSidebarTiles,
+} from "./lib/right-sidebar-tiles";
 export { PlanDocumentPanel } from "./plan-document-panel";
 export { SessionTodoList } from "./session-todo-list";
-export { readRightSidebarCollapsed, writeRightSidebarCollapsed } from "./lib/right-sidebar-collapsed";
 export { ToolRow } from "./tool-row";
 export { composerHighlight } from "./lib/composer-highlight";
 export { findSlashQuery } from "./lib/slash-query";
@@ -63,7 +87,7 @@ export {
   presentPermissionMessage,
 } from "./permission-prompt";
 export { Transcript } from "./transcript";
-export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey } from "./lib/live-run-store";
+export { dropLiveRun, getLiveRunForKey, replaceLiveRun, resetLiveRunStore, selectLiveRunKey, subscribeLiveRunKey } from "./lib/live-run-store";
 export { SettingsView } from "./settings-view";
 export { SkillsSettingsSection } from "./skills-settings";
 export { GitHubMcpSettingsSection } from "./github-mcp-settings";
@@ -97,3 +121,5 @@ export {
   subscribeWorkEntryIconPack,
 } from "./lib/appearance-theme";
 export { sessionActivityLabel, sessionRowActivity } from "./lib/session-activity";
+export { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+export { ErrorToast } from "./error-toast";

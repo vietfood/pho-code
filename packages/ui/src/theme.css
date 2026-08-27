@@ -145,19 +145,6 @@
   padding-inline-end: 3rem;
 }
 
-[data-chat-fill="true"] .chat-column,
-[data-chat-fill="true"] .empty-session-column {
-  max-width: none;
-}
-
-[data-chat-fill="true"] .transcript-scroller {
-  padding-inline: 0.75rem;
-}
-
-[data-chat-fill="true"] .chat-composer-horizontal-inset {
-  padding-inline: 0.75rem;
-}
-
 .assistant-rewrite-editor {
   display: block;
   width: 100%;

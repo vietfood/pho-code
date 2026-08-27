@@ -1,134 +1,162 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RightSidebar, rightSidebarSurfaceAction } from "../src/right-sidebar";
-import { readRightSidebarCollapsed, writeRightSidebarCollapsed } from "../src/lib/right-sidebar-collapsed";
+import {
+  RightSidebar,
+  RightSurfaceIcons,
+  type RightSidebarProps,
+  type RightSurfaceIconsProps,
+} from "../src/right-sidebar";
+import { writeReviewSidebarWidth } from "../src/lib/review-sidebar-width";
+import type { RightSidebarSurface } from "../src/lib/right-sidebar-tiles";
 
-describe("RightSidebar", () => {
-  test("renders a compact overlay pill when collapsed", () => {
-    const markup = renderToStaticMarkup(
-      createElement(RightSidebar, {
-        collapsed: true,
-        surface: "changes",
-        onToggleCollapsed: () => undefined,
-        onSelectSurface: () => undefined,
-        children: createElement("p", null, "panel"),
-      }),
-    );
-    expect(markup).toContain('data-testid="right-sidebar"');
-    expect(markup).toContain('data-collapsed="true"');
-    expect(markup).toContain('data-testid="right-sidebar-pill"');
-    expect(markup).toContain("rounded-2xl");
+function iconProps(overrides: Partial<RightSurfaceIconsProps>): RightSurfaceIconsProps {
+  return {
+    tiles: [],
+    onToggleSurface: () => undefined,
+    ...overrides,
+  };
+}
+
+function regionProps(overrides: Partial<RightSidebarProps>): RightSidebarProps {
+  return {
+    tiles: [],
+    onHideRegion: () => undefined,
+    onCloseSurface: () => undefined,
+    onMinimizeSurface: () => undefined,
+    onActivateSurface: () => undefined,
+    onSplitChange: () => undefined,
+    renderSurface: (surface: RightSidebarSurface) => createElement("p", null, `panel-${surface}`),
+    ...overrides,
+  };
+}
+
+function withStubbedLocalStorage(run: () => void): void {
+  const original = globalThis.localStorage;
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+    },
+  });
+  try {
+    run();
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: original });
+  }
+}
+
+describe("RightSurfaceIcons", () => {
+  test("renders one launcher icon per surface", () => {
+    const markup = renderToStaticMarkup(createElement(RightSurfaceIcons, iconProps({})));
+    expect(markup).toContain('data-testid="right-surface-icons"');
+    expect(markup).toContain('aria-label="Right sidebar surfaces"');
     expect(markup).toContain('data-testid="right-sidebar-surface-diff"');
     expect(markup).toContain('data-testid="right-sidebar-surface-context"');
     expect(markup).toContain('data-testid="right-sidebar-surface-plan"');
     expect(markup).toContain("Context prompt");
-    expect(markup).not.toContain('data-testid="right-sidebar-collapse"');
-    expect(markup).not.toContain("Show sidebar");
-    expect(markup).not.toContain(">panel<");
-    expect(markup).not.toContain('data-testid="right-sidebar-resize"');
-    expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
     expect(markup).toContain('aria-pressed="false"');
+    expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
   });
 
-  test("docks Changes children when the panel is expanded", () => {
+  test("marks icons pressed for open tiles, parked tiles, and an open Changes overlay", () => {
     const markup = renderToStaticMarkup(
-      createElement(RightSidebar, {
-        collapsed: false,
-        surface: "changes",
-        onToggleCollapsed: () => undefined,
-        onSelectSurface: () => undefined,
-        children: createElement("section", { "data-testid": "change-review-window" }, "stacked"),
-      }),
+      createElement(
+        RightSurfaceIcons,
+        iconProps({ tiles: ["plan"], minimized: ["context-prompt"], changesOverlayOpen: true }),
+      ),
     );
-    expect(markup).toContain('data-collapsed="false"');
-    expect(markup).not.toContain('data-testid="right-sidebar-pill"');
-    expect(markup).toContain('data-testid="change-review-window"');
-    expect(markup).toContain("stacked");
+    expect(markup.match(/aria-pressed="true"/g)?.length).toBe(3);
   });
 
-  test("marks Changes pressed on the collapsed pill while the overlay is open", () => {
+  test("keeps the customized and document badges", () => {
     const markup = renderToStaticMarkup(
-      createElement(RightSidebar, {
-        collapsed: true,
-        surface: "changes",
-        changesOverlayOpen: true,
-        onToggleCollapsed: () => undefined,
-        onSelectSurface: () => undefined,
-      }),
+      createElement(
+        RightSurfaceIcons,
+        iconProps({ tiles: ["context-prompt"], contextPromptCustomized: true, planDocumentPresent: true }),
+      ),
     );
-    expect(markup).toContain('data-collapsed="true"');
-    expect(markup).toContain('data-testid="right-sidebar-pill"');
-    expect(markup).toContain('aria-pressed="true"');
-  });
-
-  test("expands to a resizable panel with the selected surface", () => {
-    const markup = renderToStaticMarkup(
-      createElement(RightSidebar, {
-        collapsed: false,
-        surface: "context-prompt",
-        contextPromptCustomized: true,
-        onToggleCollapsed: () => undefined,
-        onSelectSurface: () => undefined,
-        children: createElement("p", { "data-testid": "embedded-panel" }, "context"),
-      }),
-    );
-    expect(markup).toContain('data-collapsed="false"');
-    expect(markup).not.toContain('data-testid="right-sidebar-pill"');
-    expect(markup).toContain("right-sidebar-host");
-    expect(markup).not.toContain("border-s");
-    expect(markup).toContain('data-testid="right-sidebar-resize"');
-    expect(markup).toContain("Resize right sidebar");
-    expect(markup).not.toContain("Hide sidebar");
-    expect(markup).not.toContain('data-testid="right-sidebar-collapse"');
-    expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain('data-customized="true"');
     expect(markup).toContain('data-testid="right-sidebar-context-custom"');
-    expect(markup).toContain('data-testid="embedded-panel"');
-    expect(markup).toContain("context");
+    expect(markup).toContain('data-document="true"');
+    expect(markup).toContain('data-testid="right-sidebar-plan-document"');
   });
 });
 
-describe("right sidebar surface activation", () => {
-  test("collapses when the open surface is clicked again", () => {
-    expect(rightSidebarSurfaceAction(false, "changes", "changes")).toBe("collapse");
-    expect(rightSidebarSurfaceAction(false, "context-prompt", "context-prompt")).toBe("collapse");
-    expect(rightSidebarSurfaceAction(false, "plan", "plan")).toBe("collapse");
-    expect(rightSidebarSurfaceAction(true, "changes", "changes", true)).toBe("collapse");
+describe("RightSidebar", () => {
+  test("renders one floating tile card with a header and content", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, regionProps({ tiles: ["changes"] })),
+    );
+    expect(markup).toContain('data-testid="right-sidebar"');
+    expect(markup).toContain("right-sidebar-host");
+    expect(markup).toContain('data-testid="right-sidebar-resize"');
+    expect(markup).toContain("Resize right sidebar");
+    expect(markup).toContain('data-testid="right-sidebar-tiles"');
+    expect(markup).toContain('data-orientation="stack"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-diff"');
+    expect(markup).toContain("rounded-xl");
+    expect(markup).not.toContain("shadow-md");
+    expect(markup).toContain('aria-label="Minimize Changes"');
+    expect(markup).toContain('aria-label="Close Changes"');
+    expect(markup).toContain("panel-changes");
+    expect(markup).not.toContain('data-testid="right-sidebar-tile-divider"');
+    expect(markup).not.toContain('data-testid="right-sidebar-tray"');
+    expect(markup).not.toContain('data-testid="right-sidebar-pill"');
+    expect(markup).not.toContain("data-collapsed");
   });
 
-  test("selects when collapsed or when switching surfaces", () => {
-    expect(rightSidebarSurfaceAction(true, "changes", "changes")).toBe("select");
-    expect(rightSidebarSurfaceAction(true, "changes", "context-prompt")).toBe("select");
-    expect(rightSidebarSurfaceAction(false, "changes", "context-prompt")).toBe("select");
-    expect(rightSidebarSurfaceAction(false, "context-prompt", "changes")).toBe("select");
-    expect(rightSidebarSurfaceAction(false, "plan", "changes")).toBe("select");
-    expect(rightSidebarSurfaceAction(false, "changes", "plan")).toBe("select");
-    expect(rightSidebarSurfaceAction(true, "changes", "context-prompt", true)).toBe("select");
+  test("renders two tiles with a gap divider and per-tile split styles", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, regionProps({ tiles: ["changes", "plan"], splitRatio: 0.6 })),
+    );
+    expect(markup).toContain('data-testid="right-sidebar-tile-diff"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-plan"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-divider"');
+    expect(markup).toContain('role="separator"');
+    expect(markup).toContain('aria-orientation="horizontal"');
+    expect(markup).toContain('aria-valuenow="60"');
+    expect(markup).toContain("cursor-row-resize");
+    expect(markup).toContain("panel-changes");
+    expect(markup).toContain("panel-plan");
   });
-});
 
-describe("right sidebar collapsed storage", () => {
-  test("defaults to collapsed and round-trips", () => {
-    const original = globalThis.localStorage;
-    const store = new Map<string, string>();
-    Object.defineProperty(globalThis, "localStorage", {
-      configurable: true,
-      value: {
-        getItem: (key: string) => store.get(key) ?? null,
-        setItem: (key: string, value: string) => {
-          store.set(key, value);
-        },
-      },
+  test("switches to side-by-side columns when the region is wide", () => {
+    withStubbedLocalStorage(() => {
+      writeReviewSidebarWidth(1000);
+      const markup = renderToStaticMarkup(
+        createElement(RightSidebar, regionProps({ tiles: ["changes", "plan"] })),
+      );
+      expect(markup).toContain('data-orientation="columns"');
+      expect(markup).toContain('aria-orientation="vertical"');
+      expect(markup).toContain("cursor-col-resize");
     });
-    try {
-      expect(readRightSidebarCollapsed()).toBe(true);
-      writeRightSidebarCollapsed(false);
-      expect(readRightSidebarCollapsed()).toBe(false);
-      writeRightSidebarCollapsed(true);
-      expect(readRightSidebarCollapsed()).toBe(true);
-    } finally {
-      Object.defineProperty(globalThis, "localStorage", { configurable: true, value: original });
-    }
+  });
+
+  test("parks minimized tiles as tray chips and keeps their content mounted but hidden", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, regionProps({ tiles: ["changes", "plan"], minimized: ["context-prompt"] })),
+    );
+    expect(markup).toContain('data-testid="right-sidebar-tray"');
+    expect(markup).toContain("rounded-full");
+    expect(markup).toContain('data-testid="right-sidebar-tray-context"');
+    expect(markup).toContain('aria-label="Restore Context prompt"');
+    expect(markup).toContain('data-testid="right-sidebar-tray-close-context"');
+    expect(markup).toContain('data-testid="right-sidebar-hidden-context"');
+    expect(markup).toContain("panel-context-prompt");
+    expect(markup).not.toContain('data-testid="right-sidebar-tile-context"');
+  });
+
+  test("keeps tiles mounted but display-hidden when the region is hidden", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RightSidebar, regionProps({ tiles: ["changes"], hidden: true })),
+    );
+    expect(markup).toContain('data-testid="right-sidebar"');
+    expect(markup).toContain("hidden");
+    expect(markup).toContain("panel-changes");
   });
 });

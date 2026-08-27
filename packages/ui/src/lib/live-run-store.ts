@@ -1,11 +1,14 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { idleRunState, type RunState } from "@pho-code/protocol";
 
 const listeners = new Set<() => void>();
+const keyListeners = new Map<string, Set<() => void>>();
 const runs = new Map<string, RunState>();
+const IDLE_RUN = idleRunState();
 let selectedKey: string | undefined;
-let current: RunState = idleRunState();
+let current: RunState = IDLE_RUN;
 let pending: RunState | null = null;
+const pendingKeys = new Set<string>();
 let frame = 0;
 
 function commit(): void {
@@ -13,13 +16,23 @@ function commit(): void {
     cancelAnimationFrame(frame);
     frame = 0;
   }
-  if (pending === null) {
-    return;
+  if (pending !== null) {
+    current = pending;
+    pending = null;
+    for (const listener of listeners) {
+      listener();
+    }
   }
-  current = pending;
-  pending = null;
-  for (const listener of listeners) {
-    listener();
+  if (pendingKeys.size > 0) {
+    for (const key of pendingKeys) {
+      const set = keyListeners.get(key);
+      if (set) {
+        for (const listener of set) {
+          listener();
+        }
+      }
+    }
+    pendingKeys.clear();
   }
 }
 
@@ -59,6 +72,28 @@ export function subscribeLiveRun(listener: () => void): () => void {
   };
 }
 
+/** Per-key subscription so every visible chat tile streams independently. */
+export function subscribeLiveRunKey(key: string, listener: () => void): () => void {
+  let set = keyListeners.get(key);
+  if (!set) {
+    set = new Set();
+    keyListeners.set(key, set);
+  }
+  set.add(listener);
+  return () => {
+    set.delete(listener);
+    if (set.size === 0) {
+      keyListeners.delete(key);
+    }
+  };
+}
+
+function pokeKey(key: string): void {
+  if (keyListeners.has(key)) {
+    pendingKeys.add(key);
+  }
+}
+
 export function replaceLiveRun(
   run: RunState,
   options: { immediate?: boolean; key?: string } = {},
@@ -67,10 +102,18 @@ export function replaceLiveRun(
   if (key) {
     runs.set(key, run);
   }
-  if (!shouldNotify(key, options.key !== undefined)) {
+  let dirty = false;
+  if (shouldNotify(key, options.key !== undefined)) {
+    pending = run;
+    dirty = true;
+  }
+  if (key && keyListeners.has(key)) {
+    pendingKeys.add(key);
+    dirty = true;
+  }
+  if (!dirty) {
     return;
   }
-  pending = run;
   if (options.immediate) {
     commit();
     return;
@@ -80,27 +123,42 @@ export function replaceLiveRun(
 
 export function selectLiveRunKey(key: string | undefined): void {
   selectedKey = key;
-  pending = key ? (runs.get(key) ?? idleRunState()) : idleRunState();
+  pending = key ? (runs.get(key) ?? IDLE_RUN) : IDLE_RUN;
   commit();
 }
 
 export function dropLiveRun(key: string): void {
   runs.delete(key);
+  pokeKey(key);
   if (selectedKey !== key) {
+    commit();
     return;
   }
   selectedKey = undefined;
-  pending = idleRunState();
+  pending = IDLE_RUN;
   commit();
 }
 
 export function resetLiveRunStore(): void {
   selectedKey = undefined;
   runs.clear();
-  pending = idleRunState();
+  pending = IDLE_RUN;
+  for (const key of keyListeners.keys()) {
+    pendingKeys.add(key);
+  }
   commit();
 }
 
 export function useLiveRun(): RunState {
   return useSyncExternalStore(subscribeLiveRun, getLiveRun, getLiveRun);
+}
+
+/** Live run for one session key; falls back to a stable idle snapshot. */
+export function useLiveRunForKey(key: string): RunState {
+  const subscribe = useCallback(
+    (listener: () => void) => subscribeLiveRunKey(key, listener),
+    [key],
+  );
+  const getSnapshot = useCallback(() => runs.get(key) ?? IDLE_RUN, [key]);
+  return useSyncExternalStore(subscribe, getSnapshot, () => IDLE_RUN);
 }

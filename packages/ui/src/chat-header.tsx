@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { cn } from "./lib/cn";
+import { TriangleAlertIcon } from "lucide-react";
 import { workspaceTopbarClass } from "./lib/workspace-topbar";
 import { SidebarToggleButton } from "./sidebar-toggle-button";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 
 export function ChatHeader({
@@ -9,8 +10,9 @@ export function ChatHeader({
   modelError,
   yoloMode,
   sidebarCollapsed,
-  paneFill = false,
   headerActions,
+  headerTrailing,
+  headerTabs,
   onToggleSidebar,
   onTrustProject,
 }: {
@@ -18,8 +20,11 @@ export function ChatHeader({
   modelError?: string;
   yoloMode?: boolean;
   sidebarCollapsed?: boolean;
-  paneFill?: boolean;
   headerActions?: ReactNode;
+  /** Trailing cluster pinned to the top-right edge of the chat. */
+  headerTrailing?: ReactNode;
+  /** Tab strip occupying the flexible middle slot (replaces title/spacer). */
+  headerTabs?: ReactNode;
   onToggleSidebar?: () => void;
   onTrustProject?: () => void;
 }) {
@@ -29,7 +34,7 @@ export function ChatHeader({
     <header
       className={workspaceTopbarClass({
         leadingInset: showToggle,
-        className: cn("gap-2", paneFill && "border-border/50 border-b"),
+        className: "gap-2 border-border/50 border-b",
       })}
     >
       {showToggle && onToggleSidebar ? (
@@ -40,7 +45,9 @@ export function ChatHeader({
         />
       ) : null}
       {headerActions}
-      {title ? (
+      {headerTabs ? (
+        <div className="flex min-w-0 flex-1 items-center">{headerTabs}</div>
+      ) : title ? (
         <p
           className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
           data-testid="chat-title"
@@ -72,10 +79,17 @@ export function ChatHeader({
         </p>
       ) : null}
       {modelError ? (
-        <p className="max-w-[16rem] truncate text-sm text-destructive-foreground" role="alert" title={modelError}>
-          {modelError}
-        </p>
+        <Alert
+          variant="destructive"
+          className="w-auto max-w-[16rem] shrink-0 px-2 py-1 text-xs"
+          role="alert"
+          title={modelError}
+        >
+          <TriangleAlertIcon />
+          <AlertDescription className="min-w-0 truncate text-xs">{modelError}</AlertDescription>
+        </Alert>
       ) : null}
+      {headerTrailing}
     </header>
   );
 }

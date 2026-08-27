@@ -154,7 +154,7 @@ There is no PTY or terminal service in source. That work remains under the termi
 - archive/restore/project removal and trust flows;
 - right-sidebar selection and V3 review hook.
 
-`bridge.ts`, `use-session-switch.ts`, `session-catalog-state.ts`, and `use-change-review.ts` isolate bridge lookup, session/catalog transitions, and review requests. Renderer code sends typed intent and never imports privileged layers.
+`bridge.ts`, `use-chat-tabs.ts`, `session-catalog-state.ts`, and `use-change-review.ts` isolate bridge lookup, chat-tab/session/catalog transitions, and review requests. Renderer code sends typed intent and never imports privileged layers.
 
 Composite identity is `{workspaceId, sessionId}`; the current runtime uses the canonical absolute workspace path as `workspaceId`. UI code treats it as opaque identity and does not derive filesystem authority from it.
 

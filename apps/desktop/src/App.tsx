@@ -18,6 +18,7 @@ import {
   idleRunState,
   isLiveRunDeltaType,
   mergeLiveRun,
+  parseSessionKeyId,
   sessionKeyId,
   type BootstrapState,
   type ConversationCacheState,
@@ -41,8 +42,12 @@ import {
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
 import {
+  Alert,
+  AlertDescription,
   AppShell,
   AppSidebar,
+  ChatHeader,
+  ChatTabHost,
   CollapsedSidebarActions,
   applyAppearanceFonts,
   applyAppearanceTheme,
@@ -50,9 +55,11 @@ import {
   ChangeReviewWindow,
   Conversation,
   ContextPromptDialog,
+  ErrorToast,
   PlanDocumentPanel,
   NotificationToast,
   fileToBase64,
+  isChatTabOpen,
   looksLikeProjectTrustNotification,
   pastedImageDisplayName,
   ProjectTrustBanner,
@@ -62,6 +69,8 @@ import {
   RemoveProjectDialog,
   RemoveSessionDialog,
   RightSidebar,
+  RightSurfaceIcons,
+  type RightSidebarSurface,
   SettingsView,
   WorkspacePicker,
   dropLiveRun,
@@ -77,7 +86,7 @@ import {
   removeCatalogSession,
   upsertCatalogSession,
 } from "./session-catalog-state";
-import { useSessionSwitch } from "./use-session-switch";
+import { useChatTabs } from "./use-chat-tabs";
 import { useLayoutChrome } from "./use-layout-chrome";
 
 const COMMAND_BANNER_DISMISS_MS = 5_000;
@@ -133,15 +142,20 @@ export function App() {
 
   const {
     sidebarCollapsed,
-    rightSidebarCollapsed,
-    rightSidebarSurface,
+    rightRegionHidden,
+    rightSidebarTiles,
     changesWindowOpen,
     toggleSidebar,
     toggleRightSidebar,
-    collapseRightSidebar,
+    hideRightRegion,
     expandChangesOverlay,
     closeChangesOverlay,
-    selectRightSurface,
+    toggleRightSurface,
+    revealRightSurface,
+    closeRightSurface,
+    minimizeRightSurface,
+    activateRightSurface,
+    setRightTileSplit,
     revealChanges,
     closeChangesWindow,
   } = useLayoutChrome(openLatestReviewIfNeeded);
@@ -198,10 +212,10 @@ export function App() {
       return;
     }
     if (planDocumentPresent && !previous.present) {
-      selectRightSurface("plan");
+      revealRightSurface("plan");
     }
     previousPlanDocumentRef.current = { key: planSessionKey, present: planDocumentPresent };
-  }, [planDocumentPresent, planSessionKey, selectRightSurface]);
+  }, [planDocumentPresent, planSessionKey, revealRightSurface]);
 
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
@@ -218,15 +232,20 @@ export function App() {
   }, []);
 
   const {
-    pendingSession,
-    draft,
-    setDraft,
-    preparedImages,
-    setPreparedImages,
-    switchSession,
-    clearSelectedSession,
+    chatTabs,
+    pendingByKey,
+    composerFor,
+    setComposerDraft,
+    setComposerImages,
+    openTab,
+    focusTab,
+    closeTab,
+    closeAllTabs,
+    closeSessionTab,
+    closeWorkspaceTabs,
+    reconcileActiveSession,
     resetConversationChrome,
-  } = useSessionSwitch({
+  } = useChatTabs({
     cache,
     setCache,
     setWorkspace,
@@ -235,19 +254,21 @@ export function App() {
     upsertCatalog,
     errorMessage,
   });
+  const chatTabsRef = useRef(chatTabs);
+  chatTabsRef.current = chatTabs;
 
   const startNewSession = useCallback(
     (workspaceId: string, backendId = "pi") => {
       changeReview.close();
-      collapseRightSidebar();
-      void switchSession(
+      hideRightRegion();
+      void openTab(
         workspaceId,
         null,
         () => getDesktopBridge().createSession({ workspaceId, backendId }),
         backendId,
       );
     },
-    [changeReview.close, collapseRightSidebar, switchSession],
+    [changeReview.close, hideRightRegion, openTab],
   );
 
   const refreshBootstrap = useCallback(async () => {
@@ -276,49 +297,49 @@ export function App() {
       });
       void refreshCatalog(next.selectedWorkspace.id).catch(() => undefined);
     }
+    const tabsState = chatTabsRef.current;
+    const hasTabs = tabsState.tabs.length > 0;
+    const stayHome = keepWelcomeSelection(
+      cacheRef.current.selectedKey,
+      Object.keys(cacheRef.current.byKey).length,
+    );
+    let activeKey: string | null = null;
     if (next.activeSession) {
       void refreshCatalog(next.activeSession.workspace.id).catch(() => undefined);
-      const key = sessionKeyId({
+      activeKey = sessionKeyId({
         ...(next.activeSession.session.backendId ? { backendId: next.activeSession.session.backendId } : {}),
         workspaceId: next.activeSession.workspace.id,
         sessionId: next.activeSession.session.id,
       });
-      const stayHome = keepWelcomeSelection(
-        cacheRef.current.selectedKey,
-        Object.keys(cacheRef.current.byKey).length,
-      );
-      if (!stayHome && cacheRef.current.selectedKey !== key) {
-        replaceLiveRun(mergeLiveRun(getLiveRunForKey(key), next.activeSession.run), {
-          immediate: true,
-          key,
-        });
-        selectLiveRunKey(key);
+      // Seed the runtime's active session without stealing tile focus.
+      replaceLiveRun(mergeLiveRun(getLiveRunForKey(activeKey), next.activeSession.run), {
+        immediate: true,
+        key: activeKey,
+      });
+      if (!stayHome && !hasTabs) {
+        selectLiveRunKey(activeKey);
       }
     }
     setCache((current) => {
       const active = next.activeSession;
-      if (!active) {
+      if (!active || !activeKey) {
         return { ...current, settings };
       }
-      if (keepWelcomeSelection(current.selectedKey, Object.keys(current.byKey).length)) {
+      if (stayHome) {
         return { ...current, settings };
       }
-      const key = sessionKeyId({
-        ...(active.session.backendId ? { backendId: active.session.backendId } : {}),
-        workspaceId: active.workspace.id,
-        sessionId: active.session.id,
-      });
-      const existing = current.byKey[key];
-      if (current.selectedKey === key && existing) {
-        return { ...current, settings, selectedKey: key };
+      const select = hasTabs ? tabsState.active === activeKey : true;
+      const existing = current.byKey[activeKey];
+      if (current.selectedKey === activeKey && existing) {
+        return { ...current, settings, selectedKey: activeKey };
       }
       return {
         ...current,
-        selectedKey: key,
+        ...(select ? { selectedKey: activeKey } : {}),
         settings,
         byKey: {
           ...current.byKey,
-          [key]: {
+          [activeKey]: {
             lastSequence: existing?.lastSequence ?? current.lastSequence,
             snapshot: active,
             dialog: existing?.dialog ?? null,
@@ -329,7 +350,10 @@ export function App() {
         },
       };
     });
-  }, [refreshCatalog]);
+    if (activeKey && !stayHome && !hasTabs) {
+      reconcileActiveSession(activeKey);
+    }
+  }, [reconcileActiveSession, refreshCatalog]);
 
   useEffect(() => {
     let cancelled = false;
@@ -372,6 +396,7 @@ export function App() {
         setSessionsByWorkspace((current) =>
           removeCatalogSession(current, eventKey.workspaceId, eventKey.sessionId, eventKey.backendId),
         );
+        closeSessionTab(eventKey.workspaceId, eventKey.sessionId, eventKey.backendId);
       } else if (
         (event.type === RUNTIME_EVENT_TYPES.sessionSnapshot || event.type === RUNTIME_EVENT_TYPES.runSettled) &&
         eventKey
@@ -411,7 +436,21 @@ export function App() {
       stop();
       stopPiRuntimeStatus();
     };
-  }, [refreshBootstrap]);
+  }, [closeSessionTab, refreshBootstrap]);
+
+  // One-shot restore: the persisted active tab loads its snapshot in place;
+  // background tabs load lazily on first activation.
+  const restoredTabsRef = useRef(false);
+  useEffect(() => {
+    if (restoredTabsRef.current || !bootstrap) {
+      return;
+    }
+    restoredTabsRef.current = true;
+    const active = chatTabsRef.current.active;
+    if (active) {
+      focusTab(active);
+    }
+  }, [bootstrap, focusTab]);
 
   const hasSnapshot = Boolean(conversation.snapshot);
   useEffect(() => {
@@ -470,9 +509,9 @@ export function App() {
     }
   }, [conversation.dialog, conversation.snapshot]);
 
-  const resolveHostDialog = useCallback(
-    (resolution: Omit<ResolveHostDialogInput, "requestId">) => {
-      const dialog = conversation.dialog;
+  const resolveHostDialogFor = useCallback(
+    (key: string, resolution: Omit<ResolveHostDialogInput, "requestId">) => {
+      const dialog = cacheRef.current.byKey[key]?.dialog;
       void getDesktopBridge().resolveHostDialog({
         requestId: dialog?.requestId ?? "",
         ...(dialog?.backendId ? { backendId: dialog.backendId } : {}),
@@ -481,7 +520,7 @@ export function App() {
         ...resolution,
       });
     },
-    [conversation.dialog],
+    [],
   );
 
   async function runCommand(action: () => Promise<void>, options: { busy?: boolean } = {}): Promise<void> {
@@ -539,16 +578,17 @@ export function App() {
   }
 
   function optimisticSnapshotCommand(
+    key: string,
     apply: (current: SessionSnapshot) => SessionSnapshot,
     rollback: (current: SessionSnapshot) => SessionSnapshot,
     action: () => Promise<unknown>,
   ): void {
-    patchSnapshot(apply);
+    patchSnapshot(apply, key);
     void runCommand(async () => {
       try {
         await action();
       } catch (cause) {
-        patchSnapshot(rollback);
+        patchSnapshot(rollback, key);
         throw cause;
       }
     }, { busy: false });
@@ -556,8 +596,6 @@ export function App() {
 
   async function adoptPickedWorkspace(picked: WorkspaceSnapshot): Promise<void> {
     setWorkspace(picked);
-    setDraft("");
-    setPreparedImages([]);
     resetConversationChrome();
     await refreshCatalog(picked.workspace.id);
     await refreshBootstrap();
@@ -575,8 +613,6 @@ export function App() {
   async function openRecentAndAdopt(workspaceId: string): Promise<void> {
     const opened = await getDesktopBridge().openRecentWorkspace({ workspaceId });
     setWorkspace(opened);
-    setDraft("");
-    setPreparedImages([]);
     resetConversationChrome();
     rememberSessions(opened.workspace.id, []);
     void refreshCatalog(opened.workspace.id).catch(() => undefined);
@@ -584,7 +620,7 @@ export function App() {
   }
 
   function openSessionEntry(workspaceId: string, sessionId: string, backendId?: string): void {
-    void switchSession(
+    void openTab(
       workspaceId,
       sessionId,
       () => getDesktopBridge().openSession({ ...(backendId ? { backendId } : {}), workspaceId, sessionId }),
@@ -621,12 +657,14 @@ export function App() {
   const patchSnapshot = useCallback(
     (
       patch: (snapshot: NonNullable<ConversationViewState["snapshot"]>) => NonNullable<ConversationViewState["snapshot"]>,
+      key?: string,
     ): void => {
       setCache((current) => {
-        if (!current.selectedKey) {
+        const targetKey = key ?? current.selectedKey;
+        if (!targetKey) {
           return current;
         }
-        const selected = current.byKey[current.selectedKey];
+        const selected = current.byKey[targetKey];
         if (!selected?.snapshot) {
           return current;
         }
@@ -634,7 +672,7 @@ export function App() {
           ...current,
           byKey: {
             ...current.byKey,
-            [current.selectedKey]: { ...selected, snapshot: patch(selected.snapshot) },
+            [targetKey]: { ...selected, snapshot: patch(selected.snapshot) },
           },
         };
       });
@@ -642,9 +680,9 @@ export function App() {
     [],
   );
 
-  const onRewrite = useCallback(
-    async ({ messageId, text }: { messageId: string; text: string }) => {
-      const snap = selectedCachedSnapshot(cacheRef.current);
+  const onRewriteFor = useCallback(
+    async (key: string, { messageId, text }: { messageId: string; text: string }) => {
+      const snap = cacheRef.current.byKey[key]?.snapshot;
       if (!snap) {
         return;
       }
@@ -657,7 +695,7 @@ export function App() {
           messageId,
           text,
         });
-        patchSnapshot((current) => ({ ...current, messages: next.messages }));
+        patchSnapshot((current) => ({ ...current, messages: next.messages }), key);
       } catch (cause) {
         setError(errorMessage(cause));
         throw cause;
@@ -695,8 +733,8 @@ export function App() {
   );
 
   const onSetSessionMode = useCallback(
-    async (mode: SessionAgentMode) => {
-      const snap = selectedCachedSnapshot(cacheRef.current);
+    async (key: string, mode: SessionAgentMode) => {
+      const snap = cacheRef.current.byKey[key]?.snapshot;
       if (!snap) {
         return;
       }
@@ -704,7 +742,7 @@ export function App() {
       patchSnapshot((current) => ({
         ...current,
         plan: { ...(current.plan ?? emptySessionPlanSnapshot()), mode, executing: false },
-      }));
+      }), key);
       try {
         setError(null);
         const next = await getDesktopBridge().setSessionMode({
@@ -713,7 +751,7 @@ export function App() {
           workspaceId: snap.workspace.id,
           mode,
         });
-        patchSnapshot((current) => ({ ...current, ...(next.plan ? { plan: next.plan } : {}) }));
+        patchSnapshot((current) => ({ ...current, ...(next.plan ? { plan: next.plan } : {}) }), key);
       } catch (cause) {
         patchSnapshot((current) => {
           if (previous) {
@@ -722,7 +760,7 @@ export function App() {
           const next = { ...current };
           delete next.plan;
           return next;
-        });
+        }, key);
         setError(errorMessage(cause));
       }
     },
@@ -829,9 +867,9 @@ export function App() {
             <span className="size-2 rounded-full bg-muted-foreground/50 animate-pulse motion-reduce:animate-none" />
           </span>
           {error ? (
-            <p className="text-sm text-destructive-foreground" role="alert">
-              {error}
-            </p>
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : (
             <p className="text-sm text-muted-foreground">Loading…</p>
           )}
@@ -842,19 +880,12 @@ export function App() {
 
   const snapshot = conversation.snapshot;
   const projects = bootstrap.recentWorkspaces;
-  const pendingCached = Boolean(
-    pendingSession?.sessionId &&
-      cache.byKey[sessionKeyId({
-        ...(pendingSession.backendId ? { backendId: pendingSession.backendId } : {}),
-        workspaceId: pendingSession.workspaceId,
-        sessionId: pendingSession.sessionId,
-      })]
-        ?.snapshot,
-  );
-  const chatLoading = pendingSession !== null && !pendingCached;
-  const activeWorkspaceId = pendingSession?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
-  const selectedSessionId = pendingSession?.sessionId ?? snapshot?.session.id;
-  const selectedBackendId = pendingSession?.backendId ?? snapshot?.session.backendId;
+  const agentBackends = bootstrap.agentBackends;
+  const hasAnyTabs = chatTabs.tabs.length > 0;
+  const focusedPending = chatTabs.active ? pendingByKey[chatTabs.active] : undefined;
+  const activeWorkspaceId = focusedPending?.workspaceId ?? snapshot?.workspace.id ?? workspace?.workspace.id;
+  const selectedSessionId = focusedPending?.sessionId ?? snapshot?.session.id;
+  const selectedBackendId = focusedPending?.backendId ?? snapshot?.session.backendId;
   const settingsVisible = settingsOpen && Boolean(settings);
   const showTrustBanner = Boolean(
     trustPending &&
@@ -875,15 +906,28 @@ export function App() {
     ) : null;
 
   const contextPrompt = snapshot?.contextPrompt ?? emptySessionContextPrompt();
-  const paneFill = Boolean(snapshot || chatLoading) && !rightSidebarCollapsed;
+  const rightRegionOpen =
+    rightSidebarTiles.visible.length > 0 || rightSidebarTiles.minimized.length > 0;
+  const splitActive = hasAnyTabs && rightRegionOpen && !rightRegionHidden;
+  const rightSurfaceIcons =
+    hasAnyTabs ? (
+      <RightSurfaceIcons
+        tiles={rightSidebarTiles.visible}
+        minimized={rightSidebarTiles.minimized}
+        contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
+        planDocumentPresent={planDocumentPresent}
+        changesOverlayOpen={changesWindowOpen}
+        onToggleSurface={toggleRightSurface}
+      />
+    ) : null;
   const collapsedHeaderActions =
-    sidebarCollapsed && paneFill ? (
+    sidebarCollapsed && splitActive ? (
       <CollapsedSidebarActions
         layout="header"
         busy={busy}
         canNewSession={Boolean(activeWorkspaceId)}
-        homeActive={!snapshot && !chatLoading}
-        onGoHome={clearSelectedSession}
+        homeActive={!hasAnyTabs}
+        onGoHome={closeAllTabs}
         onAddProject={pickAndAdoptWorkspace}
         onNewSession={() => {
           if (!activeWorkspaceId) {
@@ -894,19 +938,66 @@ export function App() {
         onOpenSettings={openSettings}
       />
     ) : null;
+  const renderRegionTopbar = (tabStrip: ReactNode) => (
+    <ChatHeader
+      {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
+      {...(collapsedHeaderActions ? { headerActions: collapsedHeaderActions } : {})}
+      {...(rightSurfaceIcons ? { headerTrailing: rightSurfaceIcons } : {})}
+      headerTabs={tabStrip}
+      onToggleSidebar={toggleSidebar}
+      {...(snapshot?.modelError ? { modelError: snapshot.modelError } : {})}
+      {...(settings?.permission.yoloMode ? { yoloMode: true } : {})}
+      {...(trustPending ? { onTrustProject: () => setTrustDialogOpen(true) } : {})}
+    />
+  );
+  const runningTabKeys = new Set(
+    cache.activity
+      .filter((entry) => entry.phase === "working" || entry.phase === "attention")
+      .map((entry) =>
+        sessionKeyId({
+          ...(entry.backendId ? { backendId: entry.backendId } : {}),
+          workspaceId: entry.workspaceId,
+          sessionId: entry.sessionId,
+        }),
+      ),
+  );
 
-  let rightSidebarPanel: ReactNode = null;
-  if (!rightSidebarCollapsed) {
-    switch (rightSidebarSurface) {
+  function tabTitle(key: string): string {
+    const snap = cache.byKey[key]?.snapshot;
+    if (snap) {
+      return snap.session.title;
+    }
+    const pending = pendingByKey[key];
+    if (pending?.sessionId === null) {
+      return "New session";
+    }
+    const parsed = parseSessionKeyId(key);
+    const workspaceId = pending?.workspaceId ?? parsed?.workspaceId;
+    const sessionId = pending?.sessionId ?? parsed?.sessionId;
+    const backendId = pending?.backendId ?? parsed?.backendId ?? "pi";
+    if (workspaceId && sessionId) {
+      const entry = sessionsByWorkspace[workspaceId]?.find(
+        (candidate) =>
+          candidate.sessionId === sessionId && (candidate.backendId ?? "pi") === backendId,
+      );
+      if (entry) {
+        return entry.title;
+      }
+    }
+    return "Opening session…";
+  }
+
+  function renderRightSurface(surface: RightSidebarSurface): ReactNode {
+    switch (surface) {
       case "context-prompt":
-        rightSidebarPanel = snapshot ? (
+        return snapshot ? (
           <ContextPromptDialog
             embedded
             contextPrompt={contextPrompt}
             busy={contextPromptBusy}
             onClose={() => {
               if (!contextPromptBusy) {
-                collapseRightSidebar();
+                closeRightSurface("context-prompt");
               }
             }}
             onSave={(input) => withContextPromptBusy(() => onUpdateContextPrompt(input))}
@@ -923,9 +1014,8 @@ export function App() {
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
         );
-        break;
       case "changes":
-        rightSidebarPanel = changeReview.scope ? (
+        return changeReview.scope ? (
           <ChangeReviewWindow
             variant="sidebar"
             review={changeReview.review}
@@ -960,9 +1050,8 @@ export function App() {
             No tracked write/edit files to review yet.
           </p>
         );
-        break;
       case "plan":
-        rightSidebarPanel = snapshot ? (
+        return snapshot ? (
           <PlanDocumentPanel
             plan={snapshot.plan}
             idle={
@@ -979,41 +1068,208 @@ export function App() {
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
         );
-        break;
       default: {
-        const exhaustive: never = rightSidebarSurface;
-        rightSidebarPanel = exhaustive;
+        const exhaustive: never = surface;
+        return exhaustive;
       }
     }
   }
 
+  function renderChatTab(key: string): ReactNode {
+    const entry = cache.byKey[key];
+    const snap = entry?.snapshot;
+    if (!snap) {
+      return <ChatPaneLoading />;
+    }
+    const composer = composerFor(key);
+    return (
+      <Conversation
+        snapshot={snap}
+        draft={composer.draft}
+        onDraftChange={(value) => setComposerDraft(key, value)}
+        dialog={entry?.dialog ?? null}
+        onResolveDialog={(resolution) => resolveHostDialogFor(key, resolution)}
+        sidebarCollapsed={sidebarCollapsed}
+        splitActive={splitActive}
+        notice={trustNotice}
+        onSubmit={() => admitComposer(key, "send")}
+        onSteer={() => admitComposer(key, "steer")}
+        onFollowUp={() => admitComposer(key, "followUp")}
+        images={composer.images}
+        onPickImages={() => {
+          void runCommand(async () => {
+            const result = await getDesktopBridge().pickImages({
+              ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+              sessionId: snap.session.id,
+              workspaceId: snap.workspace.id,
+            });
+            setComposerImages(
+              key,
+              [...composerFor(key).images, ...result.images].slice(0, MAX_PREPARED_IMAGES),
+            );
+          });
+        }}
+        onPasteImages={(files) => {
+          void runCommand(async () => {
+            if (snap.model?.supportsImages !== true) {
+              throw new Error("The selected model does not accept images.");
+            }
+            const remaining = MAX_PREPARED_IMAGES - composerFor(key).images.length;
+            if (remaining <= 0) {
+              throw new Error(`A prompt can include at most ${MAX_PREPARED_IMAGES} images.`);
+            }
+            const result =
+              files.length > 0
+                ? await getDesktopBridge().pasteImages({
+                    ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+                    sessionId: snap.session.id,
+                    workspaceId: snap.workspace.id,
+                    images: await Promise.all(
+                      files.slice(0, remaining).map(async (file, index) => {
+                        if (file.size > MAX_SOURCE_IMAGE_BYTES) {
+                          throw new Error("That image is empty or larger than 10 MiB.");
+                        }
+                        return {
+                          name: pastedImageDisplayName(file.name, index),
+                          data: await fileToBase64(file),
+                        };
+                      }),
+                    ),
+                  })
+                : await getDesktopBridge().pasteImages({
+                    ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+                    sessionId: snap.session.id,
+                    workspaceId: snap.workspace.id,
+                  });
+            if (result.images.length === 0) {
+              throw new Error("That paste did not contain a supported image.");
+            }
+            setComposerImages(
+              key,
+              [...composerFor(key).images, ...result.images].slice(0, MAX_PREPARED_IMAGES),
+            );
+          });
+        }}
+        onRemoveImage={(imageId) => {
+          void runCommand(async () => {
+            await getDesktopBridge().removePreparedImage({
+              ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+              imageId,
+              sessionId: snap.session.id,
+              workspaceId: snap.workspace.id,
+            });
+            setComposerImages(
+              key,
+              composerFor(key).images.filter((image) => image.id !== imageId),
+            );
+          });
+        }}
+        {...(settings?.skills ? { skills: settings.skills } : {})}
+        onOpenChangeReview={openChangeReview}
+        onRewrite={(input) => onRewriteFor(key, input)}
+        onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
+        onStop={() => {
+          const runId = snap.run.runId;
+          if (!runId) {
+            return;
+          }
+          void runCommand(async () => {
+            await getDesktopBridge().abortRun({
+              ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+              sessionId: snap.session.id,
+              workspaceId: snap.workspace.id,
+              runId,
+            });
+          }, { busy: false });
+        }}
+        onModelChange={(model: ModelSummary) => {
+          const previous = snap.model;
+          optimisticSnapshotCommand(
+            key,
+            (current) => ({ ...current, model }),
+            (current) => {
+              if (previous) {
+                return { ...current, model: previous };
+              }
+              const next = { ...current };
+              delete next.model;
+              return next;
+            },
+            () =>
+              getDesktopBridge().setSessionModel({
+                ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+                sessionId: snap.session.id,
+                workspaceId: snap.workspace.id,
+                provider: model.provider,
+                id: model.id,
+              }),
+          );
+        }}
+        onThinkingChange={(level: ThinkingLevel) => {
+          const previous = snap.thinkingLevel;
+          optimisticSnapshotCommand(
+            key,
+            (current) => ({ ...current, thinkingLevel: level }),
+            (current) => ({ ...current, thinkingLevel: previous }),
+            () =>
+              getDesktopBridge().setThinkingLevel({
+                ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+                sessionId: snap.session.id,
+                workspaceId: snap.workspace.id,
+                level,
+              }),
+          );
+        }}
+        onFastModeChange={(enabled) => {
+          const previous = snap.fastMode;
+          if (!previous) return;
+          optimisticSnapshotCommand(
+            key,
+            (current) => ({ ...current, fastMode: { ...previous, enabled } }),
+            (current) => ({ ...current, fastMode: previous }),
+            () =>
+              getDesktopBridge().setFastMode({
+                ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+                sessionId: snap.session.id,
+                workspaceId: snap.workspace.id,
+                enabled,
+              }),
+          );
+        }}
+        onSessionModeChange={(mode) => {
+          void onSetSessionMode(key, mode);
+        }}
+        agentBackends={agentBackends}
+        backendId={snap.session.backendId ?? "pi"}
+        onBackendChange={(backendId) => {
+          closeTab(key);
+          startNewSession(snap.workspace.id, backendId);
+        }}
+      />
+    );
+  }
+
   function leaveSessionIfCurrent(
+    wasOpen: boolean,
     workspaceId: string,
     sessionId: string,
     entries: readonly SessionCatalogEntry[],
     backendId?: string,
   ): void {
-    if (
-      snapshot?.workspace.id !== workspaceId ||
-      snapshot.session.id !== sessionId ||
-      (snapshot.session.backendId ?? "pi") !== (backendId ?? "pi")
-    ) {
+    if (!wasOpen) {
       return;
     }
-    const next = entries.find((entry) => !entry.archived && (
+    // The sessionRemoved event may already have closed the tab; use the
+    // post-event tile state in that case.
+    const next = closeSessionTab(workspaceId, sessionId, backendId) ?? chatTabsRef.current;
+    if (next.tabs.length > 0) {
+      return;
+    }
+    const nextEntry = entries.find((entry) => !entry.archived && (
       entry.sessionId !== sessionId || (entry.backendId ?? "pi") !== (backendId ?? "pi")
     ));
-    if (next) {
-      void switchSession(
-        workspaceId,
-        next.sessionId,
-        () => getDesktopBridge().openSession({
-          ...(next.backendId ? { backendId: next.backendId } : {}),
-          workspaceId,
-          sessionId: next.sessionId,
-        }),
-        next.backendId,
-      );
+    if (nextEntry) {
+      openSessionEntry(workspaceId, nextEntry.sessionId, nextEntry.backendId);
       return;
     }
     startNewSession(workspaceId);
@@ -1038,25 +1294,27 @@ export function App() {
     );
   }
 
-  function admitComposer(kind: "send" | "steer" | "followUp"): void {
-    if (!snapshot) {
+  function admitComposer(key: string, kind: "send" | "steer" | "followUp"): void {
+    const snap = cacheRef.current.byKey[key]?.snapshot;
+    if (!snap) {
       return;
     }
     void runCommand(async () => {
-      const text = draft.trim();
-      const imageIds = preparedImages.map((image) => image.id);
+      const composer = composerFor(key);
+      const text = composer.draft.trim();
+      const imageIds = composer.images.map((image) => image.id);
       if (!text && imageIds.length === 0) {
         return;
       }
-      const previousDraft = draft;
-      const previousImages = preparedImages;
-      setDraft("");
-      setPreparedImages([]);
+      const previousDraft = composer.draft;
+      const previousImages = composer.images;
+      setComposerDraft(key, "");
+      setComposerImages(key, []);
       const references = extractAtMentionPaths(text).map((path) => ({ path }));
       const payload = {
-        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-        sessionId: snapshot.session.id,
-        workspaceId: snapshot.workspace.id,
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        sessionId: snap.session.id,
+        workspaceId: snap.workspace.id,
         text,
         ...(references.length > 0 ? { references } : {}),
         ...(imageIds.length > 0 ? { imageIds } : {}),
@@ -1067,7 +1325,7 @@ export function App() {
             await getDesktopBridge().sendPrompt(payload);
             return;
           case "steer": {
-            const runId = snapshot.run.runId;
+            const runId = snap.run.runId;
             if (!runId) {
               throw new Error("Steer requires the current run.");
             }
@@ -1075,7 +1333,7 @@ export function App() {
             return;
           }
           case "followUp": {
-            const runId = snapshot.run.runId;
+            const runId = snap.run.runId;
             if (!runId) {
               throw new Error("A follow-up requires the current run.");
             }
@@ -1088,8 +1346,8 @@ export function App() {
           }
         }
       } catch (cause) {
-        setDraft(previousDraft);
-        setPreparedImages(previousImages);
+        setComposerDraft(key, previousDraft);
+        setComposerImages(key, previousImages);
         throw cause;
       }
     });
@@ -1102,14 +1360,14 @@ export function App() {
       sidebar={
         <AppSidebar
           collapsed={sidebarCollapsed}
-          overlay={!(sidebarCollapsed && paneFill)}
+          overlay={!(sidebarCollapsed && splitActive)}
           projects={projects}
           sessionsByWorkspace={sessionsByWorkspace}
           bootstrap={sidebarBootstrap}
           busy={busy || !piReady}
           onToggleCollapsed={toggleSidebar}
-            onGoHome={clearSelectedSession}
-            homeActive={!snapshot && !chatLoading}
+            onGoHome={closeAllTabs}
+            homeActive={!hasAnyTabs}
             onAddProject={pickAndAdoptWorkspace}
             onExpandProject={(workspaceId) => {
               void runCommand(
@@ -1122,6 +1380,10 @@ export function App() {
             onNewSession={startNewSession}
             onOpenSession={openSessionEntry}
             onArchiveSession={(workspaceId, sessionId, backendId) => {
+              const wasOpen = isChatTabOpen(
+                chatTabsRef.current,
+                sessionKeyId({ ...(backendId ? { backendId } : {}), workspaceId, sessionId }),
+              );
               void runCommand(
                 async () => {
                   await getDesktopBridge().archiveSession({
@@ -1130,7 +1392,7 @@ export function App() {
                     sessionId,
                   });
                   const entries = await refreshCatalog(workspaceId);
-                  leaveSessionIfCurrent(workspaceId, sessionId, entries, backendId);
+                  leaveSessionIfCurrent(wasOpen, workspaceId, sessionId, entries, backendId);
                 },
                 { busy: false },
               );
@@ -1179,181 +1441,21 @@ export function App() {
           />
       }
     >
-      {error ? (
-        <p className="px-5 py-2 text-sm text-destructive-foreground" role="alert" data-testid="command-error">
-          {error}
-        </p>
-      ) : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div className="app-shell-chat relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {chatLoading ? (
-          <ChatPaneLoading
-            sidebarCollapsed={sidebarCollapsed}
-            paneFill={paneFill}
-            {...(collapsedHeaderActions ? { headerActions: collapsedHeaderActions } : {})}
-            onToggleSidebar={toggleSidebar}
+        {hasAnyTabs ? (
+          <ChatTabHost
+            tabs={chatTabs}
+            renderTopbar={renderRegionTopbar}
+            tabTitle={tabTitle}
+            tabRunning={(key) => runningTabKeys.has(key)}
+            renderTab={renderChatTab}
+            onSelectTab={focusTab}
+            onCloseTab={closeTab}
+            {...(activeWorkspaceId
+              ? { onNewTab: () => void startNewSession(activeWorkspaceId) }
+              : {})}
           />
-        ) : snapshot ? (
-              <Conversation
-                snapshot={snapshot}
-                draft={draft}
-                onDraftChange={setDraft}
-                dialog={conversation.dialog}
-                onResolveDialog={resolveHostDialog}
-                sidebarCollapsed={sidebarCollapsed}
-                paneFill={paneFill}
-                {...(collapsedHeaderActions ? { headerActions: collapsedHeaderActions } : {})}
-                onToggleSidebar={toggleSidebar}
-                notice={trustNotice}
-                {...(trustPending ? { onTrustProject: () => setTrustDialogOpen(true) } : {})}
-                {...(settings?.permission.yoloMode ? { yoloMode: true } : {})}
-                onSubmit={() => {
-                  void admitComposer("send");
-                }}
-                onSteer={() => {
-                  void admitComposer("steer");
-                }}
-                onFollowUp={() => {
-                  void admitComposer("followUp");
-                }}
-                images={preparedImages}
-                onPickImages={() => {
-                  void runCommand(async () => {
-                    const result = await getDesktopBridge().pickImages({
-                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                      sessionId: snapshot.session.id,
-                      workspaceId: snapshot.workspace.id,
-                    });
-                    setPreparedImages((current) => [...current, ...result.images].slice(0, MAX_PREPARED_IMAGES));
-                  });
-                }}
-                onPasteImages={(files) => {
-                  void runCommand(async () => {
-                    if (snapshot.model?.supportsImages !== true) {
-                      throw new Error("The selected model does not accept images.");
-                    }
-                    const remaining = MAX_PREPARED_IMAGES - preparedImages.length;
-                    if (remaining <= 0) {
-                      throw new Error(`A prompt can include at most ${MAX_PREPARED_IMAGES} images.`);
-                    }
-                    const result =
-                      files.length > 0
-                        ? await getDesktopBridge().pasteImages({
-                            ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                            sessionId: snapshot.session.id,
-                            workspaceId: snapshot.workspace.id,
-                            images: await Promise.all(
-                              files.slice(0, remaining).map(async (file, index) => {
-                                if (file.size > MAX_SOURCE_IMAGE_BYTES) {
-                                  throw new Error("That image is empty or larger than 10 MiB.");
-                                }
-                                return {
-                                  name: pastedImageDisplayName(file.name, index),
-                                  data: await fileToBase64(file),
-                                };
-                              }),
-                            ),
-                          })
-                        : await getDesktopBridge().pasteImages({
-                            ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                            sessionId: snapshot.session.id,
-                            workspaceId: snapshot.workspace.id,
-                          });
-                    if (result.images.length === 0) {
-                      throw new Error("That paste did not contain a supported image.");
-                    }
-                    setPreparedImages((current) => [...current, ...result.images].slice(0, MAX_PREPARED_IMAGES));
-                  });
-                }}
-                onRemoveImage={(imageId) => {
-                  void runCommand(async () => {
-                    await getDesktopBridge().removePreparedImage({
-                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                      imageId,
-                      sessionId: snapshot.session.id,
-                      workspaceId: snapshot.workspace.id,
-                    });
-                    setPreparedImages((current) => current.filter((image) => image.id !== imageId));
-                  });
-                }}
-                {...(settings?.skills ? { skills: settings.skills } : {})}
-                onOpenChangeReview={openChangeReview}
-                onRewrite={onRewrite}
-                onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
-                onStop={() => {
-                  const runId = snapshot.run.runId;
-                  if (!runId) {
-                    return;
-                  }
-                  void runCommand(async () => {
-                    await getDesktopBridge().abortRun({
-                      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                      sessionId: snapshot.session.id,
-                      workspaceId: snapshot.workspace.id,
-                      runId,
-                    });
-                  }, { busy: false });
-                }}
-                onModelChange={(model: ModelSummary) => {
-                  const previous = snapshot.model;
-                  optimisticSnapshotCommand(
-                    (current) => ({ ...current, model }),
-                    (current) => {
-                      if (previous) {
-                        return { ...current, model: previous };
-                      }
-                      const next = { ...current };
-                      delete next.model;
-                      return next;
-                    },
-                    () =>
-                      getDesktopBridge().setSessionModel({
-                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                        sessionId: snapshot.session.id,
-                        workspaceId: snapshot.workspace.id,
-                        provider: model.provider,
-                        id: model.id,
-                      }),
-                  );
-                }}
-                onThinkingChange={(level: ThinkingLevel) => {
-                  const previous = snapshot.thinkingLevel;
-                  optimisticSnapshotCommand(
-                    (current) => ({ ...current, thinkingLevel: level }),
-                    (current) => ({ ...current, thinkingLevel: previous }),
-                    () =>
-                      getDesktopBridge().setThinkingLevel({
-                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                        sessionId: snapshot.session.id,
-                        workspaceId: snapshot.workspace.id,
-                        level,
-                      }),
-                  );
-                }}
-                onFastModeChange={(enabled) => {
-                  const previous = snapshot.fastMode;
-                  if (!previous) return;
-                  optimisticSnapshotCommand(
-                    (current) => ({ ...current, fastMode: { ...previous, enabled } }),
-                    (current) => ({ ...current, fastMode: previous }),
-                    () =>
-                      getDesktopBridge().setFastMode({
-                        ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
-                        sessionId: snapshot.session.id,
-                        workspaceId: snapshot.workspace.id,
-                        enabled,
-                      }),
-                  );
-                }}
-                onSessionModeChange={(mode) => {
-                  void onSetSessionMode(mode);
-                }}
-                agentBackends={bootstrap.agentBackends}
-                backendId={snapshot.session.backendId ?? "pi"}
-                onBackendChange={(backendId) => {
-                  startNewSession(snapshot.workspace.id, backendId);
-                }}
-              />
         ) : (
           <WorkspacePicker
             recents={bootstrap.recentWorkspaces}
@@ -1374,18 +1476,19 @@ export function App() {
           />
         )}
       </div>
-      {snapshot || chatLoading ? (
+      {rightRegionOpen && hasAnyTabs ? (
         <RightSidebar
-          collapsed={rightSidebarCollapsed}
-          surface={rightSidebarSurface}
-          contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
-          planDocumentPresent={planDocumentPresent}
-          changesOverlayOpen={changesWindowOpen}
-          onToggleCollapsed={toggleRightSidebar}
-          onSelectSurface={selectRightSurface}
-        >
-          {rightSidebarPanel}
-        </RightSidebar>
+          tiles={rightSidebarTiles.visible}
+          minimized={rightSidebarTiles.minimized}
+          splitRatio={rightSidebarTiles.splitRatio}
+          hidden={rightRegionHidden}
+          onHideRegion={hideRightRegion}
+          onCloseSurface={closeRightSurface}
+          onMinimizeSurface={minimizeRightSurface}
+          onActivateSurface={activateRightSurface}
+          onSplitChange={setRightTileSplit}
+          renderSurface={renderRightSurface}
+        />
       ) : null}
       {changesWindowOpen ? (
         <ChangeReviewWindow
@@ -1499,8 +1602,7 @@ export function App() {
                 sessionId,
               });
               await refreshCatalog(workspaceId);
-              setSettingsOpen(false);
-              await switchSession(
+              await openTab(
                 workspaceId,
                 sessionId,
                 () => getDesktopBridge().openSession({
@@ -1571,6 +1673,14 @@ export function App() {
           onCancel={() => setPendingRemoval(null)}
           onConfirm={() => {
             const prepared = pendingRemoval;
+            const wasOpen = isChatTabOpen(
+              chatTabsRef.current,
+              sessionKeyId({
+                ...(prepared.backendId ? { backendId: prepared.backendId } : {}),
+                workspaceId: prepared.workspaceId,
+                sessionId: prepared.sessionId,
+              }),
+            );
             void runCommand(async () => {
               await getDesktopBridge().removeSession({
                 workspaceId: prepared.workspaceId,
@@ -1579,7 +1689,7 @@ export function App() {
               });
               setPendingRemoval(null);
               const entries = await refreshCatalog(prepared.workspaceId);
-              leaveSessionIfCurrent(prepared.workspaceId, prepared.sessionId, entries);
+              leaveSessionIfCurrent(wasOpen, prepared.workspaceId, prepared.sessionId, entries);
             });
           }}
         />
@@ -1615,6 +1725,7 @@ export function App() {
                 confirmationToken: prepared.confirmationToken,
               });
               setPendingProjectRemoval(null);
+              closeWorkspaceTabs(prepared.workspaceId);
               setSessionsByWorkspace((current) => {
                 const next = { ...current };
                 delete next[prepared.workspaceId];
@@ -1632,8 +1743,6 @@ export function App() {
               const nextProject = removed.recentWorkspaces[0];
               if (!nextProject) {
                 setWorkspace(null);
-                setDraft("");
-                setPreparedImages([]);
                 resetConversationChrome();
                 await refreshBootstrap();
                 return;
@@ -1641,6 +1750,14 @@ export function App() {
               await openRecentAndAdopt(nextProject.id);
             });
           }}
+        />
+      ) : null}
+      {error ? (
+        <ErrorToast
+          title="Action failed"
+          message={error}
+          testId="command-error"
+          onDismiss={() => setError(null)}
         />
       ) : null}
       {conversation.notification && !looksLikeProjectTrustNotification(conversation.notification.message) ? (

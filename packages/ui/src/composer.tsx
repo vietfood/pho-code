@@ -105,6 +105,7 @@ export function Composer({
   onPasteImages,
   onRemoveImage,
   skills,
+  inputId = "composer-input",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -140,6 +141,8 @@ export function Composer({
   onPasteImages?: (files: readonly File[]) => void;
   onRemoveImage?: (imageId: string) => void;
   skills?: SkillSettingsSnapshot;
+  /** Editable field id; scoped per chat tile so focus helpers cannot collide. */
+  inputId?: string;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const kindsRef = useRef(new Map<string, WorkspaceReferenceKind>());
@@ -537,7 +540,7 @@ export function Composer({
         }
       }}
     >
-      <label className="sr-only" htmlFor="composer-input">
+      <label className="sr-only" htmlFor={inputId}>
         Message
       </label>
       {queue && (queue.steering.length > 0 || queue.followUp.length > 0) ? (
@@ -688,7 +691,7 @@ export function Composer({
             <div className="composer-field">
               <div
                 ref={editorRef}
-                id="composer-input"
+                id={inputId}
                 data-testid="composer"
                 role="textbox"
                 aria-multiline="true"

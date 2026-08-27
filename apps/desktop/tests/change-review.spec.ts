@@ -29,7 +29,8 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("new-session")).toBeEnabled();
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
+      await expect(page.getByTestId("right-surface-icons")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar")).toHaveCount(0);
       await page.getByTestId("composer").fill("USE_EDIT");
       await page.getByRole("button", { name: "Send" }).click();
       await expect(page.getByTestId("transcript")).toContainText("Tool completed.", { timeout: 20_000 });
@@ -38,7 +39,7 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await page.getByTestId("tool-open-review").click();
       const pane = page.getByTestId("change-review-window");
       await expect(pane).toBeVisible();
-      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
+      await expect(page.getByTestId("right-sidebar")).toBeVisible();
       await expect(page.getByTestId("right-sidebar-surface-diff")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toContainText("before");
       await expect(page.getByTestId("change-review-diff")).toContainText("after from agent");
@@ -52,18 +53,17 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await page.getByTestId("change-review-context").selectOption("8");
       await page.getByTestId("change-review-expand-window").click();
       await expect(page.getByTestId("change-review-window-host")).toBeVisible();
-      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
-      await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-diff")).toHaveCount(0);
+      await expect(page.getByTestId("right-sidebar-tray-diff")).toBeVisible();
       await page.getByTestId("change-review-window-close").click();
       await expect(page.getByTestId("change-review-window-host")).toHaveCount(0);
-      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
+      await expect(page.getByTestId("right-sidebar-tile-diff")).toBeVisible();
       await expect(page.getByTestId("change-review-window")).toBeVisible();
       await page.getByTestId("right-sidebar-surface-diff").click();
-      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "true");
-      await expect(page.getByTestId("right-sidebar-pill")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar")).toHaveCount(0);
       await expect(page.getByTestId("change-review-window")).toHaveCount(0);
       await page.getByTestId("right-sidebar-surface-diff").click();
-      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-collapsed", "false");
+      await expect(page.getByTestId("right-sidebar-tile-diff")).toBeVisible();
       await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toBeVisible();
       await page.getByTestId("change-review-approve").click();
@@ -86,6 +86,68 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("change-review-approve")).toHaveCount(0);
     } finally {
       await second.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("tiles two right-sidebar surfaces and parks the third in the tray", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const env = {
+    PHO_CODE_AGENT_DIR: agentDir,
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+  };
+
+  try {
+    const app = await launchDesktop(userDataDir, { env });
+    try {
+      const page = await app.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible({ timeout: 15_000 });
+
+      await page.getByTestId("right-sidebar-surface-context").click();
+      await expect(page.getByTestId("right-sidebar")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-context")).toBeVisible();
+      await expect(page.getByTestId("context-prompt-dialog")).toBeVisible();
+
+      await page.getByTestId("right-sidebar-surface-diff").click();
+      await expect(page.getByTestId("right-sidebar-tile-diff")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-context")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-divider")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar")).toHaveAttribute("data-orientation", "stack");
+      await expect(page.getByTestId("change-review-empty")).toBeVisible();
+
+      await page.getByTestId("right-sidebar-surface-plan").click();
+      await expect(page.getByTestId("right-sidebar-tray")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tray-plan")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-plan")).toHaveCount(0);
+      await expect(page.getByTestId("right-sidebar-hidden-plan")).toBeAttached();
+
+      await page.getByTestId("right-sidebar-tray-plan").click();
+      await expect(page.getByTestId("right-sidebar-tile-plan")).toBeVisible();
+      await expect(page.getByTestId("plan-document-panel")).toBeVisible();
+      await expect(page.getByTestId("right-sidebar-tile-context")).toHaveCount(0);
+      await expect(page.getByTestId("right-sidebar-tray-context")).toBeVisible();
+
+      await page.getByTestId("right-sidebar-tile-minimize-plan").click();
+      await expect(page.getByTestId("right-sidebar-tile-plan")).toHaveCount(0);
+      await expect(page.getByTestId("right-sidebar-tile-context")).toBeVisible();
+
+      await page.getByTestId("right-sidebar-tile-close-context").click();
+      await expect(page.getByTestId("right-sidebar-tile-plan")).toBeVisible();
+      await page.getByTestId("right-sidebar-tile-close-plan").click();
+      await page.getByTestId("right-sidebar-tile-close-diff").click();
+      await expect(page.getByTestId("right-sidebar")).toHaveCount(0);
+      await expect(page.getByTestId("right-surface-icons")).toBeVisible();
+    } finally {
+      await app.close();
     }
   } finally {
     await removeTestDirectory(userDataDir);

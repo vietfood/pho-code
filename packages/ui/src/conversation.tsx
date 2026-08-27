@@ -14,7 +14,6 @@ import type {
 } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
 import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
-import { ChatHeader } from "./chat-header";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
 import { HostDialog } from "./host-dialog";
@@ -43,11 +42,9 @@ export function Conversation({
   onSessionModeChange,
   dialog,
   onResolveDialog,
-  yoloMode,
   sidebarCollapsed,
-  paneFill = false,
-  headerActions,
-  onToggleSidebar,
+  splitActive = false,
+  composerInputId,
   onSearchReferences,
   images,
   onSteer,
@@ -58,7 +55,6 @@ export function Conversation({
   onRewrite,
   onOpenChangeReview,
   notice,
-  onTrustProject,
   skills,
 }: {
   snapshot: SessionSnapshot;
@@ -75,11 +71,12 @@ export function Conversation({
   onSessionModeChange?: (mode: SessionAgentMode) => void;
   dialog?: HostDialogRequest | null;
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
-  yoloMode?: boolean;
   sidebarCollapsed?: boolean;
-  paneFill?: boolean;
-  headerActions?: ReactNode;
-  onToggleSidebar?: () => void;
+  /** Right region visible beside the chat: empty-session overlay pills hide
+   *  because their actions live in the region topbar during the split. */
+  splitActive?: boolean;
+  /** Composer field id, scoped per chat tile so focus helpers cannot collide. */
+  composerInputId?: string;
   onSearchReferences?: (query: string) => Promise<SearchWorkspaceReferencesResult>;
   images?: readonly PreparedImageSummary[];
   onSteer?: () => void;
@@ -90,7 +87,6 @@ export function Conversation({
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
   onOpenChangeReview?: (scope: ChangeScope) => void;
   notice?: ReactNode;
-  onTrustProject?: () => void;
   skills?: SkillSettingsSnapshot;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
@@ -101,8 +97,8 @@ export function Conversation({
     if (!empty || dialog || pendingModel) {
       return;
     }
-    document.getElementById("composer-input")?.focus();
-  }, [dialog, empty, pendingModel]);
+    document.getElementById(composerInputId ?? "composer-input")?.focus();
+  }, [composerInputId, dialog, empty, pendingModel]);
 
   useEffect(() => {
     setPendingModel(null);
@@ -157,6 +153,7 @@ export function Conversation({
       {...(onPasteImages ? { onPasteImages } : {})}
       {...(onRemoveImage ? { onRemoveImage } : {})}
       {...(skills ? { skills } : {})}
+      {...(composerInputId ? { inputId: composerInputId } : {})}
     />
   );
   const hostDialog =
@@ -195,25 +192,14 @@ export function Conversation({
     <section
       className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
       aria-label="Conversation"
-      {...(paneFill ? { "data-chat-fill": "true" } : {})}
     >
       <div className="session-pane-body flex min-h-0 flex-1 flex-col overflow-hidden">
-        <ChatHeader
-          title={snapshot.session.title}
-          paneFill={paneFill}
-          {...(snapshot.modelError ? { modelError: snapshot.modelError } : {})}
-          {...(yoloMode ? { yoloMode: true } : {})}
-          {...(sidebarCollapsed ? { sidebarCollapsed: true } : {})}
-          {...(headerActions ? { headerActions } : {})}
-          {...(onToggleSidebar ? { onToggleSidebar } : {})}
-          {...(onTrustProject ? { onTrustProject } : {})}
-        />
         {notice}
         {empty ? (
           <EmptySessionStage
             workspaceName={snapshot.workspace.displayName}
-            leftOverlay={Boolean(sidebarCollapsed && !paneFill)}
-            rightOverlay={!paneFill}
+            leftOverlay={Boolean(sidebarCollapsed && !splitActive)}
+            rightOverlay={!splitActive}
           >
             {hostDialog}
             {composer}

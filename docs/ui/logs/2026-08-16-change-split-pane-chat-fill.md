@@ -1,7 +1,7 @@
 # Split-pane chat fill and denser chrome
 
 Kind: change  
-Status: implemented  
+Status: implemented; the full-bleed `data-chat-fill` column is superseded by [`2026-08-27-change-chat-column-always-capped.md`](./2026-08-27-change-chat-column-always-capped.md) (the column keeps its cap in every state; split overlay-pill/header-action behavior here still stands)  
 Surface: conversation column / left overlay pill / right-sidebar host width  
 Owner: ui/conversation chrome  
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)  
