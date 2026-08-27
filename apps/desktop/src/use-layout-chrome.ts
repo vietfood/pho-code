@@ -20,16 +20,12 @@ export interface LayoutChrome {
   /** Session-only hide of the whole tile region (⌘R / Escape); tiles stay mounted. */
   rightRegionHidden: boolean;
   rightSidebarTiles: RightSidebarTiles;
-  changesWindowOpen: boolean;
   toggleSidebar(): void;
-  /** Hide/show the tile region, or dismiss the overlay when one is open. */
+  /** Hide/show the tile region. */
   toggleRightSidebar(): void;
   hideRightRegion(): void;
   /** Show Changes docked in the right region and load the latest review. */
   dockChanges(): void;
-  /** Float Changes as an overlay, parking its tile in the tray behind it. */
-  expandChangesOverlay(): void;
-  closeChangesOverlay(restoreSidebar: boolean): void;
   /** Icon click: opens a closed surface's tile, closes an open one. */
   toggleRightSurface(surface: RightSidebarSurface): void;
   /** Reveal a surface's tile visibly (transcript review buttons, plan auto-open). */
@@ -41,12 +37,10 @@ export interface LayoutChrome {
   setRightTileSplit(ratio: number): void;
   /** Show the docked Changes tile without asking for the latest review. */
   revealChanges(): void;
-  closeChangesWindow(): void;
 }
 
 /**
- * Owns the window chrome: sidebar collapse, the right-region tiling tab host,
- * and the floating Changes overlay.
+ * Owns the window chrome: sidebar collapse and the right-region tiling tab host.
  *
  * Tile state is persisted, and every path that changes it must also write it —
  * that pairing was previously repeated at each call site, where missing the
@@ -57,10 +51,7 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const [rightRegionHidden, setRightRegionHidden] = useState(false);
   const [rightSidebarTiles, setRightSidebarTiles] = useState(() => readRightSidebarTiles());
-  const [changesWindowOpen, setChangesWindowOpen] = useState(false);
 
-  const changesWindowOpenRef = useRef(changesWindowOpen);
-  changesWindowOpenRef.current = changesWindowOpen;
   const rightRegionHiddenRef = useRef(rightRegionHidden);
   rightRegionHiddenRef.current = rightRegionHidden;
   const tilesRef = useRef(rightSidebarTiles);
@@ -82,7 +73,6 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
   const revealChanges = useCallback(() => {
     applyTiles(openTile(tilesRef.current, "changes", { visible: true }));
     setRightRegionHidden(false);
-    setChangesWindowOpen(false);
   }, [applyTiles]);
 
   const dockChanges = useCallback(() => {
@@ -90,28 +80,7 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
     onRevealChanges();
   }, [onRevealChanges, revealChanges]);
 
-  const expandChangesOverlay = useCallback(() => {
-    applyTiles(minimizeTile(tilesRef.current, "changes"));
-    setChangesWindowOpen(true);
-    onRevealChanges();
-  }, [applyTiles, onRevealChanges]);
-
-  const closeChangesOverlay = useCallback(
-    (restoreSidebar: boolean) => {
-      setChangesWindowOpen(false);
-      if (restoreSidebar) {
-        applyTiles(openTile(tilesRef.current, "changes", { visible: true }));
-        setRightRegionHidden(false);
-      }
-    },
-    [applyTiles],
-  );
-
   const toggleRightSidebar = useCallback(() => {
-    if (changesWindowOpenRef.current) {
-      closeChangesOverlay(false);
-      return;
-    }
     const current = tilesRef.current;
     if (current.visible.length === 0 && current.minimized.length === 0) {
       return;
@@ -121,7 +90,7 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
       onRevealChanges();
     }
     setRightRegionHidden(next);
-  }, [closeChangesOverlay, onRevealChanges]);
+  }, [onRevealChanges]);
 
   const hideRightRegion = useCallback(() => {
     setRightRegionHidden(true);
@@ -129,22 +98,17 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
 
   const toggleRightSurface = useCallback(
     (surface: RightSidebarSurface) => {
-      if (surface === "changes" && changesWindowOpenRef.current) {
-        closeChangesOverlay(true);
-        return;
-      }
       const current = tilesRef.current;
       const wasOpen = isTileOpen(current, surface);
       applyTiles(toggleTile(current, surface));
       if (!wasOpen) {
         setRightRegionHidden(false);
-        setChangesWindowOpen(false);
         if (surface === "changes") {
           onRevealChanges();
         }
       }
     },
-    [applyTiles, closeChangesOverlay, onRevealChanges],
+    [applyTiles, onRevealChanges],
   );
 
   const revealRightSurface = useCallback(
@@ -153,7 +117,6 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
         dockChanges();
         return;
       }
-      setChangesWindowOpen(false);
       applyTiles(openTile(tilesRef.current, surface, { visible: true }));
       setRightRegionHidden(false);
     },
@@ -176,14 +139,10 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
 
   const activateRightSurface = useCallback(
     (surface: RightSidebarSurface) => {
-      if (surface === "changes" && changesWindowOpenRef.current) {
-        closeChangesOverlay(true);
-        return;
-      }
       applyTiles(activateTile(tilesRef.current, surface));
       setRightRegionHidden(false);
     },
-    [applyTiles, closeChangesOverlay],
+    [applyTiles],
   );
 
   const setRightTileSplit = useCallback(
@@ -193,21 +152,14 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
     [applyTiles],
   );
 
-  const closeChangesWindow = useCallback(() => {
-    setChangesWindowOpen(false);
-  }, []);
-
   return {
     sidebarCollapsed,
     rightRegionHidden,
     rightSidebarTiles,
-    changesWindowOpen,
     toggleSidebar,
     toggleRightSidebar,
     hideRightRegion,
     dockChanges,
-    expandChangesOverlay,
-    closeChangesOverlay,
     toggleRightSurface,
     revealRightSurface,
     closeRightSurface,
@@ -215,6 +167,5 @@ export function useLayoutChrome(onRevealChanges: () => void): LayoutChrome {
     activateRightSurface,
     setRightTileSplit,
     revealChanges,
-    closeChangesWindow,
   };
 }

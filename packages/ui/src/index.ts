@@ -27,7 +27,7 @@ export { NotificationToast } from "./notification-toast";
 export { ThinkingBlock } from "./thinking-block";
 export { FastModeChip } from "./fast-mode-chip";
 export { firstSelectablePath } from "./change-review-sheet";
-export { ChangeReviewWindow } from "./change-review-window";
+export { ChangeReviewWindow, ChangeReviewTileTitle } from "./change-review-window";
 export type { RequestFileLines } from "./change-review-diff-view";
 export { RightSidebar, RightSurfaceIcons, type RightSidebarSurface } from "./right-sidebar";
 export { ChatTabHost } from "./chat-tab-host";

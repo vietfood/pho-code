@@ -63,11 +63,11 @@ describe("RightSurfaceIcons", () => {
     expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
   });
 
-  test("marks icons pressed for open tiles, parked tiles, and an open Changes overlay", () => {
+  test("marks icons pressed for open tiles and parked tiles", () => {
     const markup = renderToStaticMarkup(
       createElement(
         RightSurfaceIcons,
-        iconProps({ tiles: ["plan"], minimized: ["context-prompt"], changesOverlayOpen: true }),
+        iconProps({ tiles: ["plan"], minimized: ["context-prompt", "changes"] }),
       ),
     );
     expect(markup.match(/aria-pressed="true"/g)?.length).toBe(3);
@@ -90,7 +90,7 @@ describe("RightSurfaceIcons", () => {
 describe("RightSidebar", () => {
   test("renders one floating tile card with a header and content", () => {
     const markup = renderToStaticMarkup(
-      createElement(RightSidebar, regionProps({ tiles: ["changes"] })),
+      createElement(RightSidebar, regionProps({ tiles: ["plan"] })),
     );
     expect(markup).toContain('data-testid="right-sidebar"');
     expect(markup).toContain("right-sidebar-host");
@@ -98,16 +98,40 @@ describe("RightSidebar", () => {
     expect(markup).toContain("Resize right sidebar");
     expect(markup).toContain('data-testid="right-sidebar-tiles"');
     expect(markup).toContain('data-orientation="stack"');
-    expect(markup).toContain('data-testid="right-sidebar-tile-diff"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-plan"');
     expect(markup).toContain("rounded-xl");
     expect(markup).not.toContain("shadow-md");
-    expect(markup).toContain('aria-label="Minimize Changes"');
-    expect(markup).toContain('aria-label="Close Changes"');
-    expect(markup).toContain("panel-changes");
+    expect(markup).toContain("bg-transparent");
+    expect(markup).toContain('aria-label="Minimize Plan"');
+    expect(markup).toContain('aria-label="Close Plan"');
+    expect(markup).toContain("panel-plan");
     expect(markup).not.toContain('data-testid="right-sidebar-tile-divider"');
     expect(markup).not.toContain('data-testid="right-sidebar-tray"');
     expect(markup).not.toContain('data-testid="right-sidebar-pill"');
     expect(markup).not.toContain("data-collapsed");
+  });
+
+  test("lets Changes fill the shared tile header title slot", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        RightSidebar,
+        regionProps({
+          tiles: ["changes"],
+          renderTileTitle: (surface) =>
+            surface === "changes"
+              ? createElement("span", { "data-testid": "change-review-window-title" }, "working tree")
+              : undefined,
+        }),
+      ),
+    );
+    expect(markup).toContain('data-testid="right-sidebar-tile-diff"');
+    expect(markup).toContain("working tree");
+    expect(markup).toContain('data-testid="change-review-window-title"');
+    expect(markup).toContain('aria-label="Minimize Changes"');
+    expect(markup).toContain('aria-label="Close Changes"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-minimize-diff"');
+    expect(markup).toContain('data-testid="right-sidebar-tile-close-diff"');
+    expect(markup).toContain("panel-changes");
   });
 
   test("renders two tiles with a gap divider and per-tile split styles", () => {

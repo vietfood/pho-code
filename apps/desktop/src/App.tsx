@@ -53,6 +53,7 @@ import {
   applyAppearanceTheme,
   ChatPaneLoading,
   ChangeReviewWindow,
+  ChangeReviewTileTitle,
   Conversation,
   ContextPromptDialog,
   ErrorToast,
@@ -144,12 +145,9 @@ export function App() {
     sidebarCollapsed,
     rightRegionHidden,
     rightSidebarTiles,
-    changesWindowOpen,
     toggleSidebar,
     toggleRightSidebar,
     hideRightRegion,
-    expandChangesOverlay,
-    closeChangesOverlay,
     toggleRightSurface,
     revealRightSurface,
     closeRightSurface,
@@ -157,7 +155,6 @@ export function App() {
     activateRightSurface,
     setRightTileSplit,
     revealChanges,
-    closeChangesWindow,
   } = useLayoutChrome(openLatestReviewIfNeeded);
 
   const openChangeReview = useCallback(
@@ -178,10 +175,6 @@ export function App() {
       changeReview.close();
     }
   }, [changeReview.close, changeReview.scope, conversation.snapshot]);
-
-  useEffect(() => {
-    closeChangesWindow();
-  }, [closeChangesWindow, conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
 
   useEffect(() => {
     setContextPromptBusy(false);
@@ -916,7 +909,6 @@ export function App() {
         minimized={rightSidebarTiles.minimized}
         contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
         planDocumentPresent={planDocumentPresent}
-        changesOverlayOpen={changesWindowOpen}
         onToggleSurface={toggleRightSurface}
       />
     ) : null;
@@ -987,6 +979,38 @@ export function App() {
     return "Opening session…";
   }
 
+  function changeReviewWindow() {
+    return (
+      <ChangeReviewWindow
+        review={changeReview.review}
+        diffs={changeReview.diffs}
+        busy={changeReview.busy}
+        error={changeReview.error}
+        undoPreview={changeReview.undoPreview}
+        contextLines={changeReview.contextLines}
+        onEnsureDiff={changeReview.ensureDiff}
+        onApprove={(relativePath) => {
+          void changeReview.approve([relativePath]);
+        }}
+        onApproveAll={() => {
+          const paths = changeReview.review?.files
+            .filter((file) => file.status === "pending" || file.status === "conflict")
+            .map((file) => file.relativePath);
+          void changeReview.approve(paths);
+        }}
+        onPrepareUndo={(relativePath) => {
+          void changeReview.prepareUndo(relativePath);
+        }}
+        onApplyUndo={() => {
+          void changeReview.applyUndo();
+        }}
+        onCancelUndo={changeReview.cancelUndo}
+        onRequestFileLines={changeReview.requestFileLines}
+        onContextLinesChange={changeReview.setContextLines}
+      />
+    );
+  }
+
   function renderRightSurface(surface: RightSidebarSurface): ReactNode {
     switch (surface) {
       case "context-prompt":
@@ -1015,41 +1039,7 @@ export function App() {
           <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
         );
       case "changes":
-        return changeReview.scope ? (
-          <ChangeReviewWindow
-            variant="sidebar"
-            review={changeReview.review}
-            diffs={changeReview.diffs}
-            busy={changeReview.busy}
-            error={changeReview.error}
-            undoPreview={changeReview.undoPreview}
-            contextLines={changeReview.contextLines}
-            onEnsureDiff={changeReview.ensureDiff}
-            onApprove={(relativePath) => {
-              void changeReview.approve([relativePath]);
-            }}
-            onApproveAll={() => {
-              const paths = changeReview.review?.files
-                .filter((file) => file.status === "pending" || file.status === "conflict")
-                .map((file) => file.relativePath);
-              void changeReview.approve(paths);
-            }}
-            onPrepareUndo={(relativePath) => {
-              void changeReview.prepareUndo(relativePath);
-            }}
-            onApplyUndo={() => {
-              void changeReview.applyUndo();
-            }}
-            onCancelUndo={changeReview.cancelUndo}
-            onRequestFileLines={changeReview.requestFileLines}
-            onContextLinesChange={changeReview.setContextLines}
-            onExpand={expandChangesOverlay}
-          />
-        ) : (
-          <p className="px-3 py-3 text-xs text-muted-foreground" data-testid="change-review-empty">
-            No tracked write/edit files to review yet.
-          </p>
-        );
+        return changeReviewWindow();
       case "plan":
         return snapshot ? (
           <PlanDocumentPanel
@@ -1487,38 +1477,10 @@ export function App() {
           onMinimizeSurface={minimizeRightSurface}
           onActivateSurface={activateRightSurface}
           onSplitChange={setRightTileSplit}
+          renderTileTitle={(surface) =>
+            surface === "changes" ? <ChangeReviewTileTitle review={changeReview.review} /> : undefined
+          }
           renderSurface={renderRightSurface}
-        />
-      ) : null}
-      {changesWindowOpen ? (
-        <ChangeReviewWindow
-          variant="overlay"
-          review={changeReview.review}
-          diffs={changeReview.diffs}
-          busy={changeReview.busy}
-          error={changeReview.error}
-          undoPreview={changeReview.undoPreview}
-          contextLines={changeReview.contextLines}
-          onEnsureDiff={changeReview.ensureDiff}
-          onApprove={(relativePath) => {
-            void changeReview.approve([relativePath]);
-          }}
-          onApproveAll={() => {
-            const paths = changeReview.review?.files
-              .filter((file) => file.status === "pending" || file.status === "conflict")
-              .map((file) => file.relativePath);
-            void changeReview.approve(paths);
-          }}
-          onPrepareUndo={(relativePath) => {
-            void changeReview.prepareUndo(relativePath);
-          }}
-          onApplyUndo={() => {
-            void changeReview.applyUndo();
-          }}
-          onCancelUndo={changeReview.cancelUndo}
-          onRequestFileLines={changeReview.requestFileLines}
-          onContextLinesChange={changeReview.setContextLines}
-          onClose={() => closeChangesOverlay(true)}
         />
       ) : null}
       </div>

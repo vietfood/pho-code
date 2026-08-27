@@ -40,7 +40,7 @@ Runtime snapshots replace projected truth after open/reload. Incremental events 
 5. Settled transcript snapshots replace temporary projections.
 6. Sidebar activity is derived without selecting the background chat.
 
-The renderer never parses streaming text as final state and never invents filesystem/session truth after a missed event. It shows the streaming caret only after substantive assistant text; before that, a running session with no work entries shows the Working state.
+The renderer never parses streaming text as final state and never invents filesystem/session truth after a missed event. It shows live assistant text directly while it streams; before substantive text, a running session with no work entries shows the Working state.
 
 Window-first lifecycle does not use this sequenced event path. `App.tsx` first loads metadata bootstrap/settings, renders welcome/recents with a starting or bounded failed status, and defers provider accounts/catalogs while Pi is unavailable. A separate runtime-status wakeup triggers another authoritative bootstrap query. Pi-backed launcher/sidebar controls remain disabled until ready; Settings Appearance and About remain available.
 
@@ -66,7 +66,7 @@ Live text uses conservative sanitized GFM. Expensive rich rendering waits until 
 - SVG as an image data URL, never injected markup;
 - credential-less gated image URLs and lightbox.
 
-Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes. Collapsed tool headings use owner-facing titles (`ls` → Browse, `bash` → Run); the protocol block keeps the Pi id. Work-entry glyphs default to Lucide; Settings Appearance can switch to the original Pho SVGs. Thought uses the same 16px icon slot as tools. Collapsed tool and thought rows show small quiet preview text (file basename, command, first-line thought; CSS ellipsis) plus a shield on Seatbelt-wrapped bash. Web search and fetch omit that preview; site icons identify the work. Web search expanded detail is a query row and a compact site list (favicon or hashed-color globe); fetch uses the same web icon on the row and URL. Full paths, commands, and thought text stay in the expanded detail. The shield is not a claim that Pho, Pi, MCP, or the owner terminal are sandboxed.
+Tool input/output and assistant Markdown are untrusted. No `rehype-raw`, MDX, arbitrary HTML, or workspace file URL escapes. Collapsed tool headings use owner-facing titles (`ls` → Browse, `bash` → Run); the protocol block keeps the Pi id. Work-entry glyphs default to Lucide; Settings Appearance can switch to Pho, CodeX (`codex-team`), or colorful Meteocons (cropped to the same 14px slot). Provider/backend/model marks default to mono Lobe Icons and can switch to Color on a light contrast plate. Thought uses the same 16px icon slot as tools. Collapsed tool and thought rows show small quiet preview text (file basename, command, first-line thought; CSS ellipsis) plus a shield on Seatbelt-wrapped bash. Web search and fetch omit that preview; site icons identify the work. Web search expanded detail is a query row and a compact site list (favicon or hashed-color globe); fetch uses the same web icon on the row and URL. Full paths, commands, and thought text stay in the expanded detail. The shield is not a claim that Pho, Pi, MCP, or the owner terminal are sandboxed.
 
 ## Navigation and persistence
 
@@ -87,21 +87,21 @@ Archive is metadata over Pi sessions. Removal is a confirmed privileged operatio
 
 `packages/ui/src/right-sidebar.tsx` owns:
 
-- collapsed overlay pill;
-- expanded icon rail and resizable content area;
-- Escape-to-collapse when no modal owns Escape;
-- clicking the active Changes, Context prompt, or Plan icon collapses the panel;
+- chat-header surface launcher icons;
+- a resizable tiling region that exists only while at least one tile is open;
+- floating rounded tiles with i3-style gaps, a two-tile cap, and a minimized tray;
+- Escape and ⌘R / Ctrl+R to hide the region (tiles stay mounted);
 - accessible surface buttons and focus behavior.
 
 `AppShell` owns ⌘B / Ctrl+B for the left sidebar and ⌘R / Ctrl+R for the right sidebar. The Electron application menu moves window Reload to ⌘⇧R / Ctrl+Shift+R so the default Chromium Reload chord does not steal ⌘R. The transcript scroller hides native scrollbar chrome while remaining scrollable.
 
 Current surfaces are:
 
-- `changes` — V3 review as a stacked-file card in the docked panel (Expand opens a right-anchored overlay over chat);
+- `changes` — V3 review as the window that fills its tile (`working tree → basename`, search/whitespace/context, minimize, close), using the same rounded border and glass fill as Plan and Context prompt;
 - `context-prompt` — edit while the session is empty, inspect after first message;
 - `plan` — Plan document surface (accepted Plan/Agent). Terminal remains a planned peer with no `terminal` variant yet.
 
-FileDiff and a write/edit tool card expand the rail onto Changes. Re-click or ⌘R / Ctrl+R collapses it. Expand, then Escape or the overlay close control, restores the stacked sidebar. Context prompt and Plan still expand the resizable docked panel. V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
+FileDiff and a write/edit tool card open the Changes tile. Re-click or ⌘R / Ctrl+R hides the region. Plan and Context prompt keep the generic tile frame. V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
 ## Settings and account surfaces
 

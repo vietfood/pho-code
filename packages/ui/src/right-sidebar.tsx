@@ -55,7 +55,6 @@ export interface RightSurfaceIconsProps {
   minimized?: readonly RightSidebarSurface[];
   contextPromptCustomized?: boolean;
   planDocumentPresent?: boolean;
-  changesOverlayOpen?: boolean;
   /** Icon click: opens a closed surface's tile, closes an open one. */
   onToggleSurface: (surface: RightSidebarSurface) => void;
 }
@@ -66,7 +65,6 @@ export function RightSurfaceIcons({
   minimized = [],
   contextPromptCustomized = false,
   planDocumentPresent = false,
-  changesOverlayOpen = false,
   onToggleSurface,
 }: RightSurfaceIconsProps) {
   return (
@@ -78,10 +76,7 @@ export function RightSurfaceIcons({
       {RIGHT_SIDEBAR_SURFACES.map((surface) => {
         const meta = SURFACE_META[surface];
         const Icon = meta.icon;
-        const pressed =
-          (surface === "changes" && changesOverlayOpen) ||
-          tiles.includes(surface) ||
-          minimized.includes(surface);
+        const pressed = tiles.includes(surface) || minimized.includes(surface);
         const badge =
           surface === "context-prompt"
             ? { show: contextPromptCustomized, testId: "right-sidebar-context-custom", attr: "data-customized" }
@@ -134,6 +129,7 @@ export interface RightSidebarProps {
   onActivateSurface: (surface: RightSidebarSurface) => void;
   onSplitChange: (ratio: number) => void;
   renderSurface: (surface: RightSidebarSurface) => ReactNode;
+  renderTileTitle?: (surface: RightSidebarSurface) => ReactNode;
 }
 
 export function RightSidebar({
@@ -147,6 +143,7 @@ export function RightSidebar({
   onActivateSurface,
   onSplitChange,
   renderSurface,
+  renderTileTitle,
 }: RightSidebarProps) {
   const { width, resizing, handle: resizeHandle } = useSidebarResize({
     edge: "start",
@@ -200,36 +197,39 @@ export function RightSidebar({
           className={cn("flex min-h-0 min-w-0 flex-1", stacked ? "flex-col" : "flex-row")}
           data-testid="right-sidebar-tiles"
         >
-          {tiles.map((surface, index) => (
-            <TileFrame
-              key={surface}
-              surface={surface}
-              divider={
-                index > 0 ? (
-                  <TileDivider
-                    orientation={orientation}
-                    ratio={ratio}
-                    containerRef={tilesRef}
-                    onDrag={setDragRatio}
-                    onCommit={(next) => {
-                      setDragRatio(null);
-                      onSplitChange(next);
-                    }}
-                    testId="right-sidebar-tile-divider"
-                  />
-                ) : null
-              }
-              style={
-                tiles.length > 1
-                  ? { flexGrow: index === 0 ? ratio : 1 - ratio, flexBasis: 0 }
-                  : { flex: 1 }
-              }
-              onMinimize={() => onMinimizeSurface(surface)}
-              onClose={() => onCloseSurface(surface)}
-            >
-              {renderSurface(surface)}
-            </TileFrame>
-          ))}
+          {tiles.map((surface, index) => {
+            return (
+              <TileFrame
+                key={surface}
+                surface={surface}
+                title={renderTileTitle?.(surface)}
+                divider={
+                  index > 0 ? (
+                    <TileDivider
+                      orientation={orientation}
+                      ratio={ratio}
+                      containerRef={tilesRef}
+                      onDrag={setDragRatio}
+                      onCommit={(next) => {
+                        setDragRatio(null);
+                        onSplitChange(next);
+                      }}
+                      testId="right-sidebar-tile-divider"
+                    />
+                  ) : null
+                }
+                style={
+                  tiles.length > 1
+                    ? { flexGrow: index === 0 ? ratio : 1 - ratio, flexBasis: 0 }
+                    : { flex: 1 }
+                }
+                onMinimize={() => onMinimizeSurface(surface)}
+                onClose={() => onCloseSurface(surface)}
+              >
+                {renderSurface(surface)}
+              </TileFrame>
+            );
+          })}
         </div>
         {minimized.length > 0 ? (
           <div className="flex shrink-0 flex-wrap items-center gap-1.5" data-testid="right-sidebar-tray">
@@ -278,6 +278,7 @@ export function RightSidebar({
 
 function TileFrame({
   surface,
+  title,
   divider,
   style,
   onMinimize,
@@ -285,6 +286,7 @@ function TileFrame({
   children,
 }: {
   surface: RightSidebarSurface;
+  title?: ReactNode;
   divider: ReactNode;
   style: CSSProperties;
   onMinimize: () => void;
@@ -303,8 +305,14 @@ function TileFrame({
         aria-label={meta.title}
       >
         <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-foreground/10 ps-2 pe-1">
-          <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{meta.title}</span>
+          {title ? (
+            <div className="min-w-0 flex-1">{title}</div>
+          ) : (
+            <>
+              <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-xs font-medium">{meta.title}</span>
+            </>
+          )}
           <Button
             variant="ghost"
             size="icon-sm"

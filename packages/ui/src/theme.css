@@ -114,9 +114,34 @@
   }
 }
 
+.brand-mark.is-color {
+  box-sizing: border-box;
+  padding: 1px;
+  background: #fff;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foreground) 32%, transparent);
+  border-radius: 0.2rem;
+}
+
+html[data-appearance="dark"] .brand-mark.is-color {
+  background: #f4f4f5;
+}
+
+.brand-mark.is-color img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.45px rgb(0 0 0 / 55%));
+}
+
 .chat-text {
   font-size: var(--font-size-chat);
   line-height: 1.65;
+}
+
+.chat-column,
+.empty-session-column {
+  container-type: inline-size;
 }
 
 .chat-column {
@@ -1512,21 +1537,6 @@ html[data-appearance="dark"] .chat-composer-host::after {
 }
 
 /* Prompt-bar token highlights adapted from Beautiful UI PromptBar.tsx (MIT). */
-.chat-composer-shell.is-max .chat-composer-host::after {
-  border-color: color-mix(in srgb, #7e22ce 55%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, #7e22ce 28%, transparent),
-    0 0 18px -8px color-mix(in srgb, #7e22ce 45%, transparent);
-}
-
-html[data-appearance="dark"] .chat-composer-shell.is-max .chat-composer-host::after {
-  border-color: color-mix(in srgb, #d8b4fe 50%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, #d8b4fe 22%, transparent),
-    inset 0 1px rgb(255 255 255 / 4%),
-    0 0 20px -8px color-mix(in srgb, #c084fc 40%, transparent);
-}
-
 .chat-composer-shell.is-mention .chat-composer-host::after {
   border-color: color-mix(in srgb, #0f766e 60%, transparent);
   box-shadow:
@@ -1596,18 +1606,83 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
   font-weight: 500;
 }
 
+.composer-model-picker {
+  min-width: 0;
+  max-width: 14rem;
+  flex: 0 1 auto;
+}
+
 .composer-model-picker-trigger {
   display: inline-flex;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   align-items: center;
   gap: 0.3rem;
-  max-width: 14rem;
 }
 
 .composer-backend-picker-trigger {
   display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
+  height: 1.625rem;
   max-width: 8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0 0.55rem;
+  color: var(--foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.composer-backend-picker-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-backend-picker-trigger:hover:not(:disabled) {
+  transform: scale(1.04);
+}
+
+.composer-backend-picker-trigger:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.composer-backend-picker-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.composer-backend-picker-trigger:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.composer-backend-picker-trigger.is-pi,
+.composer-backend-picker-trigger.is-unknown {
+  border-color: color-mix(in srgb, var(--foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.composer-backend-picker-trigger.is-codex {
+  border-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+  background: color-mix(in srgb, var(--muted-foreground) 12%, transparent);
+}
+
+.composer-backend-picker-trigger.is-claude {
+  color: #c15f3c;
+  border-color: color-mix(in srgb, #c15f3c 22%, transparent);
+  background: color-mix(in srgb, #c15f3c 10%, transparent);
 }
 
 .composer-thinking-select {
@@ -1639,7 +1714,7 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 .composer-mode-menu {
   position: absolute;
   z-index: 40;
-  bottom: calc(100% + 0.35rem);
+  bottom: calc(100% + 0.5rem);
   left: 0;
   min-width: 8.5rem;
   margin: 0;
@@ -1939,6 +2014,8 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 }
 
 .composer-toolbar {
+  position: relative;
+  z-index: 21;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -1959,8 +2036,21 @@ html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::
 
 .composer-toolbar-group.is-trailing {
   margin-left: auto;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 1 1 0;
+  justify-content: flex-end;
   gap: 0.25rem;
+}
+
+.composer-toolbar-group.is-trailing .composer-model-picker-panel,
+.composer-thinking-menu {
+  left: auto;
+  right: 0;
+}
+
+.composer-thinking-menu {
+  max-height: min(18rem, 50vh);
+  overflow: auto;
 }
 
 .session-todo-list {
@@ -2051,14 +2141,14 @@ html[data-appearance="dark"] .composer-thinking-option.is-max {
 .composer-model-picker-panel {
   position: absolute;
   z-index: 40;
-  bottom: calc(100% + 0.4rem);
+  bottom: calc(100% + 0.5rem);
   left: 0;
   display: flex;
   flex-direction: column;
-  min-width: 17rem;
+  min-width: min(17rem, 100cqi);
   width: max-content;
-  max-width: min(22rem, 84vw);
-  max-height: 22rem;
+  max-width: min(22rem, 100cqi);
+  max-height: min(22rem, 70vh);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 0.85rem;
@@ -2070,8 +2160,8 @@ html[data-appearance="dark"] .composer-thinking-option.is-max {
 }
 
 .composer-backend-picker-panel {
-  min-width: 15rem;
-  max-width: min(19rem, 84vw);
+  min-width: min(15rem, 100cqi);
+  max-width: min(19rem, 100cqi);
   padding: 0.35rem;
 }
 
@@ -2296,6 +2386,7 @@ html[data-appearance="dark"] .composer-model-picker-panel {
 .composer-usage {
   display: inline-flex;
   max-width: 100%;
+  flex-shrink: 0;
   align-items: center;
   gap: 0.3rem;
 }
@@ -2368,12 +2459,15 @@ html[data-appearance="dark"] .composer-model-picker-panel {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .composer-context-button {
+  .composer-context-button,
+  .composer-backend-picker-trigger {
     transition: none;
   }
 
   .composer-context-button:hover:not(:disabled),
-  .composer-context-button:active:not(:disabled) {
+  .composer-context-button:active:not(:disabled),
+  .composer-backend-picker-trigger:hover:not(:disabled),
+  .composer-backend-picker-trigger:active:not(:disabled) {
     transform: none;
   }
 }
@@ -2408,11 +2502,11 @@ html[data-appearance="dark"] .composer-model-picker-panel {
   position: absolute;
   z-index: 40;
   right: 0;
-  bottom: calc(100% + 0.35rem);
+  bottom: calc(100% + 0.5rem);
   left: auto;
   display: grid;
   gap: 0.35rem;
-  min-width: 14rem;
+  min-width: min(14rem, 100cqi);
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
   background: var(--popover);
@@ -2477,6 +2571,8 @@ html[data-glass="on"] .app-sidebar-panel {
 
 html[data-glass="on"] .plan-document-panel,
 html[data-glass="on"] .context-prompt-dialog,
+html[data-glass="on"] .change-window,
+html[data-glass="on"] .change-window-footer,
 html[data-glass="on"] .right-sidebar-host footer {
   background: transparent !important;
 }
@@ -2542,33 +2638,6 @@ html[data-glass="on"] .glass-field {
 .streaming-text {
   position: relative;
   contain: layout style;
-}
-
-/* Beautiful UI StreamText solid streaming caret (MIT, Shane Levine). */
-.stream-caret {
-  display: inline-block;
-  width: 2px;
-  height: 1.05em;
-  margin-left: 1.5px;
-  translate: 0 -0.5px;
-  border-radius: 1px;
-  background: var(--foreground);
-  vertical-align: text-bottom;
-  animation: caret-blink 1s step-end infinite;
-}
-
-.stream-caret.is-streaming {
-  animation: none;
-}
-
-@keyframes caret-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
 }
 
 .thinking-block-body {
@@ -2989,8 +3058,8 @@ html[data-appearance="dark"] .app-menu {
   gap: 0.5rem;
   min-height: 1.65rem;
   padding: 0.2rem 0.5rem;
-  background: color-mix(in srgb, var(--code-foreground) 4%, var(--code-background));
-  color: color-mix(in srgb, var(--code-foreground) 52%, var(--code-background));
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  color: var(--muted-foreground);
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   line-height: 1;
@@ -3000,7 +3069,7 @@ html[data-appearance="dark"] .app-menu {
 .change-review-hunk-gap::after {
   height: 1px;
   flex: 1 1 auto;
-  background: color-mix(in srgb, var(--code-background) 88%, var(--code-foreground));
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
   content: "";
 }
 
@@ -3014,8 +3083,8 @@ html[data-appearance="dark"] .app-menu {
 }
 
 .change-review-hunk-expand:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--code-foreground) 14%, var(--code-background));
-  color: var(--code-foreground);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
 }
 
 .change-review-hunk-expand:focus-visible {
@@ -3028,78 +3097,16 @@ html[data-appearance="dark"] .app-menu {
   opacity: 0.7;
 }
 
-.change-review-icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 1.5rem;
-  width: 1.5rem;
-  flex-shrink: 0;
-  border-radius: var(--control-radius);
-  color: var(--muted-foreground);
-  transition: background 120ms ease, color 120ms ease;
-}
-
-.change-review-icon-button:hover {
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  color: var(--foreground);
-}
-
-.change-review-icon-button:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-}
-
-/* Stacked Changes card in the right sidebar; overlay is an optional expand. */
-
-.change-window-host {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 15;
-}
-
 .change-window {
   pointer-events: auto;
   display: flex;
   min-width: 0;
   min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: var(--radius);
-  background: var(--code-background);
-  color: var(--code-foreground);
-}
-
-.change-window-maximized {
-  inset: 0.75rem;
-  width: auto;
-  height: auto;
-}
-
-.change-window-title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.25rem;
-  flex-shrink: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  padding: 0.35rem 0.55rem 0.35rem 0.75rem;
-  font-family: var(--font-sans);
-  font-size: 0.8125rem;
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
-}
-
-.change-window-title:active {
-  cursor: grabbing;
-}
-
-.change-window-sidebar .change-window-title,
-.change-window-sidebar .change-window-title:active {
-  cursor: default;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 .change-window-arrow {
@@ -3113,41 +3120,8 @@ html[data-appearance="dark"] .app-menu {
   overflow: auto;
 }
 
-.change-window-sidebar {
-  position: relative;
-  z-index: 1;
-  height: auto;
-  min-height: 0;
-  flex: 1 1 auto;
-  margin: 0.75rem;
-  pointer-events: auto;
-}
-
-.change-window-overlay {
-  pointer-events: auto;
-  position: absolute;
-  z-index: 1;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
-
-.change-window-overlay > .change-window {
-  height: 100%;
-  margin: 0;
-  flex: 1 1 auto;
-}
-
-.change-window-overlay-max {
-  position: absolute;
-  top: 0.4rem;
-  inset-inline-end: 2.15rem;
-  z-index: 2;
-}
-
 .change-window-file + .change-window-file {
-  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 
 .change-window-file-head {
@@ -3159,7 +3133,7 @@ html[data-appearance="dark"] .app-menu {
   gap: 0.4rem;
   min-height: 2rem;
   padding: 0.3rem 0.6rem;
-  background: color-mix(in srgb, var(--code-background) 92%, var(--code-foreground));
+  background: var(--background);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
 }
@@ -3190,37 +3164,16 @@ html[data-appearance="dark"] .app-menu {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
-  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
   padding: 0.4rem 0.75rem;
-  background: var(--code-background);
-}
-
-.change-window-resize {
-  position: absolute;
-  inset-block-end: 0;
-  inset-inline-end: 0;
-  height: 1rem;
-  width: 1rem;
-  cursor: nwse-resize;
-  touch-action: none;
-}
-
-.change-window-resize::after {
-  position: absolute;
-  inset-block-end: 0.25rem;
-  inset-inline-end: 0.25rem;
-  height: 0.45rem;
-  width: 0.45rem;
-  border-inline-end: 2px solid color-mix(in srgb, var(--code-foreground) 35%, transparent);
-  border-block-end: 2px solid color-mix(in srgb, var(--code-foreground) 35%, transparent);
-  content: "";
+  background: var(--background);
 }
 
 .change-review-hunk-pill {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--code-foreground) 8%, var(--code-background));
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
   padding: 0.2rem 0.55rem;
-  color: color-mix(in srgb, var(--code-foreground) 62%, var(--code-background));
+  color: var(--muted-foreground);
   white-space: nowrap;
 }
 
@@ -3232,19 +3185,19 @@ html[data-appearance="dark"] .app-menu {
 }
 
 .change-review-diff-line[data-revealed="true"] .change-review-diff-gutter {
-  color: color-mix(in srgb, var(--code-foreground) 28%, var(--code-background));
+  color: var(--muted-foreground);
 }
 
 .change-review-diff-line[data-kind="added"] {
-  background: color-mix(in srgb, var(--success) 12%, var(--code-background));
+  background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .change-review-diff-line[data-kind="removed"] {
-  background: color-mix(in srgb, var(--destructive) 12%, var(--code-background));
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
 }
 
 .change-review-diff-gutter {
-  color: color-mix(in srgb, var(--code-foreground) 38%, var(--code-background));
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
   text-align: right;
   user-select: none;
@@ -3289,7 +3242,7 @@ html[data-appearance="dark"] .app-menu {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
   padding: 0.35rem 0.75rem;
 }
 
@@ -3301,11 +3254,11 @@ html[data-appearance="dark"] .app-menu {
 .change-review-search-input,
 .change-review-context-select {
   width: 100%;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 20%, transparent);
   border-radius: var(--control-radius);
-  background: var(--code-background);
+  background: transparent;
   padding: 0.2rem 0.5rem;
-  color: var(--code-foreground);
+  color: var(--foreground);
   font-size: 0.75rem;
 }
 
@@ -3337,11 +3290,6 @@ html[data-appearance="dark"] .app-menu {
   .chat-composer-shell::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-
-  .stream-caret {
-    animation: none;
-    opacity: 1;
   }
 
   .empty-session-glow {
