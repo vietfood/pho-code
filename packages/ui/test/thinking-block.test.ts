@@ -36,7 +36,7 @@ describe("thinking block", () => {
     expect(markup).not.toContain("<script");
   });
 
-  test("shimmers the Thinking heading with a sparkle while live", () => {
+  test("shimmers the Thinking heading with a sparkle without a streaming caret", () => {
     const markup = renderToStaticMarkup(
       createElement(ThinkingBlock, { text: "planning the next step", live: true }),
     );
@@ -45,7 +45,7 @@ describe("thinking block", () => {
     expect(markup).toContain('data-testid="thinking-status"');
     expect(markup).toContain('data-testid="thinking-star"');
     expect(markup).not.toContain('data-work-icon="thought"');
-    expect(markup).toContain("stream-caret");
+    expect(markup).not.toContain("stream-caret");
     expect(markup).not.toContain("stream-tail");
     expect(markup).not.toContain("animate-pulse");
   });

@@ -236,11 +236,12 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="composer-context-button"');
     expect(markup).toContain("composer-context-button is-agent");
     expect(markup).toContain('data-testid="model-selector"');
+    expect(markup).toContain("composer-model-picker ");
     expect(markup).toContain('data-provider="deepseek"');
-    expect(markup).toContain("M23.748 4.651");
+    expect(markup).toContain('data-lobe-icon="deepseek"');
     expect(markup).toContain('data-testid="thinking-selector"');
     expect(markup).toContain("composer-thinking-select is-max");
-    expect(markup).toContain('data-composer-highlight="max"');
+    expect(markup).toContain('data-composer-highlight="none"');
     expect(markup).toContain("Max");
   });
 
@@ -470,7 +471,7 @@ describe("empty session hero", () => {
     expect(markup).toContain('data-testid="markdown"');
     expect(markup).toContain("<strong>");
     expect(markup).toContain("<code>");
-    expect(markup).toContain("stream-caret");
+    expect(markup).not.toContain("stream-caret");
     expect(markup).not.toContain("katex");
   });
 });

@@ -32,7 +32,6 @@ import { MarkdownImage } from "./markdown-image";
 import { MentionChip } from "./mention-chip";
 import { GithubChip } from "./github-chip";
 import { SkillChip } from "./skill-chip";
-import { StreamCaret } from "./stream-text";
 import { ThinkingBlock } from "./thinking-block";
 import { ToolRow } from "./tool-row";
 import { WorkLogToggle } from "./work-log-toggle";
@@ -201,7 +200,7 @@ function LiveRunTail({
       ) : null}
       {hasStreamingText ? (
         <article className="streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5" data-testid="streaming-text">
-          <StreamingMarkdown text={run.streamingText} running={running} />
+          <StreamingMarkdown text={run.streamingText} />
         </article>
       ) : null}
       {running && !hasStreamingText && liveWorkCounts.steps === 0 ? (
@@ -243,13 +242,8 @@ function liveWorkKey(entry: RunWorkEntry, index: number): string {
   return entry.type === "thinking" ? `thinking:${index}` : `tool:${entry.callId}`;
 }
 
-function StreamingMarkdown({ text, running }: { text: string; running: boolean }) {
-  return (
-    <>
-      <ConservativeMarkdown text={text} streaming />
-      {running ? <StreamCaret /> : null}
-    </>
-  );
+function StreamingMarkdown({ text }: { text: string }) {
+  return <ConservativeMarkdown text={text} streaming />;
 }
 
 function WorkEntryView({

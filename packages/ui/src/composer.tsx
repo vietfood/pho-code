@@ -48,7 +48,6 @@ import { ComposerContextButton } from "./composer-context-button";
 import { BackendPicker } from "./backend-picker";
 import { ComposerRail } from "./composer-rail";
 import { ComposerToolbar } from "./composer-toolbar";
-import { isMaxThinkingLevel } from "./lib/thinking-labels";
 import { ThinkingLevelChip } from "./thinking-level-chip";
 import { FastModeChip } from "./fast-mode-chip";
 import { MarkdownImage } from "./markdown-image";
@@ -175,11 +174,9 @@ export function Composer({
   const canSend = value.trim() !== "" || images.length > 0;
   const menuOpen = mentionQuery !== null && Boolean(onSearchReferences);
   const slashOpen = slashQuery !== null;
-  const maxThinking = isMaxThinkingLevel(thinkingLevel, availableThinkingLevels);
   const highlight = composerHighlight({
     mentionOpen: mentionQuery !== null,
     slashOpen,
-    maxThinking,
   });
   const fieldDisabled = disabled && !running;
   const supportsImages = selectedModel?.supportsImages === true;

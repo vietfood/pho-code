@@ -24,7 +24,7 @@ export function ThinkingLevelChip({
   useDismissOnOutside({ open, ref: rootRef, onDismiss: () => setOpen(false), preventDefaultOnEscape: true });
 
   return (
-    <div className="relative w-fit max-w-full min-w-0" ref={rootRef}>
+    <div className="relative w-fit max-w-full min-w-0 shrink-0" ref={rootRef}>
       <button
         type="button"
         id="thinking-selector"

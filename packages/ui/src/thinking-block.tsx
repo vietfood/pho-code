@@ -3,7 +3,6 @@ import { ChevronDownIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { ConservativeMarkdown } from "./markdown";
 import { SparkleIcon } from "./sparkle-icon";
-import { StreamCaret } from "./stream-text";
 import { thoughtWorkEntryChip } from "./tool-presentation";
 import { WorkEntryIcon } from "./work-entry-icon";
 
@@ -106,7 +105,6 @@ export function ThinkingBlock({
           {live ? (
             <p className="whitespace-pre-wrap break-words text-[12px] leading-relaxed text-secondary-label">
               {text}
-              <StreamCaret />
             </p>
           ) : (
             <ConservativeMarkdown

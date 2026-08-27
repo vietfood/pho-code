@@ -16,10 +16,9 @@ describe("findSlashQuery", () => {
 });
 
 describe("composerHighlight", () => {
-  test("lets transient tokens override max thinking", () => {
-    expect(composerHighlight({ mentionOpen: false, slashOpen: false, maxThinking: false })).toBe("none");
-    expect(composerHighlight({ mentionOpen: false, slashOpen: false, maxThinking: true })).toBe("max");
-    expect(composerHighlight({ mentionOpen: true, slashOpen: false, maxThinking: true })).toBe("mention");
-    expect(composerHighlight({ mentionOpen: true, slashOpen: true, maxThinking: true })).toBe("slash");
+  test("colors the outline for @ and / tokens only", () => {
+    expect(composerHighlight({ mentionOpen: false, slashOpen: false })).toBe("none");
+    expect(composerHighlight({ mentionOpen: true, slashOpen: false })).toBe("mention");
+    expect(composerHighlight({ mentionOpen: true, slashOpen: true })).toBe("slash");
   });
 });
