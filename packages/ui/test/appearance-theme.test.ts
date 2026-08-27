@@ -88,7 +88,6 @@ describe("appearance theme helpers", () => {
     const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
     expect(css).toContain("--shell-divider: color-mix(in srgb, var(--foreground) 18%, transparent)");
     expect(css).toContain(".app-sidebar-panel {\n  border-right: 1px solid var(--shell-divider);");
-    expect(css).toContain(".right-sidebar-host {\n  border-left: 1px solid var(--shell-divider);");
     expect(css).toContain(".transcript-scroller,\n.transcript-scroller * {");
     expect(css).toContain(".chat-column {");
     expect(css).toContain(".empty-session-column {\n  width: 100%;\n  min-width: 0;\n  margin-inline: auto;\n  max-width: 42rem;");
@@ -109,9 +108,8 @@ describe("appearance theme helpers", () => {
 
   test("glass chrome tints chat and right bar; composer gets CSS frost when glass is on", async () => {
     const css = await Bun.file(new URL("../src/theme.css", import.meta.url)).text();
-    expect(css).toContain("html[data-glass=\"on\"] .app-shell-chat {");
-    expect(css).toContain("html[data-glass=\"on\"] .app-sidebar-panel,\nhtml[data-glass=\"on\"] .right-sidebar-host {");
-    expect(css).toContain("html[data-glass=\"on\"] .right-sidebar-host > nav,");
+    expect(css).toContain("html[data-glass=\"on\"] .app-shell-chat,\nhtml[data-glass=\"on\"] .right-sidebar-host {");
+    expect(css).toContain("html[data-glass=\"on\"] .app-sidebar-panel {");
     expect(css).toContain("html[data-glass=\"on\"] .plan-document-panel,");
     expect(css).toContain(".empty-session[data-left-overlay=\"true\"] .empty-session-center {");
     expect(css).toContain("html[data-glass=\"on\"] .chat-composer-shell::before {");

@@ -5,7 +5,7 @@ Status: implemented
 Surface: composer / right-sidebar host chrome / appearance glass  
 Owner: ui/conversation chrome  
 Owning plan: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)  
-Related logs: [`2026-08-16-change-sidebar-dividers.md`](./2026-08-16-change-sidebar-dividers.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md), [`2026-08-22-change-composer-glass-frost.md`](./2026-08-22-change-composer-glass-frost.md)
+Related logs: [`2026-08-16-change-sidebar-dividers.md`](./2026-08-16-change-sidebar-dividers.md), [`2026-08-15-change-v3-right-sidebar.md`](./2026-08-15-change-v3-right-sidebar.md), [`2026-08-16-change-right-sidebar-surface-toggle.md`](./2026-08-16-change-right-sidebar-surface-toggle.md), [`2026-08-20-change-glass-settings-composer-center.md`](./2026-08-20-change-glass-settings-composer-center.md), [`2026-08-22-change-composer-glass-frost.md`](./2026-08-22-change-composer-glass-frost.md), [`2026-08-27-change-unified-surface-color.md`](./2026-08-27-change-unified-surface-color.md) (supersedes the "sidebars are the most open" fill split: sidebar/pane/composer now share one glass opacity)
 
 ## Intended change
 

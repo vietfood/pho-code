@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ArchiveIcon, BookOpenIcon, BoxIcon, GithubIcon, KeyRoundIcon, PaletteIcon, ShieldIcon, XIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  BookOpenIcon,
+  BoxIcon,
+  GithubIcon,
+  KeyRoundIcon,
+  PaletteIcon,
+  ShieldIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react";
 import {
   MAX_CHAT_FONT_SIZE,
   MAX_GLASS_STRENGTH,
@@ -42,6 +52,7 @@ import {
 } from "./lib/settings-section";
 import { ProviderAccountsSection } from "./provider-accounts";
 import { FontFamilyPicker } from "./font-family-picker";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 
 const PALETTES: ReadonlyArray<{ id: AppearancePalette; label: string }> = [
@@ -766,20 +777,19 @@ function PermissionSection({
         ))}
       </div>
       {yoloConfirm ? (
-        <div
-          className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2 text-xs text-destructive-foreground"
-          role="alert"
-          data-testid="permission-yolo-warning"
-        >
-          <p>
-            With great power comes great responsibility auto-approves decisions that would otherwise ask. Explicit
-            denies still apply, permanent removal remains unavailable, and removal uses recoverable OS Trash. This is
-            not a sandbox.
-          </p>
-          <Button size="sm" variant="destructive" data-testid="permission-yolo-confirm" disabled={disabled} onClick={onYoloConfirm}>
-            Choose this mode
-          </Button>
-        </div>
+        <Alert variant="destructive" className="text-xs" role="alert" data-testid="permission-yolo-warning">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-xs">
+            <p>
+              With great power comes great responsibility auto-approves decisions that would otherwise ask. Explicit
+              denies still apply, permanent removal remains unavailable, and removal uses recoverable OS Trash. This is
+              not a sandbox.
+            </p>
+            <Button size="sm" variant="destructive" data-testid="permission-yolo-confirm" disabled={disabled} onClick={onYoloConfirm}>
+              Choose this mode
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : null}
       <label className="flex items-start gap-2 text-sm">
         <input

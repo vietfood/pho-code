@@ -36,7 +36,7 @@ export const MIN_CHAT_FONT_SIZE = 12;
 export const MAX_CHAT_FONT_SIZE = 20;
 export const DEFAULT_CHAT_FONT_SIZE = 15;
 
-/** Frosted chrome strength when glass is enabled (0 = subtle, 100 = strong). */
+/** Frosted chrome strength when glass is enabled (0 = opaque, 100 = strong). */
 export const MIN_GLASS_STRENGTH = 0;
 export const MAX_GLASS_STRENGTH = 100;
 export const DEFAULT_GLASS_STRENGTH = 55;
@@ -267,16 +267,18 @@ export function glassCssTokens(strength: number): {
 } {
   const clamped = clampGlassStrength(strength);
   const t = clamped / 100;
-  // Mild frost: macOS vibrancy already blurs the desktop. Keep fills readable so
-  // wallpaper tints chrome instead of dominating it. Sidebars are the most open;
-  // the composer sits between sidebar and pane and gets CSS blur when glass is on
-  // so the field reads as frost rather than a solid card. Extra CSS blur stays
-  // off the transcript and right bar.
-  const blurPx = Math.round(8 + t * 16);
+  // Interpolate from the opaque baseline so 0% matches glass-off exactly. Keep
+  // fills readable at full strength so wallpaper tints chrome instead of
+  // dominating it. Sidebar and pane share one fill opacity so every surface
+  // reads as the same color (owner request); the sidebar keeps a stronger blur
+  // for depth without a hue shift. The composer matches that fill and gets CSS
+  // blur when glass is on so the field reads as frost rather than a solid card.
+  // Extra CSS blur stays off the transcript and right bar.
+  const blurPx = Math.round(t * 24);
   const sidebarBlurPx = Math.round(blurPx * 1.2);
-  const opacityPercent = Math.round(84 - t * 20);
-  const sidebarOpacityPercent = Math.max(52, Math.round(opacityPercent - 12));
-  const composerOpacityPercent = Math.round((opacityPercent + sidebarOpacityPercent) / 2);
+  const opacityPercent = Math.round(100 - t * 36);
+  const sidebarOpacityPercent = opacityPercent;
+  const composerOpacityPercent = opacityPercent;
   return { blurPx, sidebarBlurPx, opacityPercent, sidebarOpacityPercent, composerOpacityPercent };
 }
 

@@ -1,30 +1,13 @@
-# UI work and feedback logs
+# UI documentation
 
-Record UI changes, defects, regressions, owner feedback, agent mistakes, and durable design decisions that should outlive a chat. Use one dated file per coherent item so parallel agents do not append to the same document.
+Conversation chrome and related desktop UI. This is not the add-on tracker (`features/`) and not a numbered product version (`version/`).
 
-Filename:
+| Folder | Use |
+| --- | --- |
+| [`implementation/`](./implementation/conversation-ui.md) | The live conversation-UI track: what is in source, slices, verification |
+| [`ideas/`](./ideas/README.md) | UI ideas that are not yet an implementation slice |
+| [`logs/`](./logs/README.md) | UI changes, defects, regressions, feedback, mistakes, decisions, and handoffs |
 
-```text
-YYYY-MM-DD-<kind>-<short-slug>.md
-```
+Keep the conversation primary. Right-rail Terminal product work lives in [`features/terminal`](../features/terminal/README.md); Plan/Agent and the Plan document live in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md); this folder only owns the rail host and transcript/composer chrome. Accepted window-first launch and Pi startup state are owned by archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md), with reciprocal defect/change logs here. Accepted bounded Stop/Stop-all behavior is owned by archived [`agent-stop`](../archive/urgent/agent-stop/README.md) with its fixed UI defect/change logs here.
 
-Kinds are `change`, `bug`, `regression`, `feedback`, `mistake`, or `decision`.
-
-Every record states:
-
-- status, surface, owner, and owning plan;
-- related version/feature/UI logs;
-- expected and actual behavior or intended change;
-- reproduction/evidence when applicable;
-- changes and decisions;
-- verification actually run;
-- mistakes/corrections and owner feedback;
-- fix or handoff.
-
-Link the owning contract: [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md), a feature plan, or a numbered-version plan/archive. A Terminal-panel defect can live here while remaining owned by `features/terminal`; an Approve/Undo defect can live here while referring to the accepted `archive/v3` contract.
-
-When changing the shared right-sidebar host, scan active logs under `../../version/*/logs/`, `../../features/*/logs/`, and `../../urgent/*/logs/` and add reciprocal links.
-
-Current external-backend streaming/model-picker correction: [`2026-08-27-bug-external-streaming-caret.md`](./2026-08-27-bug-external-streaming-caret.md).
-
-External reasoning/Fast controls and live tool updates: [`2026-08-27-change-external-reasoning-and-fast.md`](./2026-08-27-change-external-reasoning-and-fast.md).
+Versioned and add-on work may write UI records here while retaining product ownership in their own plan. Cross-link both workstream logs whenever a shared surface changes.

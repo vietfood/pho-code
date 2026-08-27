@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TriangleAlertIcon } from "lucide-react";
 import {
   GITHUB_MCP_DISCLOSURE_ITEMS,
   GITHUB_MCP_TRUST_NOTICE,
@@ -7,6 +8,7 @@ import {
   type ImportGitHubPatInput,
   type UpdateGitHubMcpSettingsInput,
 } from "@pho-code/protocol";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { ProviderIcon } from "./provider-icon";
 import { SkillCompatibilityDialog } from "./skill-compatibility-dialog";
@@ -69,7 +71,7 @@ export function GitHubMcpSettingsSection({
             onEnabledChange({ enabled: false });
           }}
         />
-        <span className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <strong className="font-medium">Enable read-only GitHub tools</strong>
           <span className="mt-1 block text-xs text-muted-foreground">
             Status: {githubMcpStatusLabel(githubMcp.status)}
@@ -77,11 +79,12 @@ export function GitHubMcpSettingsSection({
             {githubMcp.boundToolCount > 0 ? ` · ${githubMcp.boundToolCount} tools` : ""}
           </span>
           {githubMcp.error ? (
-            <span className="mt-1 block text-xs text-destructive" data-testid="github-mcp-error">
-              {githubMcp.error}
-            </span>
+            <Alert variant="destructive" className="mt-1.5 text-xs" role="alert" data-testid="github-mcp-error">
+              <TriangleAlertIcon />
+              <AlertDescription className="text-xs">{githubMcp.error}</AlertDescription>
+            </Alert>
           ) : null}
-        </span>
+        </div>
       </label>
       <p className="text-xs text-muted-foreground">{githubMcp.secretStoreNotice}</p>
       <div className="flex flex-wrap gap-2">

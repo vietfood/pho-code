@@ -488,15 +488,17 @@ html[data-appearance="dark"] .mention-chip {
   color: #5eead4;
 }
 
-.skill-chip {
-  padding-inline: 0.42em;
-  background: color-mix(in oklab, #d97706 16%, transparent);
-  color: #b45309;
+/* Kind glyph + name, like @ chips. Beat `.mention-chip` dark color so the
+   orange does not lose to teal. Fill is a bit stronger than @ chips so orange
+   does not go brown on --message-surface. */
+.mention-chip.skill-chip {
+  background: color-mix(in oklab, #c2410c 20%, transparent);
+  color: #c2410c;
 }
 
-html[data-appearance="dark"] .skill-chip {
-  background: color-mix(in oklab, #fbbf24 22%, transparent);
-  color: #fcd34d;
+html[data-appearance="dark"] .mention-chip.skill-chip {
+  background: color-mix(in oklab, #fb923c 28%, transparent);
+  color: #fdba74;
 }
 
 .github-chip {
@@ -1032,10 +1034,6 @@ html[data-appearance="dark"] .approval-card {
   border-right: 1px solid var(--shell-divider);
 }
 
-.right-sidebar-host {
-  border-left: 1px solid var(--shell-divider);
-}
-
 .sidebar-resize-handle {
   position: absolute;
   top: 0;
@@ -1468,7 +1466,7 @@ html[data-appearance="dark"] .approval-card {
   position: relative;
   z-index: 10;
   border-radius: var(--composer-radius);
-  box-shadow: 0 16px 36px -22px rgb(0 0 0 / 35%);
+  box-shadow: 0 8px 24px -14px rgb(0 0 0 / 16%);
 }
 
 .chat-composer-host::after {
@@ -1501,7 +1499,7 @@ html[data-glass="on"] .chat-composer-host {
 }
 
 html[data-appearance="dark"] .chat-composer-host {
-  box-shadow: 0 18px 40px -24px rgb(0 0 0 / 70%);
+  box-shadow: 0 12px 28px -18px rgb(0 0 0 / 50%);
 }
 
 html[data-glass="on"][data-appearance="dark"] .chat-composer-host {
@@ -1545,18 +1543,18 @@ html[data-appearance="dark"] .chat-composer-shell.is-mention .chat-composer-host
 }
 
 .chat-composer-shell.is-slash .chat-composer-host::after {
-  border-color: color-mix(in srgb, #d97706 60%, transparent);
+  border-color: color-mix(in srgb, #c2410c 60%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, #d97706 30%, transparent),
-    0 0 18px -8px color-mix(in srgb, #d97706 40%, transparent);
+    0 0 0 1px color-mix(in srgb, #c2410c 30%, transparent),
+    0 0 18px -8px color-mix(in srgb, #c2410c 40%, transparent);
 }
 
 html[data-appearance="dark"] .chat-composer-shell.is-slash .chat-composer-host::after {
-  border-color: color-mix(in srgb, #fbbf24 55%, transparent);
+  border-color: color-mix(in srgb, #fb923c 55%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, #fbbf24 22%, transparent),
+    0 0 0 1px color-mix(in srgb, #fb923c 22%, transparent),
     inset 0 1px rgb(255 255 255 / 4%),
-    0 0 20px -8px color-mix(in srgb, #fbbf24 32%, transparent);
+    0 0 20px -8px color-mix(in srgb, #fb923c 32%, transparent);
 }
 
 .composer-meta-select {
@@ -2460,12 +2458,14 @@ html[data-glass="on"] .app-shell-main {
   background: transparent !important;
 }
 
-html[data-glass="on"] .app-shell-chat {
+html[data-glass="on"] .app-shell-chat,
+html[data-glass="on"] .right-sidebar-host {
   background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 }
 
-html[data-glass="on"] .app-sidebar-panel,
-html[data-glass="on"] .right-sidebar-host {
+html[data-glass="on"] .app-sidebar-panel {
   background: color-mix(in srgb, var(--sidebar) var(--sidebar-glass-opacity), transparent) !important;
 }
 
@@ -2475,7 +2475,6 @@ html[data-glass="on"] .app-sidebar-panel {
   border-right: 1px solid var(--shell-divider);
 }
 
-html[data-glass="on"] .right-sidebar-host > nav,
 html[data-glass="on"] .plan-document-panel,
 html[data-glass="on"] .context-prompt-dialog,
 html[data-glass="on"] .right-sidebar-host footer {
@@ -2500,6 +2499,8 @@ html[data-glass="on"] .glass-field {
 
 @media (prefers-reduced-motion: reduce) {
   html[data-glass="on"] .app-sidebar-panel,
+  html[data-glass="on"] .app-shell-chat,
+  html[data-glass="on"] .right-sidebar-host,
   html[data-glass="on"] .glass-panel,
   html[data-glass="on"] .glass-field,
   html[data-glass="on"] .chat-composer-shell::before {

@@ -67,7 +67,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       expect(attrs.workIcons).toBe("lucide");
       expect(attrs.glass).toBe("on");
       expect(Number.parseInt(attrs.composerGlassOpacity, 10)).toBeLessThan(100);
-      expect(Number.parseInt(attrs.sidebarGlassOpacity, 10)).toBeLessThan(Number.parseInt(attrs.glassOpacity, 10));
+      expect(Number.parseInt(attrs.sidebarGlassOpacity, 10)).toBe(Number.parseInt(attrs.glassOpacity, 10));
       expect(attrs.root).toBe("18px");
       expect(attrs.chat).toBe("16px");
       expect(Number.parseFloat(attrs.sidebar)).toBeGreaterThan(12);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { SearchIcon } from "lucide-react";
+import { SearchIcon, TriangleAlertIcon } from "lucide-react";
 import {
   providerDisclosureCopy,
   type ImportProviderApiKeyInput,
@@ -16,6 +16,7 @@ import {
 } from "./lib/provider-accounts";
 import { cn } from "./lib/cn";
 import { ProviderIcon } from "./provider-icon";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 
 export function ProviderAccountsSection({
@@ -87,9 +88,10 @@ export function ProviderAccountsSection({
         />
       ) : null}
       {flow?.phase === "failed" && flow.error ? (
-        <p className="text-xs text-destructive" role="status" data-testid="provider-auth-error">
-          {flow.error.message}
-        </p>
+        <Alert variant="destructive" className="text-xs" role="status" data-testid="provider-auth-error">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-xs">{flow.error.message}</AlertDescription>
+        </Alert>
       ) : null}
       {connected.length === 0 ? (
         <p className="text-xs text-muted-foreground" data-testid="no-configured-providers">

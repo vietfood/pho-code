@@ -620,19 +620,24 @@ describe("protocol serialization", () => {
     expect(jsonRoundTrip(snapshot)).toEqual(snapshot);
   });
 
-  test("glassCssTokens keep chrome readable and tint the composer between sidebar and pane", () => {
+  test("glassCssTokens keep chrome readable with one shared surface fill", () => {
+    const zero = glassCssTokens(0);
+    expect(zero.blurPx).toBe(0);
+    expect(zero.sidebarBlurPx).toBe(0);
+    expect(zero.opacityPercent).toBe(100);
+    expect(zero.sidebarOpacityPercent).toBe(100);
+    expect(zero.composerOpacityPercent).toBe(100);
+
     const mid = glassCssTokens(55);
     expect(mid.opacityPercent).toBeGreaterThanOrEqual(70);
-    expect(mid.sidebarOpacityPercent).toBeGreaterThanOrEqual(52);
-    expect(mid.sidebarOpacityPercent).toBeLessThan(mid.opacityPercent);
-    expect(mid.composerOpacityPercent).toBeGreaterThanOrEqual(mid.sidebarOpacityPercent);
-    expect(mid.composerOpacityPercent).toBeLessThanOrEqual(mid.opacityPercent);
+    expect(mid.sidebarOpacityPercent).toBe(mid.opacityPercent);
+    expect(mid.composerOpacityPercent).toBe(mid.opacityPercent);
     expect(mid.sidebarBlurPx).toBeGreaterThanOrEqual(mid.blurPx);
     expect(mid.blurPx).toBeLessThanOrEqual(20);
 
     const max = glassCssTokens(100);
     expect(max.opacityPercent).toBeGreaterThanOrEqual(60);
-    expect(max.sidebarOpacityPercent).toBeGreaterThanOrEqual(52);
+    expect(max.sidebarOpacityPercent).toBe(max.opacityPercent);
     expect(max.blurPx).toBeLessThanOrEqual(24);
   });
 

@@ -1,5 +1,10 @@
 /* Named appearance palettes. Official hex tables mapped onto Pho token roles.
-   Sources: Gruvbox, Catppuccin (Latte/Mocha), Flexoki, GitHub Primer, Atom One Dark. */
+   Sources: Gruvbox, Catppuccin (Latte/Mocha), Flexoki, GitHub Primer, Atom One Dark.
+
+   --sidebar tracks --background in every palette: owner asked for one unified
+   surface color across the left sidebar, chat pane, and right rail (Claude
+   Desktop-style). Pane separation comes from the --shell-divider hairline, not
+   from a second surface shade. */
 
 :root,
 html[data-palette="default"][data-appearance="light"] {
@@ -31,7 +36,7 @@ html[data-palette="default"][data-appearance="light"] {
   --error-foreground: #b91c1c;
   --success: #10b981;
   --warning: #f59e0b;
-  --sidebar: #f7f7f8;
+  --sidebar: var(--background);
   --sidebar-foreground: #27272a;
   --sidebar-muted-foreground: #71717a;
   --sidebar-row-hover: rgb(0 0 0 / 4%);
@@ -72,7 +77,7 @@ html[data-palette="default"][data-appearance="dark"] {
   --error-foreground: #f87171;
   --success: #34d399;
   --warning: #fbbf24;
-  --sidebar: #0f0f0f;
+  --sidebar: var(--background);
   --sidebar-foreground: #ececec;
   --sidebar-muted-foreground: #8a8a8a;
   --sidebar-row-hover: rgb(255 255 255 / 5%);
@@ -113,7 +118,7 @@ html[data-palette="gruvbox"][data-appearance="light"] {
   --error-foreground: #cc241d;
   --success: #79740e;
   --warning: #b57614;
-  --sidebar: #f2e5bc;
+  --sidebar: var(--background);
   --sidebar-foreground: #3c3836;
   --sidebar-muted-foreground: #7c6f64;
   --sidebar-row-hover: rgb(60 56 54 / 6%);
@@ -154,7 +159,7 @@ html[data-palette="gruvbox"][data-appearance="dark"] {
   --error-foreground: #fb4934;
   --success: #b8bb26;
   --warning: #fabd2f;
-  --sidebar: #1d2021;
+  --sidebar: var(--background);
   --sidebar-foreground: #ebdbb2;
   --sidebar-muted-foreground: #a89984;
   --sidebar-row-hover: rgb(235 219 178 / 6%);
@@ -195,7 +200,7 @@ html[data-palette="catppuccin"][data-appearance="light"] {
   --error-foreground: #d20f39;
   --success: #40a02b;
   --warning: #df8e1d;
-  --sidebar: #e6e9ef;
+  --sidebar: var(--background);
   --sidebar-foreground: #4c4f69;
   --sidebar-muted-foreground: #6c6f85;
   --sidebar-row-hover: rgb(76 79 105 / 6%);
@@ -236,7 +241,7 @@ html[data-palette="catppuccin"][data-appearance="dark"] {
   --error-foreground: #f38ba8;
   --success: #a6e3a1;
   --warning: #f9e2af;
-  --sidebar: #181825;
+  --sidebar: var(--background);
   --sidebar-foreground: #cdd6f4;
   --sidebar-muted-foreground: #a6adc8;
   --sidebar-row-hover: rgb(205 214 244 / 6%);
@@ -318,7 +323,7 @@ html[data-palette="flexoki"][data-appearance="dark"] {
   --error-foreground: #d14d41;
   --success: #879a39;
   --warning: #d0a215;
-  --sidebar: #1c1b1a;
+  --sidebar: var(--background);
   --sidebar-foreground: #cecdc3;
   --sidebar-muted-foreground: #878580;
   --sidebar-row-hover: rgb(206 205 195 / 6%);
@@ -359,7 +364,7 @@ html[data-palette="github"][data-appearance="light"] {
   --error-foreground: #cf222e;
   --success: #1a7f37;
   --warning: #9a6700;
-  --sidebar: #f6f8fa;
+  --sidebar: var(--background);
   --sidebar-foreground: #1f2328;
   --sidebar-muted-foreground: #656d76;
   --sidebar-row-hover: rgb(31 35 40 / 5%);
@@ -400,7 +405,7 @@ html[data-palette="github"][data-appearance="dark"] {
   --error-foreground: #f85149;
   --success: #3fb950;
   --warning: #d29922;
-  --sidebar: #010409;
+  --sidebar: var(--background);
   --sidebar-foreground: #e6edf3;
   --sidebar-muted-foreground: #848d97;
   --sidebar-row-hover: rgb(230 237 243 / 5%);
@@ -442,7 +447,7 @@ html[data-palette="one-dark"][data-appearance="dark"] {
   --error-foreground: #e06c75;
   --success: #98c379;
   --warning: #e5c07b;
-  --sidebar: #21252b;
+  --sidebar: var(--background);
   --sidebar-foreground: #abb2bf;
   --sidebar-muted-foreground: #5c6370;
   --sidebar-row-hover: rgb(171 178 191 / 6%);

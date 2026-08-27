@@ -1,6 +1,14 @@
 // Changes pane: stacked files in the right sidebar, with an optional expanded overlay.
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ChevronDownIcon, ChevronRightIcon, EllipsisIcon, Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  EllipsisIcon,
+  Maximize2Icon,
+  Minimize2Icon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react";
 import {
   CHANGE_REVIEW_COPY,
   isUntrackedChangePath,
@@ -23,6 +31,7 @@ import {
   writeChangesWindowFrame,
   type WindowFrame,
 } from "./lib/change-window-frame";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Button } from "./ui/button";
 import { CopyButton } from "./copy-button";
 
@@ -212,19 +221,22 @@ function StackedPane({
         />
       ) : null}
       {review?.ledgerUnreadable ? (
-        <p className="px-3 py-2 text-xs text-warning" role="status" data-testid="change-review-unreadable">
-          {CHANGE_REVIEW_COPY.ledgerUnreadable}
-        </p>
+        <Alert variant="warning" className="mx-3 my-2 w-auto text-xs" role="status" data-testid="change-review-unreadable">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-xs">{CHANGE_REVIEW_COPY.ledgerUnreadable}</AlertDescription>
+        </Alert>
       ) : null}
       {review?.captureCapped ? (
-        <p className="px-3 py-2 text-xs text-warning" role="status" data-testid="change-review-capped">
-          {CHANGE_REVIEW_COPY.captureCapped}
-        </p>
+        <Alert variant="warning" className="mx-3 my-2 w-auto text-xs" role="status" data-testid="change-review-capped">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-xs">{CHANGE_REVIEW_COPY.captureCapped}</AlertDescription>
+        </Alert>
       ) : null}
       {error ? (
-        <p className="px-3 py-2 text-xs text-destructive" role="alert" data-testid="change-review-error">
-          {error}
-        </p>
+        <Alert variant="destructive" className="mx-3 my-2 w-auto text-xs" role="alert" data-testid="change-review-error">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-xs">{error}</AlertDescription>
+        </Alert>
       ) : null}
       <div className="change-window-body" data-testid="change-review-window-body">
         {files.length === 0 ? (
