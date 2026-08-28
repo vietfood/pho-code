@@ -2,7 +2,7 @@
 
 ## Status
 
-Owner-promoted numbered product boundary, 2026-08-20; owner-directed backend-neutral revision, 2026-08-26. Status: **Promoted; backend-neutral foundation in progress; prior Pi-only M0 acceptance reopened; not accepted**.
+Owner-promoted numbered product boundary, 2026-08-20; owner-directed backend-neutral revision, 2026-08-26. Status: **Promoted; Blocked 2026-08-28; backend-neutral foundation partially in source; prior Pi-only M0 acceptance reopened; not accepted**. New slices are held behind the urgent queue and the promoted add-ons ([hold record](./logs/2026-08-28-blocked-pending-other-workstreams.md)).
 
 This document defines the V5 outcome. [`implementation-plan.md`](./implementation-plan.md) is the implementation contract. Planned package names, commands, state, and UI below are not current behavior until the owning milestone is implemented, verified, logged, and accepted.
 

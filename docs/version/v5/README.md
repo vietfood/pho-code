@@ -1,6 +1,6 @@
 # V5 — Pho Agent Foundation
 
-Promoted numbered product version. Owner-promoted 2026-08-20 and redirected 2026-08-26 toward a backend-neutral Pho Agent host. The earlier Pi-only Milestone 0 implementation remains useful evidence, but its acceptance is reopened because `{ scopeId, sessionId }` is not sufficient for multiple backends. The new foundation starts with `{ backendId, scopeId, sessionId }`, explicit capability descriptors, and a host that can route Pi, direct Codex app-server, and ACP adapters without putting those protocols in Pho Code.
+Promoted numbered product version, **Blocked** since 2026-08-28. Owner-promoted 2026-08-20 and redirected 2026-08-26 toward a backend-neutral Pho Agent host. New slices are held until the [urgent queue](../../urgent/README.md) is empty and the promoted [terminal](../../features/terminal/README.md) and [compaction](../../features/compaction/README.md) add-ons are accepted; see the [hold record](./logs/2026-08-28-blocked-pending-other-workstreams.md). Behavior already in source stays in source, and defects in it may still be repaired. The earlier Pi-only Milestone 0 implementation remains useful evidence, but its acceptance is reopened because `{ scopeId, sessionId }` is not sufficient for multiple backends. The new foundation starts with `{ backendId, scopeId, sessionId }`, explicit capability descriptors, and a host that can route Pi, direct Codex app-server, and ACP adapters without putting those protocols in Pho Code.
 
 | Document | Role |
 | --- | --- |

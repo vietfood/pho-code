@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20; revised by owner direction 2026-08-26. The earlier Pi-only Milestone 0 implementation and automated evidence remain historical evidence, but M0 acceptance is reopened. The backend-neutral foundation below now precedes the planned Task Brief, evidence, verification, and completion milestones. Planned commands, adapters, state, and UI do not exist until their owning slice lands and a dated log records verification.
+Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20; revised by owner direction 2026-08-26; **Blocked** by owner direction 2026-08-28. Slices B2b, the remaining B3b coverage, and B4 are held until the urgent queue is empty and the terminal and compaction add-ons are accepted; defects in already-shipped backend behavior may still be repaired without advancing a held slice. See the [hold record](./logs/2026-08-28-blocked-pending-other-workstreams.md). The earlier Pi-only Milestone 0 implementation and automated evidence remain historical evidence, but M0 acceptance is reopened. The backend-neutral foundation below now precedes the planned Task Brief, evidence, verification, and completion milestones. Planned commands, adapters, state, and UI do not exist until their owning slice lands and a dated log records verification.
 
 Read before implementation:
 

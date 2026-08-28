@@ -45,3 +45,5 @@ Backend-advertised reasoning, Fast service tier, incremental tool updates, and t
 Product-owned Codex developer instructions, the first curated dynamic tool, and owner-reported Codex/Claude provider verification: [`2026-08-27-codex-instructions-and-tool-bridge.md`](./2026-08-27-codex-instructions-and-tool-bridge.md).
 
 Agent `read_skill` catalog and autonomous invocation (no `/` required): [`2026-08-27-change-agent-skill-invocation.md`](./2026-08-27-change-agent-skill-invocation.md).
+
+Owner-directed hold behind the urgent queue and the promoted add-ons, with the unverified surface recorded at hold time: [`2026-08-28-blocked-pending-other-workstreams.md`](./2026-08-28-blocked-pending-other-workstreams.md).

@@ -2,6 +2,8 @@
 
 Owner-priority work that should happen **before adding more capability**. This is a triage inbox, not a fourth product owner.
 
+As of 2026-08-28 this queue is the front of the line: [V5](../version/v5/README.md) is **Blocked** until it is empty and the promoted add-ons are accepted, and [V4](../version/v4/README.md) remains **Pending** on Apple enrollment.
+
 Use this folder for defects, safety honesty, startup, and prerequisites that currently block a trustworthy daily driver. Do not park a new add-on here just because it is exciting.
 
 ## What this folder is
@@ -44,12 +46,13 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
-| Proposed | [Flaky process-cancellation test](./2026-08-27-defect-flaky-process-cancellation-test.md) | defect | Proposed | The package lanes are green or red for reasons that depend only on the change under test |
-| Proposed | [Gaps left by unwired validators](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) | defect | Proposed | Dead guards removed 2026-08-27; decide the protocol-version, retention-disclosure, and preset-migration behaviour they only pretended to cover |
+| Proposed | [`web URL policy` test times out](./2026-08-28-defect-web-url-test-timeout.md) | defect | Proposed | The lane stops timing out a test whose six assertions do no I/O — by finding what stalls the process, not by raising the bound |
+| Proposed | [Gaps left by unwired validators](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) | defect | Partly closed | Retention disclosure restored behind an `(i)` control and bare-`rg` resolution decided as intended, 2026-08-28. Protocol-version validation is owned by a resumed V4; preset-merge semantics by the next preset change; parse-site validation by whichever slice first admits one of those shapes from outside first-party code |
 | Proposed | [Runtime/renderer decomposition](./2026-08-27-prerequisite-runtime-and-renderer-decomposition.md) | prerequisite | In implementation | The three god-files stop being single closures; V4 inherits a modular graph |
 
 ## Completed
 
+- [Flaky process-cancellation test](./2026-08-27-defect-flaky-process-cancellation-test.md) — fixed 2026-08-28. The abort raced the child's own interpreter startup, not the timeout the note first guessed; the test now aborts on a readiness marker and `runArgvCommand` was left unchanged.
 - [Agent stop](../archive/urgent/agent-stop/README.md) — bounded Stop accepted 2026-08-19; Stop-all and bounded teardown accepted and archived 2026-08-20. A dead main-process Pi requires the process extraction now promoted under V4.
 - [Window-first Pi core](../archive/urgent/window-first-pi-core/README.md) — metadata chrome before dynamic Pi construction accepted and archived 2026-08-20. Packaged behavior and wall-clock timing were owner-waived/deferred; Pi process extraction remains pending V4 work.
 
