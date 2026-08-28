@@ -70,6 +70,11 @@ export const CHANGE_UNTRACKED_PATH_PREFIX = ".pho-code-untracked/";
 export const CHANGE_UNREADABLE_RUN_ID = ".pho-code-unreadable";
 export const CHANGE_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/u;
 
+// Every claim here is checked against source by `change-review.test.ts`: the
+// ledger root, the 250 MiB budget, and the absence of any delete path.
+export const CHANGE_LEDGER_DISCLOSURE =
+  "Tracked write/edit snapshots are stored in Pho Code's application data directory. They are not encrypted at rest and are not part of the Pi transcript or Git history. Pending review is kept until you Approve or Undo. Approved and undone records are retained rather than silently deleted; if the 250 MiB ledger budget is reached, new snapshots are marked unavailable.";
+
 export const CHANGE_REVIEW_COPY = {
   alreadyApplied: "",
   trackedOnly: "Changes",

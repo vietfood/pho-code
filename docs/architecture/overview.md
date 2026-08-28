@@ -396,7 +396,7 @@ Required now:
 - do not display raw credentials;
 - render model/tool output as untrusted content;
 - isolate tests from real Pi data;
-- agent `bash` / `user_bash` Seatbelt wrap when Settings Sandbox is enabled (fail closed; default on). Workspace and temp files stay allowed. The same Settings filesystem policy also gates in-process `read`/`write`/`edit`. Healthy sandbox skips bash and in-policy file-tool **asks**; permission **denies** still hold. Packaged macOS stages the pinned engine and bundled `rg` as app-owned resources.
+- agent `bash` / `user_bash` Seatbelt wrap when Settings Sandbox is enabled (fail closed; default on). Workspace and temp files stay allowed. The same Settings filesystem policy also gates in-process `read`/`write`/`edit`. Healthy sandbox skips bash and in-policy file-tool **asks**; permission **denies** still hold. Packaged macOS stages the pinned engine and bundled `rg` as app-owned resources. Product retrieval tools and the sandbox engine reach that binary by absolute path through `resolveRipgrepPath`; it is deliberately **not** prepended to the `PATH` agent `bash` sees, so a bare `rg` typed in agent `bash` resolves against the owner's own environment like any other shell command.
 
 Explicitly deferred:
 

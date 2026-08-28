@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 
-export function SettingsDisclosure({ label, text, testId }: { label: string; text: string; testId: string }) {
+export function InfoDisclosure({ label, text, testId }: { label: string; text: string; testId: string }) {
   if (!text) return null;
 
   return (

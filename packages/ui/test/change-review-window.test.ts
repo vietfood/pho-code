@@ -102,6 +102,18 @@ describe("stacked changes pane", () => {
     expect(markup).toContain("2 of 2 awaiting review");
   });
 
+  test("keeps retention honesty behind a collapsed information control", () => {
+    const markup = render();
+    expect(markup).toContain('data-testid="change-retention-disclosure-trigger"');
+    expect(markup).toContain('data-testid="change-retention-disclosure"');
+    // Substrings, not the whole constant: the copy's apostrophe is HTML-escaped in markup.
+    expect(markup).toContain("not encrypted at rest");
+    expect(markup).toContain("250 MiB ledger budget");
+    // Collapsed `details`, so the paragraph never occupies the review layout.
+    expect(markup).toContain("<details");
+    expect(markup).not.toContain("<details open");
+  });
+
   test("shows the empty review copy inside the window chrome", () => {
     const markup = render({
       review: null,

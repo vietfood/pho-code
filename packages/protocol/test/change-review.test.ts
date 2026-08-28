@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   applyRuntimeEvent,
   blockingReviewStatuses,
+  CHANGE_LEDGER_DISCLOSURE,
   CHANGE_REVIEW_COPY,
   changeScopeEquals,
   emptyConversationState,
@@ -11,6 +12,7 @@ import {
   isPersistableRelativePath,
   isUntrackedChangePath,
   jsonRoundTrip,
+  MAX_CHANGE_LEDGER_BYTES,
   parseChangeDiffCursor,
   parseChangeFileViewCursor,
   requireChangeContextLines,
@@ -80,6 +82,16 @@ describe("change-review protocol", () => {
     expect(CHANGE_REVIEW_COPY.captureCapped).toContain("tracked-file limit");
     expect(CHANGE_REVIEW_COPY.ledgerUnreadable).toContain("unreadable");
     expect(CHANGE_REVIEW_COPY.undoMetadata).toBe("");
+  });
+
+  test("states retention limits that match the enforced ledger budget", () => {
+    // Ties the copy to the constant the runtime enforces, so a budget change
+    // cannot leave the disclosure quietly describing an old number.
+    expect(CHANGE_LEDGER_DISCLOSURE).toContain(`${MAX_CHANGE_LEDGER_BYTES / (1024 * 1024)} MiB`);
+    expect(CHANGE_LEDGER_DISCLOSURE).toContain("application data directory");
+    expect(CHANGE_LEDGER_DISCLOSURE).toContain("not encrypted at rest");
+    expect(CHANGE_LEDGER_DISCLOSURE).toContain("retained rather than silently deleted");
+    expect(CHANGE_LEDGER_DISCLOSURE).toContain("marked unavailable");
   });
 
   test("accepts a complete scope and rejects incomplete identities", () => {

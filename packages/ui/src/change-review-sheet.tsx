@@ -3,6 +3,7 @@
 // Shared toolbar and status chrome for the changes surface; the panel itself lives in
 // change-review-window.tsx.
 import {
+  CHANGE_LEDGER_DISCLOSURE,
   DEFAULT_CHANGE_CONTEXT_LINES,
   MAX_CHANGE_CONTEXT_LINES,
   type ChangeReviewSetSnapshot,
@@ -10,6 +11,7 @@ import {
   type ReviewStatus,
 } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
+import { InfoDisclosure } from "./info-disclosure";
 import { Button } from "./ui/button";
 
 
@@ -30,6 +32,11 @@ export function DiffToolbar({
 }) {
   return (
     <div className="change-review-toolbar">
+      <InfoDisclosure
+        label="About change retention"
+        text={CHANGE_LEDGER_DISCLOSURE}
+        testId="change-retention-disclosure"
+      />
       <label className="change-review-search">
         <span className="sr-only">Search diff</span>
         <input

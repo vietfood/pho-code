@@ -46,6 +46,11 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("change-review-search")).toBeVisible();
       await expect(page.getByTestId("change-review-whitespace")).toBeVisible();
       await expect(page.getByTestId("change-review-context")).toBeVisible();
+      await expect(page.getByTestId("change-retention-disclosure")).toBeHidden();
+      await page.getByTestId("change-retention-disclosure-trigger").click();
+      await expect(page.getByTestId("change-retention-disclosure")).toContainText("250 MiB ledger budget");
+      await page.getByTestId("change-retention-disclosure-trigger").click();
+      await expect(page.getByTestId("change-retention-disclosure")).toBeHidden();
       await expect(page.getByTestId("right-sidebar-tile-minimize-diff")).toBeVisible();
       await expect(page.getByTestId("right-sidebar-tile-close-diff")).toBeVisible();
       await expect(page.getByTestId("right-sidebar-tile-diff").getByTestId("change-review-window-title")).toBeVisible();

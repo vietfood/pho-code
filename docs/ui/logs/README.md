@@ -1,13 +1,21 @@
-# UI documentation
+# UI logs
 
-Conversation chrome and related desktop UI. This is not the add-on tracker (`features/`) and not a numbered product version (`version/`).
+Dated records for conversation chrome and related desktop UI. One file per bounded change, defect, regression, feedback thread, mistake, or decision:
 
-| Folder | Use |
-| --- | --- |
-| [`implementation/`](./implementation/conversation-ui.md) | The live conversation-UI track: what is in source, slices, verification |
-| [`ideas/`](./ideas/README.md) | UI ideas that are not yet an implementation slice |
-| [`logs/`](./logs/README.md) | UI changes, defects, regressions, feedback, mistakes, decisions, and handoffs |
+```text
+YYYY-MM-DD-<kind>-<short-slug>.md
+```
 
-Keep the conversation primary. Right-rail Terminal product work lives in [`features/terminal`](../features/terminal/README.md); Plan/Agent and the Plan document live in [`archive/features/plan-agent`](../archive/features/plan-agent/README.md); this folder only owns the rail host and transcript/composer chrome. Accepted window-first launch and Pi startup state are owned by archived [`window-first-pi-core`](../archive/urgent/window-first-pi-core/README.md), with reciprocal defect/change logs here. Accepted bounded Stop/Stop-all behavior is owned by archived [`agent-stop`](../archive/urgent/agent-stop/README.md) with its fixed UI defect/change logs here.
+Kinds in use: `change`, `bug`, `regression`, `feedback`, `mistake`, `decision`, `fix`.
 
-Versioned and add-on work may write UI records here while retaining product ownership in their own plan. Cross-link both workstream logs whenever a shared surface changes.
+Each record names the surface, status and verification class, the owning plan, expected versus actual behaviour with evidence, the fix, and any handoff. Product semantics stay with the owning workstream — this folder carries the UI evidence, not the contract:
+
+- transcript, composer, sidebar chrome, and the shared right-sidebar host → [`../implementation/conversation-ui.md`](../implementation/conversation-ui.md)
+- Changes, Approve, conflict, and Undo → archived [`v3`](../../archive/v3/README.md)
+- PTY and Terminal product behaviour → [`../../features/terminal/README.md`](../../features/terminal/README.md)
+- Plan / Agent and the Plan document → archived [`plan-agent`](../../archive/features/plan-agent/README.md)
+- backend-neutral and external-backend surfaces → [`../../version/v5/README.md`](../../version/v5/README.md)
+
+When a change touches a shared surface owned elsewhere, cross-link both records. Do not rewrite an earlier log after learning more; write a new dated record and link the correction.
+
+Unapproved interaction ideas belong in [`../ideas/README.md`](../ideas/README.md), not here.
