@@ -61,6 +61,23 @@ describe("permission settings adapter", () => {
     ).toBe("guarded");
   });
 
+  // The presets carry no version field, and deliberately so: profiles are
+  // recognised by shape, not by a stored number. The rule a preset revision must
+  // follow is therefore to keep the outgoing snapshot as a `legacy` entry —
+  // otherwise every config written under the old preset silently re-labels
+  // itself Custom, and Settings stops offering the owner their own profile.
+  test("keeps recognising configs written under superseded presets", () => {
+    const v2Guarded = {
+      "*": "ask",
+      path: { "*": "ask", "*.env": "deny", "*.env.*": "deny", "*.env.example": "ask", "~/.ssh/*": "deny" },
+      external_directory: "ask",
+    };
+    expect(detectPermissionProfile(v2Guarded)).toBe("guarded");
+
+    // A shape no preset generation ever wrote is Custom, and stays untouched.
+    expect(detectPermissionProfile({ "*": "ask", path: { "*": "allow" } })).toBe("custom");
+  });
+
   test("preserves a Custom policy when only YOLO changes", () => {
     const existing = {
       debugLog: true,

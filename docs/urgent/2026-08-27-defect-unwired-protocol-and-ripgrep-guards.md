@@ -1,7 +1,7 @@
 # Defect — gaps left behind by validators and disclosures that were never called
 
 **Kind:** defect
-**Status:** Partly closed 2026-08-28 — gaps 2 and 3 decided and implemented; gaps 1, 4, and 5 have named owners and remain open
+**Status:** Closed 2026-08-28 — gaps 2 and 3 implemented, gaps 4 and 5 answered, gap 1 deferred to V4 by decision and recorded in its plan
 
 A deslop pass on 2026-08-27 found eight exports that were correct, tested, and called from nowhere. The owner directed that they be deleted rather than wired ("remove unwired guards/disclosures too"), and they are now gone from source.
 
@@ -15,7 +15,7 @@ A deslop pass on 2026-08-27 found eight exports that were correct, tested, and c
 
 Low risk while the renderer and main process always ship together. It becomes real the moment a stale packaged renderer can meet a newer main process — which is exactly what V4's update path introduces. Decide the fail-closed behaviour when V4 resumes, not after.
 
-**Owner 2026-08-28: V4.** Left open deliberately. V4 is Pending, and its update path is what creates the mismatch this guard would catch; re-adding a validator now would be another unwired guard. Resuming V4 must handle it alongside the Milestone 0 constants listed in [`version/v4/logs/2026-08-27-remove-m0-source-freeze.md`](../version/v4/logs/2026-08-27-remove-m0-source-freeze.md).
+**Deferred to V4 by decision, 2026-08-28, and recorded in V4's own plan so a resume cannot miss it.** V4 is Pending, and its update path is what creates the mismatch this guard would catch; re-adding a validator now would be another unwired guard. Resuming V4 must handle it alongside the Milestone 0 constants listed in [`version/v4/logs/2026-08-27-remove-m0-source-freeze.md`](../version/v4/logs/2026-08-27-remove-m0-source-freeze.md).
 
 ### 2. No user-facing disclosure of change-ledger retention — `safety honesty` — **CLOSED 2026-08-28**
 
@@ -53,7 +53,18 @@ Recorded where the next reader will look: [`architecture/overview.md`](../archit
 
 The preset is on its fourth revision with no migration signal. Confirm how stored settings merge with the shipped preset **before** the next revision.
 
-**Owner 2026-08-28: the next preset change.** Still open. This is cheap to answer while nothing is changing and expensive to answer during a revision, but it needs the merge semantics decided rather than a version number re-added — a number that nothing reads would repeat the original mistake.
+**Answered 2026-08-28: they do not merge — they are recognised, and a version number was the wrong mechanism.**
+
+Reading `permission-settings.ts` end to end:
+
+- a stored config is never rewritten wholesale. `syncHarnessPermissionPolicy` overlays exactly two things onto whatever is on disk — the harness allow-list always, and the managed web pair only when the profile is not Custom — and writes only if something actually changed;
+- the profile label is **derived, not stored**. `detectPermissionProfile` compares the stored policy, with those managed overlays applied, against each preset's `current` snapshot and an optional `legacy` one;
+- `legacy` *is* the migration mechanism. A v2-era file still recognises as guarded or balanced without being rewritten, exactly as its comment says: "Recognition-only snapshots preserve existing v2 files without rewriting their decisions";
+- anything unrecognised is Custom, preserved verbatim and never overlaid with the managed web pair.
+
+So a stored version number would not have protected anything a shape comparison does not already protect. The real rule a preset revision must follow is: **keep the outgoing snapshot as a `legacy` entry**, or every config written under the old preset silently re-labels itself Custom and Settings stops offering the owner their own profile.
+
+That rule was already guarded by tests, but only incidentally — the fixtures existed under names describing their mechanics ("treats string catch-alls as equivalent to a `*` map"). `permission-settings.test.ts` now states it directly in `keeps recognising configs written under superseded presets`, so the next reviser meets the reason rather than inferring it.
 
 ### 5. Protocol values cross the boundary unvalidated — `defect` (low)
 
@@ -61,7 +72,11 @@ Removed, each called only by its own test: `isSandboxStatus`, `isWebSourceRecord
 
 These are shapes that cross the IPC seam, where AGENTS.md expects JSON-safe validated data. Individually low-risk; together they show validation was written and never adopted. If any of these values can originate anywhere but trusted first-party code, validation has to come back at the parse site.
 
-**Owner 2026-08-28: whichever slice next admits one of these from outside first-party code.** Still open, deliberately unfixed. All four currently originate in first-party main-process code, so adding validators today would recreate exactly the unwired-guard problem this note documents. Validation belongs at the parse site when a parse site appears.
+**Answered 2026-08-28: there is no parse site, so a validator would be unwired by construction.**
+
+Each of the four shapes is *constructed* by first-party main-process code, never deserialised whole from a foreign payload — checked rather than assumed. The interesting case is `WebSourceRecord`, whose fields come off the open internet: `web-client.ts:213` builds it field by field as `{ title, url, provider }` from already-parsed values, so the record's *shape* never leaves first-party control even though its *content* is untrusted. Content is a sanitisation concern, and AGENTS.md already routes it — tool inputs and outputs render as untrusted data.
+
+Validation belongs at a parse site, when a parse site appears. Adding it now would recreate exactly the problem this note documents.
 
 ## Related
 

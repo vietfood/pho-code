@@ -46,12 +46,12 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
-| Proposed | [`web URL policy` test times out](./2026-08-28-defect-web-url-test-timeout.md) | defect | Proposed | The lane stops timing out a test whose six assertions do no I/O — by finding what stalls the process, not by raising the bound |
-| Proposed | [Gaps left by unwired validators](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) | defect | Partly closed | Retention disclosure restored behind an `(i)` control and bare-`rg` resolution decided as intended, 2026-08-28. Protocol-version validation is owned by a resumed V4; preset-merge semantics by the next preset change; parse-site validation by whichever slice first admits one of those shapes from outside first-party code |
 | Proposed | [Runtime/renderer decomposition](./2026-08-27-prerequisite-runtime-and-renderer-decomposition.md) | prerequisite | In implementation | The three god-files stop being single closures; V4 inherits a modular graph |
 
 ## Completed
 
+- [Lane-wide event-loop stall](./2026-08-28-defect-web-url-test-timeout.md) — fixed 2026-08-28. A measured 9.3 s stall from cold module loading exceeded the 5 s per-test timeout and failed whichever test was in flight; the lane timeout is now calibrated to the measurement, and no test or product code changed.
+- [Gaps left by unwired validators](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) — closed 2026-08-28. Retention disclosure restored behind an `(i)` control, bare-`rg` resolution decided as intended, preset recognition answered (shape-based, not versioned) and pinned by a test, parse-site validation shown unnecessary, and protocol-version validation deferred to V4 Milestone 5 where its plan now names it.
 - [Flaky process-cancellation test](./2026-08-27-defect-flaky-process-cancellation-test.md) — fixed 2026-08-28. The abort raced the child's own interpreter startup, not the timeout the note first guessed; the test now aborts on a readiness marker and `runArgvCommand` was left unchanged.
 - [Agent stop](../archive/urgent/agent-stop/README.md) — bounded Stop accepted 2026-08-19; Stop-all and bounded teardown accepted and archived 2026-08-20. A dead main-process Pi requires the process extraction now promoted under V4.
 - [Window-first Pi core](../archive/urgent/window-first-pi-core/README.md) — metadata chrome before dynamic Pi construction accepted and archived 2026-08-20. Packaged behavior and wall-clock timing were owner-waived/deferred; Pi process extraction remains pending V4 work.

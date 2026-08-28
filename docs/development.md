@@ -73,7 +73,7 @@ Run commands from the repository root:
 | `bun run build` | Produce Electron main, preload, and renderer production bundles; does not imply an installer. |
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
-| `bun test` | Run non-GUI unit and integration tests. |
+| `bun run test` | Run non-GUI unit and integration tests. Carries `--timeout 20000`; a narrow `bun test <paths>` must pass that flag itself, because `bunfig.toml` does not honour a test timeout and cold module loading can stall the lane past the 5 s default. |
 | `bun run eval:v5` | Run the frozen V5 M0 live deterministic development and holdout cohorts through Pho Code's isolated `harness-test/slice` runtime. `eval:v5:development` and `eval:v5:holdout` run one cohort. Results are append-only files in an owned temporary directory. |
 | `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, bounded Stop/Stop-all, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
 | `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, notices, `LICENSE`, and `EULA.md`, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |

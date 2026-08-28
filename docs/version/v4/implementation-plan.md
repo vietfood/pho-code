@@ -536,6 +536,7 @@ A V4 beta user can check for and install a signed beta update from the fixed fee
 7. Test corrupted feed, missing payload, interrupted download, invalid signature/notarization, offline start, updater process failure, child runtime crash during check, and shutdown timeout.
 8. Keep the currently installed build usable when check/download fails. Keep previous signed beta artifacts available for manual reinstall and publish clear rollback limits.
 9. Prove update does not mutate feature code in a running session, return URLs to the renderer, or bypass immutable packaged feature validation.
+10. Decide and implement the fail-closed behaviour when a renderer and a main process disagree on `protocolVersion`. Every event envelope has carried that field since v1 and **nothing has ever validated it** — the only implementation, `isSupportedProtocolVersion`, was removed as unwired on 2026-08-27. That is harmless while both halves always ship together, which is exactly the invariant this milestone breaks. See [`urgent/2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md`](../../urgent/2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md).
 
 ### Acceptance criteria
 
@@ -548,6 +549,7 @@ A V4 beta user can check for and install a signed beta update from the fixed fee
 - beta N → N+1 succeeds on a clean machine and preserves settings, sessions, credentials, V3 ledger, sandbox, skills, GitHub state, and archive metadata;
 - failure before install leaves beta N running; failed migration preserves/reinstates its pre-migration recovery record;
 - prior signed artifact and release notes remain available for manual rollback guidance;
+- a renderer/main `protocolVersion` mismatch fails closed with an owner-visible state, rather than being read as valid data;
 - no silent auto-update or telemetry behavior is introduced.
 
 ### Proportional verification

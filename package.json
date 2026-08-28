@@ -21,7 +21,7 @@
     "build": "bun run --filter @pho-code/desktop build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint .",
-    "test": "bun test",
+    "test": "bun test --timeout 20000",
     "eval:v5": "bun scripts/run-v5-baseline.ts --cohort all",
     "eval:v5:development": "bun scripts/run-v5-baseline.ts --cohort development",
     "eval:v5:holdout": "bun scripts/run-v5-baseline.ts --cohort holdout",

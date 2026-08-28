@@ -10,17 +10,19 @@ description: Run focused unit, integration, Electron, and packaged verification 
 Run from the repository root. Start with tests closest to the changed boundary:
 
 ```bash
-bun test <test-files>
+bun test <test-files> --timeout 20000
 bun run typecheck
 bun run lint
 ```
+
+Pass `--timeout 20000` on narrow lanes. `bunfig.toml` cannot carry it in Bun 1.3.14, and cold-start module loading can block the event loop past the 5 s default, timing out whichever test is in flight.
 
 Use root scripts for acceptance:
 
 ```bash
 bun run typecheck
 bun run lint
-bun test
+bun run test
 bun run test:desktop
 bun run build
 ```

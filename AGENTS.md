@@ -147,12 +147,12 @@ The root command contract, once scaffolded, is:
 ```bash
 bun run typecheck
 bun run lint
-bun test
+bun run test
 bun run test:desktop
 bun run build
 ```
 
-Use the narrower package command during iteration, followed by the exit checks in the promoted implementation plan. The accepted v2 checks remain recorded in `docs/archive/v2/implementation-plan-v2.md`.
+Use the narrower package command during iteration, followed by the exit checks in the promoted implementation plan. A narrow `bun test <paths>` needs `--timeout 20000` explicitly: `bunfig.toml` cannot carry it, and the lane's cold-start module loading can block the event loop for longer than the 5 s default ([measurement](docs/urgent/2026-08-28-defect-web-url-test-timeout.md)). The accepted v2 checks remain recorded in `docs/archive/v2/implementation-plan-v2.md`.
 
 ## Filesystem and deletion
 

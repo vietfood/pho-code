@@ -141,9 +141,13 @@ describe("workspace package dependency graph", () => {
   test("ui depends on protocol and small UI libraries, not application or runtime", async () => {
     const manifest = await readPackage("packages/ui");
     expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
+      // Static-SVG icon packs: assets only, no runtime or application reach.
+      "@codexteam/icons",
       "@dnd-kit/core",
       "@dnd-kit/sortable",
       "@dnd-kit/utilities",
+      "@lobehub/icons-static-svg",
+      "@meteocons/svg-static",
       "@pho-code/protocol",
       "class-variance-authority",
       "katex",
