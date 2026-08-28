@@ -1,6 +1,6 @@
 # Canonical FFF retrieval
 
-Status: **Accepted**
+Status: **Accepted; archived 2026-08-28**
 Owner: accepted runtime architecture
 Date: 2026-08-28
 
@@ -53,4 +53,4 @@ The full packaged attempt also exposed two unrelated existing lane failures: a s
 
 ## Correction to earlier evidence
 
-The completed [unwired-validator note](./2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) said the old retrieval tools reached the bundled `rg` by absolute path. That was incorrect: local retrieval was already FFF-native. Only the sandbox engine uses `resolveRipgrepPath`. This record preserves and corrects that historical mistake rather than silently rewriting it.
+The completed [unwired-validator note](../../urgent/2026-08-27-defect-unwired-protocol-and-ripgrep-guards.md) said the old retrieval tools reached the bundled `rg` by absolute path. That was incorrect: local retrieval was already FFF-native. Only the sandbox engine uses `resolveRipgrepPath`. This record preserves and corrects that historical mistake rather than silently rewriting it.

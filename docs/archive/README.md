@@ -16,9 +16,10 @@ Closed, retired, superseded, or abandoned add-ons belong under [`features/`](./f
 
 - [`features/sandbox/`](./features/sandbox/README.md) — accepted agent-tool sandbox; workstream archived 2026-08-18.
 
-## Closed urgent tracks
+## Closed urgent work
 
-Closed owner-priority defect, safety, startup, and prerequisite tracks belong under [`urgent/`](./urgent/README.md). Living accepted behavior stays in architecture and current state.
+Closed owner-priority defect, safety, startup, and prerequisite tracks and one-file notes belong under [`urgent/`](./urgent/README.md). Living accepted behavior stays in architecture and current state.
 
 - [`urgent/agent-stop/`](./urgent/agent-stop/README.md) — accepted bounded Stop, Stop-all, and bounded teardown; archived 2026-08-20.
 - [`urgent/window-first-pi-core/`](./urgent/window-first-pi-core/README.md) — accepted metadata-first window startup and deferred Pi process extraction; archived 2026-08-20.
+- [`urgent/2026-08-28-defect-canonical-fff-retrieval.md`](./urgent/2026-08-28-defect-canonical-fff-retrieval.md) — accepted canonical bundled-FFF retrieval; archived 2026-08-28.
