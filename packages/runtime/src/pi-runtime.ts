@@ -43,7 +43,6 @@ import {
   GITHUB_MCP_FEATURE_ID,
   isExternalSkillSourceId,
   requireMatchingSessionKey,
-  sessionCatalogCopy,
   sessionKeyId,
   sessionTitleSeed,
   type AbortRunInput,
@@ -74,7 +73,6 @@ import {
   type SendPromptInput,
   type SessionQueueState,
   type SessionSnapshot,
-  type SessionSummary,
   type SessionKey,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
@@ -116,7 +114,7 @@ import {
   type PlanTodoItem,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
-import { applyCursorSdkHarnessPolicy, cursorProviderHasOwnerCredentials, filterCursorModelsUnlessAuthenticated, registerCursorProviderAccount } from "./cursor-sdk-policy";
+import { applyCursorSdkHarnessPolicy, cursorProviderHasOwnerCredentials, registerCursorProviderAccount } from "./cursor-sdk-policy";
 import { advertisedCatalogModel, assertModelAdmissible, catalogHasModel } from "./model-catalog";
 import {
   createDefaultFeatureManifest,
@@ -209,7 +207,7 @@ import {
   serializeWorkspaceReferences,
   validateWorkspaceReference,
 } from "./workspace-reference";
-import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
+import { canonicalizeWorkspaceDirectory } from "./workspace-path";
 import { createPhoCodeScopeAdapter } from "./pho-code-scope-adapter";
 import { createRuntimeEventEmitter } from "./runtime-event-emitter";
 import { createRuntimeEventProjector } from "./runtime-events";
@@ -217,8 +215,9 @@ import { createCompiledContextPromptCache } from "./compiled-context-prompt-cach
 import { createProjectTrust } from "./project-trust";
 import { createControllerLookup } from "./runtime-controller-lookup";
 import { createRunLifecycle, type ActiveRun } from "./runtime-run-lifecycle";
+import { createWorkspaceCatalogPort, liveSessionSummary, sessionSummaryFromInfo } from "./workspace-catalog";
 import { createPlanContextProjector, toolPromptSources } from "./runtime-plan-context";
-import { createWorkspaceCatalogCache, type WorkspaceCatalog } from "./workspace-catalog-cache";
+import { createWorkspaceCatalogCache } from "./workspace-catalog-cache";
 import { createDisposeLatch } from "./dispose-latch";
 import { createSessionSelection } from "./session-selection";
 
@@ -419,9 +418,10 @@ export async function createPhoCodeRuntime(
   const flattenedFeatures = flattenFeatureManifest(featureManifest);
   const modelRuntime = await createAgentModelRuntime(agentDir);
 
-  let testProvider: FauxProviderHandle | undefined;
-  if (options.deterministicTestModel) {
-    testProvider = createDeterministicTestProvider();
+  const testProvider: FauxProviderHandle | undefined = options.deterministicTestModel
+    ? createDeterministicTestProvider()
+    : undefined;
+  if (testProvider) {
     registerAgentTestProvider(modelRuntime, testProvider);
   }
   if (options.testOAuthFlow) {
@@ -464,6 +464,19 @@ export async function createPhoCodeRuntime(
       await disposeLiveSession(controller, reason);
     },
   });
+
+  const catalog = createWorkspaceCatalogPort({
+    modelRuntime,
+    testProvider,
+    cache: catalogCache,
+    listSessionInfos: (cwd) => listAgentSessions(cwd, agentDir),
+    listResident: () => registry.list(),
+    isProjectApproved: (cwd) => projectTrust.isApproved(cwd),
+    cursorAuthenticated: () => cursorProviderHasOwnerCredentials(modelRuntime),
+  });
+  const { listModels, listSessions, mergeResidentSessions, workspaceSummary } = catalog;
+  const clearCatalogCache = catalog.clear;
+  const resolveCatalog = catalog.resolve;
 
   const runs = createRunLifecycle<LiveSession>({ finishRun });
   const createActiveRun = runs.start;
@@ -738,37 +751,6 @@ export async function createPhoCodeRuntime(
     return result;
   }
 
-  async function listModels(): Promise<{ models: ModelSummary[]; modelError?: string }> {
-    if (testProvider) {
-      const model = testProvider.getModel();
-      return {
-        models: [projectModelSummary(model)],
-      };
-    }
-
-    try {
-      const available = await modelRuntime.getAvailable();
-      const cursorAuthenticated = await cursorProviderHasOwnerCredentials(modelRuntime);
-      const models = filterCursorModelsUnlessAuthenticated(
-        available.map((model) => projectModelSummary(model)),
-        cursorAuthenticated,
-      );
-      if (models.length === 0) {
-        return {
-          models,
-          modelError:
-            "No authenticated model is available. Sign in to a provider account in Settings.",
-        };
-      }
-      return { models };
-    } catch (error) {
-      return {
-        models: [],
-        modelError: error instanceof Error ? error.message : "Unable to list models.",
-      };
-    }
-  }
-
   async function ensureSessionModelIsSelectable(
     live: LiveSession,
     listedModels?: readonly ModelSummary[],
@@ -790,37 +772,6 @@ export async function createPhoCodeRuntime(
     } catch (error) {
       console.error("Failed to bind a selectable session model:", error);
     }
-  }
-
-  async function listSessions(cwd: string): Promise<SessionSummary[]> {
-    const infos = await listAgentSessions(cwd, agentDir);
-    return infos.map((info) => sessionSummaryFromInfo(cwd, info));
-  }
-
-  function workspaceSummary(cwd: string): WorkspaceSummary {
-    return {
-      id: cwd,
-      path: cwd,
-      displayName: displayNameForPath(cwd),
-      lastOpenedAt: new Date().toISOString(),
-      projectResourcesApproved: projectTrust.isApproved(cwd),
-    };
-  }
-
-  function clearCatalogCache(): void {
-    catalogCache.clear();
-  }
-
-  async function resolveCatalog(workspacePath: string, refreshCatalog: boolean): Promise<WorkspaceCatalog> {
-    if (!refreshCatalog) {
-      const cached = catalogCache.get(workspacePath);
-      if (cached) {
-        return cached;
-      }
-    }
-    const { models, modelError } = await listModels();
-    const sessions = await listSessions(workspacePath);
-    return catalogCache.set(workspacePath, { models, sessions, ...(modelError ? { modelError } : {}) });
   }
 
   async function buildSnapshot(options: { refreshCatalog?: boolean; live?: LiveSession } = {}): Promise<SessionSnapshot> {
@@ -888,18 +839,6 @@ export async function createPhoCodeRuntime(
       };
     }
     return snapshot;
-  }
-
-  function mergeResidentSessions(sessions: SessionSummary[], workspaceId: string): SessionSummary[] {
-    let merged = sessions;
-    for (const live of registry.list()) {
-      if (live.key.workspaceId !== workspaceId) {
-        continue;
-      }
-      const session = live.runtime.session;
-      merged = mergeActiveSession(merged, liveSessionSummary(workspaceId, session));
-    }
-    return merged;
   }
 
   function resourceLoaderOptions() {
@@ -2271,38 +2210,6 @@ function withTestHostUi(manifest: HarnessFeatureManifest, enabled: boolean): Har
         expected: { extensions: 1 },
       },
     ],
-  };
-}
-
-function mergeActiveSession(
-  sessions: SessionSummary[],
-  active: SessionSummary,
-): SessionSummary[] {
-  if (sessions.some((session) => session.id === active.id)) {
-    return sessions.map((session) => (session.id === active.id ? { ...session, ...active } : session));
-  }
-  return [active, ...sessions];
-}
-
-function liveSessionSummary(workspaceId: string, session: AgentSession): SessionSummary {
-  const catalog = sessionCatalogCopy(session.sessionName, firstUserText(session.messages));
-  return {
-    id: session.sessionId,
-    workspaceId,
-    title: catalog.title,
-    updatedAt: new Date().toISOString(),
-    ...(catalog.preview ? { preview: catalog.preview } : {}),
-  };
-}
-
-function sessionSummaryFromInfo(workspaceId: string, info: SessionInfo): SessionSummary {
-  const catalog = sessionCatalogCopy(info.name, info.firstMessage);
-  return {
-    id: info.id,
-    workspaceId,
-    title: catalog.title,
-    updatedAt: info.modified.toISOString(),
-    ...(catalog.preview ? { preview: catalog.preview } : {}),
   };
 }
 
