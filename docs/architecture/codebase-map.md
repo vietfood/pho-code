@@ -92,7 +92,9 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `pi-runtime.ts` composes Pi services and public runtime operations, including the accepted bounded abort/controller-disposal path.
 - `hosted-runtime.ts` registers production Pi routing and the lazy experimental Codex adapter with the Pho Agent host, projects backend snapshots/events into the product facade, and explicitly rejects product operations a selected backend does not support.
 - `session-registry.ts` adapts Pho Code `{workspaceId, sessionId}` identity to the bounded independent registry owned by `@pho-agent/runtime/session-registry`: eight resident controllers and four concurrent runs.
-- `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth. Session catalog titles go through `sessionCatalogCopy` and may later persist a model summary with Pi `setSessionName`.
+- `transcript.ts`, `model-summary.ts`, `preview.ts` project Pi truth; `projectSessionMessages` applies the rewrite and sandboxed-bash overlays. Session catalog titles go through `sessionCatalogCopy` and may later persist a model summary with Pi `setSessionName`.
+- State owners and projections extracted from `createPhoCodeRuntime` so each is readable and testable on its own: `runtime-event-emitter.ts` (sequence and listeners), `runtime-events.ts` (live state to protocol events, including activity phases and sandboxed-tool marking), `runtime-plan-context.ts` (context-prompt/Plan projection and the session tool policy), `runtime-controller-lookup.ts` (which controller a command acts on, and why it is refused), `runtime-run-lifecycle.ts` (the `ActiveRun` type, run creation, and prompt settlement), `project-trust.ts`, `compiled-context-prompt-cache.ts`, `workspace-catalog-cache.ts`, `session-selection.ts`, and `dispose-latch.ts`. `model-catalog.ts` also owns `assertModelAdmissible`, the turn refusal for a model the catalog cannot serve.
+- `HarnessRuntime`'s public shape is unchanged by those moves. `pi-runtime.ts` keeps the composition root and the orchestration that genuinely spans it — session instantiation and disposal, catalog resolution, feature binding, `buildSnapshot`, and the agent run loop. Why the remaining clusters were left there is recorded in [`urgent`](../urgent/2026-08-27-prerequisite-runtime-and-renderer-decomposition.md).
 - `extension-host.ts`, `host-dialog-presentation.ts` bind structured extension UI per session.
 - `context-prompt.ts` and `assistant-rewrite.ts` own product compilation and display overlays; `context-prompt-feature.ts` re-exports the reusable Pi hook from `@pho-agent/runtime/context-prompt-feature`. Context-prompt injection looks up compiled A from the live session on `before_agent_start`; the factory does not capture a bind-time session key.
 
@@ -133,7 +135,7 @@ This accepted subsystem's product contract, evidence, and residual recovery limi
 
 `apps/desktop/electron` owns:
 
-- `main.ts` — app lifecycle, metadata/runtime-host composition, BrowserWindow-before-Pi ordering, caught dynamic runtime import, native dialogs/clipboard/theme, resource roots, staged `rg` PATH prepend, command registration, bounded quit.
+- `main.ts` — app lifecycle, metadata/runtime-host composition, BrowserWindow-before-Pi ordering, caught dynamic runtime import, native dialogs/clipboard/theme, resource roots, staged `rg` absolute-path resolution, command registration, bounded quit.
 - `application-menu.ts`, `application-menu-spec.ts` — application menu; Reload is CommandOrControl+Shift+R so CommandOrControl+R can toggle the right sidebar.
 - `preload.ts`, `ipc.ts` — explicit `window.phoCode` facade and fixed channel names.
 - `security.ts`, `security-policy.ts`, `trusted-renderer.ts` — CSP, sender/origin, navigation, permission, and external-URL policy.

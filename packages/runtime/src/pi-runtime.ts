@@ -43,11 +43,9 @@ import {
   GITHUB_MCP_FEATURE_ID,
   isExternalSkillSourceId,
   requireMatchingSessionKey,
-  sandboxBashWasWrapped,
   sessionCatalogCopy,
   sessionKeyId,
   sessionTitleSeed,
-  sessionActivityPhase,
   type AbortRunInput,
   type CancelProviderLoginInput,
   type CredentialProviderSummary,
@@ -78,7 +76,6 @@ import {
   type SessionSnapshot,
   type SessionSummary,
   type SessionKey,
-  type SessionActivitySummary,
   type SetSessionModelInput,
   type SetThinkingLevelInput,
   type SetFastModeInput,
@@ -120,7 +117,7 @@ import {
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, cursorProviderHasOwnerCredentials, filterCursorModelsUnlessAuthenticated, registerCursorProviderAccount } from "./cursor-sdk-policy";
-import { advertisedCatalogModel, catalogHasModel } from "./model-catalog";
+import { advertisedCatalogModel, assertModelAdmissible, catalogHasModel } from "./model-catalog";
 import {
   createDefaultFeatureManifest,
   emptyFeatureManifest,
@@ -143,7 +140,7 @@ import { createLazyCodexBackend } from "@pho-agent/backend-codex";
 import { CODEX_DEVELOPER_INSTRUCTIONS, createCodexWorkspaceSearchTool } from "./external-backend-tools";
 import { validateSessionArtifact } from "./session-artifact";
 import { previewToolResult, previewUnknown } from "./preview";
-import { reconstructPlanTodos, todosFromToolArgs, todosFromToolResult } from "./todo-tool";
+import { todosFromToolArgs, todosFromToolResult } from "./todo-tool";
 import { createNodeModuleResourceLocator, type ResourceLocator } from "./resource-locator";
 import { projectFeatureSnapshot } from "./resources";
 import {
@@ -165,29 +162,18 @@ import { createSkillSourceRegistry } from "./skill-source";
 import { createSkillInvokeFeature, SKILL_INVOKE_FEATURE_ID } from "./skill-invoke";
 import {
   applyDisabledSectionIds,
-  collectContextPromptRecord,
   compileContextPrompt,
   CONTEXT_PROMPT_CUSTOM_TYPE,
-  enabledToolNames,
   liveContextPromptSections,
-  lookupCompiledContextPrompt,
-  projectSessionContextPrompt,
-  type ToolPromptSource,
 } from "./context-prompt";
 import { CONTEXT_PROMPT_FEATURE_ID, createContextPromptFeature } from "./context-prompt-feature";
 import {
-  PLAN_AGENT_CUSTOM_TYPE,
   PLAN_EXECUTE_CUSTOM_TYPE,
   PLAN_EXECUTE_PROMPT,
   beginPlanExecuteRecord,
-  collectPlanAgentRecord,
-  emptyPlanAgentRecord,
-  intersectPlanActiveTools,
   planExecuteFinishedByTodos,
   planExecuteRefusal,
   planExecuteRefusalMessage,
-  projectSessionPlan,
-  type PlanAgentRecord,
 } from "./plan-agent-state";
 import { resolveCuratedSkillsRoot } from "./skills-feature";
 import { createGitHubMcpFeature } from "./github-mcp-feature";
@@ -212,19 +198,12 @@ import { createChangeCaptureService, type ChangeCaptureService } from "./change-
 import { createFileChangeLedgerStore } from "./change-ledger-store";
 import { createChangeReviewRuntime, type ChangeReviewRuntime } from "./change-review";
 import { createAtomicChangeRecoveryService } from "./change-recovery";
-import { firstUserText, projectMessages } from "./transcript";
+import { firstUserText, projectSessionMessages } from "./transcript";
 import {
-  applyRewriteOverlays,
   ASSISTANT_REWRITE_CUSTOM_TYPE,
-  collectRewriteOverlays,
   joinedText,
   originalJoinedText,
 } from "./assistant-rewrite";
-import {
-  applySandboxedBashOverlay,
-  collectSandboxedBashCallIds,
-  SANDBOXED_BASH_CUSTOM_TYPE,
-} from "./sandboxed-bash";
 import {
   collectWorkspaceReferenceTokens,
   serializeWorkspaceReferences,
@@ -232,7 +211,13 @@ import {
 } from "./workspace-reference";
 import { canonicalizeWorkspaceDirectory, displayNameForPath } from "./workspace-path";
 import { createPhoCodeScopeAdapter } from "./pho-code-scope-adapter";
-import { createRuntimeEventEmitter, type RuntimeEventDraft } from "./runtime-event-emitter";
+import { createRuntimeEventEmitter } from "./runtime-event-emitter";
+import { createRuntimeEventProjector } from "./runtime-events";
+import { createCompiledContextPromptCache } from "./compiled-context-prompt-cache";
+import { createProjectTrust } from "./project-trust";
+import { createControllerLookup } from "./runtime-controller-lookup";
+import { createRunLifecycle, type ActiveRun } from "./runtime-run-lifecycle";
+import { createPlanContextProjector, toolPromptSources } from "./runtime-plan-context";
 import { createWorkspaceCatalogCache, type WorkspaceCatalog } from "./workspace-catalog-cache";
 import { createDisposeLatch } from "./dispose-latch";
 import { createSessionSelection } from "./session-selection";
@@ -256,15 +241,6 @@ export interface PhoCodeRuntimeOptions {
   githubMcpLaunch?: (token: string) => { command: string; args: readonly string[] };
   secretStore?: SecretStore;
   rgPath?: string;
-}
-
-interface ActiveRun {
-  runId: string;
-  sessionId: string;
-  promptDone: Promise<void>;
-  abortRequested: boolean;
-  settled: boolean;
-  startedAt: string;
 }
 
 // Stop must return the chat to Send even when Pi ignores the abort signal.
@@ -340,12 +316,15 @@ export async function createPhoCodeRuntime(
   }
   const agentDir = path.resolve(options.agentDir ?? getAgentDir());
   syncHarnessPermissionPolicy(agentDir);
-  const trustStore = createAgentProjectTrustStore(agentDir);
-  const approvedProjectPaths = new Set<string>();
+  const projectTrust = createProjectTrust({
+    store: createAgentProjectTrustStore(agentDir),
+    requiresTrust: agentProjectRequiresTrust,
+  });
   const scopeAdapter = createPhoCodeScopeAdapter();
   const events = createRuntimeEventEmitter();
   const emit = events.emit;
-  const compiledContextPromptByKey = new Map<string, string>();
+  const compiledPrompts = createCompiledContextPromptCache();
+  const planContext = createPlanContextProjector<LiveSession>({ compiledPrompts });
   const locator = options.resourceLocator ?? createNodeModuleResourceLocator();
   const resolvedDefault = resolvePermissionFeature(locator);
   const resolvedCursorSdk = resolveCursorSdkFeature(locator);
@@ -400,7 +379,7 @@ export async function createPhoCodeRuntime(
     options.testHostUi === true,
   );
   const contextPromptFeature = createContextPromptFeature({
-    compiledFor: (input) => lookupCompiledContextPrompt(compiledContextPromptByKey, input),
+    compiledFor: (input) => compiledPrompts.compiledFor(input),
   });
   const changeCaptureHost: ChangeCaptureHost = {
     capture: undefined,
@@ -486,58 +465,25 @@ export async function createPhoCodeRuntime(
     },
   });
 
-  function emitFor(session: LiveSession, event: RuntimeEventDraft): void {
-    emit({
-      ...event,
-      workspaceId: session.key.workspaceId,
-      sessionId: event.sessionId ?? session.key.sessionId,
-    });
-  }
+  const runs = createRunLifecycle<LiveSession>({ finishRun });
+  const createActiveRun = runs.start;
+  const watchPromptDone = runs.watchPromptDone;
 
-  function toolEventPayload(
-    runId: string,
-    event: { toolCallId: string; toolName: string },
-    status: "running" | "completed" | "failed",
-    inputPreview: string,
-    outputPreview: string,
-  ) {
-    return {
-      runId,
-      callId: event.toolCallId,
-      name: event.toolName,
-      status,
-      inputPreview,
-      outputPreview,
-      ...(sandboxBashWasWrapped(event.toolName, sandbox.snapshot().status) ? { sandboxed: true as const } : {}),
-    };
-  }
+  const controllers = createControllerLookup<LiveSession>({
+    get: (key) => registry.get(key),
+    list: () => registry.list(),
+    selected: () => selection.current,
+  });
+  const locateController = controllers.locate;
 
-  function rememberSandboxedBashCall(live: LiveSession, toolName: string, callId: string): void {
-    if (!sandboxBashWasWrapped(toolName, sandbox.snapshot().status)) {
-      return;
-    }
-    if (collectSandboxedBashCallIds(live.runtime.session.sessionManager.getEntries()).has(callId)) {
-      return;
-    }
-    live.runtime.session.sessionManager.appendCustomEntry(SANDBOXED_BASH_CUSTOM_TYPE, { callId });
-  }
-
-  function emitSessionSnapshot(live: LiveSession, snapshot: SessionSnapshot): void {
-    emitFor(live, {
-      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
-      sessionId: snapshot.session.id,
-      payload: snapshot,
-    });
-  }
-
-  function emitFullSnapshot(live: LiveSession, snapshot: SessionSnapshot): void {
-    emitFor(live, {
-      type: RUNTIME_EVENT_TYPES.featureSnapshot,
-      sessionId: snapshot.session.id,
-      payload: snapshot.features,
-    });
-    emitSessionSnapshot(live, snapshot);
-  }
+  const projection = createRuntimeEventProjector<LiveSession>({
+    emit,
+    sandboxStatus: () => sandbox.snapshot().status,
+    isSelected: (session) => selection.current === session,
+    listSessions: () => registry.list(),
+  });
+  const { emitActivity, emitFor, emitFullSnapshot, emitSessionSnapshot, rememberSandboxedBashCall, toolEventPayload } =
+    projection;
 
   const changeStore = createFileChangeLedgerStore(path.join(options.applicationDataDir ?? agentDir, "change-ledger", "v1"));
   const changeCapture: ChangeCaptureService = createChangeCaptureService({
@@ -581,45 +527,6 @@ export async function createPhoCodeRuntime(
     },
   });
 
-  function liveHasQueuedWork(session: LiveSession): boolean {
-    if (session.disposing) {
-      return false;
-    }
-    try {
-      const piSession = session.runtime.session;
-      return piSession.getSteeringMessages().length > 0 || piSession.getFollowUpMessages().length > 0;
-    } catch {
-      return false;
-    }
-  }
-
-  function projectLiveActivity(session: LiveSession): SessionActivitySummary {
-    const working = Boolean(session.activeRun && !session.activeRun.settled) || liveHasQueuedWork(session);
-    const attention = session.extensionHost?.hasPendingDialog() === true;
-    const updatedAt = session.activeRun?.startedAt ?? new Date().toISOString();
-    const summary: SessionActivitySummary = {
-      workspaceId: session.key.workspaceId,
-      sessionId: session.key.sessionId,
-      phase: sessionActivityPhase({ attention, working }),
-      selected: selection.current === session,
-      archived: false,
-      unread: false,
-      updatedAt,
-    };
-    if (session.activeRun) {
-      summary.runId = session.activeRun.runId;
-      summary.startedAt = session.activeRun.startedAt;
-    }
-    return summary;
-  }
-
-  function emitActivity(): void {
-    emit({
-      type: RUNTIME_EVENT_TYPES.sessionActivity,
-      payload: registry.list().map(projectLiveActivity),
-    });
-  }
-
   async function instantiateSession(workspaceId: string, sessionId?: string): Promise<LiveSession> {
     const canonicalWorkspace = await canonicalizeWorkspaceDirectory(
       workspaceId,
@@ -653,11 +560,11 @@ export async function createPhoCodeRuntime(
     next.setRebindSession(async () => {
       bindSession(live);
       await bindHostUi(live);
-      hydratePlanTodos(live);
+      planContext.hydrateTodos(live);
     });
     bindSession(live);
     await bindHostUi(live);
-    hydratePlanTodos(live);
+    planContext.hydrateTodos(live);
     await ensureSessionModelIsSelectable(live);
     await retrieval.bind(cwd);
     return live;
@@ -698,7 +605,7 @@ export async function createPhoCodeRuntime(
     }
     session.unsubscribe?.();
     session.unsubscribe = undefined;
-    compiledContextPromptByKey.delete(sessionKeyId(session.key));
+    compiledPrompts.forget(sessionKeyId(session.key));
     session.extensionHost?.dispose();
     session.extensionHost = undefined;
     session.preparedImages.clear();
@@ -744,24 +651,6 @@ export async function createPhoCodeRuntime(
       return;
     }
     await retrieval.unbind(workspacePath);
-  }
-
-  function locateController(sessionId: string, workspaceId: string | undefined, operation: string): LiveSession {
-    if (workspaceId && workspaceId.trim() !== "") {
-      const match = registry.get({ workspaceId, sessionId });
-      if (!match) {
-        failCommand(operation, "The target session is not open.", HARNESS_ERROR_CODES.sessionNotFound);
-      }
-      return match;
-    }
-    const matches = registry.list().filter((entry) => entry.key.sessionId === sessionId);
-    if (matches.length === 1 && matches[0]) {
-      return matches[0];
-    }
-    if (selection.current?.key.sessionId === sessionId) {
-      return selection.current;
-    }
-    failCommand(operation, "The target session is not the active session.", HARNESS_ERROR_CODES.sessionNotFound);
   }
 
   function hasAnyActiveRun(): boolean {
@@ -849,16 +738,6 @@ export async function createPhoCodeRuntime(
     return result;
   }
 
-  function isProjectApproved(cwd: string): boolean {
-    if (approvedProjectPaths.has(cwd)) {
-      return true;
-    }
-    if (!agentProjectRequiresTrust(cwd)) {
-      return true;
-    }
-    return trustStore.get(cwd) === true;
-  }
-
   async function listModels(): Promise<{ models: ModelSummary[]; modelError?: string }> {
     if (testProvider) {
       const model = testProvider.getModel();
@@ -924,7 +803,7 @@ export async function createPhoCodeRuntime(
       path: cwd,
       displayName: displayNameForPath(cwd),
       lastOpenedAt: new Date().toISOString(),
-      projectResourcesApproved: isProjectApproved(cwd),
+      projectResourcesApproved: projectTrust.isApproved(cwd),
     };
   }
 
@@ -983,8 +862,8 @@ export async function createPhoCodeRuntime(
       supportsThinking: session.supportsThinking(),
       usage,
       queue: projectQueue(session),
-      contextPrompt: projectContextPrompt(live),
-      plan: projectPlan(live),
+      contextPrompt: planContext.projectContextPrompt(live),
+      plan: planContext.projectPlan(live),
       changeReviews: (await changeCapture.listSessionReviews(workspace.id, session.sessionId)).slice(
         -MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
       ),
@@ -1110,7 +989,7 @@ export async function createPhoCodeRuntime(
       settingsManager,
       ...resourceLoaderOptions(),
     }, {
-      resolveProjectTrust: async () => isProjectApproved(cwd),
+      resolveProjectTrust: async () => projectTrust.isApproved(cwd),
     });
     return withHostDiagnostics(projectFeatureSnapshot(featureManifest, loader, compositionDiagnostics));
   }
@@ -1193,7 +1072,7 @@ export async function createPhoCodeRuntime(
     } finally {
       live.extensionHost.endBinding();
     }
-    applySessionToolPolicy(live);
+    planContext.applyToolPolicy(live);
   }
 
   async function handleAgentEvent(live: LiveSession, event: AgentSessionEvent): Promise<void> {
@@ -1234,7 +1113,7 @@ export async function createPhoCodeRuntime(
           runId,
           payload: toolEventPayload(runId, event, "running", previewUnknown(event.args), ""),
         });
-        if (event.toolName === TODO_TOOL_NAME && rememberPlanTodos(live, todosFromToolArgs(event.args))) {
+        if (event.toolName === TODO_TOOL_NAME && planContext.rememberTodos(live, todosFromToolArgs(event.args))) {
           await emitSessionPlanSnapshot(live, sessionId, runId);
         }
         return;
@@ -1272,10 +1151,10 @@ export async function createPhoCodeRuntime(
           ),
         });
         if (event.toolName === TODO_TOOL_NAME) {
-          rememberPlanTodos(live, todosFromToolResult(event.result));
-          const record = readPlanAgent(live);
+          planContext.rememberTodos(live, todosFromToolResult(event.result));
+          const record = planContext.readPlanAgent(live);
           if (planExecuteFinishedByTodos(record, live.planTodos)) {
-            persistPlanAgent(live, { executing: false });
+            planContext.persistPlanAgent(live, { executing: false });
           }
         }
         if (
@@ -1361,10 +1240,10 @@ export async function createPhoCodeRuntime(
     } catch (reconcileError) {
       console.error("Change-ledger reconciliation failed:", reconcileError);
     }
-    const planRecord = readPlanAgent(live);
+    const planRecord = planContext.readPlanAgent(live);
     if (planRecord.executing) {
-      persistPlanAgent(live, { executing: false });
-      applySessionToolPolicy(live);
+      planContext.persistPlanAgent(live, { executing: false });
+      planContext.applyToolPolicy(live);
     }
     const failedMessage = live.runtime.session.agent.state.errorMessage;
     try {
@@ -1435,7 +1314,7 @@ export async function createPhoCodeRuntime(
   const createRuntime = createPiSessionRuntimeFactory({
     modelRuntime,
     resourceLoaderOptions,
-    resolveProjectTrust: (cwd) => isProjectApproved(cwd),
+    resolveProjectTrust: (cwd) => projectTrust.isApproved(cwd),
     ...(options.deterministicTestModel
       ? {
           settingsManager: () =>
@@ -1469,59 +1348,6 @@ export async function createPhoCodeRuntime(
     }),
   });
 
-  function contextPromptEditable(live: LiveSession): boolean {
-    if (live.activeRun && !live.activeRun.settled) {
-      return false;
-    }
-    return projectSessionMessages(live.runtime.session).length === 0;
-  }
-
-  function toolPromptSources(session: AgentSession): ToolPromptSource[] {
-    return session.getAllTools().map((tool) => {
-      const definition = session.getToolDefinition(tool.name);
-      return {
-        name: tool.name,
-        ...(definition?.label ? { label: definition.label } : {}),
-        description: tool.description,
-        ...(definition?.promptSnippet ? { promptSnippet: definition.promptSnippet } : {}),
-        ...(tool.promptGuidelines && tool.promptGuidelines.length > 0
-          ? { promptGuidelines: [...tool.promptGuidelines] }
-          : {}),
-      };
-    });
-  }
-
-  function projectContextPrompt(live: LiveSession) {
-    const session = live.runtime.session;
-    return projectSessionContextPrompt({
-      cwd: live.workspace.path,
-      tools: toolPromptSources(session),
-      agentsFiles: session.resourceLoader.getAgentsFiles().agentsFiles,
-      liveSystemPrompt: session.systemPrompt,
-      record: collectContextPromptRecord(session.sessionManager.getEntries()),
-      editable: contextPromptEditable(live),
-    });
-  }
-
-  function projectPlan(live: LiveSession) {
-    return projectSessionPlan(
-      collectPlanAgentRecord(live.runtime.session.sessionManager.getEntries()),
-      live.planTodos,
-    );
-  }
-
-  function hydratePlanTodos(live: LiveSession): void {
-    live.planTodos = reconstructPlanTodos(live.runtime.session.sessionManager.getBranch());
-  }
-
-  function rememberPlanTodos(live: LiveSession, todos: PlanTodoItem[] | undefined): boolean {
-    if (todos === undefined) {
-      return false;
-    }
-    live.planTodos = todos;
-    return true;
-  }
-
   async function emitSessionPlanSnapshot(
     live: LiveSession,
     sessionId: string,
@@ -1535,36 +1361,6 @@ export async function createPhoCodeRuntime(
     });
   }
 
-  function readPlanAgent(live: LiveSession): PlanAgentRecord {
-    return collectPlanAgentRecord(live.runtime.session.sessionManager.getEntries()) ?? emptyPlanAgentRecord();
-  }
-
-  function persistPlanAgent(live: LiveSession, patch: Partial<PlanAgentRecord>): PlanAgentRecord {
-    const next: PlanAgentRecord = { ...readPlanAgent(live), ...patch };
-    live.runtime.session.sessionManager.appendCustomEntry(PLAN_AGENT_CUSTOM_TYPE, next);
-    return next;
-  }
-
-  function applySessionToolPolicy(live: LiveSession): void {
-    const session = live.runtime.session;
-    const keyId = sessionKeyId(live.key);
-    const contextRecord = collectContextPromptRecord(session.sessionManager.getEntries());
-    if (contextRecord) {
-      compiledContextPromptByKey.set(keyId, contextRecord.compiled);
-    } else {
-      compiledContextPromptByKey.delete(keyId);
-    }
-    const planRecord = readPlanAgent(live);
-    session.setActiveToolsByName(
-      intersectPlanActiveTools({
-        registeredNames: session.getAllTools().map((tool) => tool.name),
-        contextEnabledNames: contextRecord ? enabledToolNames(contextRecord.sections) : undefined,
-        mode: planRecord.mode,
-        executing: planRecord.executing,
-      }),
-    );
-  }
-
   function refuseIfBusy(live: LiveSession, operation: string, message: string): void {
     if (live.activeRun && !live.activeRun.settled) {
       failCommand(operation, message, HARNESS_ERROR_CODES.sessionBusy);
@@ -1574,53 +1370,7 @@ export async function createPhoCodeRuntime(
   async function assertTurnAdmission(live: LiveSession, operation: string): Promise<void> {
     registry.assertCanAdmitRun(operation);
     const { models, modelError } = await listModels();
-    const bound = live.runtime.session.model;
-    if ((bound && !catalogHasModel(models, bound)) || (!bound && models.length === 0)) {
-      failCommand(
-        operation,
-        modelError ?? "Sign in to a provider account in Settings before using this model.",
-        HARNESS_ERROR_CODES.noAuthenticatedModel,
-      );
-    }
-  }
-
-  function createActiveRun(live: LiveSession): ActiveRun {
-    const run: ActiveRun = {
-      runId: randomUUID(),
-      sessionId: live.runtime.session.sessionId,
-      promptDone: Promise.resolve(),
-      abortRequested: false,
-      settled: false,
-      startedAt: new Date().toISOString(),
-    };
-    live.activeRun = run;
-    return run;
-  }
-
-  function watchPromptDone(
-    live: LiveSession,
-    run: ActiveRun,
-    promptDone: Promise<unknown>,
-    ignoreError?: () => boolean,
-  ): void {
-    // run.promptDone is observed, never awaited on a command path, so it must
-    // not reject into an unhandled rejection when the prompt fails.
-    run.promptDone = promptDone.then(
-      () => undefined,
-      () => undefined,
-    );
-    void promptDone.then(
-      () => finishRun(live, run),
-      (error: unknown) => {
-        if (ignoreError?.()) {
-          return;
-        }
-        if (run.abortRequested) {
-          return finishRun(live, run);
-        }
-        return finishRun(live, run, error);
-      },
-    );
+    assertModelAdmissible({ models, boundModel: live.runtime.session.model, modelError, operation });
   }
 
   async function publishSnapshot(live: LiveSession): Promise<SessionSnapshot> {
@@ -1682,7 +1432,7 @@ export async function createPhoCodeRuntime(
       const cwd = await canonicalizeWorkspaceDirectory(input.path, "inspectWorkspace");
       scopeAdapter.registerWorkspace(cwd, cwd);
       if (input.approveProjectResources) {
-        approvedProjectPaths.add(cwd);
+        projectTrust.approveForSession(cwd);
       }
       const previousWorkspace = selection.rememberWorkspace(workspaceSummary(cwd));
       await retrieval.bind(cwd);
@@ -1709,7 +1459,7 @@ export async function createPhoCodeRuntime(
     },
     listSessionActivity() {
       assertNotDisposed();
-      return registry.list().map(projectLiveActivity);
+      return registry.list().map(projection.projectActivity);
     },
     async getSessionSnapshot(key: SessionKey) {
       assertNotDisposed();
@@ -1950,8 +1700,8 @@ export async function createPhoCodeRuntime(
       if (!isSessionAgentMode(input.mode)) {
         failCommand("setSessionMode", "Unknown session mode.");
       }
-      persistPlanAgent(live, { mode: input.mode, executing: false });
-      applySessionToolPolicy(live);
+      planContext.persistPlanAgent(live, { mode: input.mode, executing: false });
+      planContext.applyToolPolicy(live);
       return publishSnapshot(live);
     },
     async updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput) {
@@ -1962,7 +1712,7 @@ export async function createPhoCodeRuntime(
         "updateSessionPlanDocument",
         "Wait for the current run to finish before editing the Plan document.",
       );
-      const current = readPlanAgent(live);
+      const current = planContext.readPlanAgent(live);
       if (current.executing) {
         failCommand("updateSessionPlanDocument", "The Plan document is inspect-only while Execute is running.");
       }
@@ -1972,21 +1722,21 @@ export async function createPhoCodeRuntime(
       if (planDocumentTooLarge(input.documentMarkdown)) {
         failCommand("updateSessionPlanDocument", "The Plan document is too large.");
       }
-      persistPlanAgent(live, { documentMarkdown: input.documentMarkdown });
+      planContext.persistPlanAgent(live, { documentMarkdown: input.documentMarkdown });
       return publishSnapshot(live);
     },
     async executeSessionPlan(input: ExecuteSessionPlanInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "executeSessionPlan");
       refuseIfBusy(live, "executeSessionPlan", "Wait for the current run to finish before executing the plan.");
-      const current = readPlanAgent(live);
+      const current = planContext.readPlanAgent(live);
       const refusal = planExecuteRefusal(current);
       if (refusal) {
         failCommand("executeSessionPlan", planExecuteRefusalMessage(refusal));
       }
       await assertTurnAdmission(live, "executeSessionPlan");
-      persistPlanAgent(live, beginPlanExecuteRecord(current));
-      applySessionToolPolicy(live);
+      planContext.persistPlanAgent(live, beginPlanExecuteRecord(current));
+      planContext.applyToolPolicy(live);
 
       const session = live.runtime.session;
       let run: ActiveRun;
@@ -2007,8 +1757,8 @@ export async function createPhoCodeRuntime(
           ),
         );
       } catch (error) {
-        persistPlanAgent(live, { mode: current.mode, executing: false });
-        applySessionToolPolicy(live);
+        planContext.persistPlanAgent(live, { mode: current.mode, executing: false });
+        planContext.applyToolPolicy(live);
         throw error;
       }
       return publishAdmittedRun(live, run);
@@ -2046,13 +1796,13 @@ export async function createPhoCodeRuntime(
       const live = locateController(input.sessionId, input.workspaceId, "updateSessionContextPrompt");
       const session = live.runtime.session;
       refuseIfBusy(live, "updateSessionContextPrompt", "Wait for the current run to finish before changing the context prompt.");
-      if (!contextPromptEditable(live)) {
+      if (!planContext.contextPromptEditable(live)) {
         failCommand("updateSessionContextPrompt", "Context prompt can only be customized before the first message.");
       }
       if (input.reset === true) {
         session.sessionManager.appendCustomEntry(CONTEXT_PROMPT_CUSTOM_TYPE, { reset: true });
-        compiledContextPromptByKey.delete(sessionKeyId(live.key));
-        applySessionToolPolicy(live);
+        compiledPrompts.forget(sessionKeyId(live.key));
+        planContext.applyToolPolicy(live);
       } else {
         const preamble = typeof input.preamble === "string" ? input.preamble : "";
         if (preamble.length > MAX_CONTEXT_PROMPT_PREAMBLE_CHARS) {
@@ -2084,8 +1834,8 @@ export async function createPhoCodeRuntime(
           compiled,
           sections,
         });
-        compiledContextPromptByKey.set(sessionKeyId(live.key), compiled);
-        applySessionToolPolicy(live);
+        compiledPrompts.record(sessionKeyId(live.key), compiled);
+        planContext.applyToolPolicy(live);
       }
       return publishSnapshot(live);
     },
@@ -2139,7 +1889,7 @@ export async function createPhoCodeRuntime(
         failCommand("trustProjectPermissionRules", "Wait for the current run to finish before changing project trust.", HARNESS_ERROR_CODES.sessionBusy);
       }
       const cwd = await canonicalizeWorkspaceDirectory(workspacePath, "trustProjectPermissionRules");
-      approvedProjectPaths.add(cwd);
+      projectTrust.approveForSession(cwd);
       for (const live of registry.list()) {
         if (live.key.workspaceId !== cwd) {
           continue;
@@ -2361,7 +2111,7 @@ export async function createPhoCodeRuntime(
     });
     return {
       ...settings,
-      projectPermissionRulesTrusted: workspacePath ? isProjectApproved(workspacePath) : true,
+      projectPermissionRulesTrusted: workspacePath ? projectTrust.isApproved(workspacePath) : true,
     };
   }
 
@@ -2613,14 +2363,6 @@ function toHarnessError(error: unknown, operation: string, code: string): Harnes
     operation,
     recoverable: true,
   });
-}
-
-function projectSessionMessages(session: AgentSession) {
-  const entries = session.sessionManager.getEntries();
-  return applySandboxedBashOverlay(
-    applyRewriteOverlays(projectMessages(session.messages), collectRewriteOverlays(entries)),
-    collectSandboxedBashCallIds(entries),
-  );
 }
 
 function projectSessionUsage(session: AgentSession): {

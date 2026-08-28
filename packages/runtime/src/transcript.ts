@@ -5,10 +5,21 @@ import {
   type TranscriptMessage,
 } from "@pho-code/protocol";
 import { previewToolResult, previewUnknown } from "./preview";
+import { applyRewriteOverlays, collectRewriteOverlays } from "./assistant-rewrite";
+import { applySandboxedBashOverlay, collectSandboxedBashCallIds } from "./sandboxed-bash";
 import { isHiddenPlanExecutePrompt } from "./plan-agent-state";
 import { stripWorkspaceReferenceAppendix } from "./workspace-reference";
 
 type SessionMessage = AgentSession["messages"][number];
+
+/** The transcript as the owner sees it: Pi messages plus the runtime's overlays. */
+export function projectSessionMessages(session: AgentSession): TranscriptMessage[] {
+  const entries = session.sessionManager.getEntries();
+  return applySandboxedBashOverlay(
+    applyRewriteOverlays(projectMessages(session.messages), collectRewriteOverlays(entries)),
+    collectSandboxedBashCallIds(entries),
+  );
+}
 
 export function projectMessages(messages: readonly SessionMessage[]): TranscriptMessage[] {
   const toolResults = new Map<string, { output: string; isError: boolean }>();

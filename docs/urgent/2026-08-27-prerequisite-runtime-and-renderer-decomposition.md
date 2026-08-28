@@ -1,10 +1,10 @@
 # Prerequisite — decompose the runtime, renderer, and bootstrap god-files
 
 **Kind:** prerequisite
-**Status:** In implementation — four runtime state owners and the renderer's layout chrome extracted 2026-08-27; step 2 and step 4 not started
+**Status:** In implementation — step 1 (five state owners) and step 3 (renderer layout chrome) landed 2026-08-27; step 2 landed six extractions 2026-08-28 and is deliberately paused there; step 4 resolved as will-not-do
 **Owner outcome:** the three largest source files stop being single closures, so a reviewer can read one concern at a time and V4's runtime extraction moves a graph that is already modular.
 
-This is a **proposal**, not accepted architecture and not an implementation contract. Step 1 is partly in source (see the progress table below); steps 2–4 are not. It exists because a deslop pass on 2026-08-27 removed every unreferenced export in the tree and found that the remaining bulk is not dead code — it is three files that each hold one very large function.
+This is a **proposal**, not accepted architecture and not an implementation contract. Steps 1 and 3 are in source and step 2 is under way (see the progress tables below); step 4 was resolved as will-not-do. It exists because a deslop pass on 2026-08-27 removed every unreferenced export in the tree and found that the remaining bulk is not dead code — it is three files that each hold one very large function.
 
 ## Why this is a prerequisite and not ordinary polish
 
@@ -70,6 +70,32 @@ Remaining closure state: `testProvider`, `generation`, `githubBindingRevision`. 
 
 `pi-runtime.ts` keeps `createPhoCodeRuntime`, the context construction, and the `HarnessRuntime` literal — the literal's methods become thin delegations.
 
+**Progress on 2026-08-28.** Six extractions, each with its own module, interface, and unit test. `pi-runtime.ts` went 2,667 → 2,409 lines; `createPhoCodeRuntime` spans 2,176 → 1,950 lines and holds 70 → 49 inner function declarations.
+
+| Extracted | Owns | Was |
+| --- | --- | --- |
+| `runtime-events.ts` → `createRuntimeEventProjector` | how live session state becomes protocol events: `emitFor`, `toolEventPayload`, sandboxed-bash recording, snapshot emission, queued-work and activity projection | eight inner functions reading `emit`, `sandbox`, `selection`, and `registry` directly, reachable only through a constructed runtime |
+| `compiled-context-prompt-cache.ts` | the per-session compiled context prompt | a bare `Map` mutated at five sites, including a hand-written `set`/`delete` branch |
+| `runtime-plan-context.ts` → `createPlanContextProjector` | context-prompt and Plan/Agent projection plus the session tool policy | nine inner functions that read no closure state except that `Map` |
+| `project-trust.ts` | which workspaces may use project-supplied resources | a bare `Set` of session approvals beside the persistent store, with the three-way decision spelled out inline |
+| `runtime-controller-lookup.ts` | resolving `{ sessionId, workspaceId? }` to one controller | 18 lines of branching with three refusal paths, re-entered from ~30 command sites |
+| `runtime-run-lifecycle.ts` | the `ActiveRun` type, run creation, and prompt settlement | two inner functions plus the type, including the never-reject guarantee on `promptDone` that only a comment protected |
+| `model-catalog.ts` → `assertModelAdmissible` | refusing a turn the catalog cannot serve | an inline three-branch condition inside `assertTurnAdmission`, next to an already-tested module that owned the same concern |
+
+`projectSessionMessages` also moved from a module-level helper in `pi-runtime.ts` into `transcript.ts`, next to the `projectMessages` it wraps — both new modules needed it, and it was already outside the closure.
+
+The dependencies the event projector needs are passed as callbacks (`sandboxStatus()`, `isSelected()`, `listSessions()`) rather than captured values, because every one of them changes after construction. That is what makes the projections testable against plain objects: the new and extended test files add 36 tests covering activity phases, sandbox marking, queued-work fallbacks, the compiled-prompt cache, the Plan tool policy, trust precedence, every controller-lookup refusal path, run settlement including abort and caller-owned failures, and catalog admission — none of which had direct coverage before.
+
+Two fixture mistakes are worth recording, because both were the test being wrong rather than the code: a plan record without `documentMarkdown` does not parse, so the first tool-policy test silently exercised Agent mode; and `renderToStaticMarkup` escapes apostrophes, which broke a first attempt at a copy assertion elsewhere in the same change.
+
+**Where step 2 should stop, at least for now.** The clusters left — sessions, catalog, features, and the run loop — are not more of the same. Each reads six to ten construction-time bindings *and* calls into the others, so moving one produces a module whose signature is a bag of eight callbacks. That is the same failure the original one-`RuntimeContext` design was rejected for in step 1, arrived at from the other direction, and it would make `pi-runtime.ts` harder to read rather than easier.
+
+Two counters (`generation`, `githubBindingRevision`) also stay put, per the step-1 note's own conclusion: wrapping a bare counter adds indirection without removing duplication or protecting an invariant.
+
+What was taken instead is everything with a real invariant or a real branch in it. What remains is orchestration whose only honest home is the composition root — `buildSnapshot` alone reads the catalog, features, plan, context prompt, usage, queue, and change reviews. If the remaining bulk is still a problem after this, the next move is to give those seams names (a features port, a catalog port), not to relocate the closure wholesale.
+
+The session cluster is still the hardest — `instantiateSession` alone reaches `ensureSandboxInitialized`, `workspaceSummary`, `createRuntime`, `bindSession`, `bindHostUi`, `hydrateTodos`, `ensureSessionModelIsSelectable`, and `retrieval.bind`, so moving it needs those seams named first rather than a callback bag of ten.
+
 **Step 3 — `App.tsx`.** Group the 20+ `useState` hooks into the containers that already exist implicitly. `use-change-review.ts` is the precedent. The component keeps its JSX; only state ownership moves.
 
 Done 2026-08-27: `use-layout-chrome.ts` owns `sidebarCollapsed`, `rightSidebarCollapsed`, `rightSidebarSurface`, `changesWindowOpen`, their two mirror refs, and the eight callbacks that drive them. The motivating defect was a coupled invariant, not size: `setRightSidebarCollapsed(x)` had to be paired by hand with `writeRightSidebarCollapsed(x)` at five call sites, and missing the write silently loses the collapse preference across relaunch. That pairing now exists once. `App.tsx` 1,756 → 1,690.
@@ -96,6 +122,8 @@ Behaviour-preserving refactors need behavioural proof, not just a green typechec
 - `bun run test:desktop` after each cluster move — per AGENTS.md, unit tests alone are insufficient for renderer/IPC-adjacent change;
 - `HarnessRuntime`'s public surface diffed and shown unchanged;
 - no step lands as a partial duplicate of the runtime graph.
+
+Evidence for the 2026-08-28 extractions: `bun run typecheck` clean across all 11 packages; `bun run lint` 0 errors (8 pre-existing hook warnings); `bun test packages/protocol/test packages/runtime/test packages/ui/test packages/application/test` — 845 pass, 0 fail; `bun run test:desktop` — 31 passed. The `HarnessRuntime` literal's 55 method names were extracted from `HEAD` and from the working tree and diffed after each step: identical.
 
 ## Sequencing
 
