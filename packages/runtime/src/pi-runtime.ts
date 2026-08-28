@@ -225,6 +225,7 @@ export interface PhoCodeRuntimeOptions {
   agentDir?: string;
   appliesToSharedPiAgentDir?: boolean;
   deterministicTestModel?: boolean;
+  useDefaultFeatureManifest?: boolean;
   testHostUi?: boolean;
   testOAuthFlow?: boolean;
   openValidatedAuthUrl?: (url: string) => void;
@@ -365,7 +366,7 @@ export async function createPhoCodeRuntime(
   });
   const baseManifest = withTestHostUi(
     options.featureManifest ??
-      (options.deterministicTestModel
+      (options.deterministicTestModel && options.useDefaultFeatureManifest !== true
         ? emptyFeatureManifest()
         : createDefaultFeatureManifest(locator, {
             removal: removalService,

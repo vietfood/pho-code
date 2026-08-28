@@ -9,10 +9,10 @@ import {
   ASK_USER_DECLINE_MESSAGE,
   PERMISSION_FEATURE_ID,
   PLAN_AGENT_FEATURE_ID,
+  RETRIEVAL_FEATURE_ID,
   TEST_PROMPT,
   TEST_TOOL_NAME,
   TRASH_FEATURE_ID,
-  createDefaultFeatureManifest,
   createPhoCodeRuntime,
   createUnsupportedHostUiExtension,
   type RecoverableRemovalService,
@@ -40,7 +40,7 @@ async function createTestRuntime(
     agentDir,
     deterministicTestModel: true,
     ...(options.testHostUi ? { testHostUi: true } : {}),
-    ...(options.useDefaultManifest ? { featureManifest: createDefaultFeatureManifest() } : {}),
+    ...(options.useDefaultManifest ? { useDefaultFeatureManifest: true } : {}),
     ...(options.removalService ? { removalService: options.removalService } : {}),
   });
 }
@@ -830,7 +830,7 @@ test("steers an active run through Pi's native queue and rejects a stale run id"
     }
   }, 30_000);
 
-  test("default manifest loads the baked permission and Trash features", async () => {
+  test("default manifest loads baked permission, Trash, and local retrieval features", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     await writeProjectFeatureFixture(workspaceDir);
     const runtime = await createTestRuntime(agentDir, { useDefaultManifest: true });
@@ -844,6 +844,7 @@ test("steers an active run through Pi's native queue and rejects a stale run id"
       expect(trusted.features.features.some((feature) => feature.id === PERMISSION_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === TRASH_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === PLAN_AGENT_FEATURE_ID)).toBe(true);
+      expect(trusted.features.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID)).toBe(true);
       expect(trusted.features.features.some((feature) => feature.id === "harness-note")).toBe(false);
       const created = await runtime.createSession(trusted.workspace.id);
       const stop = runtime.subscribe((event) => {

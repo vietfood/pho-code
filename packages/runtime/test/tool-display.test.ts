@@ -9,10 +9,7 @@ const EXPECTED = new Map([
   ["bash", "Run"],
   ["user_bash", "Run"],
   ["grep", "Search"],
-  ["ffgrep", "Search"],
-  ["fff-multi-grep", "Search"],
   ["find", "Find"],
-  ["fffind", "Find"],
   ["web_search", "Web search"],
   ["fetch_content", "Fetch"],
   ["move_to_trash", "Trash"],
@@ -26,9 +23,6 @@ const EXPECTED = new Map([
 describe("app-owned tool display names", () => {
   test("maps every canonical tool to its owner-facing label", () => {
     expect([...APP_OWNED_TOOL_NAMES]).toEqual([
-      "fff-multi-grep",
-      "ffgrep",
-      "fffind",
       "web_search",
       "fetch_content",
       "move_to_trash",

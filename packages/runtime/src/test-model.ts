@@ -20,6 +20,8 @@ export const TEST_TOOL_NAME = "harness_mark";
 
 export const TEST_PROMPT = {
   useTool: "USE_TOOL",
+  useFind: "USE_FIND",
+  useGrep: "USE_GREP",
   useSafeShell: "USE_SAFE_SHELL",
   useDangerousShell: "USE_DANGEROUS_SHELL",
   useCompoundSafe: "USE_COMPOUND_SAFE",
@@ -96,6 +98,14 @@ export function createDeterministicTestProvider(): FauxProviderHandle {
 // (USE_WRITE_FAIL/USE_WRITE_OUTSIDE) must precede USE_WRITE.
 const TOOL_USE_RESPONSES: [token: string, thinking: string, tool: string, args: Record<string, unknown>, callId: string][] = [
   [TEST_PROMPT.useTool, "Calling the mark tool.", TEST_TOOL_NAME, { note: "ok" }, "call_harness_mark"],
+  [TEST_PROMPT.useFind, "Finding the fixture.", "find", { pattern: "*fixture*" }, "call_find"],
+  [
+    TEST_PROMPT.useGrep,
+    "Searching the fixture.",
+    "grep",
+    { pattern: "owned", path: "disposable-fixture.txt", literal: true },
+    "call_grep",
+  ],
   [TEST_PROMPT.useSafeShell, "Inspecting the repository.", "bash", { command: "git status" }, "call_safe_shell"],
   [TEST_PROMPT.useDangerousShell, "Attempting a permanent removal.", "bash", { command: "rm -rf disposable-fixture.txt" }, "call_dangerous_shell"],
   [TEST_PROMPT.useCompoundSafe, "Running a compound inspection.", "bash", { command: "pwd && git status" }, "call_compound_safe"],

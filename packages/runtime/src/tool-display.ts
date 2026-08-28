@@ -4,9 +4,6 @@ export { displayToolName };
 
 /** Underscored app-owned ids safe to replace in permission-dialog copy. */
 export const APP_OWNED_TOOL_NAMES = Object.freeze([
-  "fff-multi-grep",
-  "ffgrep",
-  "fffind",
   "web_search",
   "fetch_content",
   "move_to_trash",

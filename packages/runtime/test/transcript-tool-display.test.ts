@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { projectMessages } from "../src/transcript";
 import { PLAN_EXECUTE_PROMPT } from "../src/plan-agent-state";
 
-const EXPECTED = ["ffgrep", "fffind", "fff-multi-grep", "web_search", "fetch_content", "move_to_trash"] as const;
+const EXPECTED = ["grep", "find", "web_search", "fetch_content", "move_to_trash"] as const;
 
 describe("transcript tool names", () => {
   test("keeps canonical Pi ids on reopened transcript blocks", () => {

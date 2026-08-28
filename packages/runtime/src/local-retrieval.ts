@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { FileFinder, type FileFinder as FileFinderInstance, type GrepCursor } from "@ff-labs/fff-node";
+import { FileFinder, type FileFinder as FileFinderInstance, type GrepMatch } from "@ff-labs/fff-node";
 import type {
   LocalRetrievalStatus,
   PathSuggestion,
@@ -15,32 +16,32 @@ import {
   MAX_WORKSPACE_REFERENCE_QUERY,
   MAX_WORKSPACE_REFERENCE_RESULTS,
 } from "@pho-code/protocol";
+import { isPathInside } from "./path-containment";
 import { isSensitiveWorkspaceRelative, toPosixRelative } from "./workspace-reference";
 
 const SCAN_TIMEOUT_MS = 15_000;
 const DEFAULT_FIND_LIMIT = 30;
 const DEFAULT_GREP_LIMIT = 20;
+const MAX_TOOL_RESULTS = 100;
+const MAX_CONTEXT_LINES = 5;
+const MAX_OUTPUT_BYTES = 200 * 1024;
+const GREP_TIME_BUDGET_MS = 5_000;
 
 export interface LocalRetrievalRuntime {
   bind(workspacePath: string): Promise<void>;
   unbind(workspacePath: string): Promise<void>;
   runWithWorkspace<T>(workspacePath: string, fn: () => Promise<T>): Promise<T>;
   searchPaths(input: SearchWorkspaceReferencesInput & { workspacePath?: string }): Promise<SearchWorkspaceReferencesResult>;
-  fileSearch(input: { pattern: string; path?: string; limit?: number }): Promise<string>;
+  find(input: { pattern: string; path?: string; limit?: number; signal?: AbortSignal }): Promise<string>;
   grep(input: {
     pattern: string;
     path?: string;
+    glob?: string;
+    ignoreCase?: boolean;
+    literal?: boolean;
     context?: number;
     limit?: number;
-    cursor?: string;
-    caseSensitive?: boolean;
-  }): Promise<string>;
-  multiGrep(input: {
-    patterns: readonly string[];
-    constraints?: string;
-    context?: number;
-    limit?: number;
-    cursor?: string;
+    signal?: AbortSignal;
   }): Promise<string>;
   getSnapshot(workspacePath?: string): { status: LocalRetrievalStatus; storageDir?: string; diagnostic?: string };
   diagnostics(): Array<{ type: "warning" | "error"; message: string; path: string }>;
@@ -53,11 +54,9 @@ interface WorkspaceRetrievalContext {
   storageDir?: string;
   status: LocalRetrievalStatus;
   diagnostic?: string;
-  grepCursors: Map<string, GrepCursor>;
-  cursorCounter: number;
 }
 
-export function createLocalRetrievalRuntime(options: { dataDir: string }): LocalRetrievalRuntime {
+export function createLocalRetrievalRuntime(options: { dataDir: string; persistRankingData?: boolean }): LocalRetrievalRuntime {
   const contexts = new Map<string, WorkspaceRetrievalContext>();
   const workspaceAls = new AsyncLocalStorage<string>();
 
@@ -99,28 +98,7 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
       context.finder.destroy();
     }
     context.finder = undefined;
-    context.grepCursors.clear();
     context.status = "unavailable";
-  }
-
-  function storeCursor(context: WorkspaceRetrievalContext, cursor: GrepCursor): string {
-    const id = `fff_c${++context.cursorCounter}`;
-    context.grepCursors.set(id, cursor);
-    if (context.grepCursors.size > 50) {
-      const first = context.grepCursors.keys().next().value;
-      if (first) {
-        context.grepCursors.delete(first);
-      }
-    }
-    return id;
-  }
-
-  function storedCursor(context: WorkspaceRetrievalContext, cursor: string | undefined): GrepCursor | null {
-    return (cursor ? context.grepCursors.get(cursor) : undefined) ?? null;
-  }
-
-  function withContinueCursor(context: WorkspaceRetrievalContext, output: string, nextCursor: GrepCursor | null | undefined): string {
-    return nextCursor ? `${output}\n\n[Continue with cursor="${storeCursor(context, nextCursor)}"]` : output;
   }
 
   return {
@@ -133,8 +111,6 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
       const context: WorkspaceRetrievalContext = existing ?? {
         workspacePath: canonical,
         status: "indexing",
-        grepCursors: new Map(),
-        cursorCounter: 0,
       };
       destroyContext(context);
       context.storageDir = path.join(options.dataDir, workspaceStorageId(canonical));
@@ -143,8 +119,12 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
       context.diagnostic = undefined;
       const created = FileFinder.create({
         basePath: canonical,
-        frecencyDbPath: path.join(context.storageDir, "frecency.mdb"),
-        historyDbPath: path.join(context.storageDir, "history.mdb"),
+        ...(options.persistRankingData === false
+          ? {}
+          : {
+              frecencyDbPath: path.join(context.storageDir, "frecency.mdb"),
+              historyDbPath: path.join(context.storageDir, "history.mdb"),
+            }),
         aiMode: true,
         enableFsRootScanning: false,
         enableHomeDirScanning: false,
@@ -207,84 +187,41 @@ export function createLocalRetrievalRuntime(options: { dataDir: string }): Local
       }
       return { suggestions, status: context.status };
     },
-    async fileSearch(input) {
-      const current = await ensureFinder(requireContext());
-      const query = buildConstrainedQuery(input.path, input.pattern);
-      const limit = clampLimit(input.limit, DEFAULT_FIND_LIMIT, 100);
-      const result = current.fileSearch(query, { pageSize: limit });
-      if (!result.ok) {
-        throw new Error(result.error);
+    async find(input) {
+      throwIfAborted(input.signal);
+      const context = requireContext();
+      const current = await ensureFinder(context);
+      const scope = await resolveScope(context.workspacePath, input.path, "directory");
+      const limit = clampLimit(input.limit, DEFAULT_FIND_LIMIT, MAX_TOOL_RESULTS);
+      let items = findFiles(current, input.pattern, limit, (relative) => matchesScope(relative, scope));
+      if (items.length === 0 && scope.relative) {
+        items = await withScopedFinder(scope.absolute, input.signal, (finder) =>
+          findFiles(finder, input.pattern, limit, () => true).map((relative) => joinPosix(scope.relative, relative)),
+        );
       }
-      if (result.value.items.length === 0) {
-        return "No files found";
-      }
-      return result.value.items.map((item) => toPosixRelative(item.relativePath)).join("\n");
+      throwIfAborted(input.signal);
+      return boundedOutput(items.length > 0 ? items.join("\n") : "No files found");
     },
     async grep(input) {
+      throwIfAborted(input.signal);
       const context = requireContext();
       const current = await ensureFinder(context);
-      const query = buildConstrainedQuery(input.path, input.pattern);
-      const limit = clampLimit(input.limit, DEFAULT_GREP_LIMIT, 100);
-      const hasRegexSyntax = input.pattern !== input.pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-      let mode: "plain" | "regex" = hasRegexSyntax ? "regex" : "plain";
-      if (mode === "regex") {
-        try {
-          new RegExp(input.pattern);
-        } catch {
-          mode = "plain";
-        }
+      const scope = await resolveScope(context.workspacePath, input.path, "file-or-directory");
+      const limit = clampLimit(input.limit, DEFAULT_GREP_LIMIT, MAX_TOOL_RESULTS);
+      const contextLines = clampNonNegative(input.context, MAX_CONTEXT_LINES);
+      const query = grepQuery(input.pattern, input.ignoreCase === true, input.literal === true);
+      const accepts = (relative: string) => matchesScope(relative, scope) && matchesGlob(relative, input.glob);
+      let items = grepFiles(current, query, contextLines, limit, accepts);
+      if (items.length === 0 && scope.relative) {
+        items = await withScopedFinder(scope.basePath, input.signal, (finder) =>
+          grepFiles(finder, query, contextLines, limit, (relative) => {
+            const workspaceRelative = joinPosix(scope.baseRelative, relative);
+            return matchesScope(workspaceRelative, scope) && matchesGlob(workspaceRelative, input.glob);
+          }).map((item) => ({ ...item, relativePath: joinPosix(scope.baseRelative, item.relativePath) })),
+        );
       }
-      const grepResult = current.grep(query, {
-        mode,
-        smartCase: input.caseSensitive !== true,
-        maxMatchesPerFile: Math.min(limit, 50),
-        pageSize: limit,
-        cursor: storedCursor(context, input.cursor),
-        beforeContext: input.context ?? 0,
-        afterContext: input.context ?? 0,
-      });
-      if (!grepResult.ok) {
-        throw new Error(grepResult.error);
-      }
-      let result = grepResult.value;
-      let fuzzyNotice: string | undefined;
-      if (result.items.length === 0 && !input.cursor && mode !== "regex") {
-        const fuzzy = current.grep(input.pattern, {
-          mode: "fuzzy",
-          smartCase: input.caseSensitive !== true,
-          maxMatchesPerFile: Math.min(limit, 50),
-          pageSize: limit,
-          cursor: null,
-        });
-        if (fuzzy.ok && fuzzy.value.items.length > 0) {
-          fuzzyNotice = "0 exact matches. Maybe you meant this?";
-          result = fuzzy.value;
-        }
-      }
-      const output = withContinueCursor(context, formatGrepOutput(result.items), result.nextCursor);
-      return fuzzyNotice ? `[${fuzzyNotice}]\n${output}` : output;
-    },
-    async multiGrep(input) {
-      const context = requireContext();
-      const current = await ensureFinder(context);
-      const patterns = input.patterns.map((pattern) => pattern.trim()).filter(Boolean);
-      if (patterns.length === 0) {
-        throw new Error("At least one search pattern is required.");
-      }
-      const limit = clampLimit(input.limit, DEFAULT_GREP_LIMIT, 100);
-      const result = current.multiGrep({
-        patterns,
-        ...(input.constraints ? { constraints: input.constraints } : {}),
-        pageSize: limit,
-        maxMatchesPerFile: Math.min(limit, 50),
-        cursor: storedCursor(context, input.cursor),
-        beforeContext: input.context ?? 0,
-        afterContext: input.context ?? 0,
-      });
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
-      return withContinueCursor(context, formatGrepOutput(result.value.items), result.value.nextCursor);
+      throwIfAborted(input.signal);
+      return boundedOutput(formatGrepOutput(items));
     },
     getSnapshot(workspacePath) {
       const context = contextFor(workspacePath);
@@ -330,18 +267,11 @@ function clampLimit(value: number | undefined, fallback: number, max = MAX_WORKS
   return Math.max(1, Math.min(Math.floor(value), max));
 }
 
-function buildConstrainedQuery(pathConstraint: string | undefined, pattern: string): string {
-  const trimmedPattern = pattern.trim();
-  const trimmedPath = pathConstraint?.trim();
-  if (!trimmedPath || trimmedPath === "." || trimmedPath === "./") {
-    return trimmedPattern;
+function clampNonNegative(value: number | undefined, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
   }
-  const posix = toPosixRelative(trimmedPath);
-  if (posix.startsWith("..") || posix.startsWith("/")) {
-    throw new Error("Path constraint must stay inside the workspace.");
-  }
-  const prefix = posix.includes("*") || posix.endsWith("/") ? posix : `${posix}/`;
-  return `${prefix} ${trimmedPattern}`.trim();
+  return Math.max(0, Math.min(Math.floor(value), max));
 }
 
 function toSuggestion(entry: { type: "file" | "directory"; item: { relativePath: string } }): PathSuggestion | undefined {
@@ -353,7 +283,7 @@ function toSuggestion(entry: { type: "file" | "directory"; item: { relativePath:
   return { path: relative, kind };
 }
 
-function formatGrepOutput(items: ReadonlyArray<{ relativePath: string; lineNumber: number; lineContent: string }>): string {
+function formatGrepOutput(items: ReadonlyArray<GrepMatch>): string {
   if (items.length === 0) {
     return "No matches found";
   }
@@ -368,7 +298,14 @@ function formatGrepOutput(items: ReadonlyArray<{ relativePath: string; lineNumbe
       currentFile = relative;
       lines.push(relative);
     }
+    const before = match.contextBefore ?? [];
+    for (const [index, line] of before.entries()) {
+      lines.push(` ${match.lineNumber - before.length + index}- ${truncateLine(line)}`);
+    }
     lines.push(` ${match.lineNumber}: ${truncateLine(match.lineContent)}`);
+    for (const [index, line] of (match.contextAfter ?? []).entries()) {
+      lines.push(` ${match.lineNumber + index + 1}- ${truncateLine(line)}`);
+    }
   }
   return lines.join("\n");
 }
@@ -376,6 +313,204 @@ function formatGrepOutput(items: ReadonlyArray<{ relativePath: string; lineNumbe
 function truncateLine(line: string, max = 500): string {
   const trimmed = line.trim();
   return trimmed.length <= max ? trimmed : `${trimmed.slice(0, max)}...`;
+}
+
+interface SearchScope {
+  absolute: string;
+  relative: string;
+  basePath: string;
+  baseRelative: string;
+  kind: "file" | "directory";
+}
+
+async function resolveScope(
+  workspacePath: string,
+  requestedPath: string | undefined,
+  expected: "directory" | "file-or-directory",
+): Promise<SearchScope> {
+  const trimmed = requestedPath?.trim();
+  const workspaceCanonical = await realpath(workspacePath);
+  if (!trimmed || trimmed === "." || trimmed === "./") {
+    return {
+      absolute: workspaceCanonical,
+      relative: "",
+      basePath: workspaceCanonical,
+      baseRelative: "",
+      kind: "directory",
+    };
+  }
+  if (path.isAbsolute(trimmed)) {
+    throw new Error("Path must be relative to the workspace.");
+  }
+  const candidate = path.resolve(workspacePath, trimmed);
+  if (candidate !== workspacePath && !isPathInside(workspacePath, candidate)) {
+    throw new Error("Path must stay inside the workspace.");
+  }
+  let canonical: string;
+  let info: Awaited<ReturnType<typeof stat>>;
+  try {
+    [canonical, info] = await Promise.all([realpath(candidate), stat(candidate)]);
+  } catch {
+    throw new Error(`Path not found: ${trimmed}`);
+  }
+  if (canonical !== workspaceCanonical && !isPathInside(workspaceCanonical, canonical)) {
+    throw new Error("Path must stay inside the workspace.");
+  }
+  const kind = info.isDirectory() ? "directory" : "file";
+  if (expected === "directory" && kind !== "directory") {
+    throw new Error(`Path is not a directory: ${trimmed}`);
+  }
+  const relative = toPosixRelative(path.relative(workspaceCanonical, canonical));
+  const basePath = kind === "directory" ? canonical : path.dirname(canonical);
+  const baseRelative = toPosixRelative(path.relative(workspaceCanonical, basePath));
+  return { absolute: canonical, relative, basePath, baseRelative, kind };
+}
+
+function matchesScope(relativePath: string, scope: SearchScope): boolean {
+  if (!scope.relative) {
+    return true;
+  }
+  const relative = toPosixRelative(relativePath);
+  return scope.kind === "file" ? relative === scope.relative : relative.startsWith(`${scope.relative}/`);
+}
+
+function matchesGlob(relativePath: string, glob: string | undefined): boolean {
+  const pattern = glob?.trim();
+  if (!pattern) {
+    return true;
+  }
+  const relative = toPosixRelative(relativePath);
+  return path.posix.matchesGlob(relative, pattern) || (!pattern.includes("/") && path.posix.matchesGlob(path.posix.basename(relative), pattern));
+}
+
+function findFiles(
+  finder: FileFinderInstance,
+  pattern: string,
+  limit: number,
+  accepts: (relativePath: string) => boolean,
+): string[] {
+  const query = pattern.trim();
+  if (!query) {
+    throw new Error("A file pattern is required.");
+  }
+  const useGlob = /[*?{}[\]]/u.test(query);
+  const globQuery = useGlob && !query.includes("/") ? `**/${query}` : query;
+  const results: string[] = [];
+  for (let pageIndex = 0; pageIndex < 20 && results.length < limit; pageIndex += 1) {
+    const result = useGlob
+      ? finder.glob(globQuery, { pageIndex, pageSize: MAX_TOOL_RESULTS })
+      : finder.fileSearch(query, { pageIndex, pageSize: MAX_TOOL_RESULTS });
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+    for (const item of result.value.items) {
+      const relative = toPosixRelative(item.relativePath);
+      if (accepts(relative)) {
+        results.push(relative);
+        if (results.length >= limit) break;
+      }
+    }
+    if (result.value.items.length < MAX_TOOL_RESULTS) break;
+  }
+  return results;
+}
+
+function grepQuery(pattern: string, ignoreCase: boolean, literal: boolean): { text: string; mode: "plain" | "regex" } {
+  if (!pattern) {
+    throw new Error("A search pattern is required.");
+  }
+  if (!ignoreCase) {
+    return { text: pattern, mode: literal ? "plain" : "regex" };
+  }
+  const expression = literal ? pattern.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&") : pattern;
+  return { text: `(?i)${expression}`, mode: "regex" };
+}
+
+function grepFiles(
+  finder: FileFinderInstance,
+  query: { text: string; mode: "plain" | "regex" },
+  context: number,
+  limit: number,
+  accepts: (relativePath: string) => boolean,
+): GrepMatch[] {
+  const startedAt = Date.now();
+  const items: GrepMatch[] = [];
+  let cursor = null;
+  for (let page = 0; page < 20 && items.length < limit; page += 1) {
+    const result = finder.grep(query.text, {
+      mode: query.mode,
+      smartCase: false,
+      maxMatchesPerFile: limit,
+      pageSize: MAX_TOOL_RESULTS,
+      cursor,
+      timeBudgetMs: Math.max(1, GREP_TIME_BUDGET_MS - (Date.now() - startedAt)),
+      beforeContext: context,
+      afterContext: context,
+    });
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+    if (result.value.regexFallbackError) {
+      throw new Error(`Invalid regular expression: ${result.value.regexFallbackError}`);
+    }
+    for (const item of result.value.items) {
+      if (accepts(toPosixRelative(item.relativePath))) {
+        items.push(item);
+        if (items.length >= limit) break;
+      }
+    }
+    cursor = result.value.nextCursor;
+    if (!cursor || Date.now() - startedAt >= GREP_TIME_BUDGET_MS) break;
+  }
+  return items;
+}
+
+async function withScopedFinder<T>(basePath: string, signal: AbortSignal | undefined, run: (finder: FileFinderInstance) => T): Promise<T> {
+  throwIfAborted(signal);
+  const created = FileFinder.create({
+    basePath,
+    aiMode: true,
+    disableWatch: true,
+    enableFsRootScanning: false,
+    enableHomeDirScanning: false,
+    followSymlinks: false,
+  });
+  if (!created.ok) {
+    throw new Error(created.error);
+  }
+  try {
+    const scanned = await created.value.waitForScan(SCAN_TIMEOUT_MS);
+    if (!scanned.ok) throw new Error(scanned.error);
+    if (!scanned.value) throw new Error("Local retrieval scan timed out.");
+    throwIfAborted(signal);
+    return run(created.value);
+  } finally {
+    created.value.destroy();
+  }
+}
+
+function joinPosix(prefix: string, relative: string): string {
+  return prefix ? path.posix.join(prefix, toPosixRelative(relative)) : toPosixRelative(relative);
+}
+
+function boundedOutput(value: string): string {
+  if (Buffer.byteLength(value, "utf8") <= MAX_OUTPUT_BYTES) {
+    return value;
+  }
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= MAX_OUTPUT_BYTES - 64) low = middle;
+    else high = middle - 1;
+  }
+  return `${value.slice(0, low)}\n[Truncated: 200KB output limit]`;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new Error("Operation aborted");
+  }
 }
 
 function unavailableResult(diagnostic: string | undefined): SearchWorkspaceReferencesResult {

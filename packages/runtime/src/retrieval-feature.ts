@@ -3,7 +3,7 @@ import type { HarnessFeature } from "./features";
 import type { LocalRetrievalRuntime } from "./local-retrieval";
 
 export const RETRIEVAL_FEATURE_ID = "local-retrieval";
-export const RETRIEVAL_FEATURE_VERSION = "1.0.0";
+export const RETRIEVAL_FEATURE_VERSION = "2.0.0";
 
 export function createRetrievalFeature(retrieval: LocalRetrievalRuntime): HarnessFeature {
   return {
@@ -20,28 +20,23 @@ function createRetrievalExtension(retrieval: LocalRetrievalRuntime): InlineExten
     factory(pi) {
       pi.registerTool(
         defineTool({
-          name: "fffind",
-          label: "FFF find",
+          name: "find",
+          label: "find",
           description:
-            "Fuzzy file-name search over the active workspace using the local FFF index. Prefer this over shell find/rg for locating files. Results are workspace-relative.",
-          promptSnippet: "Fuzzy-find workspace files.",
-          promptGuidelines: [
-            "Use fffind for file names; keep Pi find/grep available for exact typed searches.",
-            "Pass a directory constraint with path when you already know the folder.",
-          ],
+            "Find files in the active workspace with the bundled FFF index. Glob patterns and fuzzy file-name queries are supported. Results are workspace-relative and capped at 100 paths.",
+          promptSnippet: "Find workspace files by glob or fuzzy name (respects .gitignore unless an explicit path is searched).",
+          promptGuidelines: ["Pass a workspace-relative directory with path when you already know the search area."],
           parameters: Type.Object({
-            pattern: Type.String({ description: "Fuzzy file-name query" }),
-            path: Type.Optional(Type.String({ description: "Optional workspace-relative directory constraint" })),
-            limit: Type.Optional(Type.Number({ description: "Max results (default 30)" })),
+            pattern: Type.String({ description: "Glob pattern or fuzzy file-name query" }),
+            path: Type.Optional(Type.String({ description: "Workspace-relative directory to search" })),
+            limit: Type.Optional(Type.Number({ description: "Maximum results (default 30, max 100)" })),
           }),
           async execute(_toolCallId, params, signal) {
-            if (signal?.aborted) {
-              throw new Error("Operation aborted");
-            }
-            const text = await retrieval.fileSearch({
+            const text = await retrieval.find({
               pattern: params.pattern,
               ...(params.path ? { path: params.path } : {}),
               ...(params.limit !== undefined ? { limit: params.limit } : {}),
+              ...(signal ? { signal } : {}),
             });
             return {
               content: [{ type: "text", text }],
@@ -52,71 +47,39 @@ function createRetrievalExtension(retrieval: LocalRetrievalRuntime): InlineExten
       );
       pi.registerTool(
         defineTool({
-          name: "ffgrep",
-          label: "FFF grep",
+          name: "grep",
+          label: "grep",
           description:
-            "Search file contents in the active workspace using the local FFF index. Smart-case, git-aware, and paginated. Prefer this over shell rg/grep for routine content search.",
-          promptSnippet: "Search workspace file contents.",
+            "Search file contents in the active workspace with the bundled FFF index. Returns workspace-relative paths, line numbers, and optional context. Results are capped at 100 matches and 200KB.",
+          promptSnippet: "Search workspace file contents (respects .gitignore unless an explicit path is searched).",
           promptGuidelines: [
-            "Prefer identifiers and literal substrings.",
-            "Use path to constrain to a folder or glob.",
-            "After one or two greps, read the top match instead of repeating searches.",
+            "Use path for a directory or file constraint and glob for a file-name filter.",
+            "Set literal for plain text containing regular-expression syntax.",
+            "Read the top match after one or two searches instead of repeatedly broadening the query.",
           ],
           parameters: Type.Object({
-            pattern: Type.String({ description: "Search text or regex" }),
-            path: Type.Optional(Type.String({ description: "Optional workspace-relative path or glob constraint" })),
-            context: Type.Optional(Type.Number({ description: "Context lines before and after each match" })),
-            limit: Type.Optional(Type.Number({ description: "Max matches (default 20)" })),
-            cursor: Type.Optional(Type.String({ description: "Pagination cursor from a previous result" })),
-            caseSensitive: Type.Optional(Type.Boolean({ description: "Force case-sensitive matching" })),
+            pattern: Type.String({ description: "Regular expression or literal search text" }),
+            path: Type.Optional(Type.String({ description: "Workspace-relative directory or file to search" })),
+            glob: Type.Optional(Type.String({ description: "File-name glob such as *.ts or **/*.test.ts" })),
+            ignoreCase: Type.Optional(Type.Boolean({ description: "Match without regard to case" })),
+            literal: Type.Optional(Type.Boolean({ description: "Treat pattern as literal text instead of a regular expression" })),
+            context: Type.Optional(Type.Number({ description: "Context lines before and after each match (max 5)" })),
+            limit: Type.Optional(Type.Number({ description: "Maximum matches (default 20, max 100)" })),
           }),
           async execute(_toolCallId, params, signal) {
-            if (signal?.aborted) {
-              throw new Error("Operation aborted");
-            }
             const text = await retrieval.grep({
               pattern: params.pattern,
               ...(params.path ? { path: params.path } : {}),
+              ...(params.glob ? { glob: params.glob } : {}),
+              ...(params.ignoreCase !== undefined ? { ignoreCase: params.ignoreCase } : {}),
+              ...(params.literal !== undefined ? { literal: params.literal } : {}),
               ...(params.context !== undefined ? { context: params.context } : {}),
               ...(params.limit !== undefined ? { limit: params.limit } : {}),
-              ...(params.cursor ? { cursor: params.cursor } : {}),
-              ...(params.caseSensitive !== undefined ? { caseSensitive: params.caseSensitive } : {}),
+              ...(signal ? { signal } : {}),
             });
             return {
               content: [{ type: "text", text }],
               details: { pattern: params.pattern },
-            };
-          },
-        }),
-      );
-      pi.registerTool(
-        defineTool({
-          name: "fff-multi-grep",
-          label: "FFF multi-grep",
-          description:
-            "OR-logic multi-pattern content search over the active workspace using the local FFF index.",
-          promptSnippet: "Search workspace contents for any of several literal patterns.",
-          parameters: Type.Object({
-            patterns: Type.Array(Type.String(), { description: "Literal patterns; a line matches if it contains any of them" }),
-            constraints: Type.Optional(Type.String({ description: "Optional file constraint such as *.ts or src/" })),
-            context: Type.Optional(Type.Number({ description: "Context lines before and after each match" })),
-            limit: Type.Optional(Type.Number({ description: "Max matches (default 20)" })),
-            cursor: Type.Optional(Type.String({ description: "Pagination cursor from a previous result" })),
-          }),
-          async execute(_toolCallId, params, signal) {
-            if (signal?.aborted) {
-              throw new Error("Operation aborted");
-            }
-            const text = await retrieval.multiGrep({
-              patterns: params.patterns,
-              ...(params.constraints ? { constraints: params.constraints } : {}),
-              ...(params.context !== undefined ? { context: params.context } : {}),
-              ...(params.limit !== undefined ? { limit: params.limit } : {}),
-              ...(params.cursor ? { cursor: params.cursor } : {}),
-            });
-            return {
-              content: [{ type: "text", text }],
-              details: { patterns: params.patterns },
             };
           },
         }),

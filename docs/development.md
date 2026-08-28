@@ -285,7 +285,7 @@ Covered by `packages/runtime/test/pi-runtime.test.ts` and `apps/desktop/tests/{c
 6. Electron `USE_TOOL` with `PHO_CODE_TEST_HOST_UI=1` completes a select dialog;
 7. conservative Markdown/code rendering covers assistant and streaming text.
 
-Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature, the baked Cursor SDK provider (`pi-cursor-sdk` local-only), the application-owned Trash tool, pho-web, the inline plan-agent factory, and the curated-skills feature identity (skills themselves are inserted with `/`, not Pi `additionalSkillPaths`). Personal `bun run dev` uses the production fallback manifest (permission, Cursor SDK, Trash, FFF local retrieval, pho-web, curated skills, named skill load, and plan-agent).
+Deterministic tests default to an empty manifest so they do not load the permission package. `PHO_CODE_TEST_FEATURES=1` or `createDefaultFeatureManifest()` loads the pinned permission feature, the baked Cursor SDK provider (`pi-cursor-sdk` local-only), the application-owned Trash tool, canonical FFF-backed `find`/`grep` and composer path retrieval, pho-web, the inline plan-agent factory, and the curated-skills feature identity (skills themselves are inserted with `/`, not Pi `additionalSkillPaths`). Personal `bun run dev` uses the same production fallback manifest plus named skill load. FFF is bundled; these retrieval tools do not require or download `rg` or `fd`. The separately bundled `rg` remains a sandbox-runtime resource.
 
 Keep these checks focused. Do not add a visual-regression framework or reproduce the complete third-party permission extension suite.
 

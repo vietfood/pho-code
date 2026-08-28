@@ -111,7 +111,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 
 ### Retrieval and input
 
-- `local-retrieval.ts`, `retrieval-feature.ts`, `workspace-reference.ts`, `workspace-path.ts` own the workspace-bounded FFF index and references.
+- `local-retrieval.ts`, `retrieval-feature.ts`, `workspace-reference.ts`, `workspace-path.ts` own the workspace-bounded FFF index, canonical `find`/`grep` replacements, and composer path references.
 - `web-feature.ts`, `web-client.ts`, `web-url.ts`, `web-search-providers.ts`, `web-youtube.ts` own bounded public web search/fetch.
 - `image-store.ts`, `image-bytes.ts` own prepared image lifetime and validation.
 - `skill-source.ts` and `skill-invoke.ts` re-export host-neutral source/invocation primitives from `@pho-agent/runtime/skills`; `skills-feature.ts` owns the curated Pho Code resource adapter. `read_skill` advertises invocable name+description and loads Markdown on demand; `/` remains an owner insert.

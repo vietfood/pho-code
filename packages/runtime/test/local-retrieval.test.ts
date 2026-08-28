@@ -14,7 +14,7 @@ describe("local retrieval", () => {
     await mkdir(path.join(workspace, "src"));
     await writeFile(path.join(workspace, "src", "composer.tsx"), "export function Composer() {}\n");
     await writeFile(path.join(workspace, "README.md"), "# fixture\n");
-    const retrieval = createLocalRetrievalRuntime({ dataDir });
+    const retrieval = createLocalRetrievalRuntime({ dataDir, persistRankingData: false });
     try {
       await retrieval.bind(workspace);
       const result = await retrieval.searchPaths({ query: "composer", limit: 8 });
@@ -39,7 +39,7 @@ describe("local retrieval", () => {
     await mkdir(workspaceB);
     await writeFile(path.join(workspaceA, "alpha-only.ts"), "export const alpha = 1;\n");
     await writeFile(path.join(workspaceB, "beta-only.ts"), "export const beta = 1;\n");
-    const retrieval = createLocalRetrievalRuntime({ dataDir });
+    const retrieval = createLocalRetrievalRuntime({ dataDir, persistRankingData: false });
     try {
       await retrieval.bind(workspaceA);
       await retrieval.bind(workspaceB);
@@ -55,11 +55,58 @@ describe("local retrieval", () => {
       expect(fromB.suggestions.some((entry) => entry.path === "alpha-only.ts")).toBe(false);
 
       const [aHits, bHits] = await Promise.all([
-        retrieval.runWithWorkspace(workspaceA, () => retrieval.fileSearch({ pattern: "alpha-only" })),
-        retrieval.runWithWorkspace(workspaceB, () => retrieval.fileSearch({ pattern: "beta-only" })),
+        retrieval.runWithWorkspace(workspaceA, () => retrieval.find({ pattern: "alpha-only" })),
+        retrieval.runWithWorkspace(workspaceB, () => retrieval.find({ pattern: "beta-only" })),
       ]);
       expect(aHits).toContain("alpha-only.ts");
       expect(bHits).toContain("beta-only.ts");
+    } finally {
+      await retrieval.dispose();
+    }
+  });
+
+  test("keeps path constraints inside their scope and searches an explicitly named ignored directory", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "pho-code-fff-"));
+    const workspace = path.join(root, "workspace");
+    const dataDir = path.join(root, "retrieval");
+    await mkdir(path.join(workspace, "src"), { recursive: true });
+    await mkdir(path.join(workspace, "ignored"));
+    await writeFile(path.join(workspace, ".gitignore"), "ignored/\n");
+    await writeFile(path.join(workspace, "outside.ts"), "const escapedNeedle = true;\n");
+    await writeFile(path.join(workspace, "src", "target.ts"), "const ordinary = true;\n");
+    await writeFile(path.join(workspace, "ignored", "secret.ts"), "const IgnoredNeedle = true;\n");
+    const retrieval = createLocalRetrievalRuntime({ dataDir, persistRankingData: false });
+    try {
+      await retrieval.bind(workspace);
+      const snapshot = retrieval.getSnapshot(workspace);
+      if (snapshot.status === "unavailable") {
+        expect(snapshot.diagnostic?.length).toBeGreaterThan(0);
+        return;
+      }
+
+      const constrained = await retrieval.grep({ pattern: "escapedNeedle", path: "src", literal: true });
+      expect(constrained).toBe("No matches found");
+      const constrainedRegex = await retrieval.grep({ pattern: "escapedNeedle|ordinary", path: "src" });
+      expect(constrainedRegex).toContain("src/target.ts");
+      expect(constrainedRegex).not.toContain("outside.ts");
+
+      const ignored = await retrieval.grep({
+        pattern: "ignoredneedle",
+        path: "ignored",
+        glob: "*.ts",
+        ignoreCase: true,
+        literal: true,
+        context: 99,
+      });
+      expect(ignored).toContain("ignored/secret.ts");
+      expect(ignored).toContain("IgnoredNeedle");
+      expect(ignored).not.toContain("outside.ts");
+
+      const found = await retrieval.find({ pattern: "*.ts", path: "ignored" });
+      expect(found).toBe("ignored/secret.ts");
+      await expect(retrieval.grep({ pattern: "needle", path: "../outside", literal: true })).rejects.toThrow(
+        "Path must stay inside the workspace.",
+      );
     } finally {
       await retrieval.dispose();
     }

@@ -538,18 +538,10 @@ async function startPiRuntime(
       ...(rgPath ? { rgPath } : {}),
       ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
       deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
+      useDefaultFeatureManifest: process.env.PHO_CODE_TEST_FEATURES === "1",
       testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
       testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",
       openValidatedAuthUrl,
-      ...(process.env.PHO_CODE_TEST_FEATURES === "1"
-        ? {
-            featureManifest: runtimeModule.createDefaultFeatureManifest(locator, {
-              agentDir,
-              applicationDataDir: app.getPath("userData"),
-              ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
-            }),
-          }
-        : {}),
     });
     if (!(await host.attach(created))) {
       return;

@@ -43,7 +43,6 @@ describe("tool presentation", () => {
     expect(toolWorkEntryIcon("grep")).toBe("search");
     expect(toolWorkEntryIcon("Search")).toBe("search");
     expect(toolWorkEntryIcon("Find")).toBe("find");
-    expect(toolWorkEntryIcon("fffind")).toBe("find");
     expect(toolWorkEntryIcon("execute")).toBe("execute");
     expect(toolWorkEntryIcon("Web search")).toBe("web-search");
     expect(toolWorkEntryIcon("web_search")).toBe("web-search");

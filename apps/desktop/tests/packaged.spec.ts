@@ -23,7 +23,7 @@ import {
   writeSandboxSettingsFile,
 } from "./helpers/electron-app";
 
-test("packaged macOS app loads permission and Trash features without Pi CLI", async () => {
+test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", async () => {
   const appPath = resolvePackagedAppPath();
   const featureRoot = join(appPath, "Contents", "Resources", "features", "@gotgenes", "pi-permission-system");
   expect(existsSync(join(featureRoot, "package.json"))).toBe(true);
@@ -60,6 +60,7 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
       await expect(page.getByTestId("composer")).toBeVisible();
       await page.getByTestId("bootstrap-state").click();
       await expect(page.getByTestId("feature-diagnostics")).toContainText("permission-system 24.0.0 · loaded");
+      await expect(page.getByTestId("feature-diagnostics")).toContainText("local-retrieval 2.0.0 · loaded");
       await expect(page.getByTestId("feature-diagnostics")).toContainText("recoverable-trash");
       await expect(page.getByTestId("feature-diagnostics")).not.toContainText("harness-note");
       await page.getByTestId("about-close").click();
@@ -80,9 +81,23 @@ test("packaged macOS app loads permission and Trash features without Pi CLI", as
       await expect(page.getByTestId("tool-card")).toContainText("Harness Mark");
       await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
 
-      await page.getByTestId("composer").fill("USE_TRASH");
+      await page.getByTestId("composer").fill("USE_FIND");
       await page.getByRole("button", { name: "Send" }).click();
       await expandSettledWorkLog(page, 1);
+      await expect(page.getByTestId("tool-card").last()).toContainText("Find");
+      await page.getByTestId("tool-card").last().click();
+      await expect(page.getByTestId("tool-detail").last()).toContainText("disposable-fixture.txt");
+
+      await page.getByTestId("composer").fill("USE_GREP");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 2);
+      await expect(page.getByTestId("tool-card").last()).toContainText("Search");
+      await page.getByTestId("tool-card").last().click();
+      await expect(page.getByTestId("tool-detail").last()).toContainText("owned");
+
+      await page.getByTestId("composer").fill("USE_TRASH");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 3);
       await expect(page.getByTestId("tool-card").last()).toContainText(/Trash|recoverable/i);
       expect(existsSync(fixturePath)).toBe(false);
 
