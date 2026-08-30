@@ -47,6 +47,7 @@ Reorder this table when the owner changes priority. Do not imply that a queued i
 | Priority | Item | Kind | Status | Owner outcome |
 | --- | --- | --- | --- | --- |
 | Proposed | [Runtime/renderer decomposition](./2026-08-27-prerequisite-runtime-and-renderer-decomposition.md) | prerequisite | In implementation | The three god-files stop being single closures; V4 inherits a modular graph |
+| Note | [Pho Agent / Pi core load](./2026-08-30-startup-pi-core-load.md) | startup | Investigated; pin `0.84.4` | Window-first already deferred the import; remaining cost is Pi's public barrel (TUI/jiti/all providers) plus a cold 9 s module-graph stall |
 
 ## Completed
 

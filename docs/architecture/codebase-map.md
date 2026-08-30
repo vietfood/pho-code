@@ -105,7 +105,7 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
 - `plan-agent-feature.ts` supplies Pho Code tool-policy context to `@pho-agent/runtime/plan-agent`; the remaining compatibility modules re-export the shared `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` implementation (accepted product behavior; V5 package ownership not yet accepted).
 - `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
-- `cursor-sdk-policy.ts` fixes the baked Cursor provider policy (local-only runtime; hide Cursor models until a stored key or `CURSOR_API_KEY`).
+- `cursor-sdk-policy.ts` fixes the baked Cursor provider policy (local-only runtime; hide Cursor models until a stored key or `CURSOR_API_KEY`). `runtime-plan-context.ts` keeps Cursor SDK tools inactive and out of Context prompt unless the live session model is Cursor.
 
 `createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, V3 change capture, and the agent-tool sandbox factory (bash wrap plus file-tool intercept while enabled). Both stages are source-selected and immutable to the user.
 

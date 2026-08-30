@@ -13,7 +13,7 @@ This add-on is independent of session tree/fork and the integrated terminal. Do 
 Every milestone must:
 
 - preserve `renderer -> protocol <- shell adapter -> application -> runtime -> Pi SDK`;
-- treat installed Pi `0.84.1` `.d.ts` and `.js` as the compaction API authority; bundled prose that describes another entry shape is not the pin;
+- treat installed Pi `0.84.4` `.d.ts` and `.js` as the compaction API authority; bundled prose that describes another entry shape is not the pin;
 - keep Pi responsible for thresholds, cut points, summary requests, entries, context rebuilding, overflow recovery, and retry;
 - keep the renderer free of Pi entries, runtime objects, filesystem paths, provider payloads, and opaque artifacts;
 - key commands, events, locks, state, and snapshot updates by `{workspaceId, sessionId}`;
@@ -31,7 +31,7 @@ Every milestone must:
 
 The following are implementation constraints, not loose upstream inspiration:
 
-- `AgentSession.compact(customInstructions?)`, `abortCompaction()`, `isCompacting`, `isIdle`, `getContextUsage()`, and compaction events are public in `0.84.1`.
+- `AgentSession.compact(customInstructions?)`, `abortCompaction()`, `isCompacting`, `isIdle`, `getContextUsage()`, and compaction events are public in `0.84.4`.
 - Automatic defaults are enabled, `reserveTokens: 16384`, and `keepRecentTokens: 20000`; the threshold comparison is strict `>`.
 - Manual compaction works even if automatic compaction is disabled.
 - `compact()` aborts the current agent operation before validating and summarizing. Pho Code therefore refuses manual requests unless the session is idle.
@@ -49,7 +49,7 @@ flowchart LR
     Usage["Renderer: usage popover + intent"] --> Protocol["Protocol: named commands/state"]
     Protocol --> Application["Application: composite identity"]
     Application --> Runtime["Runtime: controller lock + projection"]
-    Runtime --> Pi["Pi 0.84.1 AgentSession"]
+    Runtime --> Pi["Pi 0.84.4 AgentSession"]
     Pi --> Jsonl["Pi JSONL entries"]
     Jsonl --> Display["Full active-branch display projection"]
     Pi --> Context["Compacted model context"]
@@ -271,7 +271,7 @@ Pho Code can safely request and cancel one manual compaction for one controller,
 
 ### Implementation sequence
 
-1. Add repository-owned characterization tests against installed Pi `0.84.1` for manual, threshold, overflow, abort, repeated, and no-content paths.
+1. Add repository-owned characterization tests against installed Pi `0.84.4` for manual, threshold, overflow, abort, repeated, and no-content paths.
 2. Add protocol compaction state, transcript-item union, commands, validators, event, and bounds.
 3. Implement `projectDisplayTranscript(sessionManager.getBranch())` with persisted ids, compaction boundaries, tool-result grouping, hidden Plan-execute behavior, and rewrite compatibility.
 4. Add controller-local manual serialization and exact composite routing.
@@ -374,7 +374,7 @@ The Pi-native add-on is verified on the real desktop and unsigned macOS package,
 
 Provider-native compaction is not Milestone 3 of this add-on and does not block acceptance. Promote it separately only after all of these are resolved:
 
-- an exact implementation compatible with Pi `0.84.1` or an explicit reviewed Pi upgrade;
+- an exact implementation compatible with Pi `0.84.4` or an explicit reviewed Pi upgrade;
 - official OpenAI server-side versus standalone endpoint choice;
 - `store: false`/ZDR and account-retention behavior for the actual auth paths;
 - portable Pi summary alongside opaque artifact, versioned JSON-safe schema, and size bounds;

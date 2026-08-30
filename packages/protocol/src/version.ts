@@ -67,7 +67,7 @@ export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOC
 
 export const INTENDED_PI_SDK = {
   packageName: "@earendil-works/pi-coding-agent",
-  version: "0.84.1",
+  version: "0.84.4",
   enginesNode: ">=22.19.0",
 } as const;
 

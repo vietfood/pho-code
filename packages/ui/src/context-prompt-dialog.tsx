@@ -7,6 +7,7 @@ import {
   type SessionContextPrompt,
 } from "@pho-code/protocol";
 import { handleDialogTab } from "./lib/dialog-focus";
+import { formatTokenCount } from "./lib/format-tokens";
 import { cn } from "./lib/cn";
 import { Button } from "./ui/button";
 
@@ -137,7 +138,16 @@ export function ContextPromptDialog({
           </span>
         </div>
         <label className="grid shrink-0 gap-1 px-3.5 pt-2.5">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Preamble</span>
+          <span className="flex items-baseline justify-between gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Preamble
+            <span
+              className="font-mono text-[10px] font-normal normal-case tabular-nums tracking-normal"
+              data-testid="context-prompt-preamble-size"
+              title={`${preamble.length.toLocaleString()} characters`}
+            >
+              {formatTokenCount(preamble.length)}
+            </span>
+          </span>
           <textarea
             className="context-prompt-preamble"
             data-testid="context-prompt-preamble"
@@ -241,7 +251,15 @@ function ContextPromptSectionGroup({
   onToggleSection: (id: string) => void;
   onExpand: (id: string) => void;
 }) {
-  const enabledCount = group.sections.filter((section) => section.enabled).length;
+  let enabledCount = 0;
+  let enabledChars = 0;
+  for (const section of group.sections) {
+    if (!section.enabled) {
+      continue;
+    }
+    enabledCount += 1;
+    enabledChars += section.body.length;
+  }
   const allEnabled = enabledCount === group.sections.length;
   const mixed = enabledCount > 0 && !allEnabled;
   const headingId = `context-prompt-group-heading-${group.kind}`;
@@ -269,8 +287,12 @@ function ContextPromptSectionGroup({
         <h3 id={headingId} className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {group.label}
         </h3>
-        <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
-          {enabledCount}/{group.sections.length}
+        <span
+          className="font-mono text-[10px] tabular-nums text-muted-foreground"
+          data-testid={`context-prompt-group-size-${group.kind}`}
+          title={`${enabledChars.toLocaleString()} characters included`}
+        >
+          {formatTokenCount(enabledChars)} · {enabledCount}/{group.sections.length}
         </span>
       </div>
       <ul className="list-none">
@@ -326,6 +348,13 @@ function ContextPromptSectionRow({
             <span className="block truncate font-mono text-[10px] leading-3 text-muted-foreground">{secondary}</span>
           ) : null}
         </label>
+        <span
+          className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground"
+          data-testid={`context-prompt-size-${section.id}`}
+          title={`${section.body.length.toLocaleString()} characters`}
+        >
+          {formatTokenCount(section.body.length)}
+        </span>
         <button
           type="button"
           className="context-prompt-expand"

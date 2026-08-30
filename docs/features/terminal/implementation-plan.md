@@ -13,7 +13,7 @@ This add-on is independent of archived V3. Do not put terminal work in `archive/
 Every terminal milestone must:
 
 - preserve `renderer -> protocol <- shell adapter -> application -> runtime -> Pi SDK`;
-- keep Pi `0.84.1` as the agent/session authority; this add-on does not import Pi for PTY ownership;
+- keep Pi `0.84.4` as the agent/session authority; this add-on does not import Pi for PTY ownership;
 - keep the renderer free of `electron`, `node:*`, Pi SDK, MCP SDKs, and PTY libraries;
 - put PTY spawn, env, cwd, write, resize, kill, and replay behind an injected `TerminalHost` implemented only in the Electron adapter;
 - keep protocol values JSON-safe strings and numbers; no `Buffer`, `ArrayBuffer`, class instances, or process handles cross the bridge;

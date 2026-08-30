@@ -97,7 +97,7 @@ async function promptAndWait(runtime: AgentSessionRuntime, text: string): Promis
   await runtime.session.prompt(text, { source: "interactive" });
 }
 
-describe("Pi 0.84.1 session identity", () => {
+describe("Pi 0.84.4 session identity", () => {
   test("two independent runtimes share ModelRuntime, persist distinct JSONL artifacts, and dispose without cross-talk", async () => {
     const { agentDir, workspaceDir } = await makeIsolatedDirs();
     const previousAgentDir = process.env.PI_CODING_AGENT_DIR;

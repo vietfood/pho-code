@@ -1614,6 +1614,7 @@ export async function createPhoCodeRuntime(
       } catch (error) {
         failCommand("setSessionModel", error instanceof Error ? error.message : "Unable to set the model.");
       }
+      planContext.applyToolPolicy(live);
       return publishSnapshot(live);
     },
     async setThinkingLevel(input: SetThinkingLevelInput) {

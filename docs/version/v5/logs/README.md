@@ -47,3 +47,7 @@ Product-owned Codex developer instructions, the first curated dynamic tool, and 
 Agent `read_skill` catalog and autonomous invocation (no `/` required): [`2026-08-27-change-agent-skill-invocation.md`](./2026-08-27-change-agent-skill-invocation.md).
 
 Owner-directed hold behind the urgent queue and the promoted add-ons, with the unverified surface recorded at hold time: [`2026-08-28-blocked-pending-other-workstreams.md`](./2026-08-28-blocked-pending-other-workstreams.md).
+
+Pi SDK pin `0.84.1` → `0.84.4`: [`2026-08-30-pi-sdk-0.84.4.md`](./2026-08-30-pi-sdk-0.84.4.md).
+
+Parked Cursor-CLI / ACP backend (not a slice): [`2026-08-30-parked-cursor-cli-backend.md`](./2026-08-30-parked-cursor-cli-backend.md).

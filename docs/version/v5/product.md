@@ -41,7 +41,7 @@ The product boundary remains deliberately narrower than a generic public agent f
 | Decision | V5 selection |
 | --- | --- |
 | Foundation name | **`pho-agent`**. The concept may span several `@pho-agent/*` workspace packages; V5 does not force one monolithic package. |
-| Backend model | **One backend-neutral host with separate adapters.** Pi remains pinned at `0.84.1`; Codex uses its direct app-server protocol; Claude and other ACP agents use an ACP adapter. Do not translate every backend through ACP or reproduce a backend's inner loop. |
+| Backend model | **One backend-neutral host with separate adapters.** Pi remains pinned at `0.84.4`; Codex uses its direct app-server protocol; Claude and other ACP agents use an ACP adapter. Do not translate every backend through ACP or reproduce a backend's inner loop. |
 | Consumer direction | `pho-code -> pho-agent host -> selected backend adapter`. Future products may reuse the same host; they must not depend on Pho Code. |
 | Runtime process | Keep the accepted in-process Electron-main composition. Source/package extraction is not V4 `utilityProcess` extraction. |
 | Initial distribution | Private workspace packages compiled into Pho Code. No npm publication or public compatibility guarantee in V5. |

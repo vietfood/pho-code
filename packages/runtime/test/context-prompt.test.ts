@@ -12,6 +12,7 @@ import {
   compileContextPrompt,
   CONTEXT_PROMPT_CUSTOM_TYPE,
   enabledToolNames,
+  omitPiDocsFromSystemPrompt,
   liveContextPromptSections,
   lookupCompiledContextPrompt,
   projectSessionContextPrompt,
@@ -46,6 +47,7 @@ describe("context prompt compiler", () => {
       toolSectionId("bash"),
       PI_DOCS_SECTION_ID,
     ]);
+    expect(sections.find((section) => section.id === PI_DOCS_SECTION_ID)?.enabled).toBe(false);
     const compiled = compileContextPrompt({
       preamble: "You are Pho.",
       sections: applyDisabledSectionIds(sections, [toolSectionId("bash"), PI_DOCS_SECTION_ID]),
@@ -73,7 +75,24 @@ describe("context prompt compiler", () => {
     expect(projected.customized).toBe(false);
     expect(projected.compiled).toBe("Pi native prompt");
     expect(projected.preamble).toBe(DEFAULT_CONTEXT_PROMPT_PREAMBLE);
-    expect(projected.sections.every((section) => section.enabled)).toBe(true);
+    expect(projected.sections.find((section) => section.id === PI_DOCS_SECTION_ID)?.enabled).toBe(false);
+    expect(projected.sections.filter((section) => section.id !== PI_DOCS_SECTION_ID).every((section) => section.enabled)).toBe(
+      true,
+    );
+  });
+
+  test("uncustomized projection omits Pi docs from compiled A", () => {
+    const projected = projectSessionContextPrompt({
+      cwd: "/tmp/ws",
+      tools,
+      agentsFiles: agents,
+      liveSystemPrompt: `Guidelines:\n- Be concise\n\nPi documentation (read only when the user asks about pi itself):\n- Main documentation: /tmp/pi/README.md\n\nCurrent working directory: /tmp/ws`,
+      record: undefined,
+      editable: true,
+    });
+    expect(projected.compiled).not.toContain("Pi documentation");
+    expect(projected.compiled).toContain("Guidelines:");
+    expect(projected.compiled).toContain("Current working directory: /tmp/ws");
   });
 
   test("customized inspect uses the frozen compiled A", () => {
@@ -161,5 +180,34 @@ describe("context prompt compiler", () => {
     expect(
       lookupCompiledContextPrompt(compiledByKey, { cwd: "/tmp/ws", sessionId: "missing" }),
     ).toBeUndefined();
+  });
+
+  test("strips Pi's baked documentation block from a live system prompt", () => {
+    const live = `You are an expert coding assistant operating inside pi, a coding agent harness.
+
+Available tools:
+- read: Read workspace files.
+
+Guidelines:
+- Be concise in your responses
+
+Pi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):
+- Main documentation: /tmp/pi/README.md
+- Additional docs: /tmp/pi/docs
+- Always read pi .md files completely and follow links to related docs
+
+<project_context>
+
+Project-specific instructions and guidelines:
+
+</project_context>
+
+Current working directory: /tmp/ws`;
+    const stripped = omitPiDocsFromSystemPrompt(live);
+    expect(stripped).not.toContain("Pi documentation");
+    expect(stripped).not.toContain("/tmp/pi/README.md");
+    expect(stripped).toContain("Available tools:");
+    expect(stripped).toContain("<project_context>");
+    expect(stripped).toContain("Current working directory: /tmp/ws");
   });
 });

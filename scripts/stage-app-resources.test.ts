@@ -45,7 +45,7 @@ describe("baked feature staging", () => {
 
   test("notices name the pinned Pi, permission, and Cursor SDK packages", () => {
     const notices = generateThirdPartyNotices();
-    expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.1");
+    expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.4");
     expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
     expect(notices).toContain("pi-cursor-sdk 0.2.0");
     expect(notices).toContain("@cursor/sdk 1.0.23");

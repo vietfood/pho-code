@@ -94,9 +94,9 @@ describe("workspace package dependency graph", () => {
     });
     expect(runtime.dependencies?.["@pho-agent/host"]).toBe("workspace:*");
     expect(runtime.dependencies?.["@pho-agent/protocol"]).toBe("workspace:*");
-    expect(runtime.dependencies?.["@earendil-works/pi-ai"]).toBe("0.84.1");
-    expect(runtime.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.1");
-    expect(runtime.dependencies?.["@earendil-works/pi-agent-core"]).toBe("0.84.1");
+    expect(runtime.dependencies?.["@earendil-works/pi-ai"]).toBe("0.84.4");
+    expect(runtime.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("0.84.4");
+    expect(runtime.dependencies?.["@earendil-works/pi-agent-core"]).toBe("0.84.4");
     expect(runtime.dependencies?.["@modelcontextprotocol/sdk"]).toBe("1.30.0");
     expect(runtime.exports?.["./feature-api"]).toBe("./src/feature-api.ts");
     expect(runtime.exports?.["./github-mcp"]).toBe("./src/github-mcp/index.ts");

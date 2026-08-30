@@ -16,7 +16,7 @@ Every V4 milestone must:
 
 - preserve `renderer -> protocol <- shell adapter -> application -> runtime -> Pi SDK`;
 - keep the renderer free of Electron, Node, Pi, MCP, filesystem, process, credential, signing, update, and release-feed authority;
-- keep Pi `0.84.1` and Electron `43.4.0` pinned unless a separate reviewed upgrade slice changes one pin and reruns its complete compatibility surface;
+- keep Pi `0.84.4` and Electron `43.4.0` pinned unless a separate reviewed upgrade slice changes one pin and reruns its complete compatibility surface;
 - keep Pi JSONL authoritative for transcripts and preserve accepted V3 ledger/Undo semantics across runtime generations;
 - retain immutable source-selected feature composition and refuse runtime downloads, ambient Pi packages, project extensions, arbitrary MCP, and generic settings;
 - use explicit JSON-safe bounded messages across renderer IPC and the new main/utility-process boundary;
@@ -96,7 +96,7 @@ flowchart LR
     App --> Client["Runtime process client/cache"]
     Client -->|"bounded typed RPC"| Child["utilityProcess runtime entry"]
     Child --> Runtime["HarnessRuntime"]
-    Runtime --> Pi["Pi SDK 0.84.1"]
+    Runtime --> Pi["Pi SDK 0.84.4"]
     Child --> MCP["GitHub MCP child"]
     Main --> Native["pickers / links / updates / diagnostics"]
     Main -.-> PTY["TerminalHost if accepted separately"]

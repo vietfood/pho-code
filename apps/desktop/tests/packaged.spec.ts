@@ -103,7 +103,7 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
 
       const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");
       expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
-      expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.1");
+      expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.4");
     } finally {
       await harness.close();
     }

@@ -66,6 +66,9 @@ describe("ContextPromptDialog", () => {
     expect(markup).toContain("Context files");
     expect(markup).toContain("Tools");
     expect(markup).toContain("Optional");
+    expect(markup).toContain('data-testid="context-prompt-preamble-size"');
+    expect(markup).toContain('data-testid="context-prompt-group-size-agents"');
+    expect(markup).toContain('data-testid="context-prompt-size-agents:AGENTS.md"');
     expect(markup).toContain("context-prompt-section is-off");
     expect(markup).not.toContain("This chat starts with the default system prompt");
   });

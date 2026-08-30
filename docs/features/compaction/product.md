@@ -4,7 +4,7 @@
 
 Owner-promoted standalone add-on, 2026-08-20. This is **not** a numbered version and does not promote session tree/fork, a new transcript format, or an OpenAI-specific transport.
 
-Pi-native automatic compaction already exists in production through the pinned Pi SDK `0.84.1`. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation** until that plan's acceptance gate passes.
+Pi-native automatic compaction already exists in production through the pinned Pi SDK `0.84.4`. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation** until that plan's acceptance gate passes.
 
 ## Outcome
 
@@ -76,7 +76,7 @@ The first accepted release will not:
 
 ## Current behavior and gap
 
-Production sessions do not override Pi's compaction setting. With pinned Pi `0.84.1`, automatic compaction is enabled by default and normally triggers when:
+Production sessions do not override Pi's compaction setting. With pinned Pi `0.84.4`, automatic compaction is enabled by default and normally triggers when:
 
 ```text
 contextTokens > contextWindow - reserveTokens
@@ -137,7 +137,7 @@ Diagnostics may contain session identity, reason, timing, before/after estimates
 
 OpenAI's current Responses documentation supports both server-side compaction through `context_management` and a standalone `/responses/compact` endpoint. It documents opaque encrypted items and `store: false` flows, so provider-native compaction is not inherently tied to stored Responses. That corrects the earlier draft's broader retention assumption.
 
-The evaluated [`pi-openai-server-compaction`](https://github.com/algal/pi-openai-server-compaction) revision `8a3de2f3b0c178fdd6f73f2f94172dfc3943e466` is still unsuitable for this release: it is experimental/private, peers Pi `>=0.80.9 <0.81.0`, targets older trigger/request behavior, and its direct `openai/*` path explicitly sets `store: true`, adds request mutation, previous-response continuity, and a custom WebSocket transport. Pho Code pins Pi `0.84.1`. Removing the peer check is not compatibility work.
+The evaluated [`pi-openai-server-compaction`](https://github.com/algal/pi-openai-server-compaction) revision `8a3de2f3b0c178fdd6f73f2f94172dfc3943e466` is still unsuitable for this release: it is experimental/private, peers Pi `>=0.80.9 <0.81.0`, targets older trigger/request behavior, and its direct `openai/*` path explicitly sets `store: true`, adds request mutation, previous-response continuity, and a custom WebSocket transport. Pho Code pins Pi `0.84.4`. Removing the peer check is not compatibility work.
 
 Provider-native support may be promoted later only with an exact Pi-compatible implementation, `store: false`/retention decision, artifact schema and cross-model rejection rules, usage accounting, rollback, packaged resources, and separate real-provider evidence for `openai-codex/*` and direct `openai/*`. The portable Pi summary remains mandatory.
 
@@ -158,7 +158,7 @@ Provider-native support may be promoted later only with an exact Pi-compatible i
 - Research and promotion record: [`logs/2026-08-20-research-and-promotion.md`](./logs/2026-08-20-research-and-promotion.md)
 - Accepted runtime/data ownership: [`../../architecture/runtime-and-data.md`](../../architecture/runtime-and-data.md)
 - Conversation UI: [`../../ui/implementation/conversation-ui.md`](../../ui/implementation/conversation-ui.md)
-- Pinned Pi `0.84.1`: `packages/runtime/node_modules/@earendil-works/pi-coding-agent/docs/compaction.md`
+- Pinned Pi `0.84.4`: `packages/runtime/node_modules/@earendil-works/pi-coding-agent/docs/compaction.md`
 - [OpenAI compaction guide](https://developers.openai.com/api/docs/guides/compaction)
 - [OpenAI compact response API reference](https://developers.openai.com/api/reference/resources/responses/methods/compact)
 - [Oh My Pi compaction design](https://github.com/can1357/oh-my-pi/blob/7e54061cbb1181dbc8dd7f0b37a1f12435a39e05/docs/compaction.md) — product research only

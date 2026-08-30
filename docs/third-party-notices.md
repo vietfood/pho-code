@@ -2,11 +2,11 @@
 
 Pho Code ships the following pinned runtime and baked-feature packages. This is not a complete recursive license inventory of every transitive dependency.
 
-## @earendil-works/pi-coding-agent 0.84.1
+## @earendil-works/pi-coding-agent 0.84.4
 
 License: MIT · Mario Zechner
 
-## @earendil-works/pi-ai 0.84.1
+## @earendil-works/pi-ai 0.84.4
 
 License: MIT · Mario Zechner
 

@@ -44,7 +44,7 @@ flowchart LR
     Main --> Application["Application service"]
     Application --> Runtime["Pho Code runtime adapters"]
     Runtime --> AgentRuntime["Pho Agent runtime"]
-    AgentRuntime --> Pi["Pi SDK 0.84.1"]
+    AgentRuntime --> Pi["Pi SDK 0.84.4"]
     Main --> Security["CSP, navigation, permission guards"]
 ```
 
@@ -77,7 +77,7 @@ flowchart TB
     Main --> App["Application service"]
     App --> Runtime["Pho Code HarnessRuntime"]
     Runtime --> AgentRuntime["Pho Agent runtime"]
-    AgentRuntime --> Pi["Pi SDK 0.84.1"]
+    AgentRuntime --> Pi["Pi SDK 0.84.4"]
     App --> Metadata["Application metadata store"]
     Pi --> Sessions["Pi JSONL sessions"]
     Runtime --> Features["Baked feature manifest"]

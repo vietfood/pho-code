@@ -139,9 +139,9 @@ Personal-v2 evidence lives in its archived implementation plan and closure revie
 
 ## Recorded runtime compatibility
 
-The desktop pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.1` (with matching `@earendil-works/pi-ai` `0.84.1`). The Electron runtime reports embedded Node `24.18.1`, which satisfies Pi's `engines.node` of `>=22.19.0`.
+The desktop pins Electron `43.4.0` and `@earendil-works/pi-coding-agent` `0.84.4` (with matching `@earendil-works/pi-ai` `0.84.4`). The Electron runtime reports embedded Node `24.18.1`, which satisfies Pi's `engines.node` of `>=22.19.0`.
 
-Installed 0.84.1 typings are the API source of truth. The public SDK guide is [packages/coding-agent/docs/sdk.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md); `main` may describe a newer SDK than this pin. Notable 0.84.1 details used by this slice:
+Installed 0.84.4 typings are the API source of truth. The public SDK guide is [packages/coding-agent/docs/sdk.md](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md); `main` may describe a newer SDK than this pin. Notable 0.84.4 details used by this slice:
 
 - construct sessions with `createAgentSessionRuntime` / `createAgentSessionServices` / `createAgentSessionFromServices`
 - `session.prompt(..., { source: "interactive", preflightResult })` for admission; `prompt()` resolves after the full run

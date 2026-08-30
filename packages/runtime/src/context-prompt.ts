@@ -91,10 +91,33 @@ export function liveContextPromptSections(
     id: PI_DOCS_SECTION_ID,
     kind: "optional",
     title: "Pi docs",
-    enabled: true,
+    enabled: false,
     body: PI_DOCS_SECTION_BODY,
   });
   return sections;
+}
+
+const PI_DOCS_PROMPT_HEADING = "Pi documentation (read only when the user asks about pi itself";
+
+/** Drop Pi's baked docs block (and Pho's shortened copy) from a live system prompt. */
+export function omitPiDocsFromSystemPrompt(prompt: string): string {
+  const lines = prompt.split("\n");
+  const kept: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    if (!skipping && line.startsWith(PI_DOCS_PROMPT_HEADING)) {
+      skipping = true;
+      continue;
+    }
+    if (skipping) {
+      if (line.startsWith("- ") || line === "") {
+        continue;
+      }
+      skipping = false;
+    }
+    kept.push(line);
+  }
+  return kept.join("\n").replace(/^\n+|\n+$/gu, "");
 }
 
 export function applyDisabledSectionIds(
@@ -153,13 +176,14 @@ export function projectSessionContextPrompt(input: {
   const liveSections = liveContextPromptSections(input.cwd, input.tools, input.agentsFiles);
   const defaults = { defaultPreamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE };
   if (!input.record) {
+    const live = input.liveSystemPrompt.trim() || DEFAULT_CONTEXT_PROMPT_PREAMBLE;
     return {
       ...defaults,
       customized: false,
       editable: input.editable,
       preamble: DEFAULT_CONTEXT_PROMPT_PREAMBLE,
       sections: liveSections,
-      compiled: input.liveSystemPrompt.trim() || DEFAULT_CONTEXT_PROMPT_PREAMBLE,
+      compiled: omitPiDocsFromSystemPrompt(live) || DEFAULT_CONTEXT_PROMPT_PREAMBLE,
     };
   }
   if (!input.editable) {

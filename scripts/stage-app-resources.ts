@@ -453,9 +453,10 @@ export function generateThirdPartyNotices(): string {
   const permissionManifest = path.join(resolveWorkspacePackageRoot(PERMISSION_PACKAGE_NAME), "package.json");
   const cursorManifest = path.join(resolveWorkspacePackageRoot(CURSOR_SDK_PACKAGE_NAME), "package.json");
   const runtimeManifest = path.join(resolveWorkspacePackageRoot("@pho-code/runtime"), "package.json");
+  const agentRuntimeManifest = path.join(WORKSPACE_ROOT, "packages/pho-agent/packages/runtime/package.json");
   const packages = [
-    readNoticePackage("@earendil-works/pi-coding-agent"),
-    readNoticePackage("@earendil-works/pi-ai"),
+    readNoticePackage("@earendil-works/pi-coding-agent", agentRuntimeManifest),
+    readNoticePackage("@earendil-works/pi-ai", agentRuntimeManifest),
     readNoticePackage(PERMISSION_PACKAGE_NAME),
     ...PERMISSION_RUNTIME_DEPS.map((name) => readNoticePackage(name, permissionManifest)),
     readNoticePackage(CURSOR_SDK_PACKAGE_NAME),

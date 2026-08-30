@@ -88,7 +88,7 @@ Milestones are sequential acceptance gates. A later milestone may begin only aft
 
 Every milestone must:
 
-- keep the selected backend authoritative for its inner loop, tool execution, streaming, session persistence, and backend-native features; keep Pi `0.84.1` authoritative within the Pi adapter and do not reproduce Codex or ACP agent loops;
+- keep the selected backend authoritative for its inner loop, tool execution, streaming, session persistence, and backend-native features; keep Pi `0.84.4` authoritative within the Pi adapter and do not reproduce Codex or ACP agent loops;
 - preserve the accepted Pho Code layers while adding one-way `@pho-code/* -> @pho-agent/host -> backend adapter`; no adapter may depend on Pho Code, Electron, React, or another adapter;
 - keep `@pho-agent/protocol` and `@pho-agent/host` free of Node, backend SDKs, `@pho-code/*`, React, Electron, UI packages, Git, PTY libraries, and product filesystem policy; backend adapters may import only the process/SDK dependencies their protocol requires;
 - keep the renderer free of Node, Pi, credentials, filesystem/process handles, evidence-provider authority, and raw tool/runtime objects;
@@ -149,7 +149,7 @@ flowchart LR
     CodeRuntime --> AgentRuntime["@pho-agent/runtime (Pi compatibility)"]
     AgentRuntime --> AgentHost
     AgentRuntime --> AgentProtocol
-    AgentRuntime --> Pi["Pi SDK 0.84.1"]
+    AgentRuntime --> Pi["Pi SDK 0.84.4"]
     AgentEvals["@pho-agent/evals"] --> AgentRuntime
     AgentEvals --> AgentProtocol
 ```
