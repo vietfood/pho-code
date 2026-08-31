@@ -366,6 +366,33 @@ describe("empty session hero", () => {
     expect(markup).toContain("learn my repo ");
   });
 
+  test("renders github clone urls with a .git suffix as one chip", () => {
+    const markup = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [
+            {
+              id: "m1",
+              role: "user",
+              blocks: [
+                {
+                  type: "text",
+                  text: "Push commit e328b9c to https://github.com/vietfood/pho-code.git, branch dev",
+                },
+              ],
+            },
+          ],
+        }),
+        ...handlers,
+      }),
+    );
+    expect(markup).toContain('data-github-url="https://github.com/vietfood/pho-code.git"');
+    expect(markup).toContain('data-github-repo="pho-code"');
+    expect(markup).not.toContain('data-github-repo="pho-code.git"');
+    expect(markup).toContain("vietfood/pho-code");
+    expect(markup).toContain(", branch dev");
+  });
+
   test("renders admitted transcript images with a lightbox preview", () => {
     const preview =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

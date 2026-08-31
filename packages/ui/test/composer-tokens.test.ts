@@ -35,4 +35,20 @@ describe("composer skill tokens", () => {
       { type: "text", text: " tonight" },
     ]);
   });
+
+  test("parses github clone urls with a .git suffix as one chip", () => {
+    const segments = parseComposerSegments(
+      "Push commit e328b9c to https://github.com/vietfood/pho-code.git, branch dev",
+    );
+    expect(segments).toEqual([
+      { type: "text", text: "Push commit e328b9c to " },
+      {
+        type: "github",
+        url: "https://github.com/vietfood/pho-code.git",
+        owner: "vietfood",
+        repo: "pho-code",
+      },
+      { type: "text", text: ", branch dev" },
+    ]);
+  });
 });

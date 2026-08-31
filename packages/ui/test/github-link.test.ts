@@ -44,6 +44,43 @@ describe("github link chips", () => {
     expect(findCompletedGitHubLinks("https://github.com/vietfood/comtam/issues/1")).toEqual([]);
   });
 
+  test("consumes a clone .git suffix without leaving it after the chip", () => {
+    const text = "Push commit e328b9c to https://github.com/vietfood/pho-code.git, branch dev";
+    const url = "https://github.com/vietfood/pho-code.git";
+    expect(findCompletedGitHubLinks(text)).toEqual([
+      {
+        url,
+        owner: "vietfood",
+        repo: "pho-code",
+        start: text.indexOf(url),
+        end: text.indexOf(url) + url.length,
+      },
+    ]);
+  });
+
+  test("keeps dotted repo names and a trailing-slash clone url", () => {
+    const dotted = "https://github.com/vercel/next.js";
+    expect(findCompletedGitHubLinks(dotted)).toEqual([
+      {
+        url: dotted,
+        owner: "vercel",
+        repo: "next.js",
+        start: 0,
+        end: dotted.length,
+      },
+    ]);
+    const cloneSlash = "https://github.com/vietfood/pho-code.git/";
+    expect(findCompletedGitHubLinks(cloneSlash)).toEqual([
+      {
+        url: cloneSlash,
+        owner: "vietfood",
+        repo: "pho-code",
+        start: 0,
+        end: cloneSlash.length,
+      },
+    ]);
+  });
+
   test("ignores mid-word urls", () => {
     expect(findCompletedGitHubLinks("gohttps://github.com/vietfood/comtam")).toEqual([]);
   });

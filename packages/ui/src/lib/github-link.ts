@@ -7,11 +7,14 @@ export interface CompletedGitHubLink {
 }
 
 const LINK_BOUNDARY = /[\s([{<'"]/u;
+const CLONE_SUFFIX = ".git";
+// Start and end on alnum so a sentence period stays punctuation, while
+// internal dots (`next.js`) and a clone `.git` stay inside the URL.
 const GITHUB_REPO_URL =
-  /^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?)\/([A-Za-z0-9._-]+?)(?:\/)?(?=[\s.,;:!?)\]}'"]|$)/u;
+  /^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?)\/([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)(?:\/)?(?=[\s.,;:!?)\]}'"]|$)/u;
 
 export function githubLinkLabel(owner: string, repo: string): string {
-  return `${owner}/${repo}`;
+  return `${owner}/${stripCloneSuffix(repo)}`;
 }
 
 export function findCompletedGitHubLinks(text: string): CompletedGitHubLink[] {
@@ -37,11 +40,15 @@ export function findCompletedGitHubLinks(text: string): CompletedGitHubLink[] {
     matches.push({
       url: text.slice(index, end),
       owner,
-      repo,
+      repo: stripCloneSuffix(repo),
       start: index,
       end,
     });
     index = end - 1;
   }
   return matches;
+}
+
+function stripCloneSuffix(repo: string): string {
+  return repo.endsWith(CLONE_SUFFIX) ? repo.slice(0, -CLONE_SUFFIX.length) : repo;
 }
