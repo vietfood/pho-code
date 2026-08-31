@@ -30,7 +30,7 @@ function snapshot(status: AgentSessionSnapshot["run"]["status"]): AgentSessionSn
 }
 
 describe("backend conversation projection", () => {
-  test("keeps in-flight assistant text and native tools in the existing live-run tail", () => {
+  test("commits pre-tool assistant text as narration work, matching the Pi reducer", () => {
     expect(projectBackendConversation(snapshot("running"))).toEqual({
       messages: [
         { id: "user-1", role: "user", blocks: [{ type: "text", text: "Inspect this" }] },
@@ -38,18 +38,32 @@ describe("backend conversation projection", () => {
       run: {
         runId: "run-1",
         status: "streaming",
-        streamingText: "Checking",
-        work: [{
-          type: "tool",
-          callId: "tool-1",
-          name: "Run command",
-          kind: "command",
-          status: "running",
-          inputPreview: "pwd",
-          outputPreview: "/workspace",
-        }],
+        streamingText: "",
+        work: [
+          { type: "text", text: "Checking" },
+          {
+            type: "tool",
+            callId: "tool-1",
+            name: "Run command",
+            kind: "command",
+            status: "running",
+            inputPreview: "pwd",
+            outputPreview: "/workspace",
+          },
+        ],
       },
     });
+  });
+
+  test("keeps text after the last tool in the streaming tail", () => {
+    const running = snapshot("running");
+    const assistant = running.messages[1];
+    if (assistant) {
+      assistant.blocks.push({ type: "text", id: "text-2", text: "Still writing" });
+    }
+    const projection = projectBackendConversation(running);
+    expect(projection.run.streamingText).toBe("Still writing");
+    expect(projection.run.work.map((entry) => entry.type)).toEqual(["text", "tool"]);
   });
 
   test("settles backend-native tools into ordinary transcript rows", () => {

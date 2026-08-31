@@ -21,6 +21,9 @@ export function EmptySessionStage({
       <div className="empty-session-glow" aria-hidden="true" />
       <div className="empty-session-center flex min-h-0 flex-1 flex-col items-center justify-center">
         <div className="empty-session-column relative z-10" data-workspace={workspaceName}>
+          <h1 className="empty-session-greeting" data-testid="empty-session-greeting">
+            What would you like to work on?
+          </h1>
           {children}
         </div>
       </div>

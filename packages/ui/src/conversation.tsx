@@ -17,15 +17,12 @@ import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
 import { HostDialog } from "./host-dialog";
+import { setComposerCaretOffset } from "./lib/composer-editable-dom";
+import { isPiCursorModel } from "./lib/cursor-model";
 import { isEmptyConversation } from "./lib/empty-conversation";
 import { sameModel } from "./lib/model-identity";
+import { StarterChips } from "./starter-chips";
 import { Transcript } from "./transcript";
-
-const CURSOR_PROVIDER_ID = "cursor";
-
-function isCursorModel(model: ModelSummary): boolean {
-  return model.provider.trim().toLowerCase() === CURSOR_PROVIDER_ID;
-}
 
 export function Conversation({
   snapshot,
@@ -104,13 +101,29 @@ export function Conversation({
     setPendingModel(null);
   }, [snapshot.session.id, snapshot.workspace.id]);
 
+  function handleStarterPrompt(prompt: string) {
+    onDraftChange(prompt);
+    const inputId = composerInputId ?? "composer-input";
+    // Focus after React commits the new draft: the composer's layout effect
+    // keeps the click-stolen caret only when the field already has focus, and
+    // the caret belongs at the end of the inserted prompt.
+    requestAnimationFrame(() => {
+      const field = document.getElementById(inputId);
+      if (!field) {
+        return;
+      }
+      field.focus();
+      setComposerCaretOffset(field, prompt.length);
+    });
+  }
+
   function requestModelChange(model: ModelSummary) {
     if (sameModel(model, snapshot.model)) {
       return;
     }
-    // Cursor models always warn: nested Cursor agent loop + permission boundary.
-    // Non-cursor mid-chat still warns about cache/context.
-    if (isCursorModel(model) || !empty) {
+    // Cursor models on the Pi backend always warn: nested Cursor agent loop +
+    // permission boundary. Non-cursor mid-chat still warns about cache/context.
+    if (isPiCursorModel(model, backendId) || !empty) {
       setPendingModel(model);
       return;
     }
@@ -160,7 +173,7 @@ export function Conversation({
     dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
   const changeModelDialog =
     pendingModel ? (
-      isCursorModel(pendingModel) ? (
+      isPiCursorModel(pendingModel, backendId) ? (
         <CursorModelWarningDialog
           model={pendingModel}
           midChat={!empty}
@@ -203,6 +216,7 @@ export function Conversation({
           >
             {hostDialog}
             {composer}
+            <StarterChips onSelect={handleStarterPrompt} />
           </EmptySessionStage>
         ) : (
           <>

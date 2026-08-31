@@ -104,6 +104,24 @@ describe("empty session hero", () => {
     expect(split).not.toContain("data-right-overlay");
   });
 
+  test("greets and offers round starter-task chips on the hero", () => {
+    const markup = renderToStaticMarkup(createElement(Conversation, { snapshot: snapshot(), ...handlers }));
+    expect(markup).toContain('data-testid="empty-session-greeting"');
+    expect(markup).toContain("What would you like to work on?");
+    expect(markup).toContain('data-testid="starter-chips"');
+    expect(markup).toContain('aria-label="Starter tasks"');
+    for (const [id, label] of [
+      ["explain", "Explain this codebase"],
+      ["fix-bug", "Fix a bug"],
+      ["write-tests", "Write tests"],
+      ["refactor", "Refactor code"],
+      ["add-feature", "Add a feature"],
+    ] as const) {
+      expect(markup).toContain(`data-testid="starter-chip-${id}"`);
+      expect(markup).toContain(label);
+    }
+  });
+
   test("does not put Context prompt or changes controls in the chat header", () => {
     const emptyMarkup = renderToStaticMarkup(createElement(Conversation, { snapshot: snapshot(), ...handlers }));
     expect(emptyMarkup).not.toContain('data-testid="context-prompt-header"');
@@ -213,6 +231,8 @@ describe("empty session hero", () => {
     expect(markup).not.toContain("scrollbar-gutter-both");
     expect(markup).not.toContain('data-testid="composer-rail-machine"');
     expect(markup).not.toContain('data-testid="composer-rail-workspace"');
+    expect(markup).not.toContain('data-testid="empty-session-greeting"');
+    expect(markup).not.toContain('data-testid="starter-chips"');
   });
 
   test("shows toolbar usage and model selector chrome under the field", () => {
@@ -473,6 +493,31 @@ describe("empty session hero", () => {
     expect(markup).toContain("<code>");
     expect(markup).not.toContain("stream-caret");
     expect(markup).not.toContain("katex");
+  });
+
+  test("sweeps a moving highlight over the streaming tail only while the run is live", () => {
+    const live = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+          run: { status: "streaming", runId: "r1", streamingText: "writing…", work: [] },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(live).toContain("streaming-shimmer");
+
+    const cancelled = renderToStaticMarkup(
+      createElement(Conversation, {
+        snapshot: snapshot({
+          messages: [{ id: "m1", role: "user", blocks: [{ type: "text", text: "hello" }] }],
+          run: { status: "cancelled", runId: "r1", streamingText: "writing…", work: [] },
+        }),
+        ...handlers,
+      }),
+    );
+    expect(cancelled).toContain('data-testid="streaming-text"');
+    expect(cancelled).not.toContain("streaming-shimmer");
   });
 });
 

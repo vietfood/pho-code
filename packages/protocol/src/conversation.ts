@@ -91,8 +91,15 @@ export interface TranscriptMessage {
   createdAt?: string;
 }
 
-/** Ordered think/tool segments for the in-flight assistant turn. */
-export type RunWorkEntry = { type: "thinking"; text: string } | TranscriptToolBlock;
+/**
+ * Ordered think/narration/tool segments for the in-flight assistant turn.
+ * A `text` entry is pre-tool narration committed when a new tool starts; the
+ * post-last-tool answer tail stays in `RunState.streamingText`.
+ */
+export type RunWorkEntry =
+  | { type: "thinking"; text: string }
+  | { type: "text"; text: string }
+  | TranscriptToolBlock;
 
 export interface RunState {
   runId?: string;

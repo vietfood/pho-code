@@ -373,6 +373,124 @@ describe("protocol serialization", () => {
     ]);
   });
 
+  test("commits pre-tool streaming text as narration work and keeps the answer tail", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    const tool = (callId: string, sequence: number) => ({
+      protocolVersion: PROTOCOL_VERSION,
+      sequence,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: { runId: "run-a", callId, name: "bash", status: "running" as const, inputPreview: "{}", outputPreview: "" },
+      occurredAt: "2026-08-13T00:00:02.000Z",
+      runId: "run-a",
+    });
+    const text = (delta: string, sequence: number) => ({
+      protocolVersion: PROTOCOL_VERSION,
+      sequence,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-a", delta },
+      occurredAt: "2026-08-13T00:00:03.000Z",
+      runId: "run-a",
+    });
+
+    state = applyRuntimeEvent(state, text("I'll look around.", 2));
+    state = applyRuntimeEvent(state, tool("t1", 3));
+    expect(state.snapshot?.run.streamingText).toBe("");
+    expect(state.snapshot?.run.work).toEqual([
+      { type: "text", text: "I'll look around." },
+      { type: "tool", callId: "t1", name: "bash", status: "running", inputPreview: "{}", outputPreview: "" },
+    ]);
+
+    state = applyRuntimeEvent(state, text("Now editing.", 4));
+    state = applyRuntimeEvent(state, tool("t2", 5));
+    expect(state.snapshot?.run.work.map((entry) => entry.type)).toEqual(["text", "tool", "text", "tool"]);
+
+    // Text after the last tool stays in the tail as the in-flight answer.
+    state = applyRuntimeEvent(state, text("Here is the answer.", 6));
+    expect(state.snapshot?.run.streamingText).toBe("Here is the answer.");
+    expect(state.snapshot?.run.work).toHaveLength(4);
+  });
+
+  test("tool updates never commit narration and blank text commits nothing", () => {
+    const snapshot = sampleSessionSnapshot("run-a");
+    let state = applyRuntimeEvent(emptyConversationState(), {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+      payload: snapshot,
+      occurredAt: "2026-08-13T00:00:00.000Z",
+      sessionId: "s1",
+      runId: "run-a",
+    });
+    const tool = (sequence: number, status: "running" | "completed") => ({
+      protocolVersion: PROTOCOL_VERSION,
+      sequence,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: { runId: "run-a", callId: "t1", name: "bash", status, inputPreview: "", outputPreview: "" },
+      occurredAt: "2026-08-13T00:00:02.000Z",
+      runId: "run-a",
+    });
+
+    // Whitespace-only streaming text is not narration.
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-a", delta: " \n " },
+      occurredAt: "2026-08-13T00:00:01.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, tool(3, "running"));
+    expect(state.snapshot?.run.work).toHaveLength(1);
+    expect(state.snapshot?.run.work[0]?.type).toBe("tool");
+
+    // Text that streams while the tool runs is not committed by that tool's update.
+    state = applyRuntimeEvent(state, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 4,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-a", delta: "still writing" },
+      occurredAt: "2026-08-13T00:00:04.000Z",
+      runId: "run-a",
+    });
+    state = applyRuntimeEvent(state, tool(5, "completed"));
+    expect(state.snapshot?.run.streamingText).toBe(" \n still writing");
+    expect(state.snapshot?.run.work).toHaveLength(1);
+  });
+
+  test("live-run deltas commit narration before a new tool", () => {
+    let run = { ...idleRunState(), runId: "run-a", status: "admitted" as const };
+    run = applyLiveRunDelta(run, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 1,
+      type: RUNTIME_EVENT_TYPES.textDelta,
+      payload: { runId: "run-a", delta: "Searching first." },
+      occurredAt: "2026-08-14T00:00:01.000Z",
+      runId: "run-a",
+    });
+    run = applyLiveRunDelta(run, {
+      protocolVersion: PROTOCOL_VERSION,
+      sequence: 2,
+      type: RUNTIME_EVENT_TYPES.toolEvent,
+      payload: { runId: "run-a", callId: "t1", name: "grep", status: "running", inputPreview: "{}", outputPreview: "" },
+      occurredAt: "2026-08-14T00:00:02.000Z",
+      runId: "run-a",
+    });
+    expect(run.streamingText).toBe("");
+    expect(run.work).toEqual([
+      { type: "text", text: "Searching first." },
+      { type: "tool", callId: "t1", name: "grep", status: "running", inputPreview: "{}", outputPreview: "" },
+    ]);
+  });
+
   test("preserves sandboxed bash flag when a tool end payload omits it", () => {
     const snapshot = sampleSessionSnapshot("run-a");
     let state = applyRuntimeEvent(emptyConversationState(), {

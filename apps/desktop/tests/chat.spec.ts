@@ -43,6 +43,41 @@ test("chooses a backend from the composer without replacing the one-click Pi act
   }
 });
 
+test("empty-session hero greets and fills the composer from starter chips", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  try {
+    const desktop = await launchDesktop(userDataDir, {
+      env: {
+        PHO_CODE_AGENT_DIR: agentDir,
+        PHO_CODE_TEST_WORKSPACE: workspaceDir,
+        PHO_CODE_TEST_MODEL: "1",
+      },
+    });
+    try {
+      const page = await desktop.firstWindow();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("empty-session-greeting")).toHaveText("What would you like to work on?");
+      await expect(page.getByTestId("starter-chips")).toBeVisible();
+      await page.getByTestId("starter-chip-fix-bug").click();
+      await expect(page.getByTestId("composer")).toHaveText("Fix a bug");
+      await page.getByTestId("starter-chip-write-tests").focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByTestId("composer")).toHaveText("Write tests");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("transcript")).toContainText("Write tests");
+      await expect(page.getByTestId("starter-chips")).toHaveCount(0);
+    } finally {
+      await desktop.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
 test("streams a tool run in an isolated workspace and restores the transcript after reopen", async () => {
   const userDataDir = await makeUserDataDir();
   const agentDir = await makeAgentDir();

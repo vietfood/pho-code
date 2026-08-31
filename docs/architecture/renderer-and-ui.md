@@ -52,7 +52,7 @@ The conversation is primary:
 - one-click Pi session creation plus a compact composer backend chooser for advertised alternatives; changing the selection starts a distinct backend-pinned session, external backends are explicitly Experimental, and the disclosure stays behind a small info control;
 - session titles as a short summary (Pi session name or a humanized first-prompt fallback; expanded skill bodies never become the title);
 - transcript with user/assistant turns;
-- collapsed work log for thinking, tools, and pre-tool narration;
+- collapsed work log grouping thinking, tools, and pre-tool narration into narrative phases (each pre-tool narration heads a phase as prose with a terse tool-derived summary label above its indented entries; live, a new tool commits pending streaming text as a narration `RunWorkEntry`);
 - anchored or empty-session composer;
 - backend-advertised model/thinking controls, a separate Fast toggle when supported, usage controls, and prepared images;
 - permission/host interaction docks (Allow once, Allow for this session, No with optional reason);

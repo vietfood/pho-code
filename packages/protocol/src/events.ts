@@ -251,16 +251,35 @@ export function applyLiveRunDelta(run: RunState, event: RuntimeEventEnvelope): R
     }
     case RUNTIME_EVENT_TYPES.toolEvent: {
       const payload = event.payload as ToolEventPayload;
+      const committed = commitNarrationBeforeTool(run, payload.callId);
       return {
-        ...run,
-        runId: run.runId ?? eventRunId,
+        ...committed,
+        runId: committed.runId ?? eventRunId,
         status: "streaming",
-        work: upsertToolWork(run.work, payload),
+        work: upsertToolWork(committed.work, payload),
       };
     }
     default:
       return run;
   }
+}
+
+/**
+ * Text streamed before a new tool starts is step narration, not the answer:
+ * commit it into the ordered work log so live phases keep chronological order.
+ * Tool *updates* (an already-known callId) never commit, so text that streams
+ * while a tool runs stays in the tail until the next new tool or settle.
+ */
+export function commitNarrationBeforeTool(run: RunState, callId: string): RunState {
+  const isNewTool = !run.work.some((entry) => entry.type === "tool" && entry.callId === callId);
+  if (!isNewTool || !/\S/u.test(run.streamingText)) {
+    return run;
+  }
+  return {
+    ...run,
+    streamingText: "",
+    work: [...run.work, { type: "text", text: run.streamingText }],
+  };
 }
 
 export function upsertToolWork(work: readonly RunWorkEntry[], tool: ToolActivity): RunWorkEntry[] {
@@ -382,15 +401,18 @@ export function applyRuntimeEvent(
       const payload = event.payload as ToolEventPayload;
       const liveTodos =
         payload.name === TODO_TOOL_NAME ? parsePlanTodosFromToolPreview(payload.inputPreview) : undefined;
-      return patchSnapshot((snapshot) => ({
-        ...snapshot,
-        run: {
-          ...snapshot.run,
-          status: "streaming",
-          work: upsertToolWork(snapshot.run.work, payload),
-        },
-        ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
-      }));
+      return patchSnapshot((snapshot) => {
+        const committed = commitNarrationBeforeTool(snapshot.run, payload.callId);
+        return {
+          ...snapshot,
+          run: {
+            ...committed,
+            status: "streaming",
+            work: upsertToolWork(committed.work, payload),
+          },
+          ...(liveTodos ? { plan: withLivePlanTodos(snapshot.plan, liveTodos) } : {}),
+        };
+      });
     }
     case RUNTIME_EVENT_TYPES.runFailed: {
       const payload = event.payload as RunFailedPayload;

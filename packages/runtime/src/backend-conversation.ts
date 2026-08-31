@@ -57,14 +57,25 @@ function projectRun(
   const runId = snapshot.run.runId;
   if (snapshot.run.status === "running") {
     const blocks = liveAssistant?.blocks ?? [];
+    // Mirror the Pi reducer's narration rule: text before the last tool is a
+    // committed work-log narration entry; text after it is the streaming tail.
+    const lastToolIndex = blocks.reduce((acc, block, index) => (block.type === "tool" ? index : acc), -1);
+    const work: RunState["work"] = [];
+    const tail: string[] = [];
+    blocks.forEach((block, index) => {
+      if (block.type === "tool") {
+        work.push(projectTool(block));
+      } else if (index < lastToolIndex) {
+        work.push({ type: "text", text: block.text });
+      } else {
+        tail.push(block.text);
+      }
+    });
     return {
       ...(runId ? { runId } : {}),
       status: "streaming",
-      streamingText: blocks
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join(""),
-      work: blocks.filter((block): block is AgentToolBlock => block.type === "tool").map(projectTool),
+      streamingText: tail.join(""),
+      work,
     };
   }
   if (snapshot.run.status === "failed") {

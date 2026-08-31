@@ -364,7 +364,7 @@ function parseTodosFromRecord(record: Record<string, unknown>): PlanTodoItem[] |
   return parsed.ok ? parsed.todos : null;
 }
 
-function conciseChipText(label: string, value: string): string | null {
+export function conciseChipText(label: string, value: string): string | null {
   const compact = compactWhitespace(value);
   if (!compact) {
     return null;

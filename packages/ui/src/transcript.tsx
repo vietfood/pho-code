@@ -13,18 +13,22 @@ import type {
 import { reviewFileCount, reviewSummaryForToolCall, sessionKeyId, stripExpandedSkillBodies } from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
 import { inferMentionKind } from "./lib/at-mention";
+import { cn } from "./lib/cn";
 import { parseComposerSegments } from "./lib/composer-tokens";
 import { useLiveRunForKey } from "./lib/live-run-store";
 import {
   collectTurnBlocks,
   countWorkBlocks,
+  groupLiveWorkPhases,
   groupTranscriptSegments,
-  isTurnOutputText,
+  groupWorkPhases,
   lastTextBearingMessage,
   rewrittenOriginalText,
   turnOutputTextBlocks,
   turnTextOutput,
   workedForLabel,
+  workPhaseSummary,
+  type WorkPhase,
 } from "./lib/work-log";
 import { isNearBottom } from "./lib/stick-to-bottom";
 import { ConservativeMarkdown } from "./markdown";
@@ -160,6 +164,8 @@ function LiveRunTail({
   // Keyed by message so a fresh failure re-opens the toast after an earlier dismiss.
   const [dismissedError, setDismissedError] = useState<string | null>(null);
   const liveWorkCounts = countWorkBlocks(run.work);
+  const livePhases = groupLiveWorkPhases(run.work);
+  const lastWorkEntry = livePhases.at(-1)?.entries.at(-1);
   const hasStreamingText = /\S/u.test(run.streamingText);
 
   useLayoutEffect(() => {
@@ -185,12 +191,12 @@ function LiveRunTail({
               onToggle={() => setLiveWorkExpanded((value) => !value)}
             />
             {liveWorkExpanded
-              ? run.work.map((entry, index) => (
-                  <WorkEntryView
-                    key={liveWorkKey(entry, index)}
-                    entry={entry}
+              ? livePhases.map((phase, index) => (
+                  <WorkPhaseView
+                    key={`live-phase:${index}`}
+                    phase={phase}
+                    liveEntry={running ? lastWorkEntry : undefined}
                     changeReviews={changeReviews}
-                    live={running && index === run.work.length - 1 && entry.type === "thinking"}
                     {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
                   />
                 ))
@@ -199,7 +205,13 @@ function LiveRunTail({
         </div>
       ) : null}
       {hasStreamingText ? (
-        <article className="streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5" data-testid="streaming-text">
+        <article
+          className={cn(
+            "streaming-text chat-text chat-column overflow-x-clip px-1 py-0.5 pb-2.5",
+            running && "streaming-shimmer",
+          )}
+          data-testid="streaming-text"
+        >
           <StreamingMarkdown text={run.streamingText} />
         </article>
       ) : null}
@@ -239,7 +251,10 @@ function useStickScroll(
 }
 
 function liveWorkKey(entry: RunWorkEntry, index: number): string {
-  return entry.type === "thinking" ? `thinking:${index}` : `tool:${entry.callId}`;
+  if (entry.type === "tool") {
+    return `tool:${entry.callId}`;
+  }
+  return `${entry.type}:${index}`;
 }
 
 function StreamingMarkdown({ text }: { text: string }) {
@@ -252,7 +267,7 @@ function WorkEntryView({
   changeReviews,
   onOpenChangeReview,
 }: {
-  entry: Extract<TranscriptBlock, { type: "thinking" | "tool" }> | RunWorkEntry;
+  entry: Extract<TranscriptBlock, { type: "thinking" | "tool" }>;
   live?: boolean;
   changeReviews?: readonly ChangeReviewSetSummary[];
   onOpenChangeReview?: (scope: ChangeScope) => void;
@@ -291,13 +306,54 @@ function toolReviewProps(
   };
 }
 
+// Narration opens a work phase as ordinary prose; the phase's think/tool entries
+// indent beneath it. Hierarchy inspired by the owner's target-UI screenshot
+// (narrative phases); no third-party code copied.
 function WorkNarration({ text }: { text: string }) {
   return (
-    <div className="ms-7 border-s border-border/45 ps-3 pt-0.5" data-testid="work-narration">
-      <ConservativeMarkdown
-        text={text}
-        className="chat-markdown-dense text-[12px] leading-relaxed text-secondary-label"
-      />
+    <div className="chat-text px-1 py-0.5 text-foreground" data-testid="work-narration">
+      <ConservativeMarkdown text={text} />
+    </div>
+  );
+}
+
+function WorkPhaseView({
+  phase,
+  liveEntry,
+  changeReviews,
+  onOpenChangeReview,
+}: {
+  phase: WorkPhase;
+  liveEntry?: WorkPhase["entries"][number];
+  changeReviews?: readonly ChangeReviewSetSummary[];
+  onOpenChangeReview?: (scope: ChangeScope) => void;
+}) {
+  const summary = workPhaseSummary(phase.entries);
+  return (
+    <div className="space-y-1" data-testid="work-phase">
+      {phase.narration ? <WorkNarration text={phase.narration.text} /> : null}
+      {summary ? (
+        <div className="px-1 text-[12px] leading-5 text-secondary-label" data-testid="work-phase-summary">
+          {summary}
+        </div>
+      ) : null}
+      {phase.entries.length > 0 ? (
+        <div
+          className={
+            phase.narration || summary ? "ms-2 space-y-1 border-s border-border/45 py-0.5 ps-4" : "space-y-1 py-0.5"
+          }
+        >
+          {phase.entries.map((entry, index) => (
+            <WorkEntryView
+              key={liveWorkKey(entry, index)}
+              entry={entry}
+              live={liveEntry !== undefined && entry === liveEntry && entry.type === "thinking"}
+              changeReviews={changeReviews}
+              {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -401,6 +457,7 @@ const AssistantTurn = memo(function AssistantTurn({
 }) {
   const blocks = collectTurnBlocks(messages);
   const workCounts = countWorkBlocks(blocks);
+  const phases = groupWorkPhases(blocks);
   const [workExpanded, setWorkExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -456,23 +513,14 @@ const AssistantTurn = memo(function AssistantTurn({
             onToggle={() => setWorkExpanded((value) => !value)}
           />
           {workExpanded
-            ? blocks.map((block, index) => {
-                const key = `${messages[0]?.id ?? "turn"}:work:${index}`;
-                if (block.type === "thinking" || block.type === "tool") {
-                  return (
-                    <WorkEntryView
-                      key={key}
-                      entry={block}
-                      changeReviews={changeReviews}
-                      {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
-                    />
-                  );
-                }
-                if (block.type === "text" && !isTurnOutputText(blocks, index)) {
-                  return <WorkNarration key={`${key}-text`} text={block.text} />;
-                }
-                return null;
-              })
+            ? phases.map((phase, index) => (
+                <WorkPhaseView
+                  key={`${messages[0]?.id ?? "turn"}:phase:${index}`}
+                  phase={phase}
+                  changeReviews={changeReviews}
+                  {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+                />
+              ))
             : null}
         </div>
       ) : null}
