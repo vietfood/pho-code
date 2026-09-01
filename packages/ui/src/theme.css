@@ -240,6 +240,58 @@ html[data-appearance="dark"] .brand-mark.is-color {
   opacity: 0.7;
 }
 
+/* Compaction boundary: a slim divider between summarized and kept history. */
+.compaction-boundary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0.75rem;
+}
+
+.compaction-boundary-rule {
+  flex: 1 1 2rem;
+  border-top: 1px dashed color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+}
+
+.compaction-boundary-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.compaction-boundary-label {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.compaction-boundary-toggle {
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  padding: 0.1rem 0.15rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.compaction-boundary-toggle:hover,
+.compaction-boundary-toggle:focus-visible {
+  color: var(--foreground);
+  outline: none;
+}
+
+.compaction-boundary-summary {
+  flex-basis: 100%;
+  margin: 0.15rem 0 0.25rem;
+  border-left: 2px solid var(--border);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
 /*
  * Composer prompt matches transcript body size. It used to sit a step under, which
  * made the primary input read as a status bar next to the answer it produces.
@@ -2558,6 +2610,54 @@ html[data-appearance="dark"] .composer-model-picker-panel {
   color: var(--popover-foreground);
   padding: 0.55rem 0.65rem;
   box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.composer-usage-compaction {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.45rem;
+}
+
+.composer-usage-note {
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+}
+
+.composer-usage-compaction-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.composer-usage-compaction-status {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+.composer-usage-compaction-button {
+  justify-self: start;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.6875rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.composer-usage-compaction-button:hover:not(:disabled),
+.composer-usage-compaction-button:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+
+.composer-usage-compaction-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .context-usage-bar {

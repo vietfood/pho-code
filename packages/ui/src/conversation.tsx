@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type {
   AgentBackendDescriptor,
   ChangeScope,
+  CompactionDetail,
   HostDialogRequest,
   ModelSummary,
   PreparedImageSummary,
@@ -12,6 +13,7 @@ import type {
   ThinkingLevel,
   SessionAgentMode,
 } from "@pho-code/protocol";
+import { COMPACTION_COPY } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
 import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 import { Composer } from "./composer";
@@ -51,6 +53,9 @@ export function Conversation({
   onRemoveImage,
   onRewrite,
   onOpenChangeReview,
+  onCompact,
+  onCancelCompaction,
+  onReadCompactionDetail,
   notice,
   skills,
 }: {
@@ -83,12 +88,34 @@ export function Conversation({
   onRemoveImage?: (imageId: string) => void;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
   onOpenChangeReview?: (scope: ChangeScope) => void;
+  onCompact?: () => void;
+  onCancelCompaction?: () => void;
+  onReadCompactionDetail?: (compactionId: string) => Promise<CompactionDetail>;
   notice?: ReactNode;
   skills?: SkillSettingsSnapshot;
 }) {
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
   const [pendingModel, setPendingModel] = useState<ModelSummary | null>(null);
+
+  // Compaction is Pi-owned; other backends publish their own capability and
+  // the popover stays silent rather than offering an action that must fail.
+  const compactionDisabledReason = running
+    ? COMPACTION_COPY.unavailableRunning
+    : !snapshot.model
+      ? COMPACTION_COPY.unavailableModel
+      : undefined;
+  const compactionAction =
+    backendId === "pi" && onCompact && onCancelCompaction
+      ? {
+          state: snapshot.compaction,
+          ...(snapshot.compaction.status !== "compacting" && compactionDisabledReason !== undefined
+            ? { disabledReason: compactionDisabledReason }
+            : {}),
+          onCompact,
+          onCancel: onCancelCompaction,
+        }
+      : undefined;
 
   useEffect(() => {
     if (!empty || dialog || pendingModel) {
@@ -157,6 +184,7 @@ export function Conversation({
       {...(snapshot.model ? { selectedModel: snapshot.model } : {})}
       {...(snapshot.usage ? { usage: snapshot.usage } : {})}
       {...(snapshot.contextUsage ? { contextUsage: snapshot.contextUsage } : {})}
+      {...(compactionAction ? { compaction: compactionAction } : {})}
       {...(onSearchReferences ? { onSearchReferences } : {})}
       {...(images ? { images } : {})}
       {...(snapshot.queue ? { queue: snapshot.queue } : {})}
@@ -225,6 +253,7 @@ export function Conversation({
               snapshot={snapshot}
               {...(onRewrite ? { onRewrite } : {})}
               {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+              {...(onReadCompactionDetail ? { onReadCompactionDetail } : {})}
             />
             <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1 pb-2.5 sm:pt-1.5 sm:pb-3">
               <div className="chat-column pointer-events-auto">

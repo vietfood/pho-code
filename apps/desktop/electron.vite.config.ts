@@ -9,6 +9,7 @@ const workspaceRoot = path.resolve(projectRoot, "../..");
 const devPort = Number(process.env.PHO_CODE_DEV_PORT ?? "5173");
 
 const portableProtocolAliases = {
+  "@pho-agent/protocol/compaction": path.resolve(workspaceRoot, "packages/pho-agent/packages/protocol/src/compaction.ts"),
   "@pho-agent/protocol/errors": path.resolve(workspaceRoot, "packages/pho-agent/packages/protocol/src/errors.ts"),
   "@pho-agent/protocol/github-mcp": path.resolve(workspaceRoot, "packages/pho-agent/packages/protocol/src/github-mcp.ts"),
   "@pho-agent/protocol/json": path.resolve(workspaceRoot, "packages/pho-agent/packages/protocol/src/json.ts"),
@@ -20,7 +21,10 @@ const portableProtocolAliases = {
 
 const portableAliases = {
   ...portableProtocolAliases,
+  "@pho-agent/runtime/compaction-controller": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/compaction-controller.ts"),
+  "@pho-agent/runtime/context-continuity-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/context-continuity-feature.ts"),
   "@pho-agent/runtime/context-prompt-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/context-prompt-feature.ts"),
+  "@pho-agent/runtime/display-transcript": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/display-transcript.ts"),
   "@pho-agent/runtime/feature-api": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/feature-api.ts"),
   "@pho-agent/runtime/github-mcp": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/github-mcp/index.ts"),
   "@pho-agent/runtime/plan-agent": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/plan-agent/index.ts"),

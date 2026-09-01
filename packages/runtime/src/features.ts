@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { flattenAgentFeatures, type AgentFeature } from "@pho-agent/runtime";
+import {
+  createContextContinuityFeature,
+  type ContextContinuityFeatureOptions,
+} from "@pho-agent/runtime/context-continuity-feature";
 import type { InlineExtension } from "@pho-agent/runtime/feature-api";
 import type { ResourceDiagnostic } from "@pho-code/protocol";
 import { createNodeModuleResourceLocator, readPiExtensionPaths, type ResourceLocator } from "./resource-locator";
@@ -114,6 +118,10 @@ export function createDefaultFeatureManifest(
   options: TrashFeatureOptions & {
     retrieval?: LocalRetrievalRuntime;
     web?: WebResearchRuntime;
+    /** Typed toggle for the context-continuity feature (compaction M3–M4). */
+    contextContinuity?: boolean;
+    /** Wiring seams for the context-continuity feature (cutover signal, test hooks). */
+    contextContinuityOptions?: ContextContinuityFeatureOptions;
   } = {},
 ): HarnessFeatureManifest {
   const features: HarnessFeature[] = [
@@ -126,6 +134,11 @@ export function createDefaultFeatureManifest(
   ];
   if (options.retrieval) {
     features.push(createRetrievalFeature(options.retrieval));
+  }
+  // Owner-promoted manifest entry; setting contextContinuity: false removes
+  // the tools, the budget injector, and the cutover hook together.
+  if (options.contextContinuity !== false) {
+    features.push(createContextContinuityFeature(options.contextContinuityOptions));
   }
   return { features };
 }

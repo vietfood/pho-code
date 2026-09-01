@@ -697,6 +697,57 @@ export function App() {
     [patchSnapshot],
   );
 
+  const onCompactFor = useCallback(
+    async (key: string) => {
+      const snap = cacheRef.current.byKey[key]?.snapshot;
+      if (!snap) {
+        return;
+      }
+      try {
+        setError(null);
+        const next = await getDesktopBridge().compactSession({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+          sessionId: snap.session.id,
+          workspaceId: snap.workspace.id,
+        });
+        patchSnapshot((current) => ({ ...current, messages: next.messages, compaction: next.compaction }), key);
+      } catch (cause) {
+        setError(errorMessage(cause));
+      }
+    },
+    [patchSnapshot],
+  );
+
+  const onCancelCompactionFor = useCallback(async (key: string) => {
+    const snap = cacheRef.current.byKey[key]?.snapshot;
+    if (!snap) {
+      return;
+    }
+    try {
+      setError(null);
+      await getDesktopBridge().cancelSessionCompaction({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        sessionId: snap.session.id,
+        workspaceId: snap.workspace.id,
+      });
+    } catch (cause) {
+      setError(errorMessage(cause));
+    }
+  }, []);
+
+  const onReadCompactionDetailFor = useCallback(async (key: string, compactionId: string) => {
+    const snap = cacheRef.current.byKey[key]?.snapshot;
+    if (!snap) {
+      throw new Error("The chat is no longer open.");
+    }
+    return getDesktopBridge().getCompactionDetail({
+      ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+      sessionId: snap.session.id,
+      workspaceId: snap.workspace.id,
+      compactionId,
+    });
+  }, []);
+
   const onUpdateContextPrompt = useCallback(
     async (input: { preamble: string; disabledSectionIds: string[]; reset?: boolean }) => {
       const snap = selectedCachedSnapshot(cacheRef.current);
@@ -1157,6 +1208,9 @@ export function App() {
         {...(settings?.skills ? { skills: settings.skills } : {})}
         onOpenChangeReview={openChangeReview}
         onRewrite={(input) => onRewriteFor(key, input)}
+        onCompact={() => onCompactFor(key)}
+        onCancelCompaction={() => onCancelCompactionFor(key)}
+        onReadCompactionDetail={(compactionId) => onReadCompactionDetailFor(key, compactionId)}
         onSearchReferences={(query) => getDesktopBridge().searchWorkspaceReferences({ query })}
         onStop={() => {
           const runId = snap.run.runId;

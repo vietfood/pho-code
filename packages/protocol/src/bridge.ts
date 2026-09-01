@@ -84,6 +84,12 @@ import type {
   PrepareUndoChangesInput,
   UndoPreview,
 } from "./change-review";
+import type {
+  CancelSessionCompactionInput,
+  CompactionDetail,
+  CompactSessionInput,
+  GetCompactionDetailInput,
+} from "./compaction";
 
 export interface DesktopBridge {
   getBootstrapState(): Promise<BootstrapState>;
@@ -146,6 +152,9 @@ export interface DesktopBridge {
   approveChanges(input: ApproveChangesInput): Promise<ChangeReviewSetSnapshot>;
   prepareUndoChanges(input: PrepareUndoChangesInput): Promise<UndoPreview>;
   applyUndoChanges(input: ApplyUndoChangesInput): Promise<ChangeReviewSetSnapshot>;
+  compactSession(input: CompactSessionInput): Promise<SessionSnapshot>;
+  cancelSessionCompaction(input: CancelSessionCompactionInput): Promise<void>;
+  getCompactionDetail(input: GetCompactionDetailInput): Promise<CompactionDetail>;
   subscribe(listener: (event: RuntimeEventEnvelope) => void): Unsubscribe;
   subscribePiRuntimeStatus(listener: (status: PiRuntimeStatusSnapshot) => void): Unsubscribe;
 }

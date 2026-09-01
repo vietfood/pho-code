@@ -6,6 +6,8 @@ Owner-promoted standalone add-on, 2026-08-20. This is **not** a numbered version
 
 Pi-native automatic compaction already exists in production through the pinned Pi SDK `0.84.4`. The implementation contract is [`implementation-plan.md`](./implementation-plan.md). Status is **In implementation** until that plan's acceptance gate passes.
 
+On 2026-09-01 the owner promoted the **Pho cutover** strategy as Milestones 3–4, gated on Milestone 2 acceptance: pho-agent's Pi wrapper uses Pho's own notes-first cutover for every trigger, OpenAI models target a separately gated provider-native OpenAI path, and ACP/Codex backends keep their own compaction. Evidence and design: [`logs/2026-09-01-model-driven-cutover-research.md`](./logs/2026-09-01-model-driven-cutover-research.md) and [`logs/2026-09-01-pho-cutover-strategy.md`](./logs/2026-09-01-pho-cutover-strategy.md).
+
 ## Outcome
 
 Long-running chats continue after their active model context becomes crowded without making the owner guess whether older work was summarized. The owner can:
@@ -44,7 +46,13 @@ Compaction is context management, not backup, encryption, deletion, cost reset, 
 | Summary disclosure | **On demand and bounded.** The marker fetches the readable Pi summary by validated compaction-entry id. Summary Markdown is untrusted and uses the existing sanitizer. |
 | Persisted reason | **Do not invent it.** Pinned Pi persists the compaction entry but not its trigger reason. Live UI may show manual/threshold/overflow; a marker reconstructed after restart says only Context compacted unless Pi data establishes more. |
 | Provider-native path | **Deferred.** No `pi-openai-server-compaction`, direct Responses override, opaque artifact, WebSocket path, `store` change, or provider-specific setting enters this add-on's acceptance gate. |
-| OMP-derived ideas | **Display-divider insight only.** Shake, snapcompact, handoff, branch summaries, context promotion, and OMP's maintenance scheduler remain research, not hidden scope. |
+| Pho cutover (M3–M4) | **Pho-owned strategy for the Pi wrapper.** A `session_before_compact` hook replaces Pi's one-shot LLM summary with the model's own notes digest for every trigger (threshold, overflow, manual, model-requested), keeping Pi's cut point, recent tail, entry mechanics, and overflow retry. Empty notes fall back to Pi's default summarizer. |
+| Backend matrix | **Pi + non-OpenAI: Pho cutover. Pi + OpenAI: provider-native OpenAI API path, separately gated (interim: Pho cutover). Codex app-server and ACP: backend-owned; Pho Code hides its compaction controls.** |
+| Budget signal | **Banded and model-visible.** An ephemeral remaining-context line injected through Pi's `context` event only at coarse bands (50/25/10 percent remaining) to protect prompt caches; the composer usage meter remains the owner-facing display. |
+| Notes | **Per-session, model-managed working state.** One bounded session-owned file behind `notes_append`/`notes_write`/`notes_read`; not cross-session memory and not V5 Task Brief evidence. |
+| History lookup | **Read-only tools over authoritative Pi JSONL.** `history_search`/`history_read` on the active branch via `ReadonlySessionManager`, bounded and truncation-aware; no second transcript and no provider backend. |
+| Model-requested cutover | **Two-phase at the turn boundary.** A `new_context` tool sets a generation-checked flag and tells the model to save notes; the runtime compacts when the turn settles and the session is idle. Never mid-turn. |
+| OMP-derived ideas | **Display-divider insight plus promoted recall.** Handoff/recall is promoted in the scoped Milestone 3–4 form above. Shake, snapcompact, branch summaries, and OMP's maintenance scheduler remain research, not hidden scope. |
 
 ## Non-goals
 
@@ -55,7 +63,8 @@ The first accepted release will not:
 - expose reserve tokens, retained tokens, raw settings JSON, arbitrary compaction prompts, or a generic settings editor;
 - enable global/project extensions or install an upstream compaction package;
 - persist a second transcript, duplicate summaries in metadata, or claim that archive/Trash deletes provider data;
-- add session fork/tree, branch summarization, handoff-to-new-chat, context promotion, memory, or transcript export;
+- add session fork/tree, branch summarization, cross-session memory, or transcript export;
+- perform no-summary cutover that keeps nothing and carries no digest (the destructive path behind [openai/codex#31822](https://github.com/openai/codex/issues/31822)); every Pho cutover carries the notes digest or falls back to a Pi summary, and always keeps Pi's recent tail;
 - prune tool output, create bitmap archives, or add image-only continuity;
 - promise identical recall, cost, threshold timing, or summary quality across providers;
 - change models automatically before or after compaction;
@@ -73,6 +82,9 @@ The first accepted release will not:
 8. **Usage stays honest.** Context use may become unknown immediately after compaction; cumulative session tokens and cost do not reset.
 9. **Ordinary chat survives failure.** A failed manual request or automatic summary does not corrupt the transcript or disable unrelated chats.
 10. **No hidden provider policy.** Provider-native compaction requires a separate product decision and live verification before it can change request storage, transport, or replay.
+11. **Cutover is honest.** Every boundary carries either the notes digest or a Pi summary, and the marker copy says which. The UI never presents a digest cutover as a richer summary than it is, and never hides that earlier turns left model context.
+12. **Notes are per-session working state.** They are bounded, treated as untrusted model data, follow the owning session's Archive/Trash lifecycle, and are neither cross-session memory nor V5 Task Brief/verification evidence.
+13. **History lookup is read-only.** Recall tools read authoritative Pi JSONL through `ReadonlySessionManager`; they never mutate entries, never write a second transcript, and never feed the display projection.
 
 ## Current behavior and gap
 
@@ -118,8 +130,13 @@ The UI must not say that compaction deletes old messages, reduces already-incurr
 | Switch chat/workspace | Keep compaction attached to its owning controller; selected UI shows only its own state |
 | Archive during compaction | Preserve existing archive semantics; the background controller and activity remain visible in Archived |
 | Move chat to Trash | Refuse while `session.isCompacting` or otherwise non-idle; never Trash an in-flight session |
-| Reload/restart | Reconstruct display markers from Pi entries; no stale `compacting` state survives process exit |
+| Reload/restart | Reconstruct display markers from Pi entries; no stale `compacting` state survives process exit; a pending model-requested cutover flag never survives process exit |
 | Quit | Existing bounded controller disposal aborts compaction, unsubscribes, flushes, and rereads JSONL next launch |
+| Model calls `new_context` mid-run (M4) | Set the controller's generation-checked cutover flag; the tool result tells the model to save notes; the runtime compacts when the turn settles and the session is idle; the run is never aborted silently |
+| Any compaction trigger with empty notes (M4) | The hook declines and Pi's default summarizer runs; the marker says so |
+| Any compaction trigger with notes present (M4) | The hook supplies the bounded notes digest at Pi's own cut point; the marker says it was compacted from notes |
+| Archive/Trash with notes present (M3) | The notes file follows the owning session's existing Archive/Trash semantics; Trash refusal for non-idle sessions is unchanged |
+| Codex/ACP backend session | The adapter reports compaction as backend-owned; Pho Code hides Compact/cutover controls instead of pretending Pi semantics apply |
 
 ## Data and privacy
 
@@ -129,7 +146,8 @@ The UI must not say that compaction deletes old messages, reduces already-incurr
 | Active compacted model context | Pi | Rebuilt in memory from summary plus retained entries | Smaller and lossy; not a second persisted transcript |
 | Live reason/progress/error | Session controller | Memory for one `{workspaceId, sessionId}` | May be absent after restart; never copied to metadata |
 | Expanded summary response | Runtime/protocol/renderer | Bounded on-demand value; renderer lifetime only | Sanitized for display; no absolute paths or opaque provider data added |
-| Provider request for Pi summary | Pi/provider | Governed by the selected provider/auth path | Earlier conversation content is sent for summarization |
+| Provider request for Pi summary | Pi/provider | Governed by the selected provider/auth path | Earlier conversation content is sent for summarization; the notes-digest path makes no extra provider request |
+| Session notes file (M3) | Pho feature | One bounded sidecar file in the owning session's directory; follows the session's Archive/Trash lifetime | Model-written working state; untrusted; never a second transcript, never Task Brief evidence |
 
 Diagnostics may contain session identity, reason, timing, before/after estimates, aborted/succeeded/failed, and a redacted error class. They must not contain the full summary, transcript, tool payloads, prompts, provider headers, tokens, credentials, opaque compaction artifacts, or response ids.
 
@@ -163,3 +181,7 @@ Provider-native support may be promoted later only with an exact Pi-compatible i
 - [OpenAI compact response API reference](https://developers.openai.com/api/reference/resources/responses/methods/compact)
 - [Oh My Pi compaction design](https://github.com/can1357/oh-my-pi/blob/7e54061cbb1181dbc8dd7f0b37a1f12435a39e05/docs/compaction.md) — product research only
 - [`pi-openai-server-compaction` evaluated revision](https://github.com/algal/pi-openai-server-compaction/tree/8a3de2f3b0c178fdd6f73f2f94172dfc3943e466) — deferred candidate
+- [openai/codex#27488](https://github.com/openai/codex/pull/27488) — Codex `new_context` no-summary window tool
+- [openai/codex#39827](https://github.com/openai/codex/pull/39827) — Codex history and notes tools
+- [openai/codex#31822](https://github.com/openai/codex/issues/31822) — destructive no-summary automatic cutover; the rejected path
+- [Announcement thread](https://x.com/nicoritschel/status/2093775003888361576) — industry direction toward cutover + notes + history recall

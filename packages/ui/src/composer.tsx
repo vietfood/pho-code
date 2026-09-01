@@ -48,6 +48,7 @@ import { ComposerContextButton } from "./composer-context-button";
 import { BackendPicker } from "./backend-picker";
 import { ComposerRail } from "./composer-rail";
 import { ComposerToolbar } from "./composer-toolbar";
+import type { ComposerCompactionAction } from "./composer-usage";
 import { ThinkingLevelChip } from "./thinking-level-chip";
 import { FastModeChip } from "./fast-mode-chip";
 import { MarkdownImage } from "./markdown-image";
@@ -94,6 +95,7 @@ export function Composer({
   metaHint,
   usage,
   contextUsage,
+  compaction,
   onSearchReferences,
   variant = "docked",
   images = [],
@@ -130,6 +132,7 @@ export function Composer({
   metaHint?: string;
   usage?: SessionUsageSummary;
   contextUsage?: ContextUsageSummary;
+  compaction?: ComposerCompactionAction;
   onSearchReferences?: (query: string) => Promise<SearchWorkspaceReferencesResult>;
   variant?: "docked" | "hero";
   images?: readonly PreparedImageSummary[];
@@ -823,6 +826,7 @@ export function Composer({
         trailing={selectors}
         {...(usage ? { usage } : {})}
         {...(contextUsage ? { contextUsage } : {})}
+        {...(compaction ? { compaction } : {})}
       />
       {pendingSkill ? (
         <SkillCompatibilityDialog

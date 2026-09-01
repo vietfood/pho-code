@@ -1,4 +1,12 @@
-import type { RunWorkEntry, TranscriptBlock, TranscriptMessage, TranscriptToolBlock } from "@pho-code/protocol";
+import type {
+  RunWorkEntry,
+  TranscriptBlock,
+  TranscriptCompactionBoundary,
+  TranscriptItem,
+  TranscriptMessage,
+  TranscriptToolBlock,
+} from "@pho-code/protocol";
+import { isTranscriptCompactionBoundary } from "@pho-code/protocol";
 import {
   describeToolInputTarget,
   conciseChipText,
@@ -14,10 +22,15 @@ export interface WorkLogCounts {
 
 export type TranscriptSegment =
   | { kind: "user"; message: TranscriptMessage }
-  | { kind: "assistantTurn"; key: string; messages: TranscriptMessage[] };
+  | { kind: "assistantTurn"; key: string; messages: TranscriptMessage[] }
+  | { kind: "compaction"; boundary: TranscriptCompactionBoundary };
 
-/** Group consecutive assistant messages into one Codex-style turn (all work under one collapse). */
-export function groupTranscriptSegments(messages: readonly TranscriptMessage[]): TranscriptSegment[] {
+/**
+ * Group consecutive assistant messages into one Codex-style turn (all work
+ * under one collapse). A compaction boundary is a hard separator: assistant
+ * work never merges across it, so the pre-boundary turn keeps its own work log.
+ */
+export function groupTranscriptSegments(items: readonly TranscriptItem[]): TranscriptSegment[] {
   const segments: TranscriptSegment[] = [];
   let pending: TranscriptMessage[] = [];
 
@@ -34,13 +47,18 @@ export function groupTranscriptSegments(messages: readonly TranscriptMessage[]):
     pending = [];
   };
 
-  for (const message of messages) {
-    if (message.role === "user") {
+  for (const item of items) {
+    if (isTranscriptCompactionBoundary(item)) {
       flushAssistant();
-      segments.push({ kind: "user", message });
+      segments.push({ kind: "compaction", boundary: item });
       continue;
     }
-    pending.push(message);
+    if (item.role === "user") {
+      flushAssistant();
+      segments.push({ kind: "user", message: item });
+      continue;
+    }
+    pending.push(item);
   }
   flushAssistant();
   return segments;

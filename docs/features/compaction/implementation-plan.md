@@ -8,6 +8,8 @@ Read [`product.md`](./product.md), [`../../architecture/runtime-and-data.md`](..
 
 This add-on is independent of session tree/fork and the integrated terminal. Do not add either to its milestones.
 
+Milestones 3–4 (Pho cutover: budget signal, notes, history lookup, cutover hook) were owner-promoted on 2026-09-01 under the backend strategy matrix in [`product.md`](./product.md) and [`logs/2026-09-01-pho-cutover-strategy.md`](./logs/2026-09-01-pho-cutover-strategy.md). They are gated on Milestone 2 acceptance and must not start against an unaccepted projection.
+
 ## Global acceptance rules
 
 Every milestone must:
@@ -25,7 +27,10 @@ Every milestone must:
 - keep cumulative usage separate from current-context use and allow context tokens/percent to be unknown;
 - add no provider-native extension, request override, transport, storage behavior, or settings in the acceptance milestones;
 - distinguish unit, integration, desktop, packaged, owner-verified, and unverified evidence;
-- update architecture, development, conversation UI, current state, and workstream logs only when the corresponding behavior lands; do not mark accepted before the final gate.
+- update architecture, development, conversation UI, current state, and workstream logs only when the corresponding behavior lands; do not mark accepted before the final gate;
+- (M3–M4) keep Pi the owner of cut points, split turns, entry append, context rebuild, and overflow retry; the Pho hook supplies only summary content through the documented `session_before_compact` extension point;
+- (M3–M4) fall back to Pi's default summarizer whenever the notes file is empty, for every trigger reason; never perform a no-summary, no-fallback cutover;
+- (M3–M4) treat notes and history tool output as untrusted bounded model data; history tools are read-only over the active branch.
 
 ## Pinned Pi facts that shape the design
 
@@ -41,6 +46,11 @@ The following are implementation constraints, not loose upstream inspiration:
 - A successful silent-overflow response may compact without retry; `willRetry` belongs to the event, not to the reason alone.
 - Installed `CompactionEntry` uses `firstKeptEntryId`; bundled `docs/session-format.md` mentions a newer `retainedTail` form that is absent from installed types/implementation. Do not code to that prose.
 - Pinned `compact()` has no safe reentrancy guard: concurrent calls can replace its shared abort controller. Pho Code must provide the guard. Track upstream [issue #7738](https://github.com/earendil-works/pi/issues/7738), but do not wait for an upgrade in this slice.
+- (M3–M4) `pi.registerTool()` is the same public mechanism the trash/web/retrieval/sandbox features already use; tool definitions carry `promptGuidelines` that teach the notes discipline without harness prompt surgery.
+- (M3–M4) `session_before_compact` fires for every trigger (`manual`/`threshold`/`overflow`) with `preparation.firstKeptEntryId`, `preparation.tokensBefore`, and `willRetry`; a handler may return a custom compaction (`fromHook`, JSON-safe `details`) or decline. Characterization must prove that declining lets Pi's default summarizer proceed.
+- (M3–M4) the `context` event fires before each LLM call with mutable messages; characterization must prove mutations affect only the outgoing request, not persisted JSONL, and measure banded-injection prompt-cache impact.
+- (M3–M4) `ctx.sessionManager` is a `ReadonlySessionManager` (`getBranch`/`getEntries`/`getEntry`/`getTree`); history tools read the active branch only.
+- (M3–M4) because pinned `compact()` aborts the current operation, a model-requested cutover is two-phase: a generation-checked controller flag plus compaction at turn settle, never a reentrant mid-run call.
 
 ## Architecture
 
@@ -260,8 +270,11 @@ Automatic compaction never installs a manual operation. Pi events still update `
 | `packages/runtime/test/*compaction*.test.ts` | Pinned-Pi integration and display projection |
 | `packages/protocol/test/protocol.test.ts` | Validation/reducer/JSON-safety coverage |
 | `apps/desktop/tests/compaction.spec.ts` (new) | Electron lifecycle, continuity, background isolation, cancel |
+| `packages/runtime/src/context-continuity-feature.ts` (new, M3–M4) | Banded budget injector, notes/history tools, cutover hook and flag; follows the existing inline-feature pattern |
+| `packages/runtime/src/features.ts` (M3–M4) | One explicit owner-specified manifest entry; no ambient discovery |
+| `packages/runtime/test/*context-continuity*.test.ts` (new, M3–M4) | Hook fallback, digest cutover, tool bounds, two-phase flag, characterization |
 
-No packaged feature resource, dependency, CSP exception, native module, Settings schema, or attribution entry is required for the Pi-native slice.
+No packaged feature resource, dependency, CSP exception, native module, Settings schema, or attribution entry is required for the Pi-native slice. Milestones 3–4 add one typed feature toggle and the session-owned notes sidecar file; no other Settings schema, dependency, or packaged resource.
 
 ## Milestone 0: pinned-Pi characterization and safe runtime vertical slice
 
@@ -370,9 +383,69 @@ The Pi-native add-on is verified on the real desktop and unsigned macOS package,
 - owner-monitored real-provider journey;
 - Linux remains not verified until exercised on Linux.
 
+## Milestone 3: budget signal, notes, and history lookup (gated on M2 acceptance)
+
+### Outcome
+
+The model sees a banded remaining-context signal, maintains a bounded per-session notes file, and can search and read the active-branch transcript through read-only tools. No cutover behavior changes yet: Pi's default summarizer still runs for every trigger.
+
+### Implementation sequence
+
+1. Characterization tests against installed Pi `0.84.4`: `context`-event mutation is request-only; declining `session_before_compact` lets the default summarizer run; tool registration through the inline-feature path.
+2. Add `createContextContinuityFeature()` behind one typed feature toggle in the source-controlled manifest; disabled means no tools, no injector, no hook.
+3. Banded budget injector: one ephemeral remaining-context line at 50/25/10 percent bands via the `context` event; measure prompt-cache impact on supported providers.
+4. Notes tools `notes_append`/`notes_write`/`notes_read` against one bounded session-owned sidecar file; per-call and whole-file bounds; untrusted-data handling; Archive/Trash lifecycle wired to the owning session.
+5. History tools `history_search(query)`/`history_read(entryId)` over `ReadonlySessionManager.getBranch()`; bounded snippet output with entry ids; truncation flags; active branch only.
+6. Tool `promptGuidelines` teach: keep notes current; when the band warns, save state before continuing.
+
+### Acceptance criteria
+
+- tools and injector exist only when the manifest feature is enabled;
+- notes persist across restart and follow the session's Archive/Trash path; bounds are enforced before content enters context;
+- history search/read return bounded, sanitized, active-branch-only results and never mutate entries;
+- the budget line never persists to JSONL and measurably respects prompt caches;
+- Pi's default summarizing compaction is unchanged in this milestone;
+- no filesystem path, Pi object, or raw entry JSON crosses to the renderer.
+
+### Proportional verification
+
+- runtime unit/integration tests with real pinned Pi in isolated roots: tool bounds, notes lifecycle, search correctness, injector banding;
+- protocol/application changes only if UI surfaces any of this state (default: none);
+- no desktop lane unless owner-facing UI lands.
+
+## Milestone 4: Pho cutover hook and model-requested `new_context` (gated on M3)
+
+### Outcome
+
+Every compaction trigger on the Pi adapter uses the Pho cutover strategy: notes digest at Pi's cut point when notes exist, Pi's default summarizer when they do not. The model can request a cutover two-phase; the owner keeps the single Compact context action; markers honestly distinguish digest from summary.
+
+### Implementation sequence
+
+1. Characterization: custom-compaction entries with digest-length summaries and Pi-computed `firstKeptEntryId` rebuild context identically to default compactions, including repeated and split-turn cases.
+2. The `session_before_compact` hook: read bounded notes; empty → decline (Pi summarizes); non-empty → return `{ compaction: { summary: digest + recall pointer, firstKeptEntryId: preparation.firstKeptEntryId, tokensBefore: preparation.tokensBefore, details: { kind: "pho-cutover" } } }`.
+3. The `new_context` tool: set a generation-checked cutover flag on the session controller; tool result instructs the model to save notes; on turn settle and idle, the runtime runs `compact()` through the existing manual-operation guard; the flag clears on success, error, abort, replacement, and disposal.
+4. Marker copy distinguishes "compacted from notes" from Pi summary; the existing bounded detail command returns the digest unchanged.
+5. Owner-facing copy explains the strategy honestly: notes and recent messages are kept, earlier work left model context and stays searchable.
+
+### Acceptance criteria
+
+- threshold, overflow, manual, and model-requested triggers all route through the hook; empty-notes runs fall back to Pi's summarizer with correct marker copy;
+- a model-requested cutover never aborts the in-flight turn, never drops sibling tool outputs, and never fires from a stale flag after error/retry/replacement;
+- the digest path makes no summary provider request; the fallback path behaves exactly like M0–M2;
+- full display transcript continuity and stable entry identity hold across digest cutovers;
+- failure or abort leaves valid Pi JSONL and a later prompt succeeds.
+
+### Proportional verification
+
+- real pinned-Pi integration for every trigger reason, empty/non-empty notes, repeated cutovers, split turns, overflow retry, and two-session isolation;
+- Electron journey for the model-requested flow with a scripted extension driver, background switch, and relaunch;
+- packaged smoke unchanged from M2 plus the feature enabled.
+
 ## Deferred provider-native evaluation
 
-Provider-native compaction is not Milestone 3 of this add-on and does not block acceptance. Promote it separately only after all of these are resolved:
+Owner decision, 2026-09-01: OpenAI models on the Pi adapter are the single intended provider-native exception — the target is compaction through the OpenAI API. That path is **not** promoted by Milestones 3–4 and does not block their acceptance; until it separately lands, OpenAI models use the Pho cutover strategy, which is provider-agnostic. Codex app-server and ACP backends are never covered here: their compaction is backend-owned and the adapters publish that capability.
+
+Promote the OpenAI path separately only after all of these are resolved:
 
 - an exact implementation compatible with Pi `0.84.4` or an explicit reviewed Pi upgrade;
 - official OpenAI server-side versus standalone endpoint choice;
@@ -395,9 +468,10 @@ Current sources:
 
 - custom manual summary instructions;
 - auto-compaction toggle, reserve/keep controls, thresholds, or settings UI;
-- provider-native opaque compaction;
-- shake/tool-output mutation, snapcompact images, handoff documents, context promotion, idle/speculative compaction;
-- branch summaries, fork/tree, new-session handoff, or transcript export;
+- provider-native opaque compaction (the OpenAI API exception follows the gated evaluation above);
+- shake/tool-output mutation, snapcompact images, idle/speculative compaction;
+- branch summaries, fork/tree, new-session handoff, cross-session memory, or transcript export;
+- no-summary cutover with no notes digest and no Pi-summary fallback (rejected; see [openai/codex#31822](https://github.com/openai/codex/issues/31822));
 - per-provider recall guarantees or synthetic benchmark acceptance thresholds;
 - Linux desktop/package and Windows support.
 
@@ -431,3 +505,5 @@ The add-on may be accepted only when:
 - desktop, packaged macOS, and one real-provider journey have recorded evidence;
 - architecture/current-state/development/UI docs reflect only verified behavior;
 - provider-native support remains clearly deferred unless separately promoted and accepted.
+
+This gate accepts Milestones 0–2 (Pi-native projection, manual action, lifecycle). Milestones 3–4 carry their own acceptance criteria above and extend this gate only when their evidence lands; the OpenAI provider-native exception and backend-owned Codex/ACP behavior remain outside this gate entirely.

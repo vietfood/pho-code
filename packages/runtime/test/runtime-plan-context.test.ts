@@ -28,14 +28,23 @@ function fakeSession(
   } = {},
 ) {
   const entries = options.entries ?? [];
+  // The display transcript reads the active branch, so the fake's context
+  // messages must exist there as message entries, mirroring a real session.
+  const messageEntries = (options.messages ?? []).map((message, index) => ({
+    type: "message",
+    id: `m${index}`,
+    parentId: null,
+    timestamp: "2026-01-01T00:00:00.000Z",
+    message,
+  }));
   const activeTools: string[][] = [];
   const session = {
     messages: options.messages ?? [],
     model: { provider: options.provider ?? "anthropic", id: "test-model" },
     systemPrompt: options.systemPrompt ?? "Pi native prompt",
     sessionManager: {
-      getEntries: () => entries,
-      getBranch: () => entries,
+      getEntries: () => [...entries, ...messageEntries],
+      getBranch: () => [...entries, ...messageEntries],
       appendCustomEntry: (customType: string, data: unknown) => {
         entries.push({ type: "custom", customType, data });
       },

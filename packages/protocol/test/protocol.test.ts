@@ -18,6 +18,7 @@ import {
   emptySandboxSettingsSnapshot,
   emptySkillSettingsSnapshot,
   glassCssTokens,
+  idleAgentCompactionState,
   idleRunState,
   isCommandResult,
   isJsonSafeValue,
@@ -819,6 +820,7 @@ function sampleSessionSnapshot(runId: string): SessionSnapshot {
     },
     messages: [],
     run: { ...idleRunState(), runId, status: "admitted" },
+    compaction: idleAgentCompactionState(),
     models: [
       {
         provider: "test",

@@ -1,6 +1,7 @@
 import type { AgentToolKind } from "@pho-agent/protocol";
 import type { ImageMimeType } from "./attachments";
 import type { ChangeReviewSetSummary } from "./change-review";
+import type { SessionCompactionState, TranscriptCompactionBoundary } from "./compaction";
 import type { SessionContextPrompt } from "./context-prompt";
 import type { HarnessError } from "./errors";
 import type { SessionPlanSnapshot } from "./plan-agent";
@@ -92,6 +93,18 @@ export interface TranscriptMessage {
 }
 
 /**
+ * Display-transcript element: a projected message or a compaction boundary.
+ * The full active branch stays visible; boundaries mark where the model
+ * context was compacted. Reducers and UI grouping must branch on the
+ * compaction kind before reading message fields.
+ */
+export type TranscriptItem = TranscriptMessage | TranscriptCompactionBoundary;
+
+export function isTranscriptCompactionBoundary(item: TranscriptItem): item is TranscriptCompactionBoundary {
+  return (item as { kind?: unknown }).kind === "compaction";
+}
+
+/**
  * Ordered think/narration/tool segments for the in-flight assistant turn.
  * A `text` entry is pre-tool narration committed when a new tool starts; the
  * post-last-tool answer tail stays in `RunState.streamingText`.
@@ -134,8 +147,10 @@ export interface SessionUsageSummary {
 export interface SessionSnapshot {
   session: SessionSummary;
   workspace: WorkspaceSummary;
-  messages: TranscriptMessage[];
+  messages: TranscriptItem[];
   run: RunState;
+  /** Compaction lifecycle state; always present, idle by default. */
+  compaction: SessionCompactionState;
   model?: ModelSummary;
   models: ModelSummary[];
   sessions: SessionSummary[];

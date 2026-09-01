@@ -41,23 +41,39 @@ export function applyRewriteOverlays(
   if (overlays.size === 0) {
     return [...messages];
   }
-  return messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
+  return messages.map((message) => applyRewriteOverlay(message, overlays));
+}
+
+/**
+ * Apply one message's rewrite overlay. `fallbackIds` carries the legacy
+ * `role:timestamp:index` candidates the message had before display ids became
+ * Pi entry ids, so overlays persisted by earlier builds keep applying.
+ */
+export function applyRewriteOverlay(
+  message: TranscriptMessage,
+  overlays: ReadonlyMap<string, string>,
+  fallbackIds: readonly string[] = [],
+): TranscriptMessage {
+  if (overlays.size === 0 || message.role !== "assistant") {
+    return message;
+  }
+  let overlay = overlays.get(message.id);
+  if (overlay === undefined) {
+    for (const candidate of fallbackIds) {
+      overlay = overlays.get(candidate);
+      if (overlay !== undefined) {
+        break;
+      }
     }
-    const overlay = overlays.get(message.id);
-    if (overlay === undefined) {
-      return message;
-    }
-    const original = joinedText(message.blocks);
-    if (overlay === original) {
-      return message;
-    }
-    return {
-      ...message,
-      blocks: replaceAssistantText(message.blocks, overlay, original),
-    };
-  });
+  }
+  if (overlay === undefined) {
+    return message;
+  }
+  const original = joinedText(message.blocks);
+  if (overlay === original) {
+    return message;
+  }
+  return { ...message, blocks: replaceAssistantText(message.blocks, overlay, original) };
 }
 
 export function joinedText(blocks: readonly TranscriptBlock[]): string {

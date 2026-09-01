@@ -30,23 +30,28 @@ export function applySandboxedBashOverlay(
   if (callIds.size === 0) {
     return [...messages];
   }
-  return messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
+  return messages.map((message) => applySandboxedBashOverlayToMessage(message, callIds));
+}
+
+export function applySandboxedBashOverlayToMessage(
+  message: TranscriptMessage,
+  callIds: ReadonlySet<string>,
+): TranscriptMessage {
+  if (callIds.size === 0 || message.role !== "assistant") {
+    return message;
+  }
+  let changed = false;
+  const blocks = message.blocks.map((block) => {
+    if (block.type !== "tool" || block.sandboxed === true) {
+      return block;
     }
-    let changed = false;
-    const blocks = message.blocks.map((block) => {
-      if (block.type !== "tool" || block.sandboxed === true) {
-        return block;
-      }
-      if (!callIds.has(block.callId) || !isSandboxBashToolName(block.name)) {
-        return block;
-      }
-      changed = true;
-      return { ...block, sandboxed: true };
-    });
-    return changed ? { ...message, blocks } : message;
+    if (!callIds.has(block.callId) || !isSandboxBashToolName(block.name)) {
+      return block;
+    }
+    changed = true;
+    return { ...block, sandboxed: true };
   });
+  return changed ? { ...message, blocks } : message;
 }
 
 function parseSandboxedBashCallId(value: unknown): string | undefined {

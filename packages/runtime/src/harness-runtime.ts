@@ -5,7 +5,11 @@ import {
   type AbortRunInput,
   type AgentBackendDescriptor,
   type CancelProviderLoginInput,
+  type CancelSessionCompactionInput,
+  type CompactSessionInput,
+  type CompactionDetail,
   type CredentialProviderSummary,
+  type GetCompactionDetailInput,
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
   type LogoutProviderInput,
@@ -99,6 +103,9 @@ export interface HarnessRuntime {
   prepareImage(input: PrepareImageInput): Promise<PreparedImageSummary>;
   removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
+  compactSession(input: CompactSessionInput): Promise<SessionSnapshot>;
+  cancelSessionCompaction(input: CancelSessionCompactionInput): Promise<void>;
+  getCompactionDetail(input: GetCompactionDetailInput): Promise<CompactionDetail>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
@@ -175,6 +182,9 @@ export function createDisposableStubHarnessRuntime(options?: {
     prepareImage: reject("prepareImage"),
     removePreparedImage: reject("removePreparedImage"),
     abortRun: reject("abortRun"),
+    compactSession: reject("compactSession"),
+    cancelSessionCompaction: reject("cancelSessionCompaction"),
+    getCompactionDetail: reject("getCompactionDetail"),
     setSessionModel: reject("setSessionModel"),
     setThinkingLevel: reject("setThinkingLevel"),
     setFastMode: reject("setFastMode"),

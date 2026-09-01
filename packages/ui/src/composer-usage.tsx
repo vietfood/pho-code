@@ -1,21 +1,38 @@
-import { useId, useState, type CSSProperties } from "react";
-import type { ContextUsageSummary, SessionUsageSummary } from "@pho-code/protocol";
+import { useId, useRef, useState, type CSSProperties } from "react";
+import {
+  COMPACTION_COPY,
+  type ContextUsageSummary,
+  type SessionCompactionState,
+  type SessionUsageSummary,
+} from "@pho-code/protocol";
 import { contextBarFillColor } from "./lib/context-bar-color";
 import { formatContextPercent, formatTokenCount, formatUsd } from "./lib/format-tokens";
 import { cn } from "./lib/cn";
 import { ContextUsageMeter } from "./context-usage-meter";
 
+/** Everything the usage popover needs to offer the manual compaction action. */
+export interface ComposerCompactionAction {
+  state: SessionCompactionState;
+  /** Why Compact is unavailable right now; undefined means the action is enabled. */
+  disabledReason?: string;
+  onCompact: () => void;
+  onCancel: () => void;
+}
+
 export function ComposerUsage({
   usage,
   contextUsage,
+  compaction,
   className,
 }: {
   usage?: SessionUsageSummary;
   contextUsage?: ContextUsageSummary;
+  compaction?: ComposerCompactionAction;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   if (!usage && !contextUsage) {
     return null;
@@ -36,10 +53,16 @@ export function ComposerUsage({
   const costUsd = usage?.costUsd ?? 0;
   const detailLabel = `Session usage ${contextLabel}, ${formatUsd(costUsd)}`;
 
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
   return (
     <div className={cn("composer-usage relative min-w-0", className)}>
       <button
         type="button"
+        ref={triggerRef}
         data-testid="composer-usage-trigger"
         className={cn("composer-usage-trigger", open && "is-open")}
         aria-expanded={open}
@@ -53,8 +76,9 @@ export function ComposerUsage({
           }
         }}
         onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setOpen(false);
+          if (event.key === "Escape" && open) {
+            event.preventDefault();
+            close();
           }
         }}
       >
@@ -77,6 +101,13 @@ export function ComposerUsage({
           data-testid="composer-usage-detail"
           className="composer-usage-popover"
           style={{ "--usage-context-accent": fillColor } as CSSProperties}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              close();
+            }
+          }}
         >
           <UsageRow
             label="Context"
@@ -109,8 +140,53 @@ export function ComposerUsage({
             valueClassName="composer-usage-cost"
             emphasize
           />
+          {compaction ? <CompactionSection action={compaction} /> : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function CompactionSection({ action }: { action: ComposerCompactionAction }) {
+  const compacting = action.state.status === "compacting";
+  return (
+    <div className="composer-usage-compaction" data-testid="composer-usage-compaction">
+      <p className="composer-usage-note">{COMPACTION_COPY.usageNote}</p>
+      {compacting ? (
+        <div className="composer-usage-compaction-row">
+          <span className="composer-usage-compaction-status" role="status">
+            {COMPACTION_COPY.actionBusy}
+          </span>
+          {action.state.cancelable ? (
+            <button
+              type="button"
+              className="composer-usage-compaction-button"
+              data-testid="cancel-compaction"
+              onClick={action.onCancel}
+            >
+              {COMPACTION_COPY.cancel}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="composer-usage-compaction-button"
+            data-testid="compact-context"
+            disabled={action.disabledReason !== undefined}
+            {...(action.disabledReason !== undefined ? { title: action.disabledReason } : {})}
+            onClick={action.onCompact}
+          >
+            {COMPACTION_COPY.action}
+          </button>
+          {action.disabledReason !== undefined ? (
+            <p className="composer-usage-note" data-testid="compact-unavailable">
+              {action.disabledReason}
+            </p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

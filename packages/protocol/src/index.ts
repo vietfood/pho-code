@@ -24,6 +24,7 @@ export {
   upsertToolWork,
 } from "./events";
 export type {
+  CompactionStateChangedPayload,
   ConversationCacheState,
   ConversationViewState,
   ExtensionDialogSettledPayload,
@@ -36,6 +37,35 @@ export type {
   ToolEventPayload,
   Unsubscribe,
 } from "./events";
+
+export {
+  AGENT_COMPACTION_OUTCOMES,
+  AGENT_COMPACTION_REASONS,
+  AGENT_COMPACTION_STATUSES,
+  COMPACTION_COPY,
+  idleAgentCompactionState,
+  isAgentCompactionBoundary,
+  isAgentCompactionDetail,
+  isAgentCompactionOutcome,
+  isAgentCompactionReason,
+  isAgentCompactionState,
+  MAX_COMPACTION_ERROR_CHARS,
+  MAX_COMPACTION_SUMMARY_CHARS,
+  sanitizeCompactionError,
+} from "./compaction";
+export type {
+  AgentCompactionBoundary,
+  AgentCompactionDetail,
+  AgentCompactionOutcome,
+  AgentCompactionReason,
+  AgentCompactionState,
+  CancelSessionCompactionInput,
+  CompactionDetail,
+  CompactSessionInput,
+  GetCompactionDetailInput,
+  SessionCompactionState,
+  TranscriptCompactionBoundary,
+} from "./compaction";
 
 export type {
   BootstrapCapabilities,
@@ -400,7 +430,13 @@ export type {
   RemovePreparedImageInput,
 } from "./attachments";
 
-export { emptyQueueState, idleRunState, MAX_ASSISTANT_REWRITE_CHARS, QUEUE_MODES } from "./conversation";
+export {
+  emptyQueueState,
+  idleRunState,
+  isTranscriptCompactionBoundary,
+  MAX_ASSISTANT_REWRITE_CHARS,
+  QUEUE_MODES,
+} from "./conversation";
 export type {
   AbortRunInput,
   ContextUsageSummary,
@@ -430,6 +466,7 @@ export type {
   ToolStatus,
   TranscriptBlock,
   TranscriptImageBlock,
+  TranscriptItem,
   TranscriptMessage,
   TranscriptRole,
   TranscriptTextBlock,

@@ -2,6 +2,7 @@ import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
 import { sessionKeyEquals, sessionKeyId } from "./session-lifecycle";
 import type { ChangeReviewSetSummary } from "./change-review";
 import { changeScopeEquals, MAX_CHANGE_REVIEWS_ON_SNAPSHOT } from "./change-review";
+import type { AgentCompactionOutcome, AgentCompactionReason, SessionCompactionState } from "./compaction";
 import type { ProviderAuthFlowSnapshot } from "./credentials";
 import type { HarnessError } from "./errors";
 import type {
@@ -36,6 +37,7 @@ export const RUNTIME_EVENT_TYPES = {
   sessionActivity: "sessionActivity",
   sessionRemoved: "sessionRemoved",
   changeReviewUpdated: "changeReviewUpdated",
+  compactionStateChanged: "compactionStateChanged",
 } as const;
 
 export interface RuntimeEventEnvelope<T = unknown> {
@@ -80,6 +82,16 @@ export interface SessionRemovedPayload extends SessionKey {
   title: string;
 }
 
+export interface CompactionStateChangedPayload extends SessionKey {
+  compaction: SessionCompactionState;
+  /** Present on completion events; absent on the start transition. */
+  outcome?: AgentCompactionOutcome;
+  reason?: AgentCompactionReason;
+  errorMessage?: string;
+  /** Entry id of the boundary created by a completed compaction. */
+  compactionId?: string;
+}
+
 export type RuntimeEvent =
   | (RuntimeEventEnvelope<SessionSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.sessionSnapshot })
   | (RuntimeEventEnvelope<PromptAdmission> & { type: typeof RUNTIME_EVENT_TYPES.runAdmitted })
@@ -97,7 +109,8 @@ export type RuntimeEvent =
   | (RuntimeEventEnvelope<ProviderAuthFlowSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.providerAuthFlow })
   | (RuntimeEventEnvelope<SessionActivitySummary[]> & { type: typeof RUNTIME_EVENT_TYPES.sessionActivity })
   | (RuntimeEventEnvelope<SessionRemovedPayload> & { type: typeof RUNTIME_EVENT_TYPES.sessionRemoved })
-  | (RuntimeEventEnvelope<ChangeReviewSetSummary> & { type: typeof RUNTIME_EVENT_TYPES.changeReviewUpdated });
+  | (RuntimeEventEnvelope<ChangeReviewSetSummary> & { type: typeof RUNTIME_EVENT_TYPES.changeReviewUpdated })
+  | (RuntimeEventEnvelope<CompactionStateChangedPayload> & { type: typeof RUNTIME_EVENT_TYPES.compactionStateChanged });
 
 export type Unsubscribe = () => void;
 
@@ -441,6 +454,10 @@ export function applyRuntimeEvent(
         ...snapshot,
         changeReviews: upsertChangeReview(snapshot.changeReviews, incoming),
       }));
+    }
+    case RUNTIME_EVENT_TYPES.compactionStateChanged: {
+      const payload = event.payload as CompactionStateChangedPayload;
+      return patchSnapshot((snapshot) => ({ ...snapshot, compaction: payload.compaction }));
     }
     default:
       return { ...state, lastSequence: event.sequence };

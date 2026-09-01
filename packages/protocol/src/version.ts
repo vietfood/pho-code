@@ -61,6 +61,9 @@ export const PROTOCOL_COMMANDS = {
   approveChanges: "approveChanges",
   prepareUndoChanges: "prepareUndoChanges",
   applyUndoChanges: "applyUndoChanges",
+  compactSession: "compactSession",
+  cancelSessionCompaction: "cancelSessionCompaction",
+  getCompactionDetail: "getCompactionDetail",
 } as const;
 
 export type ProtocolCommandName = (typeof PROTOCOL_COMMANDS)[keyof typeof PROTOCOL_COMMANDS];

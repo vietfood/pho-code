@@ -304,6 +304,8 @@ function registerIpc(): void {
     "executeSessionPlan",
     "rewriteAssistantOutput",
     "updateSessionContextPrompt",
+    "compactSession",
+    "getCompactionDetail",
     "getSettings",
     "updateAppearanceSettings",
     "updatePermissionSettings",
@@ -333,7 +335,7 @@ function registerIpc(): void {
   for (const name of commands) {
     registerCommand(name);
   }
-  for (const name of ["removePreparedImage", "abortRun", "resolveHostDialog"] as const) {
+  for (const name of ["removePreparedImage", "abortRun", "cancelSessionCompaction", "resolveHostDialog"] as const) {
     registerCommand(name, true);
   }
 

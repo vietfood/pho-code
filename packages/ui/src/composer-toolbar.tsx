@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { ContextUsageSummary, SessionUsageSummary } from "@pho-code/protocol";
-import { ComposerUsage } from "./composer-usage";
+import { ComposerUsage, type ComposerCompactionAction } from "./composer-usage";
 
 // Flat control row under the composer field (Claude Code-inspired layout;
 // harness-owned chrome). Mode and run-queue actions lead; model, thinking, and
@@ -11,11 +11,13 @@ export function ComposerToolbar({
   trailing,
   usage,
   contextUsage,
+  compaction,
 }: {
   leading?: ReactNode;
   trailing?: ReactNode;
   usage?: SessionUsageSummary;
   contextUsage?: ContextUsageSummary;
+  compaction?: ComposerCompactionAction;
 }) {
   const hasUsage = Boolean(usage || contextUsage);
 
@@ -28,6 +30,7 @@ export function ComposerToolbar({
           <ComposerUsage
             {...(usage ? { usage } : {})}
             {...(contextUsage ? { contextUsage } : {})}
+            {...(compaction ? { compaction } : {})}
           />
         ) : null}
       </div>

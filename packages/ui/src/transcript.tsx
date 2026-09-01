@@ -1,16 +1,25 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { PencilIcon, RotateCcwIcon } from "lucide-react";
 import type {
   ChangeReviewSetSummary,
   ChangeScope,
+  CompactionDetail,
   RunState,
   RunWorkEntry,
   SessionSnapshot,
   TranscriptBlock,
+  TranscriptCompactionBoundary,
+  TranscriptItem,
   TranscriptMessage,
   TranscriptToolBlock,
 } from "@pho-code/protocol";
-import { reviewFileCount, reviewSummaryForToolCall, sessionKeyId, stripExpandedSkillBodies } from "@pho-code/protocol";
+import {
+  COMPACTION_COPY,
+  reviewFileCount,
+  reviewSummaryForToolCall,
+  sessionKeyId,
+  stripExpandedSkillBodies,
+} from "@pho-code/protocol";
 import { CopyButton } from "./copy-button";
 import { inferMentionKind } from "./lib/at-mention";
 import { cn } from "./lib/cn";
@@ -54,10 +63,12 @@ export function Transcript({
   snapshot,
   onRewrite,
   onOpenChangeReview,
+  onReadCompactionDetail,
 }: {
   snapshot: SessionSnapshot;
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
   onOpenChangeReview?: (scope: ChangeScope) => void;
+  onReadCompactionDetail?: (compactionId: string) => Promise<CompactionDetail>;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -90,6 +101,7 @@ export function Transcript({
         changeReviews={snapshot.changeReviews}
         {...(onRewrite ? { onRewrite } : {})}
         {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
+        {...(onReadCompactionDetail ? { onReadCompactionDetail } : {})}
       />
       <LiveRunTail
         liveKey={sessionKeyId({
@@ -113,17 +125,28 @@ const SettledTurns = memo(function SettledTurns({
   changeReviews,
   onRewrite,
   onOpenChangeReview,
+  onReadCompactionDetail,
 }: {
-  messages: readonly TranscriptMessage[];
+  messages: readonly TranscriptItem[];
   changeReviews?: readonly ChangeReviewSetSummary[];
   onRewrite?: (input: { messageId: string; text: string }) => void | Promise<void>;
   onOpenChangeReview?: (scope: ChangeScope) => void;
+  onReadCompactionDetail?: (compactionId: string) => Promise<CompactionDetail>;
 }) {
   const segments = useMemo(() => groupTranscriptSegments(messages), [messages]);
   return (
     <>
-      {segments.map((segment) =>
-        segment.kind === "user" ? (
+      {segments.map((segment) => {
+        if (segment.kind === "compaction") {
+          return (
+            <CompactionBoundaryRow
+              key={segment.boundary.id}
+              boundary={segment.boundary}
+              {...(onReadCompactionDetail ? { onReadDetail: onReadCompactionDetail } : {})}
+            />
+          );
+        }
+        return segment.kind === "user" ? (
           <UserMessageRow key={segment.message.id} message={segment.message} />
         ) : (
           <AssistantTurn
@@ -133,11 +156,110 @@ const SettledTurns = memo(function SettledTurns({
             {...(onRewrite ? { onRewrite } : {})}
             {...(onOpenChangeReview ? { onOpenChangeReview } : {})}
           />
-        ),
-      )}
+        );
+      })}
     </>
   );
 });
+
+const COMPACTION_REASON_LABELS: Record<string, string> = {
+  manual: "Manual",
+  threshold: "Automatic",
+  overflow: "Automatic",
+};
+
+/**
+ * Slim divider where Pi replaced older context with a summary. The summarized
+ * messages stay visible above; the summary itself loads on demand through the
+ * bounded detail command and renders through the settled Markdown path.
+ */
+function CompactionBoundaryRow({
+  boundary,
+  onReadDetail,
+}: {
+  boundary: TranscriptCompactionBoundary;
+  onReadDetail?: (compactionId: string) => Promise<CompactionDetail>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState<CompactionDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const summaryId = useId();
+
+  async function toggle() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    if (detail || loading || !onReadDetail || !boundary.hasSummary) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      setDetail(await onReadDetail(boundary.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to load the summary.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const reasonLabel = boundary.reason ? COMPACTION_REASON_LABELS[boundary.reason] : undefined;
+  const tokenLabel =
+    boundary.estimatedTokensAfter !== undefined
+      ? `${boundary.tokensBefore.toLocaleString()} → ~${boundary.estimatedTokensAfter.toLocaleString()} tokens`
+      : `${boundary.tokensBefore.toLocaleString()} tokens`;
+
+  return (
+    <div className="chat-column compaction-boundary" data-testid="compaction-boundary" data-compaction-id={boundary.id}>
+      <div className="compaction-boundary-rule" aria-hidden="true" />
+      <div className="compaction-boundary-content">
+        <span
+          className="compaction-boundary-label"
+          title={boundary.fromHook ? COMPACTION_COPY.boundaryFromNotesHint : tokenLabel}
+        >
+          {boundary.fromHook ? COMPACTION_COPY.boundaryLabelFromNotes : COMPACTION_COPY.boundaryLabel}
+          {reasonLabel ? ` · ${reasonLabel}` : ""}
+        </span>
+        {boundary.hasSummary ? (
+          <button
+            type="button"
+            className="compaction-boundary-toggle"
+            data-testid="compaction-summary-toggle"
+            aria-expanded={expanded}
+            aria-controls={summaryId}
+            onClick={() => void toggle()}
+          >
+            {expanded ? COMPACTION_COPY.boundaryHideSummary : COMPACTION_COPY.boundaryShowSummary}
+          </button>
+        ) : null}
+      </div>
+      <div className="compaction-boundary-rule" aria-hidden="true" />
+      {expanded ? (
+        <div id={summaryId} className="compaction-boundary-summary" data-testid="compaction-summary">
+          {loading ? (
+            <p className="text-xs text-muted-foreground">Loading summary…</p>
+          ) : error ? (
+            <p className="text-xs text-muted-foreground" role="alert">
+              {error}
+            </p>
+          ) : detail ? (
+            <>
+              <ConservativeMarkdown text={detail.summary} />
+              {detail.truncated ? (
+                <p className="mt-1 text-xs text-muted-foreground">Summary truncated for display.</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">{COMPACTION_COPY.summaryUnavailable}</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function LiveRunTail({
   liveKey,

@@ -37,9 +37,13 @@ import {
   type ArchiveSessionInput,
   type BootstrapState,
   type CancelProviderLoginInput,
+  type CancelSessionCompactionInput,
+  type CompactSessionInput,
+  type CompactionDetail,
   type CredentialProviderSummary,
   type CreateSessionInput,
   type FeatureSnapshot,
+  type GetCompactionDetailInput,
   type GetSessionSnapshotInput,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
@@ -199,6 +203,9 @@ export interface ApplicationService {
   prepareImage(input: PrepareImageInput): Promise<PreparedImageSummary>;
   removePreparedImage(input: RemovePreparedImageInput): Promise<void>;
   abortRun(input: AbortRunInput): Promise<void>;
+  compactSession(input: CompactSessionInput): Promise<SessionSnapshot>;
+  cancelSessionCompaction(input: CancelSessionCompactionInput): Promise<void>;
+  getCompactionDetail(input: GetCompactionDetailInput): Promise<CompactionDetail>;
   setSessionModel(input: SetSessionModelInput): Promise<SessionSnapshot>;
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
@@ -715,6 +722,36 @@ export function createApplicationService(input: {
       const scope = sessionCommandScope(command, "abortRun");
       const runId = requireNonEmptyString(command.runId, "runId", "abortRun");
       await input.runtime.abortRun({ ...scope, runId });
+    },
+    async compactSession(command: CompactSessionInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "compactSession");
+      try {
+        const snapshot = await input.runtime.compactSession(scope);
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "compactSession");
+      }
+    },
+    async cancelSessionCompaction(command: CancelSessionCompactionInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "cancelSessionCompaction");
+      try {
+        await input.runtime.cancelSessionCompaction(scope);
+      } catch (error) {
+        throw normalizeCommandError(error, "cancelSessionCompaction");
+      }
+    },
+    async getCompactionDetail(command: GetCompactionDetailInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "getCompactionDetail");
+      const compactionId = requireNonEmptyString(command.compactionId, "compactionId", "getCompactionDetail");
+      try {
+        return await input.runtime.getCompactionDetail({ ...scope, compactionId });
+      } catch (error) {
+        throw normalizeCommandError(error, "getCompactionDetail");
+      }
     },
     async setSessionModel(command: SetSessionModelInput) {
       assertActive();

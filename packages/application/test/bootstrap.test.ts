@@ -174,6 +174,100 @@ describe("application host dialogs", () => {
   });
 });
 
+describe("application compaction", () => {
+  function compactionSnapshot() {
+    return {
+      session: {
+        id: "s1",
+        workspaceId: "/tmp/ws",
+        title: "Session",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+      },
+      workspace: {
+        id: "/tmp/ws",
+        path: "/tmp/ws",
+        displayName: "ws",
+        lastOpenedAt: "2026-09-01T00:00:00.000Z",
+        projectResourcesApproved: true,
+      },
+      messages: [],
+      run: { status: "idle" as const },
+      models: [],
+      sessions: [],
+      features: emptyFeatureSnapshot(),
+      thinkingLevel: "off" as const,
+      availableThinkingLevels: ["off" as const],
+      supportsThinking: false,
+      compaction: { status: "idle" as const, cancelable: false },
+    };
+  }
+
+  test("compactSession validates scope, delegates, and adopts the snapshot", async () => {
+    const forwarded: { backendId?: string; sessionId: string; workspaceId?: string }[] = [];
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      compactSession(input) {
+        forwarded.push(input);
+        return Promise.resolve(compactionSnapshot());
+      },
+    };
+    const application = createTestApplication(runtime);
+
+    const snapshot = await application.compactSession({ sessionId: " s1 ", workspaceId: "/tmp/ws" });
+    expect(forwarded).toEqual([{ sessionId: "s1", workspaceId: "/tmp/ws" }]);
+    expect(snapshot.session.id).toBe("s1");
+    expect(application.getBootstrapState().activeSession?.session.id).toBe("s1");
+
+    await expect(application.compactSession({ sessionId: " " })).rejects.toMatchObject({
+      code: HARNESS_ERROR_CODES.invalidCommand,
+    });
+    expect(forwarded).toHaveLength(1);
+  });
+
+  test("cancelSessionCompaction delegates the resolved scope", async () => {
+    const forwarded: { sessionId: string; workspaceId?: string }[] = [];
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      cancelSessionCompaction(input) {
+        forwarded.push(input);
+        return Promise.resolve();
+      },
+    };
+    const application = createTestApplication(runtime);
+
+    await application.cancelSessionCompaction({ sessionId: "s1", workspaceId: "/tmp/ws" });
+    expect(forwarded).toEqual([{ sessionId: "s1", workspaceId: "/tmp/ws" }]);
+  });
+
+  test("getCompactionDetail requires a non-empty compactionId and forwards it", async () => {
+    const forwarded: { sessionId: string; compactionId: string }[] = [];
+    const runtime: HarnessRuntime = {
+      ...createDisposableStubHarnessRuntime(),
+      getCompactionDetail(input) {
+        forwarded.push(input);
+        return Promise.resolve({
+          compactionId: input.compactionId,
+          sessionId: input.sessionId,
+          workspaceId: input.workspaceId ?? "/tmp/ws",
+          summary: "digest",
+          truncated: false,
+          tokensBefore: 100,
+        });
+      },
+    };
+    const application = createTestApplication(runtime);
+
+    await expect(
+      application.getCompactionDetail({ sessionId: "s1", compactionId: " " }),
+    ).rejects.toMatchObject({ code: HARNESS_ERROR_CODES.invalidCommand });
+    expect(forwarded).toHaveLength(0);
+
+    const detail = await application.getCompactionDetail({ sessionId: "s1", compactionId: "c1" });
+    expect(forwarded).toEqual([{ sessionId: "s1", compactionId: "c1" }]);
+    expect(detail.summary).toBe("digest");
+  });
+});
+
 describe("application shutdown", () => {
   test("disposes the runtime once across repeated shutdown calls", async () => {
     const runtime = createDisposableStubHarnessRuntime();

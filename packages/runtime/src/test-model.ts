@@ -40,10 +40,15 @@ export const TEST_PROMPT = {
   useSandboxWriteAbs: "USE_SANDBOX_WRITE_ABS:",
   useWrite: "USE_WRITE",
   useEdit: "USE_EDIT",
+  useNotesAppend: "USE_NOTES_APPEND",
+  useNotesRead: "USE_NOTES_READ",
+  useHistorySearch: "USE_HISTORY_SEARCH",
+  useNewContext: "USE_NEW_CONTEXT",
   useWriteFail: "USE_WRITE_FAIL",
   useWriteOutside: "USE_WRITE_OUTSIDE",
   useWriteCap: "USE_WRITE_CAP",
   failAfter: "FAIL_AFTER",
+  failAfterTool: "FAIL_AFTER_TOOL",
   abortMe: "ABORT_ME",
 } as const;
 
@@ -167,6 +172,22 @@ const TOOL_USE_RESPONSES: [token: string, thinking: string, tool: string, args: 
   [TEST_PROMPT.useTrash, "Moving the fixture to Trash.", "move_to_trash", { path: "disposable-fixture.txt" }, "call_move_to_trash"],
   [TEST_PROMPT.useWriteFail, "Writing over a directory.", "write", { path: "blocked-dir", content: "should fail\n" }, "call_write_fail"],
   [TEST_PROMPT.useWriteOutside, "Writing outside the workspace.", "write", { path: "/tmp/pho-code-outside-note.txt", content: "outside\n" }, "call_write_outside"],
+  [
+    TEST_PROMPT.useNotesAppend,
+    "Saving durable state.",
+    "notes_append",
+    { text: "remember the deploy key" },
+    "call_notes_append",
+  ],
+  [TEST_PROMPT.useNotesRead, "Reading durable state.", "notes_read", {}, "call_notes_read"],
+  [
+    TEST_PROMPT.useHistorySearch,
+    "Searching the transcript.",
+    "history_search",
+    { query: "hello" },
+    "call_history_search",
+  ],
+  [TEST_PROMPT.useNewContext, "Requesting a context cutover.", "new_context", {}, "call_new_context"],
   [TEST_PROMPT.useWrite, "Creating a tracked file.", "write", { path: "agent-note.txt", content: "hello from agent\n" }, "call_write"],
   [TEST_PROMPT.useEdit, "Editing the tracked file.", "edit", { path: "tracked.txt", edits: [{ oldText: "before\n", newText: "after from agent\n" }] }, "call_edit"],
 ];
@@ -177,6 +198,12 @@ function toolUseResponse(thinking: string, tool: string, args: Record<string, un
 
 function buildTestResponse(context: Context) {
   if (hasToolResult(context)) {
+    if (lastUserText(context).includes(TEST_PROMPT.failAfterTool)) {
+      return fauxAssistantMessage("synthetic failure after tool", {
+        stopReason: "error",
+        errorMessage: "synthetic failure after tool",
+      });
+    }
     return fauxAssistantMessage(fauxText("Tool completed."));
   }
 

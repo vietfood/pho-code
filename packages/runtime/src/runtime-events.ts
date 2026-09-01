@@ -18,6 +18,7 @@ export interface ProjectableSession {
   key: { workspaceId: string; sessionId: string };
   disposing: boolean;
   activeRun?: { runId: string; settled: boolean; startedAt: string };
+  compaction?: { busy(): boolean };
   extensionHost?: { hasPendingDialog(): boolean };
   runtime: {
     session: {
@@ -108,7 +109,10 @@ export function createRuntimeEventProjector<TSession extends ProjectableSession>
   }
 
   function projectActivity(session: TSession): SessionActivitySummary {
-    const working = Boolean(session.activeRun && !session.activeRun.settled) || hasQueuedWork(session);
+    const working =
+      Boolean(session.activeRun && !session.activeRun.settled) ||
+      session.compaction?.busy() === true ||
+      hasQueuedWork(session);
     const attention = session.extensionHost?.hasPendingDialog() === true;
     const updatedAt = session.activeRun?.startedAt ?? now().toISOString();
     const summary: SessionActivitySummary = {

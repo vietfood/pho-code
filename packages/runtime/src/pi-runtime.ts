@@ -24,9 +24,18 @@ import {
   registerAgentTestProvider,
 } from "@pho-agent/runtime";
 import type { FauxProviderHandle } from "@pho-agent/runtime/feature-api";
+import { createCompactionController, type CompactionController } from "@pho-agent/runtime/compaction-controller";
+import {
+  CONTEXT_CONTINUITY_FEATURE_ID,
+  ContextCutoverSignal,
+  contextCutoverKey,
+  sessionNotesPath,
+} from "@pho-agent/runtime/context-continuity-feature";
+import { compactionDetailFromEntry } from "@pho-agent/runtime/display-transcript";
 import {
   RUNTIME_EVENT_TYPES,
   CHANGE_REVIEW_COPY,
+  COMPACTION_COPY,
   createHarnessError,
   failCommand,
   HARNESS_ERROR_CODES,
@@ -47,6 +56,9 @@ import {
   sessionTitleSeed,
   type AbortRunInput,
   type CancelProviderLoginInput,
+  type CancelSessionCompactionInput,
+  type CompactSessionInput,
+  type GetCompactionDetailInput,
   type CredentialProviderSummary,
   type HarnessError,
   type ImportProviderApiKeyInput,
@@ -196,7 +208,7 @@ import { createChangeCaptureService, type ChangeCaptureService } from "./change-
 import { createFileChangeLedgerStore } from "./change-ledger-store";
 import { createChangeReviewRuntime, type ChangeReviewRuntime } from "./change-review";
 import { createAtomicChangeRecoveryService } from "./change-recovery";
-import { firstUserText, projectSessionMessages } from "./transcript";
+import { firstUserText, projectDisplayTranscript, projectSessionMessages } from "./transcript";
 import {
   ASSISTANT_REWRITE_CUSTOM_TYPE,
   joinedText,
@@ -230,6 +242,12 @@ export interface PhoCodeRuntimeOptions {
   testOAuthFlow?: boolean;
   openValidatedAuthUrl?: (url: string) => void;
   featureManifest?: HarnessFeatureManifest;
+  /**
+   * Shared with the context-continuity feature so the `new_context` tool can
+   * reach this runtime. Tests passing a custom featureManifest pass the same
+   * instance here and into `createContextContinuityFeature`.
+   */
+  contextCutoverSignal?: ContextCutoverSignal;
   resourceLocator?: ResourceLocator;
   applicationDataDir?: string;
   resourcesRoot?: string;
@@ -274,6 +292,7 @@ interface LiveSession {
   runtime: AgentSessionRuntime;
   workspace: WorkspaceSummary;
   preparedImages: ReturnType<typeof createPreparedImageStore>;
+  compaction: CompactionController;
   generation: number;
   githubBindingRevision: number;
   selectedAt: number;
@@ -284,6 +303,12 @@ interface LiveSession {
   planTodos: PlanTodoItem[];
   autoTitleAttempted?: boolean;
   titleGeneration?: AbortController;
+  /**
+   * Set by the new_context cutover tool (M4): once the current run settles,
+   * the runtime runs the same manual compaction path. The generation guards
+   * against a stale request firing on a rebound session.
+   */
+  pendingCutover?: { generation: number };
 }
 
 function liveSessionProtected(session: LiveSession): boolean {
@@ -291,6 +316,9 @@ function liveSessionProtected(session: LiveSession): boolean {
     return true;
   }
   if (session.activeRun && !session.activeRun.settled) {
+    return true;
+  }
+  if (session.compaction.busy()) {
     return true;
   }
   if (session.extensionHost?.hasPendingDialog()) {
@@ -364,6 +392,7 @@ export async function createPhoCodeRuntime(
     ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
     ...(options.rgPath ? { rgPath: options.rgPath } : {}),
   });
+  const cutoverSignal = options.contextCutoverSignal ?? new ContextCutoverSignal();
   const baseManifest = withTestHostUi(
     options.featureManifest ??
       (options.deterministicTestModel && options.useDefaultFeatureManifest !== true
@@ -373,6 +402,7 @@ export async function createPhoCodeRuntime(
             agentDir,
             retrieval,
             web,
+            contextContinuityOptions: { cutoverSignal },
             ...(options.applicationDataDir ? { applicationDataDir: options.applicationDataDir } : {}),
             ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
           })),
@@ -560,6 +590,7 @@ export async function createPhoCodeRuntime(
       runtime: next,
       workspace,
       preparedImages: createPreparedImageStore(),
+      compaction: createCompactionController(),
       generation,
       githubBindingRevision,
       selectedAt: Date.now(),
@@ -572,6 +603,9 @@ export async function createPhoCodeRuntime(
       live.unsubscribe = undefined;
     });
     next.setRebindSession(async () => {
+      live.compaction.reset();
+      live.pendingCutover = undefined;
+      cutoverSignal.drop(cutoverKeyOf(live));
       bindSession(live);
       await bindHostUi(live);
       planContext.hydrateTodos(live);
@@ -600,9 +634,9 @@ export async function createPhoCodeRuntime(
     session.titleGeneration?.abort();
     session.titleGeneration = undefined;
     session.extensionHost?.cancelPending();
+    const piSession = session.runtime.session;
     if (session.activeRun && !session.activeRun.settled) {
       session.activeRun.abortRequested = true;
-      const piSession = session.runtime.session;
       // Bounded like abortRun: a stuck session must not hold shutdown or
       // controller eviction hostage to waitForIdle/promptDone.
       piSession.clearQueue();
@@ -616,9 +650,14 @@ export async function createPhoCodeRuntime(
       } catch {
         // Best-effort abort during eviction or shutdown.
       }
+    } else if (piSession.isCompacting) {
+      // A manual compaction has no active run; stop it before dispose so the
+      // summarization request cannot outlive the controller.
+      piSession.abortCompaction();
     }
     session.unsubscribe?.();
     session.unsubscribe = undefined;
+    cutoverSignal.drop(cutoverKeyOf(session));
     compiledPrompts.forget(sessionKeyId(session.key));
     session.extensionHost?.dispose();
     session.extensionHost = undefined;
@@ -801,7 +840,8 @@ export async function createPhoCodeRuntime(
     const snapshot: SessionSnapshot = {
       session: liveSessionSummary(workspace.id, session),
       workspace,
-      messages: projectSessionMessages(session),
+      messages: projectDisplayTranscript(session, live.compaction),
+      compaction: live.compaction.state(),
       run: activeRun && !activeRun.settled ? { ...run, status: "streaming" } : idleRunState(),
       models,
       sessions: mergeResidentSessions(sessions, workspace.id),
@@ -1123,9 +1163,58 @@ export async function createPhoCodeRuntime(
         emitActivity();
         return;
       }
+      case "compaction_start":
+      case "compaction_end": {
+        const change = live.compaction.handleSessionEvent(event);
+        if (!change) {
+          return;
+        }
+        const notice = change.notice;
+        const completedBoundaryId =
+          notice?.outcome === "completed" ? latestCompactionEntryId(live) : undefined;
+        emitFor(live, {
+          type: RUNTIME_EVENT_TYPES.compactionStateChanged,
+          sessionId,
+          payload: {
+            workspaceId: live.key.workspaceId,
+            sessionId,
+            compaction: change.state,
+            ...(notice
+              ? {
+                  outcome: notice.outcome,
+                  reason: notice.reason,
+                  ...(notice.errorMessage ? { errorMessage: notice.errorMessage } : {}),
+                  ...(completedBoundaryId ? { compactionId: completedBoundaryId } : {}),
+                }
+              : {}),
+          },
+        });
+        if (notice?.outcome === "completed") {
+          // The branch changed: publish the transcript so the new boundary and
+          // the summarized history render without waiting for the next turn.
+          emitFor(live, {
+            type: RUNTIME_EVENT_TYPES.sessionSnapshot,
+            sessionId,
+            payload: await buildSnapshot({ refreshCatalog: false, live }),
+          });
+        }
+        emitActivity();
+        return;
+      }
       default:
         return;
     }
+  }
+
+  function latestCompactionEntryId(live: LiveSession): string | undefined {
+    const branch = live.runtime.session.sessionManager.getBranch();
+    for (let index = branch.length - 1; index >= 0; index -= 1) {
+      const entry = branch[index];
+      if (entry?.type === "compaction") {
+        return entry.id;
+      }
+    }
+    return undefined;
   }
 
   function maybeStartSessionTitle(live: LiveSession): void {
@@ -1249,6 +1338,48 @@ export async function createPhoCodeRuntime(
     });
     emitActivity();
     maybeStartSessionTitle(live);
+    if (!run.abortRequested && !failedMessage) {
+      if (cutoverSignal.consume(cutoverKeyOf(live))) {
+        live.pendingCutover = { generation: live.generation };
+      }
+      void maybeRunPendingCutover(live);
+    } else {
+      // A failed or aborted turn consumes the cutover request without acting.
+      cutoverSignal.drop(cutoverKeyOf(live));
+    }
+  }
+
+  function cutoverKeyOf(live: LiveSession): string {
+    return contextCutoverKey(
+      live.workspace.path,
+      live.runtime.session.sessionManager.getSessionId(),
+    );
+  }
+
+  /**
+   * Phase two of the new_context cutover: the tool call ended its turn, so the
+   * session is idle and the runtime runs the same path as a manual Compact.
+   * Failures surface through the compaction events; they never fail the run
+   * that already settled.
+   */
+  async function maybeRunPendingCutover(live: LiveSession): Promise<void> {
+    const pending = live.pendingCutover;
+    live.pendingCutover = undefined;
+    if (!pending || pending.generation !== live.generation || live.disposing) {
+      return;
+    }
+    const session = live.runtime.session;
+    if (!session.isIdle || session.isCompacting) {
+      return;
+    }
+    try {
+      const result = await live.compaction.startManual(session, "newContext");
+      if (result.status === "failed") {
+        console.error("new_context cutover compaction failed:", result.message);
+      }
+    } catch (error) {
+      console.error("new_context cutover compaction could not start:", error);
+    }
   }
 
   const createRuntime = createPiSessionRuntimeFactory({
@@ -1259,7 +1390,9 @@ export async function createPhoCodeRuntime(
       ? {
           settingsManager: () =>
             createInMemoryAgentSettings({
-              compaction: { enabled: false },
+              // Deterministic sessions stay tiny, so tests need a small keep
+              // budget for manual compaction to have anything to summarize.
+              compaction: { enabled: false, keepRecentTokens: 64 },
               retry: { enabled: false },
             }),
         }
@@ -1282,6 +1415,18 @@ export async function createPhoCodeRuntime(
               "ls",
               "grep",
               "find",
+              ...(featureManifest.features.some(
+                (feature) => feature.id === CONTEXT_CONTINUITY_FEATURE_ID,
+              )
+                ? [
+                    "notes_append",
+                    "notes_write",
+                    "notes_read",
+                    "history_search",
+                    "history_read",
+                    "new_context",
+                  ]
+                : []),
             ],
           }
         : {}),
@@ -1462,6 +1607,25 @@ export async function createPhoCodeRuntime(
         } catch (error) {
           throw toHarnessError(error, "removeSession", HARNESS_ERROR_CODES.runtimeUnavailable);
         }
+        // The context-continuity notes sidecar follows the session to Trash.
+        // Best-effort: the transcript is already gone, so a sidecar failure
+        // must not fail the removal after the fact.
+        const notesPath = sessionNotesPath(path.dirname(artifact.canonicalPath), input.sessionId);
+        if (existsSync(notesPath)) {
+          try {
+            await removalService.moveToTrash({
+              canonicalPath: notesPath,
+              workspacePath: cwd,
+              signal: new AbortController().signal,
+            });
+          } catch (error) {
+            console.warn(
+              `[pho-code] Failed to trash the session notes sidecar ${notesPath}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
         clearCatalogCache();
         emit({
           type: RUNTIME_EVENT_TYPES.sessionRemoved,
@@ -1591,6 +1755,42 @@ export async function createPhoCodeRuntime(
       if (!session.isIdle) {
         await reopenStuckController(live);
       }
+    },
+    async compactSession(input: CompactSessionInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "compactSession");
+      const session = live.runtime.session;
+      refuseIfBusy(live, "compactSession", COMPACTION_COPY.unavailableRunning);
+      const result = await live.compaction.startManual(session, "compactSession");
+      if (result.status === "failed") {
+        failCommand("compactSession", result.message);
+      }
+      // The compaction events already published every state change (and the
+      // post-compaction transcript on completion); the return value only
+      // answers the IPC round trip.
+      return buildSnapshot({ refreshCatalog: false, live });
+    },
+    async cancelSessionCompaction(input: CancelSessionCompactionInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "cancelSessionCompaction");
+      live.compaction.cancel(live.runtime.session);
+    },
+    async getCompactionDetail(input: GetCompactionDetailInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "getCompactionDetail");
+      const entry = live.runtime.session.sessionManager
+        .getBranch()
+        .find((candidate) => candidate.type === "compaction" && candidate.id === input.compactionId);
+      if (!entry || entry.type !== "compaction") {
+        failCommand("getCompactionDetail", "That compaction boundary is not on the active branch.");
+      }
+      const detail = compactionDetailFromEntry(entry, live.compaction.enrichBoundary(entry.id, entry.timestamp));
+      return {
+        ...detail,
+        workspaceId: live.key.workspaceId,
+        sessionId: live.key.sessionId,
+        compactionId: entry.id,
+      };
     },
     async setSessionModel(input: SetSessionModelInput) {
       assertNotDisposed();
