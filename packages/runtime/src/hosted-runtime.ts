@@ -22,6 +22,7 @@ import {
   type SessionSnapshot,
   type SessionSummary,
   type WorkspaceSnapshot,
+  defaultSessionApprovalSnapshot,
 } from "@pho-code/protocol";
 import { projectBackendConversation } from "./backend-conversation";
 import type { HarnessRuntime } from "./harness-runtime";
@@ -82,8 +83,14 @@ export function hostPhoCodeRuntime(
     setSessionModel: runtime.setSessionModel,
     setThinkingLevel: runtime.setThinkingLevel,
     setSessionMode: runtime.setSessionMode,
+    setSessionApprovalMode: runtime.setSessionApprovalMode,
     updateSessionPlanDocument: runtime.updateSessionPlanDocument,
     executeSessionPlan: runtime.executeSessionPlan,
+    updateTaskBrief: runtime.updateTaskBrief,
+    resetTaskBrief: runtime.resetTaskBrief,
+    reopenTask: runtime.reopenTask,
+    recordOwnerVerification: runtime.recordOwnerVerification,
+    acceptTaskCompletionGaps: runtime.acceptTaskCompletionGaps,
     rewriteAssistantOutput: runtime.rewriteAssistantOutput,
     updateSessionContextPrompt: runtime.updateSessionContextPrompt,
     resolveHostDialog: runtime.resolveHostDialog,
@@ -176,6 +183,11 @@ export function hostPhoCodeRuntime(
       supportsThinking: thinking.available.length > 0,
       ...(snapshot.fastMode ? { fastMode: snapshot.fastMode } : {}),
       queue: emptyQueueState(),
+      approval: {
+        ...defaultSessionApprovalSnapshot(),
+        supportedModes: [{ mode: "ask", owner: "backend", support: "native" }],
+      },
+      ...(snapshot.task ? { task: snapshot.task } : {}),
     };
   }
 
@@ -367,12 +379,45 @@ export function hostPhoCodeRuntime(
   runtime.setSessionMode = (input) => usePi(input)
     ? piOnly.setSessionMode(input)
     : Promise.reject(unsupported("Plan/Agent mode", input.backendId));
+  runtime.setSessionApprovalMode = (input) => usePi(input)
+    ? piOnly.setSessionApprovalMode(input)
+    : input.mode === "ask"
+      ? runtime.getSessionSnapshot(input)
+      : Promise.reject(unsupported("approval mode", input.backendId));
   runtime.updateSessionPlanDocument = (input) => usePi(input)
     ? piOnly.updateSessionPlanDocument(input)
     : Promise.reject(unsupported("plan documents", input.backendId));
   runtime.executeSessionPlan = (input) => usePi(input)
     ? piOnly.executeSessionPlan(input)
     : Promise.reject(unsupported("plan execution", input.backendId));
+  runtime.updateTaskBrief = (input) => usePi(input)
+    ? piOnly.updateTaskBrief(input)
+    : agentHost.updateTaskBrief({
+        ...backendKey(input),
+        content: input.content,
+        ...(input.status ? { status: input.status } : {}),
+        ...(input.expectedRevision ? { expectedRevision: input.expectedRevision } : {}),
+      }).then(rememberAgentSnapshot);
+  runtime.resetTaskBrief = (input) => usePi(input)
+    ? piOnly.resetTaskBrief(input)
+    : agentHost.resetTaskBrief({
+        ...backendKey(input),
+        ...(input.expectedRevision ? { expectedRevision: input.expectedRevision } : {}),
+      }).then(rememberAgentSnapshot);
+  runtime.reopenTask = (input) => usePi(input)
+    ? piOnly.reopenTask(input)
+    : agentHost.reopenTask(backendKey(input)).then(rememberAgentSnapshot);
+  runtime.recordOwnerVerification = (input) => usePi(input)
+    ? piOnly.recordOwnerVerification(input)
+    : agentHost.recordOwnerVerification({
+        ...backendKey(input),
+        outcome: input.outcome,
+        summary: input.summary,
+        ...(input.criterionId ? { criterionId: input.criterionId } : {}),
+      }).then(rememberAgentSnapshot);
+  runtime.acceptTaskCompletionGaps = (input) => usePi(input)
+    ? piOnly.acceptTaskCompletionGaps(input)
+    : agentHost.acceptTaskCompletionGaps(backendKey(input)).then(rememberAgentSnapshot);
   runtime.rewriteAssistantOutput = (input) => usePi(input)
     ? piOnly.rewriteAssistantOutput(input)
     : Promise.reject(unsupported("assistant rewrites", input.backendId));

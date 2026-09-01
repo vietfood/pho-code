@@ -16,6 +16,7 @@ import {
   patchPermissionConfig,
   permissionPolicyForProfile,
   readPermissionSettings,
+  APPROVAL_PERMISSION_AUTHORIZER_NAME,
   SANDBOX_PERMISSION_AUTHORIZER_NAME,
   syncHarnessPermissionPolicy,
 } from "../src/permission-settings";
@@ -73,6 +74,14 @@ describe("permission settings adapter", () => {
       external_directory: "ask",
     };
     expect(detectPermissionProfile(v2Guarded)).toBe("guarded");
+
+    const previousGuarded = {
+      ...GUARDED_PERMISSION,
+      path: Object.fromEntries(
+        Object.entries(GUARDED_PERMISSION.path).filter(([pattern]) => pattern !== "/dev/null"),
+      ),
+    };
+    expect(detectPermissionProfile(previousGuarded)).toBe("guarded");
 
     // A shape no preset generation ever wrote is Custom, and stays untouched.
     expect(detectPermissionProfile({ "*": "ask", path: { "*": "allow" } })).toBe("custom");
@@ -186,7 +195,7 @@ describe("permission settings adapter", () => {
     expect(readPermissionSettings({ agentDir }).profile).toBe("balanced");
     const before = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
     expect(before.permission.ask_user_question).toBeUndefined();
-    syncHarnessPermissionPolicy(agentDir);
+    syncHarnessPermissionPolicy(agentDir, { approvalControllerActive: true });
     const after = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
     expect(after.permission.ask_user_question).toBe("allow");
     expect(after.permission.update_plan_document).toBe("allow");
@@ -197,7 +206,7 @@ describe("permission settings adapter", () => {
     expect(readPermissionSettings({ agentDir }).profile).toBe("balanced");
   });
 
-  test("syncs harness allows onto Custom without changing web_search", async () => {
+  test("does not mutate Custom before explicit migration", async () => {
     const agentDir = await makeAgentDir();
     const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
     await mkdir(path.dirname(configPath), { recursive: true });
@@ -205,12 +214,12 @@ describe("permission settings adapter", () => {
       configPath,
       `${JSON.stringify({ permission: { "*": "ask", web_search: "ask" } }, null, 2)}\n`,
     );
-    syncHarnessPermissionPolicy(agentDir);
+    syncHarnessPermissionPolicy(agentDir, { approvalControllerActive: true });
     const after = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
-    expect(after.permission.ask_user_question).toBe("allow");
-    expect(after.permission.todo).toBe("allow");
-    expect(after.permission.update_plan_document).toBe("allow");
-    expect(after.permission.execute_plan).toBe("allow");
+    expect(after.permission.ask_user_question).toBeUndefined();
+    expect(after.permission.todo).toBeUndefined();
+    expect(after.permission.update_plan_document).toBeUndefined();
+    expect(after.permission.execute_plan).toBeUndefined();
     expect(after.permission.web_search).toBe("ask");
     expect(after.permission.fetch_content).toBeUndefined();
     expect(readPermissionSettings({ agentDir }).profile).toBe("custom");
@@ -224,11 +233,58 @@ describe("permission settings adapter", () => {
       configPath,
       `${JSON.stringify({ permission: BALANCED_PERMISSION, authorizerChain: ["owner-judge"] }, null, 2)}\n`,
     );
-    syncHarnessPermissionPolicy(agentDir);
+    syncHarnessPermissionPolicy(agentDir, { approvalControllerActive: true });
     const after = JSON.parse(await readFile(configPath, "utf8")) as { authorizerChain: string[] };
-    expect(after.authorizerChain).toEqual(["owner-judge", SANDBOX_PERMISSION_AUTHORIZER_NAME]);
+    expect(after.authorizerChain).toEqual([
+      "owner-judge",
+      APPROVAL_PERMISSION_AUTHORIZER_NAME,
+      SANDBOX_PERMISSION_AUTHORIZER_NAME,
+    ]);
     const patched = patchPermissionConfig({ permission: GUARDED_PERMISSION }, { profile: "developer" });
-    expect(patched.authorizerChain).toEqual([SANDBOX_PERMISSION_AUTHORIZER_NAME]);
+    expect(patched.authorizerChain).toEqual([
+      SANDBOX_PERMISSION_AUTHORIZER_NAME,
+    ]);
+  });
+
+  test("keeps Custom review surfaces on the legacy package path before migration", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(
+      configPath,
+      `${JSON.stringify({ permission: { "*": "ask", path: { "*": "ask" }, write: "ask" } }, null, 2)}\n`,
+    );
+    syncHarnessPermissionPolicy(agentDir);
+    const after = JSON.parse(await readFile(configPath, "utf8")) as { permission: Record<string, unknown> };
+    expect(after.permission.write).toBe("ask");
+    expect(after.permission.path).toEqual({ "*": "ask" });
+    expect(readPermissionSettings({ agentDir }).profile).toBe("custom");
+  });
+
+  test("never quiets managed gates while approval is disabled or a shared root is unacknowledged", async () => {
+    const agentDir = await makeAgentDir();
+    const configPath = path.join(agentDir, "extensions", "pi-permission-system", "config.json");
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(configPath, `${JSON.stringify({ permission: GUARDED_PERMISSION }, null, 2)}\n`);
+
+    syncHarnessPermissionPolicy(agentDir, { approvalControllerActive: false });
+    let stored = JSON.parse(await readFile(configPath, "utf8")) as {
+      authorizerChain: string[];
+      permission: Record<string, unknown>;
+    };
+    expect(stored.permission.path).toEqual(GUARDED_PERMISSION.path);
+    expect(stored.permission.write).toBeUndefined();
+    expect(stored.authorizerChain).not.toContain(APPROVAL_PERMISSION_AUTHORIZER_NAME);
+
+    await writeFile(configPath, `${JSON.stringify({ permission: GUARDED_PERMISSION }, null, 2)}\n`);
+    syncHarnessPermissionPolicy(agentDir, {
+      approvalControllerActive: true,
+      appliesToSharedPiAgentDir: true,
+    });
+    stored = JSON.parse(await readFile(configPath, "utf8")) as typeof stored;
+    expect(stored.permission.path).toEqual(GUARDED_PERMISSION.path);
+    expect(stored.permission.write).toBeUndefined();
+    expect(stored.authorizerChain).toBeUndefined();
   });
 
   test("every v3 preset explicitly denies permanent removal", () => {

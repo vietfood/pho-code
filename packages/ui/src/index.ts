@@ -5,6 +5,10 @@ export { SidebarToggleButton } from "./sidebar-toggle-button";
 export { readSidebarCollapsed, writeSidebarCollapsed } from "./lib/sidebar-collapsed";
 export { compactPath, splitRelativePath } from "./lib/compact-path";
 export { HostDialog } from "./host-dialog";
+export { ApprovalModeControl } from "./approval-mode-control";
+export { ApprovalRequestCard } from "./approval-request-card";
+export { ApprovalReviewActivityView } from "./approval-review-activity";
+export { FullAccessWarningDialog } from "./full-access-warning-dialog";
 export { AskUserCard } from "./ask-user-card";
 export { Conversation } from "./conversation";
 export { ChatPaneLoading } from "./chat-pane-loading";
@@ -30,6 +34,7 @@ export { firstSelectablePath } from "./change-review-sheet";
 export { ChangeReviewWindow, ChangeReviewTileTitle } from "./change-review-window";
 export type { RequestFileLines } from "./change-review-diff-view";
 export { RightSidebar, RightSurfaceIcons, type RightSidebarSurface } from "./right-sidebar";
+export { TaskPanel } from "./task-panel";
 export { ChatTabHost } from "./chat-tab-host";
 export {
   closeChatTab,

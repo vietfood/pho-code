@@ -18,6 +18,7 @@ import {
 
 /** Named permission-system authorizer; skip-ask is a no-op until this name is in `authorizerChain`. */
 export const SANDBOX_PERMISSION_AUTHORIZER_NAME = "pho-code-sandbox";
+export const APPROVAL_PERMISSION_AUTHORIZER_NAME = "pho-code-approval";
 export const PERMISSION_CONFIG_RELATIVE_PATH = path.join(
   "extensions",
   "pi-permission-system",
@@ -83,6 +84,8 @@ export function readPermissionSettings(input: {
 export function applyPermissionSettingsPatch(input: {
   agentDir: string;
   appliesToSharedPiAgentDir?: boolean;
+  approvalControllerActive?: boolean;
+  acknowledgeSharedAgentDirMutation?: boolean;
   patch: UpdatePermissionSettingsInput;
   workspacePath?: string;
   yoloActive?: boolean;
@@ -91,6 +94,11 @@ export function applyPermissionSettingsPatch(input: {
   const loaded = loadPermissionConfigFile(filePath);
   const next = patchPermissionConfig(loaded.config, input.patch);
   atomicWriteJson(filePath, next);
+  syncHarnessPermissionPolicy(input.agentDir, {
+    approvalControllerActive: input.approvalControllerActive === true,
+    appliesToSharedPiAgentDir: input.appliesToSharedPiAgentDir === true,
+    acknowledgeSharedAgentDirMutation: input.acknowledgeSharedAgentDirMutation === true,
+  });
   return readPermissionSettings({
     agentDir: input.agentDir,
     appliesToSharedPiAgentDir: input.appliesToSharedPiAgentDir === true,
@@ -99,8 +107,23 @@ export function applyPermissionSettingsPatch(input: {
   });
 }
 
-/** Write harness allow-list keys onto an existing permission file so the engine sees them. */
-export function syncHarnessPermissionPolicy(agentDir: string): void {
+export interface PermissionPolicySyncOptions {
+  approvalControllerActive?: boolean;
+  appliesToSharedPiAgentDir?: boolean;
+  acknowledgeSharedAgentDirMutation?: boolean;
+}
+
+/** Write harness policy keys only after their corresponding runtime owners are active. */
+export function syncHarnessPermissionPolicy(
+  agentDir: string,
+  options: PermissionPolicySyncOptions = {},
+): void {
+  if (
+    options.appliesToSharedPiAgentDir === true &&
+    options.acknowledgeSharedAgentDirMutation !== true
+  ) {
+    return;
+  }
   const filePath = globalPermissionConfigPath(agentDir);
   let loaded: { config: Record<string, unknown> };
   try {
@@ -108,21 +131,35 @@ export function syncHarnessPermissionPolicy(agentDir: string): void {
   } catch {
     return;
   }
+  const existing = loaded.config.permission;
+  const existingProfile = existing === undefined ? "guarded" : detectPermissionProfile(existing);
+  const approvalControllerActive =
+    options.approvalControllerActive === true && existingProfile !== "custom";
   const nextConfig: Record<string, unknown> = { ...loaded.config };
   let changed = false;
-  const authorizerChain = withSandboxAuthorizerChain(nextConfig.authorizerChain);
+  const authorizerChain = withSandboxAuthorizerChain(nextConfig.authorizerChain, approvalControllerActive);
   if (!sameStringArray(nextConfig.authorizerChain, authorizerChain)) {
     nextConfig.authorizerChain = authorizerChain;
     changed = true;
   }
-  const existing = loaded.config.permission;
-  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
-    const permission = existing as Record<string, unknown>;
-    const profile = detectPermissionProfile(permission);
+  if (
+    existingProfile !== "custom" &&
+    (existing === undefined || (existing && typeof existing === "object" && !Array.isArray(existing)))
+  ) {
+    const permission = (existing ?? GUARDED_PERMISSION) as Record<string, unknown>;
+    const profile = existingProfile;
     const next = cloneJson(permission);
     changed = overlayPermission(next, HARNESS_ALWAYS_ALLOW_PERMISSION) || changed;
     if (profile !== "custom") {
       changed = overlayPermission(next, MANAGED_WEB_PERMISSION) || changed;
+      if (approvalControllerActive) {
+        changed = applyApprovalQuietSurfaces(next) || changed;
+      } else {
+        const restored = withoutApprovalQuietSurfaces(next, PROFILE_PRESETS[profile].current);
+        changed = !permissionPoliciesEquivalent(next, restored) || changed;
+        for (const key of Object.keys(next)) delete next[key];
+        Object.assign(next, restored);
+      }
     }
     nextConfig.permission = next;
   }
@@ -150,12 +187,22 @@ function matchesManagedPermission(permission: unknown, preset: unknown): boolean
   if (!permission || typeof permission !== "object" || Array.isArray(permission)) {
     return permissionPoliciesEquivalent(permission, preset);
   }
-  return permissionPoliciesEquivalent(withManagedPermissionOverlays(permission as Record<string, unknown>), preset);
+  const managed = withManagedPermissionOverlays(permission as Record<string, unknown>);
+  return (
+    permissionPoliciesEquivalent(managed, preset) ||
+    permissionPoliciesEquivalent(withoutApprovalQuietSurfaces(managed, preset), preset)
+  );
 }
 
 function withManagedPermissionOverlays(permission: Record<string, unknown>): Record<string, unknown> {
+  const pathRules = permission.path;
+  const pathWithSafeSink =
+    pathRules && typeof pathRules === "object" && !Array.isArray(pathRules) && !("/dev/null" in pathRules)
+      ? { ...pathRules, "/dev/null": "allow" }
+      : pathRules;
   return {
     ...permission,
+    ...(pathWithSafeSink !== undefined ? { path: pathWithSafeSink } : {}),
     ...HARNESS_ALWAYS_ALLOW_PERMISSION,
     ...MANAGED_WEB_PERMISSION,
   };
@@ -237,8 +284,49 @@ function overlayPermission(next: Record<string, unknown>, overlay: Record<string
   return changed;
 }
 
-function withSandboxAuthorizerChain(chain: unknown): string[] {
-  const names = isStringArray(chain) ? [...chain] : [];
+function applyApprovalQuietSurfaces(permission: Record<string, unknown>): boolean {
+  let changed = false;
+  const pathRules = permission.path;
+  if (!permissionPoliciesEquivalent(pathRules, { "*": "allow" })) {
+    permission.path = { "*": "allow" };
+    changed = true;
+  }
+  for (const surface of ["read", "write", "edit", "external_directory"] as const) {
+    if (permission[surface] !== "allow") {
+      permission[surface] = "allow";
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function withoutApprovalQuietSurfaces(
+  permission: Record<string, unknown>,
+  preset: unknown,
+): Record<string, unknown> {
+  if (!preset || typeof preset !== "object" || Array.isArray(preset)) return permission;
+  const expected = preset as Record<string, unknown>;
+  const restored = cloneJson(permission);
+  for (const surface of ["read", "write", "edit", "external_directory"] as const) {
+    if (surface in expected) restored[surface] = cloneJson(expected[surface]);
+    else delete restored[surface];
+  }
+  if (
+    restored.path && typeof restored.path === "object" && !Array.isArray(restored.path) &&
+    expected.path && typeof expected.path === "object" && !Array.isArray(expected.path)
+  ) {
+    restored.path = cloneJson(expected.path);
+  }
+  return restored;
+}
+
+function withSandboxAuthorizerChain(chain: unknown, approvalControllerActive = false): string[] {
+  const names = isStringArray(chain)
+    ? chain.filter((name) => name !== APPROVAL_PERMISSION_AUTHORIZER_NAME)
+    : [];
+  if (approvalControllerActive) {
+    names.push(APPROVAL_PERMISSION_AUTHORIZER_NAME);
+  }
   if (!names.includes(SANDBOX_PERMISSION_AUTHORIZER_NAME)) {
     names.push(SANDBOX_PERMISSION_AUTHORIZER_NAME);
   }

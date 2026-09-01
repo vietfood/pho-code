@@ -12,7 +12,7 @@ import {
   removeTestDirectory,
 } from "./helpers/electron-app";
 
-test("great-power mode allows safe inspection, blocks rm, and moves a fixture to Trash", async () => {
+test("Full access allows safe inspection, keeps invariant rm blocked, and moves a fixture to Trash", async () => {
   const userDataDir = await makeUserDataDir();
   const workspaceDir = await makeWorkspaceDir();
   const git = spawnSync("git", ["init"], { cwd: workspaceDir, encoding: "utf8" });
@@ -31,10 +31,8 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
       const page = await first.firstWindow();
       await openSettingsSection(page, "permissions");
       await expect(page.getByTestId("settings-view")).toBeVisible();
-      await page.getByTestId("permission-profile-developer").click();
-      await page.getByTestId("permission-yolo-confirm").click();
-      await page.getByTestId("settings-save").click();
-      await expect(page.getByTestId("settings-save")).toBeDisabled();
+      await page.getByTestId("approval-full-enabled").click();
+      await expect(page.getByTestId("approval-full-enabled")).toBeChecked();
       await page.getByTestId("settings-close").click();
     } finally {
       await first.close();
@@ -44,11 +42,16 @@ test("great-power mode allows safe inspection, blocks rm, and moves a fixture to
     try {
       const page = await second.firstWindow();
       await openSettingsSection(page, "permissions");
-      await expect(page.getByTestId("permission-profile-developer")).toBeChecked();
+      await expect(page.getByTestId("approval-full-enabled")).toBeChecked();
       await page.getByTestId("settings-close").click();
 
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("approval-mode-control").click();
+      await page.getByTestId("approval-mode-full").click();
+      await expect(page.getByTestId("full-access-warning-dialog")).toBeVisible();
+      await page.getByTestId("full-access-warning-confirm").click();
+      await expect(page.getByTestId("approval-mode-control")).toContainText("Full");
       await page.getByTestId("bootstrap-state").click();
       await expect(page.getByTestId("feature-diagnostics")).toContainText("recoverable-trash");
       await page.getByTestId("about-close").click();

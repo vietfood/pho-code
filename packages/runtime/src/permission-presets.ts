@@ -50,6 +50,7 @@ export const GUARDED_PERMISSION = {
     "*.env.*": "deny",
     "*.env.example": "ask",
     "~/.ssh/*": "deny",
+    "/dev/null": "allow",
   },
   external_directory: "ask",
   bash: {
@@ -68,6 +69,7 @@ export const BALANCED_PERMISSION = {
     "*.env.*": "deny",
     "*.env.example": "allow",
     "~/.ssh/*": "deny",
+    "/dev/null": "allow",
   },
   read: "allow",
   find: "allow",
@@ -118,6 +120,7 @@ export const DEVELOPER_PERMISSION = {
     "id_ecdsa": "deny",
     "*.pem": "deny",
     "*.key": "deny",
+    "/dev/null": "allow",
   },
   read: "allow",
   find: "allow",

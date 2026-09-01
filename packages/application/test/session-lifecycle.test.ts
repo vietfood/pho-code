@@ -12,6 +12,7 @@ import {
   restoreSessionMetadata,
   forgetSessionLifecycle,
   setAppearance,
+  setSessionApprovalModeMetadata,
 } from "../src/metadata";
 
 function workspace(id: string) {
@@ -41,7 +42,7 @@ describe("session lifecycle metadata", () => {
       selectedWorkspaceId: "/tmp/a",
       selectedSessionId: "s1",
     });
-    expect(migrated.version).toBe(7);
+    expect(migrated.version).toBe(8);
     expect(migrated.sessionLifecycle).toEqual([]);
     expect(migrated.palette).toBe("gruvbox");
     expect(migrated.mode).toBe("dark");
@@ -64,6 +65,16 @@ describe("session lifecycle metadata", () => {
     const restored = restoreSessionMetadata(again, sessionA);
     expect(getSessionLifecycle(restored, sessionA)?.archivedAt).toBeUndefined();
     expect(restored.palette).toBe("catppuccin");
+  });
+
+  test("persists only contained Ask/Auto choices through archive and restore", () => {
+    const auto = setSessionApprovalModeMetadata(emptyMetadata(), sessionA, "auto");
+    const restored = restoreSessionMetadata(
+      archiveSessionMetadata(auto, sessionA, "2026-08-14T03:00:00.000Z"),
+      sessionA,
+    );
+    expect(getSessionLifecycle(restored, sessionA)?.approvalMode).toBe("auto");
+    expect(JSON.stringify(restored)).not.toContain("full");
   });
 
   test("preserves last-viewed and outcome across archive/restore and clears unread on view", () => {

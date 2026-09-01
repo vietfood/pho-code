@@ -14,6 +14,8 @@ import type {
   ThinkingLevel,
   WorkspaceReferenceKind,
   SessionAgentMode,
+  SessionApprovalSnapshot,
+  ApprovalMode,
 } from "@pho-code/protocol";
 import { availableSlashSkills, SKILL_SOURCE_LABELS, skillNeedsCompatibilityNotice } from "@pho-code/protocol";
 import { cn } from "./lib/cn";
@@ -45,6 +47,7 @@ import {
   setComposerCaretOffset,
 } from "./lib/composer-editable-dom";
 import { ComposerContextButton } from "./composer-context-button";
+import { ApprovalModeControl } from "./approval-mode-control";
 import { BackendPicker } from "./backend-picker";
 import { ComposerRail } from "./composer-rail";
 import { ComposerToolbar } from "./composer-toolbar";
@@ -92,6 +95,9 @@ export function Composer({
   onBackendChange,
   sessionMode = "agent",
   onSessionModeChange,
+  approval,
+  onApprovalModeChange,
+  onRevokeApprovalGrants,
   metaHint,
   usage,
   contextUsage,
@@ -129,6 +135,9 @@ export function Composer({
   onBackendChange?: (backendId: string) => void;
   sessionMode?: SessionAgentMode;
   onSessionModeChange?: (mode: SessionAgentMode) => void;
+  approval?: SessionApprovalSnapshot;
+  onApprovalModeChange?: (mode: ApprovalMode) => void;
+  onRevokeApprovalGrants?: () => void;
   metaHint?: string;
   usage?: SessionUsageSummary;
   contextUsage?: ContextUsageSummary;
@@ -425,6 +434,15 @@ export function Composer({
       selectedBackendId={backendId}
       disabled={selectorsDisabled}
       onBackendChange={onBackendChange}
+    />
+  ) : null;
+
+  const approvalMode = approval && onApprovalModeChange ? (
+    <ApprovalModeControl
+      approval={approval}
+      disabled={selectorsDisabled}
+      onChange={onApprovalModeChange}
+      {...(onRevokeApprovalGrants ? { onRevokeAll: onRevokeApprovalGrants } : {})}
     />
   ) : null;
 
@@ -820,6 +838,7 @@ export function Composer({
           <>
             {backend}
             {mode}
+            {approvalMode}
             {queueControls}
           </>
         }

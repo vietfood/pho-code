@@ -229,6 +229,40 @@ describe("sandbox status mapping", () => {
     expect(workspaces.at(-1)).toBe(path.resolve(secondWorkspace));
     await sandbox.reset();
   });
+
+  test("per-call Full bypass leaves contained calls wrapped", async () => {
+    const { workspacePath } = await isolatedWorkspace();
+    let wraps = 0;
+    const sandbox = createAgentSandbox({
+      enabled: true,
+      workspacePath,
+      platform: "darwin",
+      sandboxExecPath: "/bin/sh",
+      rgPath: "/usr/bin/true",
+      engine: {
+        async initialize() {},
+        async wrapWithSandbox() {
+          wraps += 1;
+          return "printf wrapped";
+        },
+        async reset() {},
+      },
+    });
+    await sandbox.initialize();
+    const containedOutput = collectOutput();
+    await sandbox.bashOperations("contained").exec("printf original", workspacePath, {
+      onData: containedOutput.onData,
+    });
+    const fullOutput = collectOutput();
+    await sandbox.bashOperations("full").exec("printf full", workspacePath, {
+      onData: fullOutput.onData,
+    });
+    expect(containedOutput.text()).toBe("wrapped");
+    expect(fullOutput.text()).toBe("full");
+    expect(wraps).toBe(1);
+    expect(sandbox.snapshot().enabled).toBe(true);
+    await sandbox.reset();
+  });
 });
 
 const describeMac = process.platform === "darwin" ? describe : describe.skip;

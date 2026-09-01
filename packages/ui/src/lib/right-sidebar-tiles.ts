@@ -1,6 +1,6 @@
 import { readStoredValue, writeStoredValue } from "./storage";
 
-export const RIGHT_SIDEBAR_SURFACES = ["changes", "context-prompt", "plan"] as const;
+export const RIGHT_SIDEBAR_SURFACES = ["changes", "context-prompt", "plan", "task"] as const;
 export type RightSidebarSurface = (typeof RIGHT_SIDEBAR_SURFACES)[number];
 
 export const MAX_VISIBLE_TILES = 2;

@@ -1,4 +1,5 @@
 import type { AgentToolKind } from "@pho-agent/protocol";
+import type { SessionApprovalSnapshot } from "./approval-modes";
 import type { ImageMimeType } from "./attachments";
 import type { ChangeReviewSetSummary } from "./change-review";
 import type { SessionCompactionState, TranscriptCompactionBoundary } from "./compaction";
@@ -7,6 +8,7 @@ import type { HarnessError } from "./errors";
 import type { SessionPlanSnapshot } from "./plan-agent";
 import type { FeatureSnapshot } from "./resources";
 import type { WorkspaceReferenceToken } from "./retrieval";
+import type { AgentTaskSnapshot } from "./task";
 import type { ModelSummary, SessionSummary, ThinkingLevel, WorkspaceSummary } from "./workspace";
 
 export type TranscriptRole = "user" | "assistant";
@@ -171,6 +173,10 @@ export interface SessionSnapshot {
   plan?: SessionPlanSnapshot;
   /** Bounded per-run write/edit review summaries for this chat. Diff bodies are fetched on demand. */
   changeReviews?: ChangeReviewSetSummary[];
+  /** Approval-mode state is authoritative when present; older snapshots normalize to Ask in the renderer. */
+  approval?: SessionApprovalSnapshot;
+  /** V5 living brief, bounded evidence, verification ledger, and completion assessment. */
+  task?: AgentTaskSnapshot;
 }
 
 export interface PromptAdmission {

@@ -1,4 +1,5 @@
 import { emptyGitHubMcpSettingsSnapshot, type GitHubMcpSettingsSnapshot } from "./github-mcp";
+import type { ApprovalModeSettingsSnapshot } from "./approval-modes";
 import { emptySandboxSettingsSnapshot, type SandboxSettingsSnapshot } from "./sandbox";
 import { emptySkillSettingsSnapshot, type SkillSettingsSnapshot } from "./skills";
 
@@ -82,6 +83,8 @@ export interface HarnessSettingsSnapshot {
   skills: SkillSettingsSnapshot;
   githubMcp: GitHubMcpSettingsSnapshot;
   sandbox: SandboxSettingsSnapshot;
+  /** Typed owner path. Legacy permission remains for compatibility and migration diagnostics. */
+  approvalModes?: ApprovalModeSettingsSnapshot;
 }
 
 export interface UpdateAppearanceSettingsInput {

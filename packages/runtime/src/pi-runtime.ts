@@ -22,9 +22,29 @@ import {
   listAgentSessions,
   openAgentSessionRuntime,
   registerAgentTestProvider,
+  acceptCompletionGaps,
+  appendCompletionAssessment,
+  appendTaskBrief,
+  appendVerificationRecord,
+  createCommandVerificationAdapter,
+  createTaskFeature,
+  projectAgentTask,
+  reopenTaskBrief,
+  resetTaskBrief,
 } from "@pho-agent/runtime";
 import type { FauxProviderHandle } from "@pho-agent/runtime/feature-api";
 import { createCompactionController, type CompactionController } from "@pho-agent/runtime/compaction-controller";
+import {
+  ApprovalController,
+  type ApprovalDecisionRecord,
+  type ApprovalResolver,
+  type ApprovalReviewRequest,
+} from "@pho-agent/runtime/approval-controller";
+import { ApprovalBroker } from "@pho-agent/runtime/approval-feature";
+import {
+  createApprovalReviewerPool,
+  createSessionApprovalReviewer,
+} from "@pho-agent/runtime/approval-reviewer";
 import {
   CONTEXT_CONTINUITY_FEATURE_ID,
   ContextCutoverSignal,
@@ -124,6 +144,30 @@ import {
   planDocumentTooLarge,
   parseSandboxSettingsPatch,
   type PlanTodoItem,
+  isApprovalMode,
+  isApprovalRequestResolution,
+  type ApprovalDecisionHistoryPage,
+  type ApprovalModeSettingsSnapshot,
+  type ApprovalRequest,
+  type ApprovalReviewActivity,
+  type AuthorizeApprovalRetryInput,
+  type ListApprovalDecisionHistoryInput,
+  type MigrateLegacyPermissionSettingsInput,
+  type ResolveApprovalRequestInput,
+  type RevokeApprovalGrantInput,
+  type SessionApprovalSnapshot,
+  type SetSessionApprovalModeInput,
+  type TranscriptMessage,
+  type UpdateApprovalModeSettingsInput,
+  COMPLETE_TASK_TOOL_NAME,
+  UPDATE_TASK_BRIEF_TOOL_NAME,
+  boundedTaskText,
+  type AcceptTaskCompletionGapsInput,
+  type EvidenceCandidate,
+  type RecordOwnerVerificationInput,
+  type ReopenTaskInput,
+  type ResetTaskBriefInput,
+  type UpdateTaskBriefInput,
 } from "@pho-code/protocol";
 import { createExtensionHost, type ExtensionHost } from "./extension-host";
 import { applyCursorSdkHarnessPolicy, cursorProviderHasOwnerCredentials, registerCursorProviderAccount } from "./cursor-sdk-policy";
@@ -155,6 +199,7 @@ import { createNodeModuleResourceLocator, type ResourceLocator } from "./resourc
 import { projectFeatureSnapshot } from "./resources";
 import {
   applyPermissionSettingsPatch,
+  globalPermissionConfigPath,
   readPermissionSettings,
   syncHarnessPermissionPolicy,
 } from "./permission-settings";
@@ -232,6 +277,18 @@ import { createPlanContextProjector, toolPromptSources } from "./runtime-plan-co
 import { createWorkspaceCatalogCache } from "./workspace-catalog-cache";
 import { createDisposeLatch } from "./dispose-latch";
 import { createSessionSelection } from "./session-selection";
+import {
+  approvalModeSettingsPath,
+  createApprovalModeSettingsStore,
+  projectApprovalModeSettings,
+} from "./approval-settings";
+import { createApprovalDecisionHistory } from "./approval-history";
+import { createPhoApprovalPolicy } from "./approval-policy";
+import {
+  createApprovalSandboxLookup,
+  createApprovalSessionBindings,
+  createPhoApprovalFeature,
+} from "./approval-runtime";
 
 export interface PhoCodeRuntimeOptions {
   agentDir?: string;
@@ -259,11 +316,24 @@ export interface PhoCodeRuntimeOptions {
   githubMcpLaunch?: (token: string) => { command: string; args: readonly string[] };
   secretStore?: SecretStore;
   rgPath?: string;
+  /** Enables the approval extension in deterministic tests, where legacy tests keep it off by default. */
+  approvalModes?: boolean;
+  /** Deterministic reviewer seam; production falls back to an owner request when absent. */
+  approvalReviewer?: ApprovalResolver;
 }
 
 // Stop must return the chat to Send even when Pi ignores the abort signal.
 // The value is recorded in docs/urgent/agent-stop/logs/2026-08-19-m1-bounded-stop.md.
 const ABORT_IDLE_DEADLINE_MS = 1_000;
+const APPROVAL_REVIEW_TIMEOUT_MS = 20_000;
+const APPROVAL_REVIEW_SYSTEM_PROMPT = [
+  "You are Pho Code's isolated automatic permission reviewer.",
+  "Review only the frozen action and policy supplied by the host.",
+  "Return exactly one JSON object with version 1, outcome, and a non-empty rationale.",
+  'outcome must be "allow-once", "deny", "require-owner", or "unavailable".',
+  "Require the owner for credentials, private data, production, publishing, payments, IAM, persistence, or ambiguous intent.",
+  "Do not return Markdown, commands, or extra fields.",
+].join(" ");
 
 // Resolves true when Pi idled within the deadline; false when the deadline
 // fired or abort threw (the session state is then unknown and recovered by
@@ -309,6 +379,18 @@ interface LiveSession {
    * against a stale request firing on a rebound session.
    */
   pendingCutover?: { generation: number };
+  approval: LiveApproval;
+}
+
+interface LiveApproval {
+  controller: ApprovalController;
+  broker: ApprovalBroker;
+  unregister: () => void;
+  pending?: {
+    request: ApprovalRequest;
+    settle: (decision: unknown) => void;
+  };
+  activity?: ApprovalReviewActivity;
 }
 
 function liveSessionProtected(session: LiveSession): boolean {
@@ -343,7 +425,12 @@ export async function createPhoCodeRuntime(
     process.env.PI_CODING_AGENT_DIR = path.resolve(options.agentDir);
   }
   const agentDir = path.resolve(options.agentDir ?? getAgentDir());
-  syncHarnessPermissionPolicy(agentDir);
+  const approvalModesEnabled = options.approvalModes ?? options.deterministicTestModel !== true;
+  let fullAccessAcknowledgedThisProcess = false;
+  const approvalReviewerPool = createApprovalReviewerPool(2);
+  syncHarnessPermissionPolicy(agentDir, {
+    appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
+  });
   const projectTrust = createProjectTrust({
     store: createAgentProjectTrustStore(agentDir),
     requiresTrust: agentProjectRequiresTrust,
@@ -392,6 +479,9 @@ export async function createPhoCodeRuntime(
     ...(options.resourcesRoot ? { resourcesRoot: options.resourcesRoot } : {}),
     ...(options.rgPath ? { rgPath: options.rgPath } : {}),
   });
+  const approvalSettings = createApprovalModeSettingsStore(options.applicationDataDir ?? agentDir);
+  const approvalHistory = createApprovalDecisionHistory(options.applicationDataDir ?? agentDir);
+  const approvalBindings = createApprovalSessionBindings();
   const cutoverSignal = options.contextCutoverSignal ?? new ContextCutoverSignal();
   const baseManifest = withTestHostUi(
     options.featureManifest ??
@@ -416,9 +506,72 @@ export async function createPhoCodeRuntime(
     resolveScope: () => undefined,
   };
   const changeCaptureFeature = createChangeCaptureFeature(changeCaptureHost);
+  const taskFeature = createTaskFeature({
+    evidenceProviders: [
+      {
+        id: "pho-code-session-verification",
+        async collect(request) {
+          const live = registry.list().find(
+            (candidate) =>
+              candidate.key.workspaceId === request.key.scopeId &&
+              candidate.key.sessionId === request.key.sessionId,
+          );
+          if (!live) return [];
+          const task = projectAgentTask(
+            live.runtime.session.sessionManager.getBranch(),
+            { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+          );
+          const failures = task.verification.records
+            .filter((record) => record.outcome === "failed" && record.freshness === "current")
+            .slice(-8);
+          if (failures.length === 0) return [];
+          const candidate: EvidenceCandidate = {
+            id: `verification-failures:${request.key.sessionId}`,
+            providerId: "pho-code-session-verification",
+            sourceId: "verification-failures",
+            title: "Current failed verification",
+            content: failures.map((record) => `- ${record.summary}`).join("\n"),
+            relevance: 0.9,
+            freshness: "current",
+            contentHash: "computed-by-core",
+            sensitivity: "ordinary",
+          };
+          return [candidate];
+        },
+      },
+    ],
+    verificationAdapters: [createCommandVerificationAdapter()],
+    resolveRun({ cwd, sessionId }) {
+      const live = registry.list().find(
+        (candidate) => candidate.workspace.path === cwd && candidate.key.sessionId === sessionId,
+      );
+      return live?.activeRun && !live.activeRun.settled
+        ? {
+            key: { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+            runId: live.activeRun.runId,
+          }
+        : undefined;
+    },
+    async onChanged(key) {
+      const live = registry.get({ workspaceId: key.scopeId, sessionId: key.sessionId });
+      if (live && !live.disposing) {
+        emitSessionSnapshot(live, await buildSnapshot({ refreshCatalog: false, live }));
+      }
+    },
+  });
   const featureManifest = {
     features: [
-      createSandboxFeature(sandbox),
+      ...(approvalModesEnabled
+        ? [
+            createPhoApprovalFeature(approvalBindings, {
+              delegatePermissionAsks: () => !legacyApprovalCompatibility(),
+            }),
+          ]
+        : []),
+      createSandboxFeature(
+        sandbox,
+        approvalModesEnabled ? createApprovalSandboxLookup(approvalBindings) : undefined,
+      ),
       ...(options.deterministicTestModel
         ? baseManifest.features.filter(
             (feature) => feature.id !== CONTEXT_PROMPT_FEATURE_ID && feature.id !== SANDBOX_FEATURE_ID,
@@ -436,6 +589,7 @@ export async function createPhoCodeRuntime(
           ]),
       contextPromptFeature,
       changeCaptureFeature,
+      taskFeature,
     ],
   };
   const compositionDiagnostics = [
@@ -446,6 +600,9 @@ export async function createPhoCodeRuntime(
     ...(featureManifest.features.some((feature) => feature.id === TRASH_FEATURE_ID) ? trashFacilityDiagnostics() : []),
     ...(featureManifest.features.some((feature) => feature.id === RETRIEVAL_FEATURE_ID) ? retrieval.diagnostics() : []),
   ];
+  const permissionPackageLoaded = featureManifest.features.some(
+    (feature) => feature.id === PERMISSION_FEATURE_ID,
+  );
   const flattenedFeatures = flattenFeatureManifest(featureManifest);
   const modelRuntime = await createAgentModelRuntime(agentDir);
 
@@ -525,6 +682,16 @@ export async function createPhoCodeRuntime(
     sandboxStatus: () => sandbox.snapshot().status,
     isSelected: (session) => selection.current === session,
     listSessions: () => registry.list(),
+    requiresAttention: (session) =>
+      session.approval.pending !== undefined ||
+      session.approval.controller.snapshot().circuitOpen ||
+      session.approval.activity?.outcome === "unavailable",
+    toolRunsSandboxed: (session, toolName, callId) => {
+      if (toolName !== "bash" || sandbox.snapshot().status !== "healthy") return false;
+      const disposition = session.approval.broker.dispositionFor(callId);
+      return !disposition ||
+        (disposition.authorized && disposition.mode !== "full" && disposition.source === "policy");
+    },
   });
   const { emitActivity, emitFor, emitFullSnapshot, emitSessionSnapshot, rememberSandboxedBashCall, toolEventPayload } =
     projection;
@@ -579,13 +746,14 @@ export async function createPhoCodeRuntime(
     const scopeId = scopeAdapter.registerWorkspace(canonicalWorkspace, canonicalWorkspace);
     const { runtimeDirectory: cwd } = await scopeAdapter.resolve(scopeId);
     await ensureSandboxInitialized(cwd);
+    syncApprovalPermissionPolicy();
     const workspace = workspaceSummary(cwd);
     const next = sessionId
       ? await openPiRuntime(cwd, sessionId)
       : await createNewAgentSessionRuntime(createRuntime, { cwd, agentDir });
     const key: SessionKey = { workspaceId: cwd, sessionId: next.session.sessionId };
     generation += 1;
-    const live: LiveSession = {
+    const live = {
       key,
       runtime: next,
       workspace,
@@ -596,13 +764,19 @@ export async function createPhoCodeRuntime(
       selectedAt: Date.now(),
       disposing: false,
       planTodos: [],
-    };
+    } as unknown as LiveSession;
+    live.approval = createLiveApproval(live);
     reportDiagnostics(next.diagnostics);
     next.setBeforeSessionInvalidate(() => {
       live.unsubscribe?.();
       live.unsubscribe = undefined;
     });
     next.setRebindSession(async () => {
+      live.approval.broker.clearAll();
+      live.approval.controller.revokeAll();
+      if (live.approval.controller.snapshot().mode === "full" && !live.approval.controller.activeRunId()) {
+        live.approval.controller.setMode("ask");
+      }
       live.compaction.reset();
       live.pendingCutover = undefined;
       cutoverSignal.drop(cutoverKeyOf(live));
@@ -616,6 +790,304 @@ export async function createPhoCodeRuntime(
     await ensureSessionModelIsSelectable(live);
     await retrieval.bind(cwd);
     return live;
+  }
+
+  function createLiveApproval(live: LiveSession): LiveApproval {
+    const policy = createCurrentApprovalPolicy();
+    const desiredDefault = approvalSettings.current.defaultMode;
+    const initialMode =
+      approvalModesEnabled && desiredDefault === "auto" && approvalSettings.current.autoEnabled && reviewerAvailable(live)
+        ? "auto"
+        : "ask";
+    const reviewer = options.approvalReviewer ?? createPiApprovalReviewer(live);
+    const controller = new ApprovalController({
+      key: { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+      mode: initialMode,
+      policy,
+      ownerResolver: (request, signal) => resolveOwnerApproval(live, request, signal),
+      autoReviewer: (review, signal) => resolveAutomaticApproval(live, reviewer, review, signal),
+      onDecision: (record) => {
+        projectApprovalDecisionActivity(live, record);
+        if (record.outcome === "allow-session") emitApprovalGrantChanged(live);
+        recordApprovalDecision(live, record);
+      },
+    });
+    const broker = new ApprovalBroker(controller);
+    const liveApproval: LiveApproval = {
+      controller,
+      broker,
+      unregister: () => undefined,
+    };
+    liveApproval.unregister = approvalBindings.register(live.workspace.path, live.key.sessionId, {
+      broker,
+      runIdentity: () => ({
+        ...(live.activeRun ? { runId: live.activeRun.runId } : {}),
+      }),
+    });
+    return liveApproval;
+  }
+
+  function createCurrentApprovalPolicy() {
+    return createPhoApprovalPolicy({
+      sandbox,
+      protectedControlPaths: [
+        agentDir,
+        path.resolve(options.applicationDataDir ?? agentDir),
+        globalPermissionConfigPath(agentDir),
+        sandboxSettingsPath(sandboxDataDir),
+        approvalModeSettingsPath(options.applicationDataDir ?? agentDir),
+        path.join(options.applicationDataDir ?? agentDir, "approval-decisions"),
+      ],
+      legacyCompatibility: legacyApprovalCompatibility,
+    });
+  }
+
+  function advanceApprovalPolicyGeneration(): void {
+    for (const live of registry.list()) {
+      live.approval.broker.clearAll();
+      live.approval.controller.replacePolicy(createCurrentApprovalPolicy());
+    }
+  }
+
+  function createPiApprovalReviewer(live: LiveSession): ApprovalResolver {
+    return createSessionApprovalReviewer(
+      () => live.runtime.session,
+      {
+        systemPrompt: APPROVAL_REVIEW_SYSTEM_PROMPT,
+        timeoutMs: APPROVAL_REVIEW_TIMEOUT_MS,
+        modelFor: () => selectApprovalReviewerModel(live),
+        buildPrompt(review) {
+          return JSON.stringify({
+            version: 1,
+            mode: review.mode,
+            policy: review.policy,
+            action: review.action,
+            ownerRetry: review.ownerRetry,
+            evidence: approvalReviewerEvidence(live),
+          });
+        },
+      },
+    );
+  }
+
+  function approvalReviewerEvidence(live: LiveSession) {
+    const messages = projectSessionMessages(live.runtime.session);
+    const ownerMessages = messages
+      .filter((message) => message.role === "user")
+      .map((message) => transcriptEvidenceText(message.blocks))
+      .filter((text): text is string => Boolean(text));
+    const directOwnerIntent = [ownerMessages[0], ownerMessages.at(-1)]
+      .filter((text, index, values): text is string => Boolean(text) && values.indexOf(text) === index)
+      .map((text) => ({ provenance: "direct-owner" as const, text: text.slice(0, 2_000) }));
+    const recentUntrusted = messages.slice(-8).map((message) => ({
+      provenance: "untrusted-transcript" as const,
+      role: message.role,
+      text: transcriptEvidenceText(message.blocks).slice(0, 1_000),
+    })).filter((item) => item.text !== "");
+    const priorDecisions = approvalHistory.list({ limit: 100 }).entries
+      .filter((entry) => entry.workspaceId === live.key.workspaceId && entry.sessionId === live.key.sessionId)
+      .slice(0, 10)
+      .map((entry) => ({
+        provenance: "local-decision-metadata" as const,
+        mode: entry.mode,
+        outcome: entry.outcome,
+        source: entry.source,
+        ruleId: entry.ruleId,
+        toolName: entry.toolName,
+      }));
+    return { directOwnerIntent, recentUntrusted, priorDecisions };
+  }
+
+  function transcriptEvidenceText(blocks: TranscriptMessage["blocks"]): string {
+    return blocks.map((block) => {
+      if (block.type === "text") return block.text;
+      if (block.type === "tool") return `[tool ${block.name}: ${block.status}]`;
+      if (block.type === "image") return `[owner image: ${block.name}]`;
+      return "";
+    }).filter(Boolean).join("\n").slice(0, 4_000);
+  }
+
+  async function resolveAutomaticApproval(
+    live: LiveSession,
+    reviewer: ApprovalResolver,
+    review: ApprovalReviewRequest,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    live.approval.activity = { requestId: review.action.requestId, state: "reviewing" };
+    emitApprovalReviewChanged(live);
+    try {
+      return await approvalReviewerPool.run(
+        () => Promise.resolve(reviewer(review, signal)),
+        signal,
+      );
+    } catch (error) {
+      if (!signal.aborted) {
+        live.approval.activity = {
+          requestId: review.action.requestId,
+          state: "settled",
+          outcome: "unavailable",
+          rationale: error instanceof Error ? error.message.slice(0, 4_000) : "Reviewer unavailable.",
+        };
+        emitApprovalReviewChanged(live);
+      }
+      throw error;
+    }
+  }
+
+  function selectApprovalReviewerModel(_live: LiveSession) {
+    const configured = approvalSettings.current.reviewer;
+    // Automatic selection remains fail-closed until release evaluation names a
+    // default. An explicitly owner-selected authenticated model is eligible so
+    // the provider-backed acceptance lane can be run without a source edit.
+    if (configured.selection !== "model") return undefined;
+    const candidate = modelRuntime.getModel(configured.providerId, configured.modelId);
+    if (!candidate) return undefined;
+    return modelRuntime.getAvailableSnapshot().some(
+      (model) => model.provider === candidate.provider && model.id === candidate.id,
+    ) ? candidate : undefined;
+  }
+
+  function resolveOwnerApproval(
+    live: LiveSession,
+    review: ApprovalReviewRequest,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    if (live.approval.pending) {
+      return Promise.resolve({ outcome: "unavailable", rationale: "Another owner approval is already pending." });
+    }
+    const request = projectOwnerApprovalRequest(live, review);
+    if (review.mode === "auto") {
+      live.approval.activity = {
+        requestId: review.action.requestId,
+        state: "settled",
+        outcome: "owner-required",
+        ...(review.policy.rationale ? { rationale: review.policy.rationale } : {}),
+      };
+      emitApprovalReviewChanged(live);
+    }
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        if (live.approval.pending?.request.requestId === request.requestId) {
+          live.approval.pending = undefined;
+          emitApprovalRequestSettled(live, request.requestId);
+        }
+        const error = new Error("Approval cancelled.");
+        error.name = "AbortError";
+        reject(error);
+      };
+      signal.addEventListener("abort", abort, { once: true });
+      live.approval.pending = {
+        request,
+        settle(decision) {
+          signal.removeEventListener("abort", abort);
+          live.approval.pending = undefined;
+          emitApprovalRequestSettled(live, request.requestId);
+          resolve(decision);
+        },
+      };
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.approvalRequest,
+        sessionId: live.key.sessionId,
+        runId: review.action.runId,
+        payload: request,
+      });
+      emitActivity();
+    });
+  }
+
+  function projectOwnerApprovalRequest(live: LiveSession, review: ApprovalReviewRequest): ApprovalRequest {
+    const target = approvalTarget(review.action.toolName, review.action.input);
+    const summary = review.action.summary ?? approvalInputSummary(review.action.inputCanonical);
+    return {
+      workspaceId: live.key.workspaceId,
+      sessionId: live.key.sessionId,
+      requestId: review.action.requestId,
+      runId: review.action.runId,
+      action: {
+        title: `${review.action.toolName} requires additional access`,
+        summary,
+        exactInput: review.action.inputCanonical,
+        ...(target ? { target } : {}),
+      },
+      ...(review.policy.rationale ? { reason: review.policy.rationale } : {}),
+      source: review.mode === "auto" ? "automatic-review" : "owner",
+    };
+  }
+
+  function emitApprovalRequestSettled(live: LiveSession, requestId: string): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.approvalRequestSettled,
+      sessionId: live.key.sessionId,
+      payload: { workspaceId: live.key.workspaceId, sessionId: live.key.sessionId, requestId },
+    });
+    emitActivity();
+  }
+
+  function emitApprovalReviewChanged(live: LiveSession): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.approvalReviewChanged,
+      sessionId: live.key.sessionId,
+      payload: projectSessionApproval(live),
+    });
+    emitActivity();
+  }
+
+  function emitApprovalGrantChanged(live: LiveSession): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.approvalGrantChanged,
+      sessionId: live.key.sessionId,
+      payload: projectSessionApproval(live),
+    });
+  }
+
+  function emitFullAccessReset(live: LiveSession): void {
+    emitFor(live, {
+      type: RUNTIME_EVENT_TYPES.fullAccessReset,
+      sessionId: live.key.sessionId,
+      payload: projectSessionApproval(live),
+    });
+  }
+
+  function projectApprovalDecisionActivity(live: LiveSession, record: ApprovalDecisionRecord): void {
+    if (record.source === "reviewer") {
+      live.approval.activity = {
+        requestId: record.requestId,
+        state: "settled",
+        outcome: record.outcome === "allow-once" ? "approved" : "blocked",
+        ...(record.rationale ? { rationale: record.rationale } : {}),
+      };
+      emitApprovalReviewChanged(live);
+      return;
+    }
+    if (record.source === "owner" && live.approval.activity?.requestId === record.requestId) {
+      live.approval.activity = undefined;
+      emitApprovalReviewChanged(live);
+    }
+  }
+
+  function recordApprovalDecision(live: LiveSession, record: ApprovalDecisionRecord): void {
+    if (!approvalSettings.current.decisionHistoryEnabled) return;
+    approvalHistory.append({
+      id: randomUUID(),
+      occurredAt: record.occurredAt,
+      backendId: "pi",
+      workspaceId: live.key.workspaceId,
+      sessionId: live.key.sessionId,
+      runId: record.runId,
+      mode: record.mode,
+      outcome: historyOutcome(record.outcome),
+      source: record.source,
+      ruleId: record.policyRuleId,
+      toolName: record.toolName,
+      ...(record.source === "reviewer" && approvalReviewerModelId(live)
+        ? { reviewerModelId: approvalReviewerModelId(live) }
+        : {}),
+      action: {
+        title: record.toolName,
+        summary: `${record.toolName} decision (${record.policyRuleId}).`,
+      },
+      ...(record.rationale ? { rationale: record.rationale } : {}),
+    });
   }
 
   async function openPiRuntime(cwd: string, sessionId: string): Promise<AgentSessionRuntime> {
@@ -657,6 +1129,10 @@ export async function createPhoCodeRuntime(
     }
     session.unsubscribe?.();
     session.unsubscribe = undefined;
+    session.approval.pending = undefined;
+    session.approval.broker.clearAll();
+    session.approval.controller.dispose();
+    session.approval.unregister();
     cutoverSignal.drop(cutoverKeyOf(session));
     compiledPrompts.forget(sessionKeyId(session.key));
     session.extensionHost?.dispose();
@@ -859,6 +1335,11 @@ export async function createPhoCodeRuntime(
       changeReviews: (await changeCapture.listSessionReviews(workspace.id, session.sessionId)).slice(
         -MAX_CHANGE_REVIEWS_ON_SNAPSHOT,
       ),
+      approval: projectSessionApproval(live),
+      task: projectAgentTask(session.sessionManager.getBranch(), {
+        scopeId: live.key.workspaceId,
+        sessionId: live.key.sessionId,
+      }),
       ...(contextUsage ? { contextUsage } : {}),
     };
     if (model) {
@@ -880,6 +1361,42 @@ export async function createPhoCodeRuntime(
       };
     }
     return snapshot;
+  }
+
+  function projectSessionApproval(live: LiveSession): SessionApprovalSnapshot {
+    const state = live.approval.controller.snapshot();
+    const supportedModes: SessionApprovalSnapshot["supportedModes"] = [
+      { mode: "ask", owner: "pho", support: "native" },
+    ];
+    if (approvalModesEnabled && approvalSettings.current.autoEnabled && reviewerAvailable(live)) {
+      supportedModes.push({ mode: "auto", owner: "pho", support: "native" });
+    }
+    if (approvalModesEnabled && approvalSettings.current.fullAccessEnabled) {
+      supportedModes.push({ mode: "full", owner: "pho", support: "native" });
+    }
+    const pendingRequest = live.approval.pending?.request;
+    return {
+      configuredMode: state.mode,
+      effectiveMode: state.mode,
+      supportedModes,
+      containment: state.mode === "full" ? "full" : "contained",
+      reviewer: {
+        state: state.reviewerState,
+        ...(approvalReviewerModelId(live) ? { modelId: approvalReviewerModelId(live) } : {}),
+      },
+      ...(pendingRequest ? { pendingRequest } : {}),
+      ...(live.approval.activity ? { activity: live.approval.activity } : {}),
+      activeSessionGrants: state.activeGrantCount,
+      fullAccess: {
+        enabled: approvalSettings.current.fullAccessEnabled,
+        active: state.mode === "full",
+        acknowledgedThisProcess: fullAccessAcknowledgedThisProcess,
+      },
+      policyGeneration: state.policyGeneration,
+      ...(legacyApprovalCompatibility()
+        ? { fallbackReason: "Legacy Custom permission policy remains Ask-only until explicit migration." }
+        : {}),
+    };
   }
 
   function resourceLoaderOptions() {
@@ -1091,7 +1608,7 @@ export async function createPhoCodeRuntime(
           type: RUNTIME_EVENT_TYPES.toolEvent,
           sessionId,
           runId,
-          payload: toolEventPayload(runId, event, "running", previewUnknown(event.args), ""),
+          payload: toolEventPayload(live, runId, event, "running", previewUnknown(event.args), ""),
         });
         if (event.toolName === TODO_TOOL_NAME && planContext.rememberTodos(live, todosFromToolArgs(event.args))) {
           await emitSessionPlanSnapshot(live, sessionId, runId);
@@ -1106,6 +1623,7 @@ export async function createPhoCodeRuntime(
           sessionId,
           runId,
           payload: toolEventPayload(
+            live,
             runId,
             event,
             "running",
@@ -1123,6 +1641,7 @@ export async function createPhoCodeRuntime(
           sessionId,
           runId,
           payload: toolEventPayload(
+            live,
             runId,
             event,
             event.isError ? "failed" : "completed",
@@ -1260,6 +1779,9 @@ export async function createPhoCodeRuntime(
     }
     run.settled = true;
     live.activeRun = undefined;
+    if (live.approval.controller.activeRunId() === run.runId) {
+      live.approval.controller.endRun(run.runId);
+    }
     try {
       await changeCapture.reconcileInterrupted({
         workspaceId: live.key.workspaceId,
@@ -1409,6 +1931,8 @@ export async function createPhoCodeRuntime(
               ASK_USER_QUESTION_TOOL_NAME,
               UPDATE_PLAN_DOCUMENT_TOOL_NAME,
               TODO_TOOL_NAME,
+              UPDATE_TASK_BRIEF_TOOL_NAME,
+              COMPLETE_TASK_TOOL_NAME,
               "read",
               "write",
               "edit",
@@ -1655,6 +2179,8 @@ export async function createPhoCodeRuntime(
       }
 
       const run = createActiveRun(live);
+      live.approval.activity = undefined;
+      live.approval.controller.beginRun(run.runId);
       const runId = run.runId;
       let admitted = false;
       let resolvePreflight: (value: boolean) => void = () => undefined;
@@ -1683,6 +2209,9 @@ export async function createPhoCodeRuntime(
       admitted = await preflight;
       if (!admitted) {
         await promptDone.catch(() => undefined);
+        if (live.approval.controller.activeRunId() === run.runId) {
+          live.approval.controller.endRun(run.runId);
+        }
         failCommand("sendPrompt", "The prompt was rejected before admission.", HARNESS_ERROR_CODES.promptRejected, { sessionId: session.sessionId, runId });
       }
       forgetPreparedImages(live, input.imageIds);
@@ -1845,6 +2374,51 @@ export async function createPhoCodeRuntime(
       planContext.applyToolPolicy(live);
       return publishSnapshot(live);
     },
+    async setSessionApprovalMode(input: SetSessionApprovalModeInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "setSessionApprovalMode");
+      refuseIfBusy(live, "setSessionApprovalMode", "Wait for the current run to finish before changing approval mode.");
+      if (!isApprovalMode(input.mode)) failCommand("setSessionApprovalMode", "Unknown approval mode.");
+      if (!approvalModesEnabled && input.mode !== "ask") {
+        failCommand("setSessionApprovalMode", "Approval modes are unavailable in this runtime composition.");
+      }
+      if (legacyApprovalCompatibility() && input.mode !== "ask") {
+        failCommand("setSessionApprovalMode", "Migrate the legacy Custom permission policy before enabling another mode.");
+      }
+      if (input.mode === "auto" && (!approvalSettings.current.autoEnabled || !reviewerAvailable(live))) {
+        failCommand("setSessionApprovalMode", "Approve for me requires an enabled compatible reviewer.");
+      }
+      const previousApproval = live.approval.controller.snapshot();
+      const firstProcessAcknowledgement =
+        input.mode === "full" && !fullAccessAcknowledgedThisProcess && input.acknowledgeFullRisk === true;
+      if (input.mode === "full") {
+        if (
+          !approvalSettings.current.fullAccessEnabled ||
+          (!fullAccessAcknowledgedThisProcess && input.acknowledgeFullRisk !== true)
+        ) {
+          failCommand("setSessionApprovalMode", "Full access requires Settings enablement and explicit risk acknowledgement.");
+        }
+        fullAccessAcknowledgedThisProcess = true;
+      }
+      live.approval.broker.clearAll();
+      live.approval.controller.setMode(input.mode);
+      const snapshot = await publishSnapshot(live);
+      emitFor(live, {
+        type: RUNTIME_EVENT_TYPES.approvalModeChanged,
+        sessionId: live.key.sessionId,
+        payload: snapshot.approval!,
+      });
+      if (previousApproval.activeGrantCount > 0) emitApprovalGrantChanged(live);
+      if (previousApproval.mode === "full" && input.mode !== "full") emitFullAccessReset(live);
+      if (firstProcessAcknowledgement) {
+        for (const other of registry.list()) {
+          if (other !== live) {
+            emitSessionSnapshot(other, await buildSnapshot({ refreshCatalog: false, live: other }));
+          }
+        }
+      }
+      return snapshot;
+    },
     async updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput) {
       assertNotDisposed();
       const live = locateController(input.sessionId, input.workspaceId, "updateSessionPlanDocument");
@@ -1883,6 +2457,8 @@ export async function createPhoCodeRuntime(
       let run: ActiveRun;
       try {
         run = createActiveRun(live);
+        live.approval.activity = undefined;
+        live.approval.controller.beginRun(run.runId);
         watchPromptDone(
           live,
           run,
@@ -1898,11 +2474,94 @@ export async function createPhoCodeRuntime(
           ),
         );
       } catch (error) {
+        const approvalRunId = live.approval.controller.activeRunId();
+        if (approvalRunId) live.approval.controller.endRun(approvalRunId);
         planContext.persistPlanAgent(live, { mode: current.mode, executing: false });
         planContext.applyToolPolicy(live);
         throw error;
       }
       return publishAdmittedRun(live, run);
+    },
+    async updateTaskBrief(input: UpdateTaskBriefInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "updateTaskBrief");
+      refuseIfBusy(live, "updateTaskBrief", "Wait for the current run to finish before editing the Task Brief.");
+      appendTaskBrief(
+        live.runtime.session.sessionManager,
+        { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+        input.content,
+        {
+          id: randomUUID,
+          now: () => new Date().toISOString(),
+          updatedBy: "owner",
+          status: input.status ?? "active",
+          ...(input.expectedRevision ? { expectedRevision: input.expectedRevision } : {}),
+        },
+      );
+      return publishSnapshot(live);
+    },
+    async resetTaskBrief(input: ResetTaskBriefInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "resetTaskBrief");
+      refuseIfBusy(live, "resetTaskBrief", "Wait for the current run to finish before resetting the Task Brief.");
+      resetTaskBrief(
+        live.runtime.session.sessionManager,
+        { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+        input.expectedRevision,
+      );
+      return publishSnapshot(live);
+    },
+    async reopenTask(input: ReopenTaskInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "reopenTask");
+      refuseIfBusy(live, "reopenTask", "Wait for the current run to finish before reopening the task.");
+      reopenTaskBrief(
+        live.runtime.session.sessionManager,
+        { scopeId: live.key.workspaceId, sessionId: live.key.sessionId },
+        { id: randomUUID, now: () => new Date().toISOString() },
+      );
+      return publishSnapshot(live);
+    },
+    async recordOwnerVerification(input: RecordOwnerVerificationInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "recordOwnerVerification");
+      refuseIfBusy(
+        live,
+        "recordOwnerVerification",
+        "Wait for the current run to finish before recording owner verification.",
+      );
+      const key = { scopeId: live.key.workspaceId, sessionId: live.key.sessionId };
+      const task = projectAgentTask(live.runtime.session.sessionManager.getBranch(), key);
+      if (input.criterionId && !task.brief?.acceptanceCriteria.some((criterion) => criterion.id === input.criterionId)) {
+        failCommand("recordOwnerVerification", "Owner verification references an unknown Task Brief criterion.");
+      }
+      appendVerificationRecord(live.runtime.session.sessionManager, key, {
+        id: randomUUID(),
+        sourceAdapterId: "owner",
+        ...(input.criterionId ? { criterionId: input.criterionId } : {}),
+        outcome: input.outcome,
+        summary: boundedTaskText(input.summary, "Owner verification summary"),
+        freshness: "current",
+        observedAt: new Date().toISOString(),
+      });
+      return publishSnapshot(live);
+    },
+    async acceptTaskCompletionGaps(input: AcceptTaskCompletionGapsInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "acceptTaskCompletionGaps");
+      refuseIfBusy(
+        live,
+        "acceptTaskCompletionGaps",
+        "Wait for the current run to finish before accepting completion gaps.",
+      );
+      const key = { scopeId: live.key.workspaceId, sessionId: live.key.sessionId };
+      const task = projectAgentTask(live.runtime.session.sessionManager.getBranch(), key);
+      appendCompletionAssessment(
+        live.runtime.session.sessionManager,
+        key,
+        acceptCompletionGaps(task.completion, new Date().toISOString()),
+      );
+      return publishSnapshot(live);
     },
     async rewriteAssistantOutput(input: RewriteAssistantOutputInput) {
       assertNotDisposed();
@@ -1995,6 +2654,109 @@ export async function createPhoCodeRuntime(
       assertNotDisposed();
       return currentPermissionSettings();
     },
+    getApprovalModeSettings() {
+      assertNotDisposed();
+      return currentApprovalModeSettings();
+    },
+    async updateApprovalModeSettings(input: UpdateApprovalModeSettingsInput) {
+      assertNotDisposed();
+      if (hasAnyActiveRun()) {
+        failCommand("updateApprovalModeSettings", "Wait for current runs to finish before changing approval settings.", HARNESS_ERROR_CODES.sessionBusy);
+      }
+      const priorApproval = new Map(
+        registry.list().map((live) => [live, live.approval.controller.snapshot()] as const),
+      );
+      approvalSettings.update(input);
+      advanceApprovalPolicyGeneration();
+      for (const live of registry.list()) {
+        const prior = priorApproval.get(live);
+        const mode = live.approval.controller.snapshot().mode;
+        if ((mode === "auto" && !approvalSettings.current.autoEnabled) ||
+            (mode === "full" && !approvalSettings.current.fullAccessEnabled)) {
+          live.approval.controller.setMode("ask");
+        }
+        emitSessionSnapshot(live, await buildSnapshot({ refreshCatalog: false, live }));
+        if (prior && prior.activeGrantCount > 0) emitApprovalGrantChanged(live);
+        if (prior?.mode === "full" && live.approval.controller.snapshot().mode !== "full") {
+          emitFullAccessReset(live);
+        }
+      }
+      return currentApprovalModeSettings();
+    },
+    async resolveApprovalRequest(input: ResolveApprovalRequestInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "resolveApprovalRequest");
+      const pending = live.approval.pending;
+      if (!pending || pending.request.requestId !== input.requestId || !isApprovalRequestResolution(input.resolution)) {
+        failCommand("resolveApprovalRequest", "That approval request is no longer pending.");
+      }
+      pending.settle({
+        outcome: input.resolution,
+        ...(input.reason ? { rationale: input.reason.slice(0, 4_000) } : {}),
+      });
+      return publishSnapshot(live);
+    },
+    async authorizeApprovalRetry(input: AuthorizeApprovalRetryInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "authorizeApprovalRetry");
+      if (!live.approval.controller.authorizeRetry(input.requestId)) {
+        failCommand("authorizeApprovalRetry", "That automatic denial is no longer eligible for an exact retry.");
+      }
+      if (live.approval.activity?.requestId === input.requestId) {
+        live.approval.activity = {
+          ...live.approval.activity,
+          retryArmed: true,
+          rationale: "The next matching tool call will be reviewed again.",
+        };
+        emitApprovalReviewChanged(live);
+      }
+      return publishSnapshot(live);
+    },
+    async revokeApprovalGrant(input: RevokeApprovalGrantInput) {
+      assertNotDisposed();
+      const live = locateController(input.sessionId, input.workspaceId, "revokeApprovalGrant");
+      if (input.all === true) live.approval.controller.revokeAll();
+      else if (!input.grantId || !live.approval.controller.revokeSessionGrant(input.grantId)) {
+        failCommand("revokeApprovalGrant", "That session grant is no longer active.");
+      }
+      const snapshot = await publishSnapshot(live);
+      emitApprovalGrantChanged(live);
+      return snapshot;
+    },
+    async migrateLegacyPermissionSettings(input: MigrateLegacyPermissionSettingsInput) {
+      assertNotDisposed();
+      if (hasAnyActiveRun()) {
+        failCommand("migrateLegacyPermissionSettings", "Wait for current runs to finish before migration.", HARNESS_ERROR_CODES.sessionBusy);
+      }
+      const permission = currentPermissionSettings();
+      if (permission.appliesToSharedPiAgentDir && input.acknowledgeSharedAgentDir !== true) {
+        failCommand("migrateLegacyPermissionSettings", "Acknowledge the shared Pi agent directory before migration.");
+      }
+      if (permission.profile === "custom" && input.acknowledgeCustom !== true) {
+        failCommand("migrateLegacyPermissionSettings", "Acknowledge replacement of the legacy Custom policy before migration.");
+      }
+      applyPermissionSettingsPatch({
+        agentDir,
+        appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
+        approvalControllerActive: false,
+        patch: { profile: permission.profile === "custom" ? "balanced" : permission.profile, yoloMode: false },
+      });
+      if (!sandboxSettings.current.enabled) sandboxSettings.apply({ enabled: true });
+      approvalSettings.markMigrationComplete();
+      syncHarnessPermissionPolicy(agentDir, {
+        approvalControllerActive: approvalModesEnabled && permissionPackageLoaded,
+        appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
+        acknowledgeSharedAgentDirMutation: input.acknowledgeSharedAgentDir === true,
+      });
+      await applyStoredSandboxToEngine(selection.activeWorkspacePath());
+      advanceApprovalPolicyGeneration();
+      await rebindIdleSandboxSessions();
+      return currentApprovalModeSettings();
+    },
+    async listApprovalDecisionHistory(input: ListApprovalDecisionHistoryInput = {}): Promise<ApprovalDecisionHistoryPage> {
+      assertNotDisposed();
+      return approvalHistory.list(input);
+    },
     async updatePermissionSettings(input: UpdatePermissionSettingsInput) {
       assertNotDisposed();
       if (hasAnyActiveRun()) {
@@ -2004,10 +2766,13 @@ export async function createPhoCodeRuntime(
       applyPermissionSettingsPatch({
         agentDir,
         appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
+        approvalControllerActive: false,
         patch: input,
         ...(permissionWorkspacePath ? { workspacePath: permissionWorkspacePath } : {}),
         yoloActive: registry.list().some((entry) => entry.extensionHost?.yoloActive === true),
       });
+      syncApprovalPermissionPolicy();
+      advanceApprovalPolicyGeneration();
       try {
         for (const live of registry.list()) {
           await live.runtime.session.reload();
@@ -2154,6 +2919,7 @@ export async function createPhoCodeRuntime(
       const workspacePath = selection.activeWorkspacePath();
       const live = await applyStoredSandboxToEngine(workspacePath);
       const snapshot = toSandboxSettingsSnapshot(sandboxSettings.current, live);
+      advanceApprovalPolicyGeneration();
       await rebindIdleSandboxSessions();
       return snapshot;
     },
@@ -2258,6 +3024,51 @@ export async function createPhoCodeRuntime(
 
   function currentSandboxSettings(): SandboxSettingsSnapshot {
     return toSandboxSettingsSnapshot(sandboxSettings.current, sandbox.snapshot());
+  }
+
+  function legacyApprovalCompatibility(): boolean {
+    if (approvalSettings.current.migrationComplete) return false;
+    const permission = currentPermissionSettings();
+    return permission.profile === "custom" || permission.appliesToSharedPiAgentDir;
+  }
+
+  function syncApprovalPermissionPolicy(): void {
+    syncHarnessPermissionPolicy(agentDir, {
+      approvalControllerActive:
+        approvalModesEnabled && permissionPackageLoaded && !legacyApprovalCompatibility(),
+      appliesToSharedPiAgentDir: options.appliesToSharedPiAgentDir === true,
+      acknowledgeSharedAgentDirMutation: approvalSettings.current.migrationComplete,
+    });
+  }
+
+  function reviewerAvailable(live?: LiveSession): boolean {
+    if (!approvalModesEnabled) return false;
+    if (options.approvalReviewer) return true;
+    if (!live) return false;
+    return approvalReviewerModelId(live) !== undefined;
+  }
+
+  function approvalReviewerModelId(live: LiveSession): string | undefined {
+    if (options.approvalReviewer) return "injected-reviewer";
+    const model = selectApprovalReviewerModel(live);
+    if (!model) return undefined;
+    return `${model.provider}/${model.id}`;
+  }
+
+  function currentApprovalModeSettings(): ApprovalModeSettingsSnapshot {
+    const live = selection.current;
+    const effectiveModelId = live ? approvalReviewerModelId(live) : undefined;
+    const available = approvalModesEnabled && Boolean(options.approvalReviewer || effectiveModelId);
+    return projectApprovalModeSettings({
+      stored: approvalSettings.current,
+      permission: currentPermissionSettings(),
+      sandbox: sandbox.snapshot(),
+      reviewer: {
+        available,
+        ...(effectiveModelId ? { effectiveModelId } : {}),
+        ...(!available ? { reason: "No compatible authenticated reviewer model is available." } : {}),
+      },
+    });
   }
 
   function assertNotDisposed(): void {
@@ -2430,6 +3241,33 @@ function previewQueueMessage(text: string): string {
     return compact;
   }
   return `${compact.slice(0, MAX_QUEUE_MESSAGE_PREVIEW)}…`;
+}
+
+function approvalInputSummary(canonical: string): string {
+  // The core already rejects inputs above its 128 KiB protocol bound. The owner
+  // dock must disclose that entire frozen input rather than a misleading preview.
+  return canonical;
+}
+
+function approvalTarget(
+  toolName: string,
+  input: unknown,
+): { label: string; value: string } | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const record = input as Record<string, unknown>;
+  const value = toolName === "bash" ? record.command : record.path;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return {
+    label: toolName === "bash" ? "Command" : "Path",
+    value,
+  };
+}
+
+function historyOutcome(
+  outcome: ApprovalDecisionRecord["outcome"],
+): "allow-once" | "allow-session" | "deny" | "require-owner" | "unavailable" | "cancelled" | "stale" {
+  if (outcome === "circuit-open") return "unavailable";
+  return outcome;
 }
 
 function restoreAgentDirEnv(previous: string | undefined, override: string | undefined): void {

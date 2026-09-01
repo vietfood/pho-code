@@ -81,9 +81,7 @@ test("settings persist palette mode glass and apply a managed permission profile
       await expect(page.getByTestId("appearance-mode-dark")).toHaveAttribute("aria-pressed", "true");
 
       await openSettingsSection(page, "permissions");
-      await page.getByTestId("permission-profile-guarded").check();
-      await page.getByTestId("settings-save").click();
-      await expect(page.getByTestId("settings-save")).toBeDisabled();
+      await expect(page.getByTestId("approval-default-ask")).toBeChecked();
       const theme = await first.electronApp.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
       expect(theme).toBe("dark");
       await page.getByTestId("settings-close").click();

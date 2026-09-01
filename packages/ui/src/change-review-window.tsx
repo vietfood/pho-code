@@ -152,7 +152,7 @@ export function ChangeReviewWindow({
         </span>
         {actionable.length > 1 && !review?.filesTruncated ? (
           <Button size="sm" className="ms-auto" data-testid="change-review-approve-all" disabled={busy} onClick={onApproveAll}>
-            Approve all
+            Mark all reviewed
           </Button>
         ) : null}
       </footer>
@@ -220,7 +220,7 @@ function FileSection({
           ) : null}
           {file.status === "pending" || file.status === "conflict" ? (
             <Button size="sm" data-testid="change-review-approve" disabled={busy} onClick={onApprove}>
-              Approve
+              Mark reviewed
             </Button>
           ) : null}
         </span>

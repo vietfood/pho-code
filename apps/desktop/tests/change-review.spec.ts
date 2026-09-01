@@ -10,7 +10,7 @@ import {
   removeTestDirectory,
 } from "./helpers/electron-app";
 
-test("edits a file, opens the review sheet, Approves, and preserves approved state after relaunch", async () => {
+test("edits a file, opens the review sheet, marks it reviewed, and preserves reviewed state after relaunch", async () => {
   const userDataDir = await makeUserDataDir();
   const agentDir = await makeAgentDir();
   const workspaceDir = await makeWorkspaceDir();
@@ -67,7 +67,7 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("change-review-window")).toBeVisible();
       await expect(page.getByTestId("change-review-diff")).toBeVisible();
       await page.getByTestId("change-review-approve").click();
-      await expect(page.getByTestId("change-review-status")).toContainText("Approved");
+      await expect(page.getByTestId("change-review-status")).toContainText("Reviewed");
       await expect(page.getByTestId("change-review-approve")).toHaveCount(0);
     } finally {
       await first.close();
@@ -82,7 +82,7 @@ test("edits a file, opens the review sheet, Approves, and preserves approved sta
       await expect(page.getByTestId("tool-open-review")).toContainText("1 file");
       await page.getByTestId("tool-open-review").click();
       await expect(page.getByTestId("change-review-window")).toBeVisible();
-      await expect(page.getByTestId("change-review-status")).toContainText("Approved");
+      await expect(page.getByTestId("change-review-status")).toContainText("Reviewed");
       await expect(page.getByTestId("change-review-approve")).toHaveCount(0);
     } finally {
       await second.close();
@@ -146,6 +146,58 @@ test("tiles two right-sidebar surfaces and parks the third in the tray", async (
       await page.getByTestId("right-sidebar-tile-close-diff").click();
       await expect(page.getByTestId("right-sidebar")).toHaveCount(0);
       await expect(page.getByTestId("right-surface-icons")).toBeVisible();
+    } finally {
+      await app.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("keeps the Changes tile rendering the selected session's diff across session switches", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  await writeFile(join(workspaceDir, "tracked.txt"), "before\n");
+  const env = {
+    PHO_CODE_AGENT_DIR: agentDir,
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+  };
+
+  try {
+    const app = await launchDesktop(userDataDir, { env });
+    try {
+      const page = await app.firstWindow();
+      await expect(page.getByTestId("bootstrap-state")).toHaveAccessibleName("About · 0.0.0");
+
+      // First chat stays empty: no tracked changes of its own.
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible({ timeout: 15_000 });
+
+      // Second chat: the deterministic model edits tracked.txt.
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("composer").fill("USE_EDIT");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(page.getByTestId("transcript")).toContainText("Tool completed.", { timeout: 20_000 });
+      await expandSettledWorkLog(page);
+      await page.getByTestId("tool-open-review").click();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
+      await expect(page.getByTestId("change-review-diff")).toContainText("after from agent");
+
+      // Switch to the empty chat: the open tile follows the active chat.
+      await page.getByTestId("chat-tab-select").nth(0).click();
+      await expect(page.getByTestId("change-review-empty")).toBeVisible();
+      await expect(page.getByTestId("change-review-diff")).toHaveCount(0);
+
+      // Switch back: the diff renders again without closing and reopening the tile.
+      await page.getByTestId("chat-tab-select").nth(1).click();
+      await expect(page.getByTestId("change-review-window")).toBeVisible();
+      await expect(page.getByTestId("change-review-diff")).toContainText("after from agent");
+      await expect(page.getByTestId("change-review-status")).toContainText("Pending");
     } finally {
       await app.close();
     }
@@ -222,7 +274,7 @@ test("restores an unchanged edit, refuses a conflicting owner overwrite, and pre
       await expect(page.getByTestId("change-review-status")).toContainText("Conflict");
       await expect(page.getByTestId("change-review-undo")).toHaveCount(0);
       await page.getByTestId("change-review-approve").click();
-      await expect(page.getByTestId("change-review-status")).toContainText("Approved");
+      await expect(page.getByTestId("change-review-status")).toContainText("Reviewed");
       expect(await readFile(trackedPath, "utf8")).toBe("owner edit\n");
     } finally {
       await second.close();

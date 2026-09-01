@@ -1,4 +1,15 @@
 import type { BootstrapState, PiRuntimeStatusSnapshot } from "./bootstrap";
+import type {
+  ApprovalDecisionHistoryPage,
+  ApprovalModeSettingsSnapshot,
+  AuthorizeApprovalRetryInput,
+  ListApprovalDecisionHistoryInput,
+  MigrateLegacyPermissionSettingsInput,
+  ResolveApprovalRequestInput,
+  RevokeApprovalGrantInput,
+  SetSessionApprovalModeInput,
+  UpdateApprovalModeSettingsInput,
+} from "./approval-modes";
 import type { PasteImagesInput, PickImagesInput, PickImagesResult, RemovePreparedImageInput } from "./attachments";
 import type {
   AbortRunInput,
@@ -90,6 +101,13 @@ import type {
   CompactSessionInput,
   GetCompactionDetailInput,
 } from "./compaction";
+import type {
+  AcceptTaskCompletionGapsInput,
+  RecordOwnerVerificationInput,
+  ReopenTaskInput,
+  ResetTaskBriefInput,
+  UpdateTaskBriefInput,
+} from "./task";
 
 export interface DesktopBridge {
   getBootstrapState(): Promise<BootstrapState>;
@@ -122,14 +140,26 @@ export interface DesktopBridge {
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  setSessionApprovalMode(input: SetSessionApprovalModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
+  updateTaskBrief(input: UpdateTaskBriefInput): Promise<SessionSnapshot>;
+  resetTaskBrief(input: ResetTaskBriefInput): Promise<SessionSnapshot>;
+  reopenTask(input: ReopenTaskInput): Promise<SessionSnapshot>;
+  recordOwnerVerification(input: RecordOwnerVerificationInput): Promise<SessionSnapshot>;
+  acceptTaskCompletionGaps(input: AcceptTaskCompletionGapsInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): Promise<HarnessSettingsSnapshot>;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
+  updateApprovalModeSettings(input: UpdateApprovalModeSettingsInput): Promise<HarnessSettingsSnapshot>;
+  resolveApprovalRequest(input: ResolveApprovalRequestInput): Promise<SessionSnapshot>;
+  authorizeApprovalRetry(input: AuthorizeApprovalRetryInput): Promise<SessionSnapshot>;
+  revokeApprovalGrant(input: RevokeApprovalGrantInput): Promise<SessionSnapshot>;
+  migrateLegacyPermissionSettings(input: MigrateLegacyPermissionSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  listApprovalDecisionHistory(input?: ListApprovalDecisionHistoryInput): Promise<ApprovalDecisionHistoryPage>;
   trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;

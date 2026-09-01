@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   ArchiveIcon,
   BookOpenIcon,
@@ -7,7 +7,6 @@ import {
   KeyRoundIcon,
   PaletteIcon,
   ShieldIcon,
-  TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -24,17 +23,19 @@ import {
   type WorkEntryIconPack,
   type HarnessSettingsSnapshot,
   type ImportProviderApiKeyInput,
-  type ManagedPermissionProfileId,
   type ProviderAccountsResult,
   type ProviderAuthFlowSnapshot,
   type RecentWorkspaceRecord,
   type SessionCatalogEntry,
   type UpdateAppearanceSettingsInput,
-  type UpdatePermissionSettingsInput,
+  type UpdateApprovalModeSettingsInput,
+  type MigrateLegacyPermissionSettingsInput,
   type UpdateSkillSourceSettingsInput,
   type UpdateGitHubMcpSettingsInput,
   type UpdateSandboxSettingsInput,
   type ImportGitHubPatInput,
+  type ApprovalDecisionHistoryPage,
+  type ListApprovalDecisionHistoryInput,
 } from "@pho-code/protocol";
 import { ArchivedChatsSection } from "./archived-chats";
 import { GitHubMcpSettingsSection } from "./github-mcp-settings";
@@ -83,36 +84,6 @@ const MODES: ReadonlyArray<{ id: AppearanceMode; label: string }> = [
   { id: "dark", label: "Dark" },
 ];
 
-const PROFILES: ReadonlyArray<{ id: ManagedPermissionProfileId; label: string; description: string; recommended?: boolean }> = [
-  {
-    id: "guarded",
-    label: "baby (strict)",
-    description: "Ask before tools, file access, and work outside the workspace. Selected secret paths stay denied.",
-  },
-  {
-    id: "balanced",
-    label: "okay, you got it",
-    recommended: true,
-    description: "Allow ordinary workspace reads. Ask before writes, shell commands, skills, and MCP calls.",
-  },
-  {
-    id: "developer",
-    label: "with great power comes great responsibility",
-    description:
-      "YOLO mode for trusted workspaces: auto-approve ask decisions while explicit denies remain blocked.",
-  },
-];
-
-function displayedPermissionProfile(settings: HarnessSettingsSnapshot): ManagedPermissionProfileId | "custom" {
-  if (settings.permission.yoloMode && settings.permission.profile === "developer") {
-    return "developer";
-  }
-  if (settings.permission.yoloMode || settings.permission.profile === "developer") {
-    return "custom";
-  }
-  return settings.permission.profile;
-}
-
 export function SettingsView({
   settings,
   running,
@@ -123,7 +94,9 @@ export function SettingsView({
   sessionsByWorkspace,
   onClose,
   onAppearanceChange,
-  onPermissionApply,
+  onApprovalModeChange,
+  onListApprovalDecisionHistory,
+  onMigrateLegacyPermissions,
   onTrustProjectPermissionRules,
   onImportApiKey,
   onStartOAuth,
@@ -151,7 +124,9 @@ export function SettingsView({
   sessionsByWorkspace: Readonly<Record<string, readonly SessionCatalogEntry[]>>;
   onClose: () => void;
   onAppearanceChange: (input: UpdateAppearanceSettingsInput) => void;
-  onPermissionApply: (input: UpdatePermissionSettingsInput) => Promise<void>;
+  onApprovalModeChange: (input: UpdateApprovalModeSettingsInput) => void;
+  onListApprovalDecisionHistory: (input?: ListApprovalDecisionHistoryInput) => Promise<ApprovalDecisionHistoryPage>;
+  onMigrateLegacyPermissions: (input: MigrateLegacyPermissionSettingsInput) => void;
   onTrustProjectPermissionRules: () => Promise<void>;
   onImportApiKey: (input: ImportProviderApiKeyInput) => Promise<void>;
   onStartOAuth: (providerId: string) => Promise<void>;
@@ -174,21 +149,11 @@ export function SettingsView({
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const [section, setSection] = useState<SettingsSectionId>(() => initialSettingsSection({ flowActive }));
-  const [profile, setProfile] = useState<ManagedPermissionProfileId | "custom">(
-    displayedPermissionProfile(settings),
-  );
-  const [reviewLog, setReviewLog] = useState(settings.permission.permissionReviewLog);
-  const [yoloConfirm, setYoloConfirm] = useState(false);
-  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  useEffect(() => {
-    setProfile(displayedPermissionProfile(settings));
-    setReviewLog(settings.permission.permissionReviewLog);
-  }, [settings]);
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -213,48 +178,6 @@ export function SettingsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const custom = profile === "custom";
-  const permissionDirty = useMemo(() => {
-    const profileChanged = profile !== displayedPermissionProfile(settings) && profile !== "custom";
-    const desiredYoloMode = profile === "developer";
-    return (
-      profileChanged ||
-      reviewLog !== settings.permission.permissionReviewLog ||
-      (profile !== "custom" && desiredYoloMode !== settings.permission.yoloMode)
-    );
-  }, [profile, reviewLog, settings]);
-
-  async function saveAndApply(): Promise<void> {
-    if (running || !permissionDirty) {
-      return;
-    }
-    const patch: UpdatePermissionSettingsInput = {};
-    if (profile !== "custom" && profile !== settings.permission.profile) {
-      patch.profile = profile;
-    }
-    if (reviewLog !== settings.permission.permissionReviewLog) {
-      patch.permissionReviewLog = reviewLog;
-    }
-    if (profile !== "custom" && (profile === "developer") !== settings.permission.yoloMode) {
-      patch.yoloMode = profile === "developer";
-    }
-    setApplying(true);
-    try {
-      await onPermissionApply(patch);
-      setYoloConfirm(false);
-    } finally {
-      setApplying(false);
-    }
-  }
-
-  function selectProfile(nextProfile: ManagedPermissionProfileId): void {
-    if (nextProfile === "developer") {
-      setYoloConfirm(true);
-      return;
-    }
-    setProfile(nextProfile);
-    setYoloConfirm(false);
-  }
 
   function selectSection(next: SettingsSectionId, focus = false): void {
     setSection(next);
@@ -295,7 +218,7 @@ export function SettingsView({
     }
   }
 
-  const disabled = busy || applying || running;
+  const disabled = busy || running;
 
   return (
     <div
@@ -352,9 +275,6 @@ export function SettingsView({
                   <span className="min-w-0 flex-1 truncate">{entry.label}</span>
                   {entry.id === "accounts" && flowActive ? (
                     <span className="size-1.5 shrink-0 rounded-full bg-primary" title="Sign-in in progress" />
-                  ) : null}
-                  {entry.id === "permissions" && permissionDirty ? (
-                    <span className="size-1.5 shrink-0 rounded-full bg-warning" title="Unsaved changes" />
                   ) : null}
                 </button>
               );
@@ -443,23 +363,13 @@ export function SettingsView({
         return (
           <PermissionSection
             settings={settings}
-            custom={custom}
-            profile={profile}
-            reviewLog={reviewLog}
-            yoloConfirm={yoloConfirm}
-            permissionDirty={permissionDirty}
             disabled={disabled}
             running={running}
-            onSelectProfile={selectProfile}
-            onReviewLogChange={setReviewLog}
-            onYoloConfirm={() => {
-              setProfile("developer");
-              setYoloConfirm(false);
-            }}
+            onApprovalModeChange={onApprovalModeChange}
+            onListApprovalDecisionHistory={onListApprovalDecisionHistory}
+            onMigrateLegacyPermissions={onMigrateLegacyPermissions}
             onTrustProjectPermissionRules={onTrustProjectPermissionRules}
-            onSave={() => {
-              void saveAndApply();
-            }}
+            onSandboxChange={onSandboxChange}
           />
         );
       case "sandbox":
@@ -714,38 +624,104 @@ function AppearanceSection({
 
 function PermissionSection({
   settings,
-  custom,
-  profile,
-  reviewLog,
-  yoloConfirm,
-  permissionDirty,
   disabled,
   running,
-  onSelectProfile,
-  onReviewLogChange,
-  onYoloConfirm,
+  onApprovalModeChange,
+  onListApprovalDecisionHistory,
+  onMigrateLegacyPermissions,
   onTrustProjectPermissionRules,
-  onSave,
+  onSandboxChange,
 }: {
   settings: HarnessSettingsSnapshot;
-  custom: boolean;
-  profile: ManagedPermissionProfileId | "custom";
-  reviewLog: boolean;
-  yoloConfirm: boolean;
-  permissionDirty: boolean;
   disabled: boolean;
   running: boolean;
-  onSelectProfile: (profile: ManagedPermissionProfileId) => void;
-  onReviewLogChange: (value: boolean) => void;
-  onYoloConfirm: () => void;
+  onApprovalModeChange: (input: UpdateApprovalModeSettingsInput) => void;
+  onListApprovalDecisionHistory: (input?: ListApprovalDecisionHistoryInput) => Promise<ApprovalDecisionHistoryPage>;
+  onMigrateLegacyPermissions: (input: MigrateLegacyPermissionSettingsInput) => void;
   onTrustProjectPermissionRules: () => Promise<void>;
-  onSave: () => void;
+  onSandboxChange: (input: UpdateSandboxSettingsInput) => void;
 }) {
+  const approval = settings.approvalModes;
+  const [history, setHistory] = useState<ApprovalDecisionHistoryPage>();
+  const [historyError, setHistoryError] = useState<string>();
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const loadHistory = async (): Promise<void> => {
+    setHistoryLoading(true);
+    setHistoryError(undefined);
+    try {
+      setHistory(await onListApprovalDecisionHistory({ limit: 20 }));
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "Could not load approval history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
   return (
-    <section className="grid gap-3" aria-labelledby="permission-heading">
+    <section className="grid gap-5" aria-labelledby="permission-heading">
       <h2 id="permission-heading" className="text-sm font-medium">
-        Permission policy
+        Approval modes
       </h2>
+      {running ? <p className="text-xs text-muted-foreground">Wait until the current run finishes to change approval behavior.</p> : null}
+      {approval ? (
+        <>
+          <div className="grid gap-2">
+            <p className="text-xs font-medium">New chats</p>
+            <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+              <input type="radio" name="approval-default" checked={approval.defaultMode === "ask"} disabled={disabled} data-testid="approval-default-ask" onChange={() => onApprovalModeChange({ defaultMode: "ask" })} />
+              <span><strong className="font-medium">Ask for approval</strong><span className="mt-0.5 block text-xs text-muted-foreground">Routine work stays contained; you decide additional access.</span></span>
+            </label>
+            <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+              <input type="radio" name="approval-default" checked={approval.defaultMode === "auto"} disabled={disabled || !approval.autoEnabled} data-testid="approval-default-auto" onChange={() => onApprovalModeChange({ defaultMode: "auto" })} />
+              <span><strong className="font-medium">Approve for me</strong><span className="mt-0.5 block text-xs text-muted-foreground">Uses the same boundary with an isolated automatic reviewer.</span></span>
+            </label>
+          </div>
+          <SettingsToggle label="Enable Approve for me" description="Allow chats to use an isolated reviewer for eligible access requests." checked={approval.autoEnabled} disabled={disabled} testId="approval-auto-enabled" onChange={(autoEnabled) => onApprovalModeChange({ autoEnabled })} />
+          <ReviewerSettings reviewer={approval.reviewer} disabled={disabled || !approval.autoEnabled} onChange={(reviewer) => onApprovalModeChange({ reviewer })} />
+          <p className="rounded-lg border border-border/70 px-3 py-2 text-xs text-muted-foreground" data-testid="approval-privacy-disclosure">
+            Reviewer context is sent to the selected model provider and may add latency, usage, and cost. Automatic review can make mistakes. Redacted decision metadata stays local, is not encrypted at rest, and never stores raw reviewer input or output. Full access removes routine Pho containment and review for that chat.
+          </p>
+          <SettingsToggle label="Keep decision history" description="Store a bounded, redacted approval history in application data." checked={approval.decisionHistoryEnabled} disabled={disabled} testId="approval-history-enabled" onChange={(decisionHistoryEnabled) => onApprovalModeChange({ decisionHistoryEnabled })} />
+          <div className="grid gap-2 rounded-lg border border-border/70 px-3 py-2 text-xs" data-testid="approval-decision-history">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">Recent approval decisions</span>
+              <Button size="sm" variant="outline" disabled={historyLoading} onClick={() => void loadHistory()}>
+                {historyLoading ? "Loading…" : history ? "Refresh" : "View"}
+              </Button>
+            </div>
+            {historyError ? <p className="text-destructive" role="alert">{historyError}</p> : null}
+            {history ? (
+              history.entries.length > 0 ? (
+                <ol className="grid gap-1.5" aria-label="Recent approval decisions">
+                  {history.entries.map((entry) => (
+                    <li key={entry.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <span className="font-medium">{entry.action.title}</span>
+                        <span className="text-muted-foreground">{entry.mode} · {entry.outcome}</span>
+                      </div>
+                      <p className="text-muted-foreground">{entry.action.summary}</p>
+                      {entry.rationale ? <p className="mt-0.5 text-muted-foreground">{entry.rationale}</p> : null}
+                      <time className="mt-0.5 block text-[10px] text-muted-foreground" dateTime={entry.occurredAt}>{entry.occurredAt}</time>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="text-muted-foreground">No recorded approval decisions.</p>
+            ) : <p className="text-muted-foreground">History is loaded only when you ask to inspect it.</p>}
+          </div>
+          <SettingsToggle label="Enable Full access" description="Allow a chat to bypass ordinary containment after a blocking risk warning. Full access is never a new-chat default." checked={approval.fullAccessEnabled} disabled={disabled} testId="approval-full-enabled" destructive onChange={(fullAccessEnabled) => onApprovalModeChange({ fullAccessEnabled })} />
+          {approval.migration.state !== "not-needed" && approval.migration.state !== "complete" ? (
+            <Alert className="text-xs" data-testid="approval-migration">
+              <AlertDescription className="grid gap-2 text-xs">
+                <p>{approval.migration.reason ?? "Legacy permission settings need an explicit migration before all approval modes are available."}</p>
+                <Button size="sm" variant="outline" disabled={disabled} onClick={() => onMigrateLegacyPermissions({ acknowledgeCustom: approval.legacy.custom, acknowledgeSharedAgentDir: approval.legacy.sharedAgentDir })}>Review and migrate</Button>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </>
+      ) : (
+        <Alert className="text-xs" data-testid="approval-legacy-compatibility">
+          <AlertDescription className="text-xs">Legacy permission policy remains active until the approval-mode runtime is available. Current profile: {settings.permission.profile}.</AlertDescription>
+        </Alert>
+      )}
       {projectPermissionTrustPending(settings.permission) || settings.permission.projectOverridePresent ? (
         <div className="glass-panel grid gap-2 rounded-lg border border-border px-3 py-2" data-testid="project-override-notice">
           <p className="text-xs text-warning" role="status">
@@ -772,66 +748,50 @@ function PermissionSection({
           )}
         </div>
       ) : null}
-      {custom ? (
-        <p className="text-xs text-muted-foreground" data-testid="permission-custom-notice">
-          Current policy is Custom or a preserved pre-v3 Developer policy. Unrelated changes keep it until you
-          explicitly choose baby (strict), okay, you got it, or with great power comes great responsibility.
-        </p>
-      ) : null}
-      <div className="grid gap-2">
-        {PROFILES.map((entry) => (
-          <label
-            key={entry.id}
-            className="glass-panel flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
-          >
-            <input
-              type="radio"
-              name="permission-profile"
-              className="mt-1"
-              value={entry.id}
-              checked={profile === entry.id}
-              disabled={disabled}
-              data-testid={`permission-profile-${entry.id}`}
-              onChange={() => onSelectProfile(entry.id)}
-            />
-            <span>
-              <strong className="font-medium">{entry.label}</strong>
-              {entry.recommended ? <span className="text-muted-foreground"> (recommended)</span> : null}
-              <span className="mt-0.5 block text-xs text-muted-foreground">{entry.description}</span>
-            </span>
-          </label>
-        ))}
+      <div className="grid gap-2 border-t border-border/70 pt-4">
+        <h3 className="text-xs font-medium">Active boundary</h3>
+        <SandboxSettingsSection sandbox={settings.sandbox} busy={disabled} running={running} showEnable={false} onChange={onSandboxChange} />
       </div>
-      {yoloConfirm ? (
-        <Alert variant="destructive" className="text-xs" role="alert" data-testid="permission-yolo-warning">
-          <TriangleAlertIcon />
-          <AlertDescription className="text-xs">
-            <p>
-              With great power comes great responsibility auto-approves decisions that would otherwise ask. Explicit
-              denies still apply, permanent removal remains unavailable, and removal uses recoverable OS Trash. This is
-              not a sandbox.
-            </p>
-            <Button size="sm" variant="destructive" data-testid="permission-yolo-confirm" disabled={disabled} onClick={onYoloConfirm}>
-              Choose this mode
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={reviewLog}
-          disabled={disabled}
-          data-testid="permission-review-log"
-          onChange={(event) => onReviewLogChange(event.target.checked)}
-        />
-        <span>Keep a permission review log</span>
-      </label>
-      <Button data-testid="settings-save" disabled={disabled || !permissionDirty} onClick={onSave}>
-        {running ? "Unavailable during a run" : "Save and apply"}
-      </Button>
     </section>
+  );
+}
+
+function SettingsToggle({ label, description, checked, disabled, testId, destructive = false, onChange }: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  testId: string;
+  destructive?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"><input type="checkbox" className="mt-1" checked={checked} disabled={disabled} data-testid={testId} onChange={(event) => onChange(event.target.checked)} /><span><strong className={cn("font-medium", destructive && "text-destructive")}>{label}</strong><span className="mt-0.5 block text-xs text-muted-foreground">{description}</span></span></label>;
+}
+
+function ReviewerSettings({ reviewer, disabled, onChange }: {
+  reviewer: NonNullable<HarnessSettingsSnapshot["approvalModes"]>["reviewer"];
+  disabled: boolean;
+  onChange: (reviewer: NonNullable<UpdateApprovalModeSettingsInput["reviewer"]>) => void;
+}) {
+  const [providerId, setProviderId] = useState(reviewer.providerId ?? "");
+  const [modelId, setModelId] = useState(reviewer.modelId ?? "");
+  useEffect(() => {
+    setProviderId(reviewer.providerId ?? "");
+    setModelId(reviewer.modelId ?? "");
+  }, [reviewer.modelId, reviewer.providerId]);
+  const modelSelected = reviewer.selection === "model";
+  return (
+    <div className="grid gap-2 rounded-lg border border-border/70 px-3 py-2 text-xs" data-testid="approval-reviewer-settings">
+      <span className="font-medium">Reviewer</span>
+      <label className="flex items-center gap-2"><input type="radio" name="approval-reviewer" checked={!modelSelected} disabled={disabled} data-testid="approval-reviewer-automatic" onChange={() => onChange({ selection: "automatic" })} />Automatic</label>
+      <label className="flex items-center gap-2"><input type="radio" name="approval-reviewer" checked={modelSelected} disabled={disabled || providerId.trim() === "" || modelId.trim() === ""} data-testid="approval-reviewer-model" onChange={() => onChange({ selection: "model", providerId: providerId.trim(), modelId: modelId.trim() })} />Specific authenticated model</label>
+      <div className="grid grid-cols-2 gap-2">
+        <input className="rounded-md border border-border bg-background px-2 py-1" aria-label="Reviewer provider" placeholder="provider" value={providerId} disabled={disabled} onChange={(event) => setProviderId(event.target.value)} />
+        <input className="rounded-md border border-border bg-background px-2 py-1" aria-label="Reviewer model" placeholder="model" value={modelId} disabled={disabled} onChange={(event) => setModelId(event.target.value)} />
+      </div>
+      {providerId.trim() && modelId.trim() ? <Button size="sm" variant="outline" disabled={disabled} data-testid="approval-reviewer-apply" onClick={() => onChange({ selection: "model", providerId: providerId.trim(), modelId: modelId.trim() })}>Use this model</Button> : null}
+      <span className="text-muted-foreground">Effective: {reviewer.effectiveModelId ?? "Automatic"}{reviewer.available ? "" : ` · ${reviewer.reason ?? "Unavailable"}`}</span>
+    </div>
   );
 }
 

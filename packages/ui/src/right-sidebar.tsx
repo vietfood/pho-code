@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { BookOpenIcon, FileDiffIcon, MinusIcon, ScrollTextIcon, XIcon, type LucideIcon } from "lucide-react";
+import { BookOpenIcon, FileDiffIcon, ListChecksIcon, MinusIcon, ScrollTextIcon, XIcon, type LucideIcon } from "lucide-react";
 import { cn } from "./lib/cn";
 import { TileDivider } from "./tile-divider";
 import {
@@ -36,6 +36,7 @@ const SURFACE_META: Record<RightSidebarSurface, { title: string; icon: LucideIco
   changes: { title: "Changes", icon: FileDiffIcon, testId: "diff" },
   "context-prompt": { title: "Context prompt", icon: BookOpenIcon, testId: "context" },
   plan: { title: "Plan", icon: ScrollTextIcon, testId: "plan" },
+  task: { title: "Task", icon: ListChecksIcon, testId: "task" },
 };
 
 const REVIEW_SIDEBAR_STORAGE = {
@@ -55,6 +56,7 @@ export interface RightSurfaceIconsProps {
   minimized?: readonly RightSidebarSurface[];
   contextPromptCustomized?: boolean;
   planDocumentPresent?: boolean;
+  taskPresent?: boolean;
   /** Icon click: opens a closed surface's tile, closes an open one. */
   onToggleSurface: (surface: RightSidebarSurface) => void;
 }
@@ -65,6 +67,7 @@ export function RightSurfaceIcons({
   minimized = [],
   contextPromptCustomized = false,
   planDocumentPresent = false,
+  taskPresent = false,
   onToggleSurface,
 }: RightSurfaceIconsProps) {
   return (
@@ -82,6 +85,8 @@ export function RightSurfaceIcons({
             ? { show: contextPromptCustomized, testId: "right-sidebar-context-custom", attr: "data-customized" }
             : surface === "plan"
               ? { show: planDocumentPresent, testId: "right-sidebar-plan-document", attr: "data-document" }
+              : surface === "task"
+                ? { show: taskPresent, testId: "right-sidebar-task-present", attr: "data-task" }
               : null;
         return (
           <Button

@@ -50,14 +50,15 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
       const page = await harness.firstWindow();
       await openSettingsSection(page, "permissions");
       await expect(page.getByTestId("settings-view")).toBeVisible();
-      await page.getByTestId("permission-profile-developer").click();
-      await page.getByTestId("permission-yolo-confirm").click();
-      await page.getByTestId("settings-save").click();
-      await expect(page.getByTestId("settings-save")).toBeDisabled();
+      await page.getByTestId("approval-full-enabled").click();
+      await expect(page.getByTestId("approval-full-enabled")).toBeChecked();
       await page.getByTestId("settings-close").click();
 
       await page.getByTestId("new-session").click();
       await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("approval-mode-control").click();
+      await page.getByTestId("approval-mode-full").click();
+      await page.getByTestId("full-access-warning-confirm").click();
       await page.getByTestId("bootstrap-state").click();
       await expect(page.getByTestId("feature-diagnostics")).toContainText("permission-system 24.0.0 · loaded");
       await expect(page.getByTestId("feature-diagnostics")).toContainText("local-retrieval 2.0.0 · loaded");
@@ -100,6 +101,19 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
       await expandSettledWorkLog(page, 3);
       await expect(page.getByTestId("tool-card").last()).toContainText(/Trash|recoverable/i);
       expect(existsSync(fixturePath)).toBe(false);
+
+      await page.getByTestId("composer").fill("USE_TASK_BRIEF");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 4);
+      await expect(page.getByTestId("task-panel")).toBeVisible();
+      await expect(page.getByTestId("task-brief-summary")).toContainText("Complete the deterministic V5 task journey");
+
+      await page.getByTestId("composer").fill("USE_COMPLETE_TASK");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 5);
+      await expect(page.getByTestId("task-completion")).toContainText("incomplete");
+      await page.getByRole("button", { name: "Accept disclosed gaps" }).click();
+      await expect(page.getByTestId("task-completion")).toContainText("accepted with gaps");
 
       const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");
       expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");

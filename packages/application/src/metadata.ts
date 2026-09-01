@@ -32,17 +32,19 @@ import {
   type RecentWorkspaceRecord,
   type SessionKey,
   type SessionOutcome,
+  type DurableApprovalMode,
 } from "@pho-code/protocol";
 
-export const METADATA_VERSION = 7 as const;
+export const METADATA_VERSION = 8 as const;
 export const MAX_RECENT_WORKSPACES = 8;
-const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
+const LEGACY_METADATA_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
 
 export interface SessionLifecycleRecord extends SessionKey {
   archivedAt?: string;
   lastViewedAt?: string;
   lastOutcome?: SessionOutcome;
   lastOutcomeAt?: string;
+  approvalMode?: DurableApprovalMode;
 }
 
 export interface AppMetadata {
@@ -300,7 +302,7 @@ export function restoreSessionMetadata(metadata: AppMetadata, key: SessionKey): 
   }
   const next = { ...current };
   delete next.archivedAt;
-  if (!next.lastViewedAt && !next.lastOutcome && !next.lastOutcomeAt) {
+  if (!next.lastViewedAt && !next.lastOutcome && !next.lastOutcomeAt && !next.approvalMode) {
     return {
       ...metadata,
       sessionLifecycle: metadata.sessionLifecycle.filter((entry) => !sessionKeyEquals(entry, key)),
@@ -332,6 +334,14 @@ export function recordSessionOutcome(
     lastOutcome: outcome,
     lastOutcomeAt: occurredAt,
   }));
+}
+
+export function setSessionApprovalModeMetadata(
+  metadata: AppMetadata,
+  key: SessionKey,
+  approvalMode: DurableApprovalMode,
+): AppMetadata {
+  return upsertSessionLifecycle(metadata, key, (current) => ({ ...current, approvalMode }));
 }
 
 export function pruneOrphanSessionLifecycle(
@@ -494,6 +504,9 @@ function parseLifecycleRecord(value: unknown): SessionLifecycleRecord | undefine
   }
   if (typeof candidate.lastOutcomeAt === "string" && candidate.lastOutcomeAt.trim() !== "") {
     record.lastOutcomeAt = candidate.lastOutcomeAt;
+  }
+  if (candidate.approvalMode === "ask" || candidate.approvalMode === "auto") {
+    record.approvalMode = candidate.approvalMode;
   }
   return record;
 }

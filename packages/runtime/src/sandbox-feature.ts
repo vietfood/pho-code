@@ -7,20 +7,36 @@ import {
 import type { HarnessFeature } from "./features";
 import { bindSandboxPermissionAuthorizer } from "./sandbox-permission";
 import type { AgentSandbox } from "./sandbox-runtime";
+import type { SandboxExecutionDisposition } from "./sandbox-runtime";
 
 export const SANDBOX_FEATURE_ID = "agent-tool-sandbox";
 export const SANDBOX_FEATURE_VERSION = "0.1.0";
 
-export function createSandboxFeature(sandbox: AgentSandbox): HarnessFeature {
+export interface SandboxAuthorizationLookup {
+  disposition(input: {
+    toolCallId: string;
+    toolName: string;
+    cwd: string;
+    sessionId: string;
+  }): SandboxExecutionDisposition;
+}
+
+export function createSandboxFeature(
+  sandbox: AgentSandbox,
+  authorization?: SandboxAuthorizationLookup,
+): HarnessFeature {
   return {
     id: SANDBOX_FEATURE_ID,
     version: SANDBOX_FEATURE_VERSION,
-    extensionFactories: [createSandboxExtension(sandbox)],
+    extensionFactories: [createSandboxExtension(sandbox, authorization)],
     expected: { extensions: 1 },
   };
 }
 
-function createSandboxExtension(sandbox: AgentSandbox): InlineExtension {
+function createSandboxExtension(
+  sandbox: AgentSandbox,
+  authorization?: SandboxAuthorizationLookup,
+): InlineExtension {
   return {
     name: SANDBOX_FEATURE_ID,
     factory(pi) {
@@ -44,6 +60,15 @@ function createSandboxExtension(sandbox: AgentSandbox): InlineExtension {
         if (!isSandboxFileToolCall(event)) {
           return undefined;
         }
+        const disposition = authorization?.disposition({
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          cwd: ctx.cwd,
+          sessionId: ctx.sessionManager.getSessionId(),
+        });
+        if (disposition === "elevated" || disposition === "full") {
+          return undefined;
+        }
         const requestedPath = fileToolPath(event.input);
         const verdict = await sandbox.evaluateFileTool({
           toolName: event.toolName,
@@ -65,7 +90,15 @@ function createSandboxExtension(sandbox: AgentSandbox): InlineExtension {
         ...template,
         async execute(id, params, signal, onUpdate, ctx) {
           const cwd = ctx.cwd || process.cwd();
-          const tool = createBashTool(cwd, { operations: sandbox.bashOperations() });
+          const disposition = authorization?.disposition({
+            toolCallId: id,
+            toolName: "bash",
+            cwd,
+            sessionId: ctx.sessionManager.getSessionId(),
+          });
+          const tool = createBashTool(cwd, {
+            operations: sandbox.bashOperations(disposition),
+          });
           return tool.execute(id, params, signal, onUpdate);
         },
       });

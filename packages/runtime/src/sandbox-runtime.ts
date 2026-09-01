@@ -56,16 +56,18 @@ export interface AgentSandboxOptions {
 
 export type SandboxFileToolVerdict =
   | { action: "defer" }
-  | { action: "allow" }
-  | { action: "deny"; reason: string };
+  | { action: "allow"; canonicalPath?: string }
+  | { action: "deny"; reason: string; canonicalPath?: string };
 
 export interface AgentSandbox {
   snapshot(): SandboxRuntimeSnapshot;
   initialize(input?: AgentSandboxInitInput): Promise<SandboxRuntimeSnapshot>;
   reset(): Promise<void>;
-  bashOperations(): BashOperations;
+  bashOperations(disposition?: SandboxExecutionDisposition): BashOperations;
   evaluateFileTool(input: { toolName: string; requestedPath: string; cwd?: string }): Promise<SandboxFileToolVerdict>;
 }
+
+export type SandboxExecutionDisposition = "contained" | "elevated" | "full";
 
 export type AgentSandboxInitInput = Pick<
   AgentSandboxOptions,
@@ -307,7 +309,10 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
     statusReason = undefined;
   }
 
-  function bashOperations(): BashOperations {
+  function bashOperations(disposition: SandboxExecutionDisposition = "contained"): BashOperations {
+    if (disposition === "elevated" || disposition === "full") {
+      return localOps;
+    }
     const current = snapshot();
     if (!current.enabled || current.status === "off") {
       return localOps;
@@ -366,9 +371,16 @@ export function createAgentSandbox(options: AgentSandboxOptions = {}): AgentSand
       filesystem,
     });
     if (evaluation.decision === "allow") {
-      return { action: "allow" };
+      return {
+        action: "allow",
+        ...(evaluation.canonicalPath ? { canonicalPath: evaluation.canonicalPath } : {}),
+      };
     }
-    return { action: "deny", reason: evaluation.reason };
+    return {
+      action: "deny",
+      reason: evaluation.reason,
+      ...(evaluation.canonicalPath ? { canonicalPath: evaluation.canonicalPath } : {}),
+    };
   }
 
   return {

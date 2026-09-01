@@ -1,4 +1,9 @@
 import type { SessionActivitySummary, SessionKey } from "./session-lifecycle";
+import type {
+  ApprovalRequest,
+  ApprovalRequestSettledPayload,
+  SessionApprovalSnapshot,
+} from "./approval-modes";
 import { sessionKeyEquals, sessionKeyId } from "./session-lifecycle";
 import type { ChangeReviewSetSummary } from "./change-review";
 import { changeScopeEquals, MAX_CHANGE_REVIEWS_ON_SNAPSHOT } from "./change-review";
@@ -38,6 +43,12 @@ export const RUNTIME_EVENT_TYPES = {
   sessionRemoved: "sessionRemoved",
   changeReviewUpdated: "changeReviewUpdated",
   compactionStateChanged: "compactionStateChanged",
+  approvalModeChanged: "approvalModeChanged",
+  approvalReviewChanged: "approvalReviewChanged",
+  approvalRequest: "approvalRequest",
+  approvalRequestSettled: "approvalRequestSettled",
+  approvalGrantChanged: "approvalGrantChanged",
+  fullAccessReset: "fullAccessReset",
 } as const;
 
 export interface RuntimeEventEnvelope<T = unknown> {
@@ -110,7 +121,13 @@ export type RuntimeEvent =
   | (RuntimeEventEnvelope<SessionActivitySummary[]> & { type: typeof RUNTIME_EVENT_TYPES.sessionActivity })
   | (RuntimeEventEnvelope<SessionRemovedPayload> & { type: typeof RUNTIME_EVENT_TYPES.sessionRemoved })
   | (RuntimeEventEnvelope<ChangeReviewSetSummary> & { type: typeof RUNTIME_EVENT_TYPES.changeReviewUpdated })
-  | (RuntimeEventEnvelope<CompactionStateChangedPayload> & { type: typeof RUNTIME_EVENT_TYPES.compactionStateChanged });
+  | (RuntimeEventEnvelope<CompactionStateChangedPayload> & { type: typeof RUNTIME_EVENT_TYPES.compactionStateChanged })
+  | (RuntimeEventEnvelope<SessionApprovalSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.approvalModeChanged })
+  | (RuntimeEventEnvelope<SessionApprovalSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.approvalReviewChanged })
+  | (RuntimeEventEnvelope<ApprovalRequest> & { type: typeof RUNTIME_EVENT_TYPES.approvalRequest })
+  | (RuntimeEventEnvelope<ApprovalRequestSettledPayload> & { type: typeof RUNTIME_EVENT_TYPES.approvalRequestSettled })
+  | (RuntimeEventEnvelope<SessionApprovalSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.approvalGrantChanged })
+  | (RuntimeEventEnvelope<SessionApprovalSnapshot> & { type: typeof RUNTIME_EVENT_TYPES.fullAccessReset });
 
 export type Unsubscribe = () => void;
 
@@ -123,6 +140,7 @@ export interface ConversationViewState {
   lastSequence: number;
   snapshot: SessionSnapshot | null;
   dialog: HostDialogRequest | null;
+  approvalRequest: ApprovalRequest | null;
   notification: ExtensionNotification | null;
 }
 
@@ -140,6 +158,7 @@ export function emptyConversationState(): ConversationViewState {
     lastSequence: 0,
     snapshot: null,
     dialog: null,
+    approvalRequest: null,
     notification: null,
   };
 }
@@ -458,6 +477,21 @@ export function applyRuntimeEvent(
     case RUNTIME_EVENT_TYPES.compactionStateChanged: {
       const payload = event.payload as CompactionStateChangedPayload;
       return patchSnapshot((snapshot) => ({ ...snapshot, compaction: payload.compaction }));
+    }
+    case RUNTIME_EVENT_TYPES.approvalModeChanged:
+    case RUNTIME_EVENT_TYPES.approvalReviewChanged:
+    case RUNTIME_EVENT_TYPES.approvalGrantChanged:
+    case RUNTIME_EVENT_TYPES.fullAccessReset:
+      return patchSnapshot((snapshot) => ({ ...snapshot, approval: event.payload as SessionApprovalSnapshot }));
+    case RUNTIME_EVENT_TYPES.approvalRequest:
+      return { ...state, lastSequence: event.sequence, approvalRequest: event.payload as ApprovalRequest };
+    case RUNTIME_EVENT_TYPES.approvalRequestSettled: {
+      const payload = event.payload as ApprovalRequestSettledPayload;
+      return {
+        ...state,
+        lastSequence: event.sequence,
+        approvalRequest: state.approvalRequest?.requestId === payload.requestId ? null : state.approvalRequest,
+      };
     }
     default:
       return { ...state, lastSequence: event.sequence };

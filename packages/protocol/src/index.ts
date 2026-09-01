@@ -1,5 +1,7 @@
 export { PROTOCOL_COMMANDS, PROTOCOL_VERSION, INTENDED_PI_SDK, PINNED_ELECTRON } from "./version";
+export * from "./approval-modes";
 export type { ProtocolCommandName, ProtocolVersion } from "./version";
+export * from "./task";
 
 export { displayToolName } from "./tool-display";
 

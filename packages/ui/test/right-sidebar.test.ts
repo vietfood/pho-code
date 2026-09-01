@@ -58,6 +58,7 @@ describe("RightSurfaceIcons", () => {
     expect(markup).toContain('data-testid="right-sidebar-surface-diff"');
     expect(markup).toContain('data-testid="right-sidebar-surface-context"');
     expect(markup).toContain('data-testid="right-sidebar-surface-plan"');
+    expect(markup).toContain('data-testid="right-sidebar-surface-task"');
     expect(markup).toContain("Context prompt");
     expect(markup).toContain('aria-pressed="false"');
     expect(markup).not.toContain('data-testid="right-sidebar-context-custom"');
@@ -77,13 +78,15 @@ describe("RightSurfaceIcons", () => {
     const markup = renderToStaticMarkup(
       createElement(
         RightSurfaceIcons,
-        iconProps({ tiles: ["context-prompt"], contextPromptCustomized: true, planDocumentPresent: true }),
+        iconProps({ tiles: ["context-prompt"], contextPromptCustomized: true, planDocumentPresent: true, taskPresent: true }),
       ),
     );
     expect(markup).toContain('data-customized="true"');
     expect(markup).toContain('data-testid="right-sidebar-context-custom"');
     expect(markup).toContain('data-document="true"');
     expect(markup).toContain('data-testid="right-sidebar-plan-document"');
+    expect(markup).toContain('data-task="true"');
+    expect(markup).toContain('data-testid="right-sidebar-task-present"');
   });
 });
 

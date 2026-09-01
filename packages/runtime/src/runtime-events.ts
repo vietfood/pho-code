@@ -46,6 +46,7 @@ export interface RuntimeEventProjector<TSession extends ProjectableSession> {
   /** Emit an event already attributed to `session`'s workspace and session. */
   emitFor(session: TSession, event: RuntimeEventDraft): void;
   toolEventPayload(
+    session: TSession,
     runId: string,
     event: { toolCallId: string; toolName: string },
     status: "running" | "completed" | "failed",
@@ -76,6 +77,8 @@ export function createRuntimeEventProjector<TSession extends ProjectableSession>
   sandboxStatus(): SandboxStatus;
   isSelected(session: TSession): boolean;
   listSessions(): readonly TSession[];
+  requiresAttention?(session: TSession): boolean;
+  toolRunsSandboxed?(session: TSession, toolName: string, callId: string): boolean;
   now?(): Date;
 }): RuntimeEventProjector<TSession> {
   const now = deps.now ?? (() => new Date());
@@ -113,7 +116,8 @@ export function createRuntimeEventProjector<TSession extends ProjectableSession>
       Boolean(session.activeRun && !session.activeRun.settled) ||
       session.compaction?.busy() === true ||
       hasQueuedWork(session);
-    const attention = session.extensionHost?.hasPendingDialog() === true;
+    const attention =
+      session.extensionHost?.hasPendingDialog() === true || deps.requiresAttention?.(session) === true;
     const updatedAt = session.activeRun?.startedAt ?? now().toISOString();
     const summary: SessionActivitySummary = {
       workspaceId: session.key.workspaceId,
@@ -136,7 +140,10 @@ export function createRuntimeEventProjector<TSession extends ProjectableSession>
     emitSessionSnapshot,
     hasQueuedWork,
     projectActivity,
-    toolEventPayload(runId, event, status, inputPreview, outputPreview) {
+    toolEventPayload(session, runId, event, status, inputPreview, outputPreview) {
+      const sandboxed = event.toolName === "bash" && collectSandboxedBashCallIds(
+        session.runtime.session.sessionManager.getEntries(),
+      ).has(event.toolCallId);
       return {
         runId,
         callId: event.toolCallId,
@@ -144,11 +151,13 @@ export function createRuntimeEventProjector<TSession extends ProjectableSession>
         status,
         inputPreview,
         outputPreview,
-        ...(sandboxBashWasWrapped(event.toolName, deps.sandboxStatus()) ? { sandboxed: true as const } : {}),
+        ...(sandboxed ? { sandboxed: true as const } : {}),
       };
     },
     rememberSandboxedBashCall(session, toolName, callId) {
-      if (!sandboxBashWasWrapped(toolName, deps.sandboxStatus())) {
+      const sandboxed = deps.toolRunsSandboxed?.(session, toolName, callId) ??
+        sandboxBashWasWrapped(toolName, deps.sandboxStatus());
+      if (!sandboxed) {
         return;
       }
       if (collectSandboxedBashCallIds(session.runtime.session.sessionManager.getEntries()).has(callId)) {

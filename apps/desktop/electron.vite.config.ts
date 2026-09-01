@@ -21,6 +21,9 @@ const portableProtocolAliases = {
 
 const portableAliases = {
   ...portableProtocolAliases,
+  "@pho-agent/runtime/approval-controller": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/approval-controller.ts"),
+  "@pho-agent/runtime/approval-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/approval-feature.ts"),
+  "@pho-agent/runtime/approval-reviewer": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/approval-reviewer.ts"),
   "@pho-agent/runtime/compaction-controller": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/compaction-controller.ts"),
   "@pho-agent/runtime/context-continuity-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/context-continuity-feature.ts"),
   "@pho-agent/runtime/context-prompt-feature": path.resolve(workspaceRoot, "packages/pho-agent/packages/runtime/src/context-prompt-feature.ts"),

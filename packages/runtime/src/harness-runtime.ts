@@ -63,6 +63,20 @@ import {
   type GetChangeFileViewInput,
   type PrepareUndoChangesInput,
   type UndoPreview,
+  type ApprovalDecisionHistoryPage,
+  type ApprovalModeSettingsSnapshot,
+  type AuthorizeApprovalRetryInput,
+  type ListApprovalDecisionHistoryInput,
+  type MigrateLegacyPermissionSettingsInput,
+  type ResolveApprovalRequestInput,
+  type RevokeApprovalGrantInput,
+  type SetSessionApprovalModeInput,
+  type UpdateApprovalModeSettingsInput,
+  type AcceptTaskCompletionGapsInput,
+  type RecordOwnerVerificationInput,
+  type ReopenTaskInput,
+  type ResetTaskBriefInput,
+  type UpdateTaskBriefInput,
 } from "@pho-code/protocol";
 
 export interface RuntimeCapabilities {
@@ -110,12 +124,25 @@ export interface HarnessRuntime {
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  setSessionApprovalMode(input: SetSessionApprovalModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
+  updateTaskBrief(input: UpdateTaskBriefInput): Promise<SessionSnapshot>;
+  resetTaskBrief(input: ResetTaskBriefInput): Promise<SessionSnapshot>;
+  reopenTask(input: ReopenTaskInput): Promise<SessionSnapshot>;
+  recordOwnerVerification(input: RecordOwnerVerificationInput): Promise<SessionSnapshot>;
+  acceptTaskCompletionGaps(input: AcceptTaskCompletionGapsInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getPermissionSettings(): PermissionSettings;
+  getApprovalModeSettings(): ApprovalModeSettingsSnapshot;
+  updateApprovalModeSettings(input: UpdateApprovalModeSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  resolveApprovalRequest(input: ResolveApprovalRequestInput): Promise<SessionSnapshot>;
+  authorizeApprovalRetry(input: AuthorizeApprovalRetryInput): Promise<SessionSnapshot>;
+  revokeApprovalGrant(input: RevokeApprovalGrantInput): Promise<SessionSnapshot>;
+  migrateLegacyPermissionSettings(input: MigrateLegacyPermissionSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  listApprovalDecisionHistory(input?: ListApprovalDecisionHistoryInput): Promise<ApprovalDecisionHistoryPage>;
   trustProjectPermissionRules(workspacePath: string): Promise<PermissionSettings>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<PermissionSettings>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
@@ -189,12 +216,25 @@ export function createDisposableStubHarnessRuntime(options?: {
     setThinkingLevel: reject("setThinkingLevel"),
     setFastMode: reject("setFastMode"),
     setSessionMode: reject("setSessionMode"),
+    setSessionApprovalMode: reject("setSessionApprovalMode"),
     updateSessionPlanDocument: reject("updateSessionPlanDocument"),
     executeSessionPlan: reject("executeSessionPlan"),
+    updateTaskBrief: reject("updateTaskBrief"),
+    resetTaskBrief: reject("resetTaskBrief"),
+    reopenTask: reject("reopenTask"),
+    recordOwnerVerification: reject("recordOwnerVerification"),
+    acceptTaskCompletionGaps: reject("acceptTaskCompletionGaps"),
     rewriteAssistantOutput: reject("rewriteAssistantOutput"),
     updateSessionContextPrompt: reject("updateSessionContextPrompt"),
     resolveHostDialog: reject("resolveHostDialog"),
     getPermissionSettings: () => emptySettingsSnapshot().permission,
+    getApprovalModeSettings: () => unavailableApprovalSettings(),
+    updateApprovalModeSettings: reject("updateApprovalModeSettings"),
+    resolveApprovalRequest: reject("resolveApprovalRequest"),
+    authorizeApprovalRetry: reject("authorizeApprovalRetry"),
+    revokeApprovalGrant: reject("revokeApprovalGrant"),
+    migrateLegacyPermissionSettings: reject("migrateLegacyPermissionSettings"),
+    listApprovalDecisionHistory: reject("listApprovalDecisionHistory"),
     updatePermissionSettings: reject("updatePermissionSettings"),
     trustProjectPermissionRules: reject("trustProjectPermissionRules"),
     listCredentialProviders: reject("listCredentialProviders"),
@@ -236,6 +276,19 @@ export function createDisposableStubHarnessRuntime(options?: {
       state.disposeCount += 1;
       await options?.onDispose?.();
     },
+  };
+}
+
+function unavailableApprovalSettings(): ApprovalModeSettingsSnapshot {
+  return {
+    defaultMode: "ask",
+    autoEnabled: false,
+    fullAccessEnabled: false,
+    reviewer: { selection: "automatic", available: false, reason: "The runtime is unavailable." },
+    decisionHistoryEnabled: true,
+    migration: { state: "not-needed" },
+    legacy: { profile: "custom", yoloMode: false, custom: true, sharedAgentDir: false },
+    boundary: { sandboxAvailable: false, status: "off" },
   };
 }
 

@@ -44,6 +44,8 @@ export const TEST_PROMPT = {
   useNotesRead: "USE_NOTES_READ",
   useHistorySearch: "USE_HISTORY_SEARCH",
   useNewContext: "USE_NEW_CONTEXT",
+  useTaskBrief: "USE_TASK_BRIEF",
+  useCompleteTask: "USE_COMPLETE_TASK",
   useWriteFail: "USE_WRITE_FAIL",
   useWriteOutside: "USE_WRITE_OUTSIDE",
   useWriteCap: "USE_WRITE_CAP",
@@ -211,6 +213,44 @@ function buildTestResponse(context: Context) {
   if (prompt.includes(PLAN_EXECUTE_PROMPT) || prompt.includes("[EXECUTING PLAN]")) {
     return toolUseResponse("Writing the first Execute step.", "write", { path: "agent-note.txt", content: "hello from agent\n" }, "call_write");
   }
+  if (prompt.includes(TEST_PROMPT.useTaskBrief)) {
+    return toolUseResponse(
+      "Creating a living Task Brief.",
+      "update_task_brief",
+      {
+        objective: "Complete the deterministic V5 task journey",
+        status: "active",
+        constraints: ["Keep completion evidence-backed"],
+        acceptanceCriteria: [
+          { id: "mechanics", text: "Task state persists and restores" },
+          { id: "owner", text: "Owner can review disclosed gaps" },
+        ],
+        assumptions: [],
+        openQuestions: [],
+        nonGoals: ["Do not merge Plan and Task"],
+      },
+      "call_update_task_brief",
+    );
+  }
+  if (prompt.includes(TEST_PROMPT.useCompleteTask)) {
+    const brief = taskBriefFromEvidence(context);
+    if (brief) {
+      return toolUseResponse(
+        "Submitting an honest incomplete assessment.",
+        "complete_task",
+        {
+          briefRevision: brief.revision,
+          criteria: brief.criteria.map((criterionId) => ({
+            criterionId,
+            outcome: "unverified",
+            verificationIds: [],
+            note: "The deterministic journey leaves this criterion for explicit owner review.",
+          })),
+        },
+        "call_complete_task",
+      );
+    }
+  }
   if (prompt.includes(TEST_PROMPT.failAfter)) {
     return fauxAssistantMessage("synthetic failure after admission", {
       stopReason: "error",
@@ -255,6 +295,44 @@ function buildTestResponse(context: Context) {
   ]);
 }
 
+function taskBriefFromEvidence(context: Context): { revision: string; criteria: string[] } | undefined {
+  const texts: string[] = [];
+  collectContextStrings(context, texts);
+  for (let index = texts.length - 1; index >= 0; index -= 1) {
+    const text = texts[index];
+    const marker = text.indexOf("pack=");
+    if (!text.includes("[PHO AGENT EVIDENCE PACK]") || marker < 0) continue;
+    try {
+      const pack = JSON.parse(text.slice(marker + 5)) as {
+        sources?: Array<{ provider?: unknown; source?: unknown; excerpt?: unknown }>;
+      };
+      const source = pack.sources?.find((item) => item.provider === "task-brief");
+      if (typeof source?.source !== "string" || typeof source.excerpt !== "string") continue;
+      const content = JSON.parse(source.excerpt) as { acceptanceCriteria?: Array<{ id?: unknown }> };
+      const criteria = content.acceptanceCriteria?.flatMap((criterion) =>
+        typeof criterion.id === "string" ? [criterion.id] : [],
+      ) ?? [];
+      if (criteria.length > 0) return { revision: source.source, criteria };
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
+function collectContextStrings(value: unknown, target: string[]): void {
+  if (typeof value === "string") {
+    target.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectContextStrings(item, target));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  Object.values(value as Record<string, unknown>).forEach((item) => collectContextStrings(item, target));
+}
+
 function lastUserText(context: Context): string {
   const index = lastTurnStartIndex(context);
   if (index < 0) {
@@ -273,7 +351,7 @@ function lastTurnStartIndex(context: Context): number {
     if (!text) {
       continue;
     }
-    if (text.includes("[PLAN MODE ACTIVE]")) {
+    if (text.includes("[PLAN MODE ACTIVE]") || text.includes("[PHO AGENT EVIDENCE PACK]")) {
       continue;
     }
     if (message.role === "user" || text.includes(PLAN_EXECUTE_PROMPT) || text.includes("[EXECUTING PLAN]")) {

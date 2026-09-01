@@ -100,7 +100,7 @@ export function StatusBadge({
 
 const STATUS_LABELS: Record<ReviewStatus, string> = {
   pending: "Pending",
-  approved: "Approved",
+  approved: "Reviewed",
   conflict: "Conflict",
   unavailable: "Unavailable",
   capturing: "Capturing",

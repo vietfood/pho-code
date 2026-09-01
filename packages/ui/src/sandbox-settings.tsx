@@ -24,11 +24,13 @@ export function SandboxSettingsSection({
   sandbox,
   busy,
   running,
+  showEnable = true,
   onChange,
 }: {
   sandbox: SandboxSettingsSnapshot;
   busy: boolean;
   running: boolean;
+  showEnable?: boolean;
   onChange: (input: UpdateSandboxSettingsInput) => void;
 }) {
   const [domainDraft, setDomainDraft] = useState(() => linesFromList(sandbox.allowedDomains));
@@ -75,7 +77,7 @@ export function SandboxSettingsSection({
           Wait until this run finishes.
         </p>
       ) : null}
-      <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+      {showEnable ? <label className="glass-panel flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
         <input
           type="checkbox"
           className="mt-1"
@@ -91,7 +93,9 @@ export function SandboxSettingsSection({
             {sandbox.platformSupported ? "" : " · macOS only in this build"}
           </span>
         </span>
-      </label>
+      </label> : (
+        <p className="text-xs text-muted-foreground" data-testid="sandbox-status">Status: {statusText}{sandbox.platformSupported ? "" : " · macOS only in this build"}</p>
+      )}
       <div className="grid gap-1.5">
         <p className="text-xs font-medium text-foreground">Network</p>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Sandbox network mode">

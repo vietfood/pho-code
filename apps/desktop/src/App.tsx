@@ -21,6 +21,8 @@ import {
   parseSessionKeyId,
   sessionKeyId,
   type BootstrapState,
+  type ApprovalMode,
+  type ApprovalRequestResolution,
   type ConversationCacheState,
   type ConversationViewState,
   type HarnessSettingsSnapshot,
@@ -36,8 +38,9 @@ import {
   type SessionSnapshot,
   type SessionSummary,
   type ThinkingLevel,
+  type TaskBriefContent,
   type UpdateAppearanceSettingsInput,
-  type UpdatePermissionSettingsInput,
+  type UpdateApprovalModeSettingsInput,
   type UpdateSkillSourceSettingsInput,
   type WorkspaceSnapshot,
 } from "@pho-code/protocol";
@@ -61,6 +64,7 @@ import {
   NotificationToast,
   fileToBase64,
   isChatTabOpen,
+  isTileOpen,
   looksLikeProjectTrustNotification,
   pastedImageDisplayName,
   ProjectTrustBanner,
@@ -73,6 +77,7 @@ import {
   RightSurfaceIcons,
   type RightSidebarSurface,
   SettingsView,
+  TaskPanel,
   WorkspacePicker,
   dropLiveRun,
   getLiveRunForKey,
@@ -112,6 +117,7 @@ export function App() {
   const piReady = bootstrap?.capabilities.piRuntime === true;
   const [contextPromptBusy, setContextPromptBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
+  const [taskBusy, setTaskBusy] = useState(false);
   const composerAfterRun = useRef(false);
   const bootstrapRefreshGeneration = useRef(0);
   const cacheRef = useRef(cache);
@@ -125,11 +131,12 @@ export function App() {
   const changeReview = useChangeReview(cache);
 
   const openLatestReviewIfNeeded = useCallback(() => {
-    if (changeReview.scope) {
-      return;
-    }
     const selectedKey = cacheRef.current.selectedKey;
     const snap = selectedKey ? cacheRef.current.byKey[selectedKey]?.snapshot : undefined;
+    const scope = changeReview.scope;
+    if (scope && snap && scope.workspaceId === snap.workspace.id && scope.sessionId === snap.session.id) {
+      return;
+    }
     const latest = snap ? latestChangeReview(snap.changeReviews) : undefined;
     if (!latest) {
       return;
@@ -165,20 +172,47 @@ export function App() {
     [changeReview.open, revealChanges],
   );
 
+  // The open Changes tile follows the active chat (conversation-ui slice 16).
+  // A freshly selected tab without a cached snapshot keeps the previous review
+  // until the snapshot arrives, then this re-syncs.
+  const changesTileOpen = isTileOpen(rightSidebarTiles, "changes");
   useEffect(() => {
     const scope = changeReview.scope;
-    if (!scope) {
+    const snap = conversation.snapshot;
+    if (!cache.selectedKey) {
+      if (scope) {
+        changeReview.close();
+      }
       return;
     }
-    const snap = conversation.snapshot;
-    if (!snap || snap.session.id !== scope.sessionId || snap.workspace.id !== scope.workspaceId) {
+    if (!snap) {
+      return;
+    }
+    if (scope && scope.workspaceId === snap.workspace.id && scope.sessionId === snap.session.id) {
+      return;
+    }
+    if (!changesTileOpen) {
+      if (scope) {
+        changeReview.close();
+      }
+      return;
+    }
+    const latest = latestChangeReview(snap.changeReviews);
+    if (latest) {
+      changeReview.open({
+        workspaceId: latest.workspaceId,
+        sessionId: latest.sessionId,
+        runId: latest.runId,
+      });
+    } else if (scope) {
       changeReview.close();
     }
-  }, [changeReview.close, changeReview.scope, conversation.snapshot]);
+  }, [cache.selectedKey, changeReview.close, changeReview.open, changeReview.scope, changesTileOpen, conversation.snapshot]);
 
   useEffect(() => {
     setContextPromptBusy(false);
     setPlanBusy(false);
+    setTaskBusy(false);
   }, [conversation.snapshot?.session.id, conversation.snapshot?.workspace.id]);
 
   useEffect(() => {
@@ -194,6 +228,7 @@ export function App() {
   }, [bootstrap, error]);
 
   const planDocumentPresent = (conversation.snapshot?.plan?.documentMarkdown.trim().length ?? 0) > 0;
+  const taskPresent = conversation.snapshot?.task?.brief !== undefined;
   const planSessionKey = conversation.snapshot
     ? `${conversation.snapshot.workspace.id}:${conversation.snapshot.session.id}`
     : "";
@@ -209,6 +244,17 @@ export function App() {
     }
     previousPlanDocumentRef.current = { key: planSessionKey, present: planDocumentPresent };
   }, [planDocumentPresent, planSessionKey, revealRightSurface]);
+
+  const previousTaskRef = useRef({ key: "", present: false });
+  useEffect(() => {
+    const previous = previousTaskRef.current;
+    if (planSessionKey !== previous.key) {
+      previousTaskRef.current = { key: planSessionKey, present: taskPresent };
+      return;
+    }
+    if (taskPresent && !previous.present) revealRightSurface("task");
+    previousTaskRef.current = { key: planSessionKey, present: taskPresent };
+  }, [planSessionKey, revealRightSurface, taskPresent]);
 
   const rememberSessions = useCallback((workspaceId: string, sessions: readonly SessionCatalogEntry[]) => {
     setSessionsByWorkspace((current) => ({ ...current, [workspaceId]: [...sessions] }));
@@ -336,6 +382,7 @@ export function App() {
             lastSequence: existing?.lastSequence ?? current.lastSequence,
             snapshot: active,
             dialog: existing?.dialog ?? null,
+            approvalRequest: existing?.approvalRequest ?? null,
             notification: existing?.notification ?? null,
             settings,
             authFlow: current.authFlow,
@@ -673,6 +720,60 @@ export function App() {
     [],
   );
 
+  const resolveApprovalRequestFor = useCallback(
+    (key: string, resolution: ApprovalRequestResolution, reason?: string) => {
+      const entry = cacheRef.current.byKey[key];
+      const request = entry?.approvalRequest ?? entry?.snapshot?.approval?.pendingRequest;
+      if (!request) return;
+      void runCommand(async () => {
+        const next = await getDesktopBridge().resolveApprovalRequest({
+          ...(request.backendId ? { backendId: request.backendId } : {}),
+          workspaceId: request.workspaceId,
+          sessionId: request.sessionId,
+          requestId: request.requestId,
+          resolution,
+          ...(reason !== undefined ? { reason } : {}),
+        });
+        patchSnapshot(() => next, key);
+      }, { busy: false });
+    },
+    [patchSnapshot],
+  );
+
+  const authorizeApprovalRetryFor = useCallback(
+    (key: string, requestId: string) => {
+      const snapshot = cacheRef.current.byKey[key]?.snapshot;
+      if (!snapshot) return;
+      void runCommand(async () => {
+        const next = await getDesktopBridge().authorizeApprovalRetry({
+          ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+          workspaceId: snapshot.workspace.id,
+          sessionId: snapshot.session.id,
+          requestId,
+        });
+        patchSnapshot(() => next, key);
+      }, { busy: false });
+    },
+    [patchSnapshot],
+  );
+
+  const revokeApprovalGrantsFor = useCallback(
+    (key: string) => {
+      const snapshot = cacheRef.current.byKey[key]?.snapshot;
+      if (!snapshot) return;
+      void runCommand(async () => {
+        const next = await getDesktopBridge().revokeApprovalGrant({
+          ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+          workspaceId: snapshot.workspace.id,
+          sessionId: snapshot.session.id,
+          all: true,
+        });
+        patchSnapshot(() => next, key);
+      }, { busy: false });
+    },
+    [patchSnapshot],
+  );
+
   const onRewriteFor = useCallback(
     async (key: string, { messageId, text }: { messageId: string; text: string }) => {
       const snap = cacheRef.current.byKey[key]?.snapshot;
@@ -811,12 +912,42 @@ export function App() {
     [patchSnapshot],
   );
 
+  const onSetSessionApprovalMode = useCallback(
+    async (key: string, mode: ApprovalMode, acknowledgeFullRisk = false) => {
+      const snap = cacheRef.current.byKey[key]?.snapshot;
+      if (!snap) return;
+      try {
+        setError(null);
+        const next = await getDesktopBridge().setSessionApprovalMode({
+          ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+          workspaceId: snap.workspace.id,
+          sessionId: snap.session.id,
+          mode,
+          ...(acknowledgeFullRisk ? { acknowledgeFullRisk: true } : {}),
+        });
+        patchSnapshot(() => next, key);
+      } catch (cause) {
+        setError(errorMessage(cause));
+      }
+    },
+    [patchSnapshot],
+  );
+
   const withPlanBusy = useCallback(async (work: () => Promise<void>): Promise<void> => {
     setPlanBusy(true);
     try {
       await work();
     } finally {
       setPlanBusy(false);
+    }
+  }, []);
+
+  const withTaskBusy = useCallback(async (work: () => Promise<void>): Promise<void> => {
+    setTaskBusy(true);
+    try {
+      await work();
+    } finally {
+      setTaskBusy(false);
     }
   }, []);
 
@@ -861,6 +992,84 @@ export function App() {
       });
     });
   }, [withPlanBusy]);
+
+  const onSaveTaskBrief = useCallback(async (
+    content: TaskBriefContent,
+    expectedRevision?: string,
+    status: "draft" | "active" = "active",
+  ) => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) return;
+    await withTaskBusy(async () => {
+      const next = await getDesktopBridge().updateTaskBrief({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        workspaceId: snap.workspace.id,
+        sessionId: snap.session.id,
+        content,
+        status,
+        ...(expectedRevision ? { expectedRevision } : {}),
+      });
+      patchSnapshot(() => next);
+    });
+  }, [patchSnapshot, withTaskBusy]);
+
+  const onResetTaskBrief = useCallback(async (expectedRevision?: string) => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) return;
+    await withTaskBusy(async () => {
+      const next = await getDesktopBridge().resetTaskBrief({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        workspaceId: snap.workspace.id,
+        sessionId: snap.session.id,
+        ...(expectedRevision ? { expectedRevision } : {}),
+      });
+      patchSnapshot(() => next);
+    });
+  }, [patchSnapshot, withTaskBusy]);
+
+  const onReopenTask = useCallback(async () => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) return;
+    await withTaskBusy(async () => {
+      const next = await getDesktopBridge().reopenTask({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        workspaceId: snap.workspace.id,
+        sessionId: snap.session.id,
+      });
+      patchSnapshot(() => next);
+    });
+  }, [patchSnapshot, withTaskBusy]);
+
+  const onRecordOwnerVerification = useCallback(async (input: {
+    criterionId?: string;
+    outcome: "passed" | "failed" | "observed" | "unverified";
+    summary: string;
+  }) => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) return;
+    await withTaskBusy(async () => {
+      const next = await getDesktopBridge().recordOwnerVerification({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        workspaceId: snap.workspace.id,
+        sessionId: snap.session.id,
+        ...input,
+      });
+      patchSnapshot(() => next);
+    });
+  }, [patchSnapshot, withTaskBusy]);
+
+  const onAcceptTaskGaps = useCallback(async () => {
+    const snap = selectedCachedSnapshot(cacheRef.current);
+    if (!snap) return;
+    await withTaskBusy(async () => {
+      const next = await getDesktopBridge().acceptTaskCompletionGaps({
+        ...(snap.session.backendId ? { backendId: snap.session.backendId } : {}),
+        workspaceId: snap.workspace.id,
+        sessionId: snap.session.id,
+      });
+      patchSnapshot(() => next);
+    });
+  }, [patchSnapshot, withTaskBusy]);
 
   const onRefinePlan = useCallback(
     async (comment: string) => {
@@ -960,6 +1169,7 @@ export function App() {
         minimized={rightSidebarTiles.minimized}
         contextPromptCustomized={snapshot?.contextPrompt?.customized === true}
         planDocumentPresent={planDocumentPresent}
+        taskPresent={taskPresent}
         onToggleSurface={toggleRightSurface}
       />
     ) : null;
@@ -1109,6 +1319,31 @@ export function App() {
         ) : (
           <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>
         );
+      case "task": {
+        if (!snapshot) return <p className="px-3 py-3 text-xs text-muted-foreground">Opening session…</p>;
+        const idle =
+          snapshot.run.status === "idle" ||
+          snapshot.run.status === "settled" ||
+          snapshot.run.status === "failed" ||
+          snapshot.run.status === "cancelled";
+        const supported = snapshot.task !== undefined;
+        return (
+          <TaskPanel
+            task={snapshot.task}
+            idle={idle}
+            busy={taskBusy || !supported}
+            {...(supported
+              ? {
+                  onSave: onSaveTaskBrief,
+                  onReset: onResetTaskBrief,
+                  onReopen: onReopenTask,
+                  onRecordVerification: onRecordOwnerVerification,
+                  onAcceptGaps: onAcceptTaskGaps,
+                }
+              : {})}
+          />
+        );
+      }
       default: {
         const exhaustive: never = surface;
         return exhaustive;
@@ -1130,6 +1365,10 @@ export function App() {
         onDraftChange={(value) => setComposerDraft(key, value)}
         dialog={entry?.dialog ?? null}
         onResolveDialog={(resolution) => resolveHostDialogFor(key, resolution)}
+        approvalRequest={entry?.approvalRequest ?? snap.approval?.pendingRequest ?? null}
+        onResolveApprovalRequest={(resolution, reason) => resolveApprovalRequestFor(key, resolution, reason)}
+        onAuthorizeApprovalRetry={(requestId) => authorizeApprovalRetryFor(key, requestId)}
+        onRevokeApprovalGrants={() => revokeApprovalGrantsFor(key)}
         sidebarCollapsed={sidebarCollapsed}
         splitActive={splitActive}
         notice={trustNotice}
@@ -1282,6 +1521,9 @@ export function App() {
         }}
         onSessionModeChange={(mode) => {
           void onSetSessionMode(key, mode);
+        }}
+        onApprovalModeChange={(mode, acknowledgeFullRisk) => {
+          void onSetSessionApprovalMode(key, mode, acknowledgeFullRisk);
         }}
         agentBackends={agentBackends}
         backendId={snap.session.backendId ?? "pi"}
@@ -1551,10 +1793,14 @@ export function App() {
           onAppearanceChange={(input: UpdateAppearanceSettingsInput) => {
             applySettingsCommand(() => getDesktopBridge().updateAppearanceSettings(input), { busy: false });
           }}
-          onPermissionApply={async (input: UpdatePermissionSettingsInput) => {
-            await runCommand(async () => {
-              const next = await getDesktopBridge().updatePermissionSettings(input);
-              applySettings(next);
+          onApprovalModeChange={(input: UpdateApprovalModeSettingsInput) => {
+            applySettingsCommand(() => getDesktopBridge().updateApprovalModeSettings(input));
+          }}
+          onListApprovalDecisionHistory={(input) => getDesktopBridge().listApprovalDecisionHistory(input ?? {})}
+          onMigrateLegacyPermissions={(input) => {
+            void runCommand(async () => {
+              await getDesktopBridge().migrateLegacyPermissionSettings(input);
+              applySettings(await getDesktopBridge().getSettings());
             });
           }}
           onTrustProjectPermissionRules={async () => {

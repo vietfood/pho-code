@@ -266,7 +266,7 @@ describe("workspace source dependency direction", () => {
     }
   });
 
-  test("M0 does not expose later task-intelligence commands or persisted entries", async () => {
+  test("V5 task intelligence stays in Pho Agent core and crosses only typed product adapters", async () => {
     const roots = [
       "packages/pho-agent/packages/protocol/src",
       "packages/pho-agent/packages/host/src",
@@ -276,22 +276,25 @@ describe("workspace source dependency direction", () => {
       ...productSourceRoots,
     ];
     const files = (await Promise.all(roots.map(readTypeScriptFiles))).flat();
-    const laterSurface = [
+    const taskSurface = [
       "updateTaskBrief",
       "resetTaskBrief",
       "reopenTask",
-      "getEvidenceDetails",
       "recordOwnerVerification",
-      "acceptCompletionGaps",
+      "acceptTaskCompletionGaps",
       "update_task_brief",
+      "complete_task",
       "pho-agent.task-brief",
       "pho-agent.evidence-pack",
       "pho-agent.verification",
       "pho-agent.completion",
     ];
-    const violations = files.flatMap((file) =>
-      laterSurface.filter((token) => file.source.includes(token)).map((token) => `${file.path}: ${token}`),
-    );
-    expect(violations).toEqual([]);
+    for (const token of taskSurface) {
+      expect(files.some((file) => file.source.includes(token))).toBe(true);
+    }
+    const agentFiles = (await Promise.all(roots.slice(0, 5).map(readTypeScriptFiles))).flat();
+    expect(agentFiles.some((file) => file.source.includes("@pho-code/"))).toBe(false);
+    expect(agentFiles.some((file) => file.source.includes('from "electron"'))).toBe(false);
+    expect(agentFiles.some((file) => file.source.includes('from "react"'))).toBe(false);
   });
 });

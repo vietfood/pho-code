@@ -67,6 +67,20 @@ describe("application bootstrap", () => {
 
     expect(application.getBootstrapState().embeddedNodeCompatible).toBe(false);
   });
+
+  test("validates approval mode and composite session identity before runtime dispatch", async () => {
+    const application = createTestApplication();
+    await expect(application.setSessionApprovalMode({
+      workspaceId: "/tmp/ws",
+      sessionId: "session",
+      mode: "unknown" as never,
+    })).rejects.toMatchObject({ operation: "setSessionApprovalMode" });
+    await expect(application.setSessionApprovalMode({
+      workspaceId: "",
+      sessionId: "session",
+      mode: "ask",
+    })).rejects.toMatchObject({ operation: "setSessionApprovalMode" });
+  });
 });
 
 describe("application workspaces", () => {

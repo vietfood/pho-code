@@ -22,6 +22,11 @@ import {
   isWorkspaceReferenceToken,
   isSessionCatalogScope,
   isSessionKey,
+  isApprovalMode,
+  isDurableApprovalMode,
+  isApprovalRequestResolution,
+  MAX_APPROVAL_HISTORY_PAGE_SIZE,
+  MAX_APPROVAL_REASON_CHARS,
   MAX_ASSISTANT_REWRITE_CHARS,
   MAX_CONTEXT_PROMPT_PREAMBLE_CHARS,
   MAX_PREPARED_IMAGES,
@@ -34,6 +39,9 @@ import {
   parseAskUserAnswers,
   parseSandboxSettingsPatch,
   type AbortRunInput,
+  type ApprovalDecisionHistoryPage,
+  type ApprovalModeSettingsSnapshot,
+  type AuthorizeApprovalRetryInput,
   type ArchiveSessionInput,
   type BootstrapState,
   type CancelProviderLoginInput,
@@ -49,6 +57,7 @@ import {
   type ImportProviderApiKeyInput,
   type ImportProviderApiKeyResult,
   type ListSessionCatalogInput,
+  type ListApprovalDecisionHistoryInput,
   type ListWorkspaceSessionsInput,
   type LogoutProviderInput,
   type OpenProviderAuthLinkInput,
@@ -78,6 +87,8 @@ import {
   type RemoveSessionResult,
   type ReorderRecentWorkspacesInput,
   type ResolveHostDialogInput,
+  type ResolveApprovalRequestInput,
+  type RevokeApprovalGrantInput,
   type RespondProviderAuthPromptInput,
   type RestoreSessionInput,
   type RewriteAssistantOutputInput,
@@ -96,6 +107,7 @@ import {
   type SetThinkingLevelInput,
   type SetFastModeInput,
   type SetSessionModeInput,
+  type SetSessionApprovalModeInput,
   type UpdateSessionPlanDocumentInput,
   type ExecuteSessionPlanInput,
   type StartProviderLoginInput,
@@ -103,6 +115,15 @@ import {
   type Unsubscribe,
   type UpdateAppearanceSettingsInput,
   type UpdatePermissionSettingsInput,
+  type UpdateApprovalModeSettingsInput,
+  normalizeTaskBriefContent,
+  boundedTaskText,
+  type AcceptTaskCompletionGapsInput,
+  type RecordOwnerVerificationInput,
+  type ReopenTaskInput,
+  type ResetTaskBriefInput,
+  type UpdateTaskBriefInput,
+  type MigrateLegacyPermissionSettingsInput,
   type UpdateSkillSourceSettingsInput,
   type SkillSettingsSnapshot,
   type UpdateGitHubMcpSettingsInput,
@@ -143,6 +164,7 @@ import {
   forgetWorkspace,
   isPermissionWorkspaceTrusted,
   markSessionViewed,
+  getSessionLifecycle,
   pruneOrphanSessionLifecycle,
   recordSessionOutcome,
   rememberWorkspace,
@@ -150,6 +172,7 @@ import {
   restoreSessionMetadata,
   selectSession,
   setAppearance,
+  setSessionApprovalModeMetadata,
   setEnabledSkillSources,
   setGitHubMcpAccountLogin,
   setGitHubMcpEnabled,
@@ -210,14 +233,26 @@ export interface ApplicationService {
   setThinkingLevel(input: SetThinkingLevelInput): Promise<SessionSnapshot>;
   setFastMode(input: SetFastModeInput): Promise<SessionSnapshot>;
   setSessionMode(input: SetSessionModeInput): Promise<SessionSnapshot>;
+  setSessionApprovalMode(input: SetSessionApprovalModeInput): Promise<SessionSnapshot>;
   updateSessionPlanDocument(input: UpdateSessionPlanDocumentInput): Promise<SessionSnapshot>;
   executeSessionPlan(input: ExecuteSessionPlanInput): Promise<SessionSnapshot>;
+  updateTaskBrief(input: UpdateTaskBriefInput): Promise<SessionSnapshot>;
+  resetTaskBrief(input: ResetTaskBriefInput): Promise<SessionSnapshot>;
+  reopenTask(input: ReopenTaskInput): Promise<SessionSnapshot>;
+  recordOwnerVerification(input: RecordOwnerVerificationInput): Promise<SessionSnapshot>;
+  acceptTaskCompletionGaps(input: AcceptTaskCompletionGapsInput): Promise<SessionSnapshot>;
   rewriteAssistantOutput(input: RewriteAssistantOutputInput): Promise<SessionSnapshot>;
   updateSessionContextPrompt(input: UpdateSessionContextPromptInput): Promise<SessionSnapshot>;
   resolveHostDialog(input: ResolveHostDialogInput): Promise<void>;
   getSettings(): HarnessSettingsSnapshot;
   updateAppearanceSettings(input: UpdateAppearanceSettingsInput): Promise<HarnessSettingsSnapshot>;
   updatePermissionSettings(input: UpdatePermissionSettingsInput): Promise<HarnessSettingsSnapshot>;
+  updateApprovalModeSettings(input: UpdateApprovalModeSettingsInput): Promise<HarnessSettingsSnapshot>;
+  resolveApprovalRequest(input: ResolveApprovalRequestInput): Promise<SessionSnapshot>;
+  authorizeApprovalRetry(input: AuthorizeApprovalRetryInput): Promise<SessionSnapshot>;
+  revokeApprovalGrant(input: RevokeApprovalGrantInput): Promise<SessionSnapshot>;
+  migrateLegacyPermissionSettings(input: MigrateLegacyPermissionSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  listApprovalDecisionHistory(input?: ListApprovalDecisionHistoryInput): Promise<ApprovalDecisionHistoryPage>;
   trustProjectPermissionRules(): Promise<HarnessSettingsSnapshot>;
   listCredentialProviders(): Promise<CredentialProviderSummary[]>;
   importProviderApiKey(input: ImportProviderApiKeyInput): Promise<ImportProviderApiKeyResult>;
@@ -277,12 +312,24 @@ type PendingBulkRemoval = {
   sessions: Array<{ backendId?: string; sessionId: string; fingerprint: string }>;
 };
 
+interface ApprovalRuntimeOperations {
+  getApprovalModeSettings(): ApprovalModeSettingsSnapshot;
+  setSessionApprovalMode(input: SetSessionApprovalModeInput): Promise<SessionSnapshot>;
+  updateApprovalModeSettings(input: UpdateApprovalModeSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  resolveApprovalRequest(input: ResolveApprovalRequestInput): Promise<SessionSnapshot>;
+  authorizeApprovalRetry(input: AuthorizeApprovalRetryInput): Promise<SessionSnapshot>;
+  revokeApprovalGrant(input: RevokeApprovalGrantInput): Promise<SessionSnapshot>;
+  migrateLegacyPermissionSettings(input: MigrateLegacyPermissionSettingsInput): Promise<ApprovalModeSettingsSnapshot>;
+  listApprovalDecisionHistory(input: ListApprovalDecisionHistoryInput): Promise<ApprovalDecisionHistoryPage>;
+}
+
 export function createApplicationService(input: {
   runtime: HarnessRuntime;
   versions: ApplicationHostVersions;
   metadataStore: AppMetadataStore;
   appearanceHost?: AppearanceHost;
 }): ApplicationService {
+  const approvalRuntime = input.runtime as HarnessRuntime & Partial<ApprovalRuntimeOperations>;
   let shutdownAttempt: Promise<void> | undefined;
   let metadata = input.metadataStore.load();
   input.appearanceHost?.applyAppearance({
@@ -314,9 +361,66 @@ export function createApplicationService(input: {
     }
   }
 
+  function requireApprovalOperation<K extends keyof ApprovalRuntimeOperations>(
+    name: K,
+  ): ApprovalRuntimeOperations[K] {
+    const operation = approvalRuntime[name];
+    if (typeof operation !== "function") {
+      failCommand(name, "Approval modes are unavailable in this runtime.");
+    }
+    return operation.bind(input.runtime) as ApprovalRuntimeOperations[K];
+  }
+
+  function approvalModeSettings(): ApprovalModeSettingsSnapshot | undefined {
+    return approvalRuntime.getApprovalModeSettings?.();
+  }
+
   async function persist(next: AppMetadata): Promise<void> {
     metadata = next;
     await input.metadataStore.save(next);
+  }
+
+  function approvalSessionKey(snapshot: SessionSnapshot): SessionKey {
+    return {
+      ...(snapshot.session.backendId ? { backendId: snapshot.session.backendId } : {}),
+      workspaceId: snapshot.workspace.id,
+      sessionId: snapshot.session.id,
+    };
+  }
+
+  async function rememberSnapshotApprovalMode(snapshot: SessionSnapshot): Promise<void> {
+    const mode = snapshot.approval?.configuredMode;
+    if (isDurableApprovalMode(mode)) {
+      await persist(setSessionApprovalModeMetadata(metadata, approvalSessionKey(snapshot), mode));
+    }
+  }
+
+  async function restoreSnapshotApprovalMode(snapshot: SessionSnapshot): Promise<SessionSnapshot> {
+    if (snapshot.approval?.effectiveMode === "full") {
+      return snapshot;
+    }
+    const key = approvalSessionKey(snapshot);
+    const mode = getSessionLifecycle(metadata, key)?.approvalMode;
+    if (!mode || mode === snapshot.approval?.configuredMode) {
+      return snapshot;
+    }
+    const supported = snapshot.approval?.supportedModes.some((entry) => entry.mode === mode);
+    return supported ? requireApprovalOperation("setSessionApprovalMode")({ ...key, mode }) : snapshot;
+  }
+
+  async function approvalSnapshotForArchive(key: SessionKey): Promise<SessionSnapshot | undefined> {
+    const selectedKey = selectedSessionKey(session);
+    if (session && selectedKey && sessionKeyEquals(selectedKey, key)) {
+      return session;
+    }
+    try {
+      return await input.runtime.getSessionSnapshot(key);
+    } catch (error) {
+      if (isHarnessError(error) && error.code === HARNESS_ERROR_CODES.runtimeUnavailable) {
+        return undefined;
+      }
+      throw error;
+    }
   }
 
   async function selectWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<WorkspaceSnapshot> {
@@ -507,6 +611,7 @@ export function createApplicationService(input: {
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
       );
+      await rememberSnapshotApprovalMode(snapshot);
       return snapshot;
     },
     async openSession(command: OpenSessionInput) {
@@ -518,7 +623,9 @@ export function createApplicationService(input: {
       if (!workspace) {
         failCommand("openSession", "Select a workspace before opening a session.", HARNESS_ERROR_CODES.workspaceNotSelected);
       }
-      const snapshot = await input.runtime.openSession(workspace.workspace.id, sessionId, command.backendId);
+      const snapshot = await restoreSnapshotApprovalMode(
+        await input.runtime.openSession(workspace.workspace.id, sessionId, command.backendId),
+      );
       replaceSelectedSnapshot(snapshot);
       await persist(
         markSessionViewed(selectSession(metadata, snapshot.session.id, snapshot.session.backendId), {
@@ -527,12 +634,23 @@ export function createApplicationService(input: {
           sessionId: snapshot.session.id,
         }, new Date().toISOString()),
       );
+      await rememberSnapshotApprovalMode(snapshot);
       return snapshot;
     },
     async archiveSession(command: ArchiveSessionInput) {
       assertActive();
       const key = requireSessionKey(command, "archiveSession");
-      await persist(archiveSessionMetadata(metadata, key, new Date().toISOString()));
+      const current = await approvalSnapshotForArchive(key);
+      if (current?.approval?.activeSessionGrants) {
+        await requireApprovalOperation("revokeApprovalGrant")({ ...key, all: true });
+      }
+      const reset = current?.approval?.effectiveMode === "full"
+        ? await requireApprovalOperation("setSessionApprovalMode")({ ...key, mode: "ask" })
+        : current;
+      const nextMetadata = reset?.approval?.effectiveMode === "ask"
+        ? setSessionApprovalModeMetadata(metadata, key, "ask")
+        : metadata;
+      await persist(archiveSessionMetadata(nextMetadata, key, new Date().toISOString()));
       return loadCatalogEntry(key);
     },
     async restoreSession(command: RestoreSessionInput) {
@@ -794,6 +912,30 @@ export function createApplicationService(input: {
         throw normalizeCommandError(error, "setSessionMode");
       }
     },
+    async setSessionApprovalMode(command: SetSessionApprovalModeInput) {
+      assertActive();
+      const scope = requireSessionKey(command, "setSessionApprovalMode");
+      if (!isApprovalMode(command.mode)) {
+        failCommand("setSessionApprovalMode", "Unknown approval mode.");
+      }
+      if (command.acknowledgeFullRisk !== undefined && typeof command.acknowledgeFullRisk !== "boolean") {
+        failCommand("setSessionApprovalMode", "Full-access acknowledgement must be explicit.");
+      }
+      try {
+        const snapshot = await requireApprovalOperation("setSessionApprovalMode")({
+          ...scope,
+          mode: command.mode,
+          ...(command.acknowledgeFullRisk === true ? { acknowledgeFullRisk: true } : {}),
+        });
+        if (isDurableApprovalMode(command.mode)) {
+          await persist(setSessionApprovalModeMetadata(metadata, approvalSessionKey(snapshot), command.mode));
+        }
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "setSessionApprovalMode");
+      }
+    },
     async updateSessionPlanDocument(command: UpdateSessionPlanDocumentInput) {
       assertActive();
       const scope = sessionCommandScope(command, "updateSessionPlanDocument");
@@ -823,6 +965,84 @@ export function createApplicationService(input: {
         return snapshot;
       } catch (error) {
         throw normalizeCommandError(error, "executeSessionPlan");
+      }
+    },
+    async updateTaskBrief(command: UpdateTaskBriefInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "updateTaskBrief");
+      try {
+        const status = command.status ?? "active";
+        const content = normalizeTaskBriefContent(command.content, status);
+        const snapshot = await input.runtime.updateTaskBrief({
+          ...scope,
+          content,
+          status,
+          ...(command.expectedRevision ? { expectedRevision: command.expectedRevision } : {}),
+        });
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "updateTaskBrief");
+      }
+    },
+    async resetTaskBrief(command: ResetTaskBriefInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "resetTaskBrief");
+      try {
+        const snapshot = await input.runtime.resetTaskBrief({
+          ...scope,
+          ...(command.expectedRevision ? { expectedRevision: command.expectedRevision } : {}),
+        });
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "resetTaskBrief");
+      }
+    },
+    async reopenTask(command: ReopenTaskInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "reopenTask");
+      try {
+        const snapshot = await input.runtime.reopenTask(scope);
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "reopenTask");
+      }
+    },
+    async recordOwnerVerification(command: RecordOwnerVerificationInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "recordOwnerVerification");
+      if (
+        command.outcome !== "passed" &&
+        command.outcome !== "failed" &&
+        command.outcome !== "observed" &&
+        command.outcome !== "unverified"
+      ) {
+        failCommand("recordOwnerVerification", "Unknown verification outcome.");
+      }
+      try {
+        const snapshot = await input.runtime.recordOwnerVerification({
+          ...scope,
+          outcome: command.outcome,
+          summary: boundedTaskText(command.summary, "Owner verification summary"),
+          ...(command.criterionId ? { criterionId: command.criterionId } : {}),
+        });
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "recordOwnerVerification");
+      }
+    },
+    async acceptTaskCompletionGaps(command: AcceptTaskCompletionGapsInput) {
+      assertActive();
+      const scope = sessionCommandScope(command, "acceptTaskCompletionGaps");
+      try {
+        const snapshot = await input.runtime.acceptTaskCompletionGaps(scope);
+        adoptSelectedSnapshot(snapshot);
+        return snapshot;
+      } catch (error) {
+        throw normalizeCommandError(error, "acceptTaskCompletionGaps");
       }
     },
     async rewriteAssistantOutput(command: RewriteAssistantOutputInput) {
@@ -976,13 +1196,121 @@ export function createApplicationService(input: {
         failCommand("updatePermissionSettings", "No permission settings were provided.");
       }
       const permission = decoratePermissionSettings(await input.runtime.updatePermissionSettings(patch));
+      const approvalModes = approvalModeSettings();
       return {
         appearance: appearanceFromMetadata(metadata),
         permission,
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
         sandbox: input.runtime.getSandboxSettings(),
+        ...(approvalModes ? { approvalModes } : {}),
       };
+    },
+    async updateApprovalModeSettings(command: UpdateApprovalModeSettingsInput) {
+      assertActive();
+      const patch: UpdateApprovalModeSettingsInput = {};
+      if (command.defaultMode !== undefined) {
+        if (!isDurableApprovalMode(command.defaultMode)) {
+          failCommand("updateApprovalModeSettings", "New chats can default only to Ask or Approve for me.");
+        }
+        patch.defaultMode = command.defaultMode;
+      }
+      for (const field of ["autoEnabled", "fullAccessEnabled", "decisionHistoryEnabled"] as const) {
+        if (command[field] !== undefined) {
+          if (typeof command[field] !== "boolean") {
+            failCommand("updateApprovalModeSettings", `${field} must be a boolean.`);
+          }
+          patch[field] = command[field];
+        }
+      }
+      if (command.reviewer !== undefined) {
+        if (command.reviewer.selection === "automatic") {
+          patch.reviewer = { selection: "automatic" };
+        } else if (
+          command.reviewer.selection === "model" &&
+          typeof command.reviewer.providerId === "string" && command.reviewer.providerId.trim() !== "" &&
+          typeof command.reviewer.modelId === "string" && command.reviewer.modelId.trim() !== ""
+        ) {
+          patch.reviewer = {
+            selection: "model",
+            providerId: command.reviewer.providerId.trim(),
+            modelId: command.reviewer.modelId.trim(),
+          };
+        } else {
+          failCommand("updateApprovalModeSettings", "Choose Automatic or a valid reviewer model.");
+        }
+      }
+      if (Object.keys(patch).length === 0) {
+        failCommand("updateApprovalModeSettings", "No approval-mode settings were provided.");
+      }
+      await requireApprovalOperation("updateApprovalModeSettings")(patch);
+      return settingsSnapshot();
+    },
+    async resolveApprovalRequest(command: ResolveApprovalRequestInput) {
+      assertActive();
+      const scope = requireSessionKey(command, "resolveApprovalRequest");
+      const requestId = requireNonEmptyString(command.requestId, "requestId", "resolveApprovalRequest");
+      if (!isApprovalRequestResolution(command.resolution)) {
+        failCommand("resolveApprovalRequest", "Unknown approval decision.");
+      }
+      if (command.reason !== undefined && (typeof command.reason !== "string" || command.reason.length > MAX_APPROVAL_REASON_CHARS)) {
+        failCommand("resolveApprovalRequest", "The approval reason is too long.");
+      }
+      const snapshot = await requireApprovalOperation("resolveApprovalRequest")({
+        ...scope,
+        requestId,
+        resolution: command.resolution,
+        ...(command.reason !== undefined ? { reason: command.reason } : {}),
+      });
+      adoptSelectedSnapshot(snapshot);
+      return snapshot;
+    },
+    async authorizeApprovalRetry(command: AuthorizeApprovalRetryInput) {
+      assertActive();
+      const scope = requireSessionKey(command, "authorizeApprovalRetry");
+      const requestId = requireNonEmptyString(command.requestId, "requestId", "authorizeApprovalRetry");
+      const snapshot = await requireApprovalOperation("authorizeApprovalRetry")({ ...scope, requestId });
+      adoptSelectedSnapshot(snapshot);
+      return snapshot;
+    },
+    async revokeApprovalGrant(command: RevokeApprovalGrantInput) {
+      assertActive();
+      const scope = requireSessionKey(command, "revokeApprovalGrant");
+      const grantId = command.grantId === undefined
+        ? undefined
+        : requireNonEmptyString(command.grantId, "grantId", "revokeApprovalGrant");
+      if (!grantId && command.all !== true) {
+        failCommand("revokeApprovalGrant", "Choose one approval grant or revoke all grants.");
+      }
+      const snapshot = await requireApprovalOperation("revokeApprovalGrant")({
+        ...scope,
+        ...(grantId ? { grantId } : { all: true }),
+      });
+      adoptSelectedSnapshot(snapshot);
+      return snapshot;
+    },
+    async migrateLegacyPermissionSettings(command: MigrateLegacyPermissionSettingsInput) {
+      assertActive();
+      for (const field of ["acknowledgeCustom", "acknowledgeSharedAgentDir"] as const) {
+        if (command[field] !== undefined && typeof command[field] !== "boolean") {
+          failCommand("migrateLegacyPermissionSettings", `${field} must be a boolean.`);
+        }
+      }
+      return requireApprovalOperation("migrateLegacyPermissionSettings")({
+        ...(command.acknowledgeCustom === true ? { acknowledgeCustom: true } : {}),
+        ...(command.acknowledgeSharedAgentDir === true ? { acknowledgeSharedAgentDir: true } : {}),
+      });
+    },
+    async listApprovalDecisionHistory(command: ListApprovalDecisionHistoryInput = {}) {
+      assertActive();
+      const limit = command.limit ?? 50;
+      if (!Number.isInteger(limit) || limit < 1 || limit > MAX_APPROVAL_HISTORY_PAGE_SIZE) {
+        failCommand("listApprovalDecisionHistory", "History page size must be between 1 and 100.");
+      }
+      const cursor = command.cursor === undefined
+        ? undefined
+        : requireNonEmptyString(command.cursor, "cursor", "listApprovalDecisionHistory");
+      return requireApprovalOperation("listApprovalDecisionHistory")({ ...(cursor ? { cursor } : {}), limit });
     },
     async trustProjectPermissionRules() {
       assertActive();
@@ -1001,12 +1329,14 @@ export function createApplicationService(input: {
           workspace: { ...session.workspace, projectResourcesApproved: true },
         };
       }
+      const approvalModes = approvalModeSettings();
       return {
         appearance: appearanceFromMetadata(metadata),
         permission: { ...permission, projectPermissionRulesRemembered: true },
         skills: input.runtime.getSkillSettings(),
         githubMcp: input.runtime.getGitHubMcpSettings(),
         sandbox: input.runtime.getSandboxSettings(),
+        ...(approvalModes ? { approvalModes } : {}),
       };
     },
     async listCredentialProviders() {
@@ -1273,8 +1603,11 @@ export function createApplicationService(input: {
   return withRuntimeReadiness(service, input.runtime);
 
   function settingsSnapshot(): HarnessSettingsSnapshot {
-    const githubMcp = input.runtime.getGitHubMcpSettings();
     const runtimeHost = applicationRuntimeHost(input.runtime);
+    const githubMcp = input.runtime.getGitHubMcpSettings();
+    const approvalModes = runtimeHost && runtimeHost.getStatus().status !== "ready"
+      ? undefined
+      : approvalModeSettings();
     return {
       appearance: appearanceFromMetadata(metadata),
       permission: decoratePermissionSettings(input.runtime.getPermissionSettings()),
@@ -1292,6 +1625,7 @@ export function createApplicationService(input: {
             }
           : githubMcp,
       sandbox: input.runtime.getSandboxSettings(),
+      ...(approvalModes ? { approvalModes } : {}),
     };
   }
 

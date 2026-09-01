@@ -176,6 +176,7 @@ export function useChatTabs(options: {
               lastSequence: existing?.lastSequence ?? current.lastSequence,
               snapshot: nextSnapshot,
               dialog: existing?.dialog ?? null,
+              approvalRequest: existing?.approvalRequest ?? null,
               notification: existing?.notification ?? null,
             },
           },

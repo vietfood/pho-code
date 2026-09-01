@@ -74,13 +74,31 @@ describe("runtime event projection", () => {
 
   test("marks a tool payload sandboxed only while the sandbox is actually wrapping bash", () => {
     const session = fakeSession();
+    const offSession = fakeSession();
     const wrapped = projectorFor(session).projector;
-    const off = projectorFor(session, { sandboxStatus: () => "off" }).projector;
+    const off = projectorFor(offSession, { sandboxStatus: () => "off" }).projector;
     const event = { toolCallId: "call_1", toolName: "bash" };
 
-    expect(wrapped.toolEventPayload("r1", event, "running", "in", "out").sandboxed).toBe(true);
-    expect(off.toolEventPayload("r1", event, "running", "in", "out").sandboxed).toBeUndefined();
-    expect(wrapped.toolEventPayload("r1", { ...event, toolName: "read" }, "running", "in", "out").sandboxed).toBeUndefined();
+    wrapped.rememberSandboxedBashCall(session, event.toolName, event.toolCallId);
+    expect(wrapped.toolEventPayload(session, "r1", event, "running", "in", "out").sandboxed).toBe(true);
+    expect(off.toolEventPayload(offSession, "r1", event, "running", "in", "out").sandboxed).toBeUndefined();
+    expect(wrapped.toolEventPayload(session, "r1", { ...event, toolName: "read" }, "running", "in", "out").sandboxed).toBeUndefined();
+  });
+
+  test("does not record an elevated or Full bash call as sandboxed", () => {
+    const session = fakeSession();
+    const { projector } = projectorFor(session, { toolRunsSandboxed: () => false });
+    projector.rememberSandboxedBashCall(session, "bash", "elevated");
+    expect(
+      projector.toolEventPayload(
+        session,
+        "r1",
+        { toolCallId: "elevated", toolName: "bash" },
+        "running",
+        "",
+        "",
+      ).sandboxed,
+    ).toBeUndefined();
   });
 
   test("records a sandboxed bash call once and never when the sandbox is off", () => {
@@ -132,6 +150,12 @@ describe("runtime event projection", () => {
       extensionHost: { hasPendingDialog: () => true },
     });
     expect(projectorFor(asking).projector.projectActivity(asking).phase).toBe("attention");
+
+    const approval = fakeSession({
+      activeRun: { runId: "r1", settled: false, startedAt: "2026-08-28T00:00:00.000Z" },
+    });
+    expect(projectorFor(approval, { requiresAttention: () => true }).projector.projectActivity(approval).phase)
+      .toBe("attention");
   });
 
   test("a settled run still reports working while follow-up messages are queued", () => {

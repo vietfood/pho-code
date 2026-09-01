@@ -260,6 +260,21 @@ functions, symbols, class instances, raw errors, and over-bound nested data.
 
 ## Runtime design
 
+### Foundation ownership correction
+
+Owner direction on 2026-09-01 places the reusable approval foundation in
+`packages/pho-agent`, not in Pho Code's product runtime. The backend-neutral
+action envelope and fingerprint, per-session controller, ordered authorization
+and revalidation pipeline, memory grants, reviewer lifecycle/circuit breaker,
+and Pi whole-action interception belong to `@pho-agent/protocol` and
+`@pho-agent/runtime`. Pho Code injects release-owned product invariants and
+boundary policy, reviewer-model resolution, permission/sandbox execution
+adapters, application-data settings/history/migration stores, and UI copy.
+
+This ownership correction does not advance held V5 external-backend work.
+Codex and ACP remain honestly Ask-only until V5 permits their native mode
+contracts to be characterized and implemented.
+
 ### Effect normalizer
 
 Create a small, deterministic normalizer over current permission details and
@@ -508,19 +523,17 @@ not drift.
 
 | Area | Intended changes |
 | --- | --- |
+| `packages/pho-agent/packages/protocol/src/approval.ts` | Backend-neutral modes, decisions, bounded frozen-action and session-state contracts |
+| `packages/pho-agent/packages/runtime/src/approval-*` | Per-session controller, canonical fingerprinting, grants, reviewer lifecycle/circuit, cancellation, consume/revalidation, and Pi whole-action interception |
 | `packages/protocol/src/approval-modes.ts` | JSON-safe modes, settings, session/review/grant projections, validation, copy, bounds |
 | `packages/protocol/src/bridge.ts`, `events.ts`, `version.ts`, `index.ts` | Named commands/events/exports/version |
-| `packages/pho-agent/packages/protocol/src/backend.ts` | Mode-specific optional backend capability and operation shapes |
-| `packages/pho-agent/packages/host` | Optional set-mode dispatch and capability validation |
-| `packages/pho-agent/packages/backend-codex` | Characterized native mapping only |
-| `packages/pho-agent/packages/backend-acp` | Negotiated native mapping only |
-| `packages/runtime/src/approval-effects.ts` | Deterministic normalized action/effect/fingerprint |
-| `packages/runtime/src/approval-policy.ts` | Product invariants, base policy, monotonic project restrictions |
+| `packages/pho-agent/packages/protocol/src/backend.ts`, `packages/pho-agent/packages/host` | Held optional native mode capability/dispatch work; do not change while V5 is blocked |
+| `packages/pho-agent/packages/backend-codex`, `packages/pho-agent/packages/backend-acp` | Held native mappings only; remain Ask-only during this Pi slice |
+| `packages/runtime/src/approval-policy.ts` | Pho Code product invariants, concrete effect normalization, base policy, and monotonic project restrictions injected into Pho Agent |
 | `packages/runtime/src/approval-settings.ts` | Typed persistence and legacy migration |
-| `packages/runtime/src/approval-reviewer.ts` | Isolated reviewer, evidence, schema, failures, circuit |
-| `packages/runtime/src/approval-grants.ts` | Exact/session grant lifecycle and atomic consumption |
+| `packages/runtime/src/approval-reviewer.ts` | Pho Code model selection, evidence/prompt construction, provider adapter, and failure mapping injected into Pho Agent |
 | `packages/runtime/src/approval-history.ts` | Redacted bounded decision log |
-| existing permission/sandbox runtime files | Public authorizer orchestration, contained/elevated/full disposition |
+| existing permission/sandbox runtime files | Product adapters into the Pho Agent controller plus contained/elevated/full execution disposition |
 | `packages/application` | Named use cases, validation, state joins, shutdown |
 | Electron IPC/preload | One handler/method per command; no generic mode/policy channel |
 | `packages/ui/src/approval-mode-control.tsx` | Compact composer mode control/menu |

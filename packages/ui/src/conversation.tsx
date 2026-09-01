@@ -12,6 +12,9 @@ import type {
   SkillSettingsSnapshot,
   ThinkingLevel,
   SessionAgentMode,
+  ApprovalMode,
+  ApprovalRequest,
+  ApprovalRequestResolution,
 } from "@pho-code/protocol";
 import { COMPACTION_COPY } from "@pho-code/protocol";
 import { ChangeModelDialog } from "./change-model-dialog";
@@ -19,6 +22,9 @@ import { CursorModelWarningDialog } from "./cursor-model-warning-dialog";
 import { Composer } from "./composer";
 import { EmptySessionStage } from "./empty-session";
 import { HostDialog } from "./host-dialog";
+import { ApprovalRequestCard } from "./approval-request-card";
+import { ApprovalReviewActivityView } from "./approval-review-activity";
+import { FullAccessWarningDialog } from "./full-access-warning-dialog";
 import { setComposerCaretOffset } from "./lib/composer-editable-dom";
 import { isPiCursorModel } from "./lib/cursor-model";
 import { isEmptyConversation } from "./lib/empty-conversation";
@@ -39,6 +45,11 @@ export function Conversation({
   backendId,
   onBackendChange,
   onSessionModeChange,
+  onApprovalModeChange,
+  onRevokeApprovalGrants,
+  approvalRequest,
+  onResolveApprovalRequest,
+  onAuthorizeApprovalRetry,
   dialog,
   onResolveDialog,
   sidebarCollapsed,
@@ -71,6 +82,11 @@ export function Conversation({
   backendId?: string;
   onBackendChange?: (backendId: string) => void;
   onSessionModeChange?: (mode: SessionAgentMode) => void;
+  onApprovalModeChange?: (mode: ApprovalMode, acknowledgeFullRisk?: boolean) => void;
+  onRevokeApprovalGrants?: () => void;
+  approvalRequest?: ApprovalRequest | null;
+  onResolveApprovalRequest?: (resolution: ApprovalRequestResolution, reason?: string) => void;
+  onAuthorizeApprovalRetry?: (requestId: string) => void;
   dialog?: HostDialogRequest | null;
   onResolveDialog?: (resolution: Omit<ResolveHostDialogInput, "requestId">) => void;
   sidebarCollapsed?: boolean;
@@ -97,6 +113,7 @@ export function Conversation({
   const running = snapshot.run.status === "admitted" || snapshot.run.status === "streaming";
   const empty = isEmptyConversation(snapshot);
   const [pendingModel, setPendingModel] = useState<ModelSummary | null>(null);
+  const [fullWarningOpen, setFullWarningOpen] = useState(false);
 
   // Compaction is Pi-owned; other backends publish their own capability and
   // the popover stays silent rather than offering an action that must fail.
@@ -179,6 +196,17 @@ export function Conversation({
       {...(onBackendChange ? { onBackendChange } : {})}
       sessionMode={snapshot.plan?.mode ?? "agent"}
       {...(onSessionModeChange ? { onSessionModeChange } : {})}
+      {...(snapshot.approval ? { approval: snapshot.approval } : {})}
+      {...(onApprovalModeChange ? {
+        onApprovalModeChange: (mode: ApprovalMode) => {
+          if (mode === "full" && snapshot.approval?.fullAccess.acknowledgedThisProcess !== true) {
+            setFullWarningOpen(true);
+            return;
+          }
+          onApprovalModeChange(mode);
+        },
+      } : {})}
+      {...(onRevokeApprovalGrants ? { onRevokeApprovalGrants } : {})}
       variant={empty ? "hero" : "docked"}
       metaHint={snapshot.workspace.displayName}
       {...(snapshot.model ? { selectedModel: snapshot.model } : {})}
@@ -199,6 +227,15 @@ export function Conversation({
   );
   const hostDialog =
     dialog && onResolveDialog ? <HostDialog request={dialog} onResolve={onResolveDialog} /> : null;
+  const approvalDock = approvalRequest && onResolveApprovalRequest
+    ? <ApprovalRequestCard request={approvalRequest} onResolve={onResolveApprovalRequest} />
+    : null;
+  const approvalActivity = (
+    <ApprovalReviewActivityView
+      activity={snapshot.approval?.activity}
+      {...(onAuthorizeApprovalRetry ? { onRetry: onAuthorizeApprovalRetry } : {})}
+    />
+  );
   const changeModelDialog =
     pendingModel ? (
       isPiCursorModel(pendingModel, backendId) ? (
@@ -243,6 +280,8 @@ export function Conversation({
             rightOverlay={!splitActive}
           >
             {hostDialog}
+            {approvalDock}
+            {approvalActivity}
             {composer}
             <StarterChips onSelect={handleStarterPrompt} />
           </EmptySessionStage>
@@ -258,6 +297,8 @@ export function Conversation({
             <div className="chat-composer-horizontal-inset pointer-events-none shrink-0 pt-1 pb-2.5 sm:pt-1.5 sm:pb-3">
               <div className="chat-column pointer-events-auto">
                 {hostDialog}
+                {approvalDock}
+                {approvalActivity}
                 {composer}
               </div>
             </div>
@@ -265,6 +306,15 @@ export function Conversation({
         )}
       </div>
       {changeModelDialog}
+      {fullWarningOpen && onApprovalModeChange ? (
+        <FullAccessWarningDialog
+          onCancel={() => setFullWarningOpen(false)}
+          onConfirm={() => {
+            setFullWarningOpen(false);
+            onApprovalModeChange("full", true);
+          }}
+        />
+      ) : null}
     </section>
   );
 }

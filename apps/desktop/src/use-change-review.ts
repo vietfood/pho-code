@@ -175,7 +175,7 @@ export function useChangeReview(cache: ConversationCacheState) {
         if (!isCurrent(generation, nextScope)) {
           return;
         }
-        setError(isHarnessError(cause) ? cause.message : "Approve failed.");
+        setError(isHarnessError(cause) ? cause.message : "Mark reviewed failed.");
         try {
           const snapshot = await getDesktopBridge().getChangeReviewSet(nextScope);
           if (!isCurrent(generation, nextScope)) {
@@ -187,7 +187,7 @@ export function useChangeReview(cache: ConversationCacheState) {
             await loadDiff(generation, nextScope, path);
           }
         } catch {
-          // Keep the Approve error as the visible diagnostic.
+          // Keep the Mark reviewed error as the visible diagnostic.
         }
       } finally {
         if (isCurrent(generation, nextScope)) {
