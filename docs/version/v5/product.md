@@ -2,9 +2,9 @@
 
 ## Status
 
-Owner-promoted numbered product boundary, 2026-08-20; owner-directed backend-neutral revision, 2026-08-26. Status: **Promoted; Blocked 2026-08-28; backend-neutral foundation partially in source; prior Pi-only M0 acceptance reopened; not accepted**. New slices are held behind the urgent queue and the promoted add-ons ([hold record](./logs/2026-08-28-blocked-pending-other-workstreams.md)).
+Owner-promoted numbered product boundary, 2026-08-20; owner-directed backend-neutral revision, 2026-08-26. Status: **Task candidate implemented and machine-verified; awaiting owner verification; prior Pi-only M0 acceptance reopened; not accepted**. The owner explicitly resumed grouped M1–M4 implementation on 2026-09-01 after the earlier hold ([implementation evidence](./logs/2026-09-01-m1-m4-task-intelligence-implementation.md)).
 
-This document defines the V5 outcome. [`implementation-plan.md`](./implementation-plan.md) is the implementation contract. Planned package names, commands, state, and UI below are not current behavior until the owning milestone is implemented, verified, logged, and accepted.
+This document defines the V5 outcome. [`implementation-plan.md`](./implementation-plan.md) is the implementation contract. The M1–M4 package, command, state, and UI candidate is current implemented behavior but remains unaccepted until its owner and final clean gates pass.
 
 ## Outcome
 

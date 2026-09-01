@@ -18,6 +18,8 @@ without lifting the V5 hold, is recorded in
 
 Current M0 implementation evidence: [`2026-08-20-m0-harness-ownership-expansion.md`](./2026-08-20-m0-harness-ownership-expansion.md).
 
+M1–M4 Task intelligence implementation, deterministic/desktop/packaged evidence, and owner handoff: [`2026-09-01-m1-m4-task-intelligence-implementation.md`](./2026-09-01-m1-m4-task-intelligence-implementation.md) and [`../handoff.md`](../handoff.md).
+
 Production repository extraction: [`2026-08-20-m0-pho-agent-submodule.md`](./2026-08-20-m0-pho-agent-submodule.md).
 
 Checkout re-verification after submodule init: [`2026-08-20-m0-checkout-verification.md`](./2026-08-20-m0-checkout-verification.md).

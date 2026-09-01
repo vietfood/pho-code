@@ -10,8 +10,8 @@ corrections, owner feedback, and verification belong in [`logs/`](./logs/README.
 
 The plan deliberately promotes only session delegation from future roadmap
 Phase E. Multi-agent worktrees, branch integration, conflict reconciliation,
-and remote mutation stay in the roadmap. The implementation must not advance
-blocked V5 intelligence milestones or pending V4 process extraction under this
+and remote mutation stay in the roadmap. The implementation must not alter
+unaccepted V5 intelligence contracts or pending V4 process extraction under this
 feature's name.
 
 The implementation order is:
@@ -707,7 +707,7 @@ permission, notification, and right-sidebar primitives. Deduplicate shared pure
 helpers rather than building a parallel subagent UI/runtime stack.
 
 Any change inside `packages/pho-agent` must be justified as an existing host gap
-and separately logged against blocked V5. Do not move feature-specific policy
+and separately logged against the unaccepted V5 workstream. Do not move feature-specific policy
 there for convenience.
 
 ## Milestone 0: characterize seams and freeze contracts

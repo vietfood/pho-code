@@ -137,6 +137,7 @@ Accepted additions are promoted here; active proposals remain with their owner:
 - terminal commands and dedicated events are proposed under [`../features/terminal/`](../features/terminal/README.md) and do not exist in source;
 - `HostDialogKind` `"questionnaire"` and ask-user answer payloads are accepted structured host dialogs ([`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md));
 - `setSessionMode`, `updateSessionPlanDocument`, and `executeSessionPlan` plus snapshot `plan` (including `todos`) and Plan-only `execute_plan` are accepted Plan/Agent commands.
+- `updateTaskBrief`, `resetTaskBrief`, `reopenTask`, `recordOwnerVerification`, and `acceptTaskCompletionGaps` plus snapshot `task` are implemented V5 Task candidate contracts; they remain unaccepted pending the owner handoff.
 - approval-mode named commands/events and snapshot projections are implemented under [`../features/approval-modes/`](../features/approval-modes/README.md), but remain unaccepted pending its owner handoff; external backend projections advertise Ask only.
 
 Those plans must preserve named methods, JSON safety, bounded results, composite identity, and renderer non-authority.

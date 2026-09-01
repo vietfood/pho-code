@@ -10,6 +10,7 @@ import {
   expectNoDialogThenExpandWorkLog,
   expandSettledWorkLog,
   launchPackagedDesktop,
+  makeAgentDir,
   makeUserDataDir,
   makeWorkspaceDir,
   openSessionActions,
@@ -103,19 +104,6 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
       await expect(page.getByTestId("tool-card").last()).toContainText(/Trash|recoverable/i);
       expect(existsSync(fixturePath)).toBe(false);
 
-      await page.getByTestId("composer").fill("USE_TASK_BRIEF");
-      await page.getByRole("button", { name: "Send" }).click();
-      await expandSettledWorkLog(page, 4);
-      await expect(page.getByTestId("task-panel")).toBeVisible();
-      await expect(page.getByTestId("task-brief-summary")).toContainText("Complete the deterministic V5 task journey");
-
-      await page.getByTestId("composer").fill("USE_COMPLETE_TASK");
-      await page.getByRole("button", { name: "Send" }).click();
-      await expandSettledWorkLog(page, 5);
-      await expect(page.getByTestId("task-completion")).toContainText("incomplete");
-      await page.getByRole("button", { name: "Accept disclosed gaps" }).click();
-      await expect(page.getByTestId("task-completion")).toContainText("accepted with gaps");
-
       const notices = await readFile(join(appPath, "Contents", "Resources", "THIRD_PARTY_NOTICES.txt"), "utf8");
       expect(notices).toContain("@gotgenes/pi-permission-system 24.0.0");
       expect(notices).toContain("@earendil-works/pi-coding-agent 0.84.4");
@@ -124,6 +112,61 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
     }
   } finally {
     await removeTestDirectory(userDataDir);
+    await removeTestDirectory(workspaceDir);
+  }
+});
+
+test("packaged macOS app persists the V5 Task journey without a Pi CLI", async () => {
+  const userDataDir = await makeUserDataDir();
+  const agentDir = await makeAgentDir();
+  const workspaceDir = await makeWorkspaceDir();
+  const env = {
+    PHO_CODE_AGENT_DIR: agentDir,
+    PHO_CODE_TEST_WORKSPACE: workspaceDir,
+    PHO_CODE_TEST_MODEL: "1",
+    PATH: pathWithoutPi(),
+  };
+
+  try {
+    const first = await launchPackagedDesktop(userDataDir, { env });
+    try {
+      const page = await first.firstWindow();
+      await page.getByTestId("new-session").click();
+      await expect(page.getByTestId("composer")).toBeVisible();
+      await page.getByTestId("composer").fill("USE_TASK_BRIEF");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 0);
+      await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
+      await expect(page.getByTestId("task-panel")).toBeVisible();
+      await expect(page.getByTestId("task-brief-summary")).toContainText("Complete the deterministic V5 task journey");
+
+      await page.getByTestId("composer").fill("USE_COMPLETE_TASK");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expandSettledWorkLog(page, 1);
+      await expect(page.getByTestId("extension-dialog")).toHaveCount(0);
+      await expect(page.getByTestId("task-completion")).toContainText("incomplete");
+      await page.getByRole("button", { name: "Accept disclosed gaps" }).click();
+      await expect(page.getByTestId("task-completion")).toContainText("accepted with gaps");
+    } finally {
+      await first.close();
+    }
+
+    const second = await launchPackagedDesktop(userDataDir, { env });
+    try {
+      const page = await second.firstWindow();
+      await expect(page.getByTestId("session-item")).toBeVisible();
+      await page.getByTestId("session-item").click();
+      if (!(await page.getByTestId("task-panel").isVisible().catch(() => false))) {
+        await page.getByTestId("right-sidebar-surface-task").click();
+      }
+      await expect(page.getByTestId("task-brief-summary")).toContainText("Complete the deterministic V5 task journey");
+      await expect(page.getByTestId("task-completion")).toContainText("accepted with gaps");
+    } finally {
+      await second.close();
+    }
+  } finally {
+    await removeTestDirectory(userDataDir);
+    await removeTestDirectory(agentDir);
     await removeTestDirectory(workspaceDir);
   }
 });

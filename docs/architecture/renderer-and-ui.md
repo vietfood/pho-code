@@ -2,7 +2,7 @@
 
 ## Status
 
-Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted. Plan/Agent chrome (composer mode icon + menu, questionnaire dock, Plan rail) is accepted. Terminal is not implemented.
+Current renderer implementation and accepted presentation boundary. V3 review semantics are accepted. Plan/Agent chrome (composer mode icon + menu, questionnaire dock, Plan rail) is accepted. Task chrome is implemented as an unaccepted V5 candidate. Approval-mode chrome is implemented but pending owner acceptance. Terminal is not implemented.
 
 ## Composition boundary
 
@@ -101,6 +101,7 @@ Current surfaces are:
 - `changes` — V3 review as the window that fills its tile (`working tree → basename`, search/whitespace/context, minimize, close), using the same rounded border and glass fill as Plan and Context prompt;
 - `context-prompt` — edit while the session is empty, inspect after first message;
 - `plan` — Plan document surface (accepted Plan/Agent). Terminal remains a planned peer with no `terminal` variant yet.
+- `task` — V5 Task Brief, Evidence, Verification, and Completion candidate surface; owner edits are idle-only and live runs are inspect-only.
 
 FileDiff and a write/edit tool card open the Changes tile. Re-click or ⌘R / Ctrl+R hides the region. Plan and Context prompt keep the generic tile frame. V3 owns tracked-change, diff, Approve, conflict, and Undo semantics. UI owns host chrome. Plan/Agent meaning and the Plan document are accepted architecture; the immutable contract lives under [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 

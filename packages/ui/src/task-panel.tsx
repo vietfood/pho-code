@@ -54,6 +54,7 @@ export function TaskPanel({
 }: TaskPanelProps) {
   const brief = task.brief;
   const editable = idle && !busy;
+  const briefIsMutable = brief?.status === "draft" || brief?.status === "active";
   const [editing, setEditing] = useState(!brief);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<TaskDraft>(() => draftFromBrief(brief));
@@ -73,7 +74,7 @@ export function TaskPanel({
       criterionId: brief?.acceptanceCriteria[0]?.id ?? "",
       summary: "",
     }));
-  }, [brief?.revision]);
+  }, [brief]);
 
   async function run(work: () => void | Promise<void>): Promise<void> {
     setSaving(true);
@@ -116,7 +117,7 @@ export function TaskPanel({
       <div className="flex shrink-0 items-center justify-between gap-2 px-3.5 pt-3.5">
         <div className="flex min-w-0 items-center gap-1">
           <h2 id="task-panel-heading" className="text-[13px] font-medium tracking-tight">Task</h2>
-          {brief && editable && !editing ? (
+          {briefIsMutable && editable && !editing ? (
             <Button
               variant="ghost"
               size="icon-sm"

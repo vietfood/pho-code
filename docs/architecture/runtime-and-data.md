@@ -4,7 +4,7 @@
 
 Accepted architecture for personal v1, v2, and v3. The immutable V3 recovery contract and evidence live in [`../archive/v3/`](../archive/v3/README.md). Plan/Agent is accepted; its immutable contract lives in [`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md).
 
-Current source also contains the implemented, still-unaccepted V5 Milestone 0 extraction described below. This records truthful package ownership without promoting the milestone.
+Current source also contains the implemented, still-unaccepted V5 candidate extraction and Task intelligence described below. This records truthful package ownership without promoting the version.
 
 ## Service ownership
 
@@ -20,12 +20,14 @@ The application coordinates use cases. Privileged runtime packages are the only 
 - V3 review-scope/input validation before delegating to runtime;
 - stable error mapping and shutdown coordination.
 
-`packages/pho-agent/packages/runtime` currently owns under V5 M0:
+`packages/pho-agent/packages/runtime` currently owns under the unaccepted V5 candidate:
 
 - Pi service construction behind the feature API and opaque scope adapter;
 - the bounded session-controller registry algorithm;
 - the shared feature model/loader flattening and context-prompt hook;
-- Plan/Agent, ask-user, session todo, skill source/invocation, path containment, and the reviewed GitHub MCP lifecycle.
+- branch-aware Task Brief/evidence/verification/completion projection plus the reusable Pi feature and provider interface;
+- Plan/Agent, ask-user, session todo, skill source/invocation, path containment, and the reviewed GitHub MCP lifecycle;
+- the implemented-but-unaccepted reusable approval action/decision contracts, exact-input controller, ordered policy/revalidation pipeline, memory grants, reviewer lifecycle/circuit breaker, process review pool, and Pi whole-action interception.
 
 `packages/runtime` owns or adapts:
 
@@ -41,8 +43,10 @@ The application coordinates use cases. Privileged runtime packages are the only 
 - prepared images, local retrieval, public web tools, curated skill resources, and Pho Code GitHub MCP enablement/credential/artifact policy;
 - context-prompt compilation/reinjection and assistant display overlays through Pi custom entries;
 - accepted V3 write/edit capture, ledger, diff, Approve, and per-file recovery;
+- the Pho Code Task adapter, reviewed command-result verification, initial local evidence provider, and authoritative product snapshot projection over reusable branch state;
 - the Pho Code Plan/Agent context-policy adapter; shared `ask_user_question`, Plan write-tool policy, session `todo`, Plan document + Execute live in `@pho-agent/runtime`; `custom`/`editor` still throw;
-- normalized protocol projections.
+- normalized protocol projections;
+- approval-mode product invariants, contained/sandbox/elevated/Full execution adapters, reviewer-model/evidence selection, settings/migration/history, and authoritative Pho Code projections over the shared Pho Agent controller.
 
 Application code does not know Electron APIs. Neither runtime package knows Electron or React, and `@pho-agent/runtime` cannot import `@pho-code/*`.
 
@@ -53,7 +57,8 @@ State is keyed by composite `{workspaceId, sessionId}` identity. Today `workspac
 - `AgentSessionRuntime` and Pi event subscription;
 - run, queue, prepared-attachment, extension, and host-dialog state;
 - transcript/activity projection;
-- workspace-scoped resources required by that session.
+- workspace-scoped resources required by that session;
+- approval controller, pending exact request/review activity, memory-only grants, and current per-chat mode. These revoke/reset on the feature's documented generation, replacement, archive, and process boundaries.
 
 Selecting another chat does not transfer or dispose the previous controller. Background work remains attributed to its owner.
 
@@ -77,14 +82,16 @@ Application shutdown stops admission, aborts or settles active work according to
 - model/provider behavior and compatible credentials;
 - agent loop, built-in tools, extension execution, and final message state;
 - Plan/Agent session `todo` lists in Pi tool details (not a separate application store).
+- unaccepted V5 Task candidate entries on the active Pi branch: `pho-agent.task-brief`, `pho-agent.evidence-pack`, `pho-agent.verification`, and `pho-agent.completion`.
 
-Pi JSONL is not copied into application metadata. Assistant rewrites are explicit display overlays stored as Pi custom entries; context-prompt customization is another Pi custom entry whose compiled prompt is looked up from the live session and re-injected on `before_agent_start`. Neither mutates original assistant messages or workspace context files.
+Pi JSONL is not copied into application metadata. Assistant rewrites are explicit display overlays stored as Pi custom entries; context-prompt customization is another Pi custom entry whose compiled prompt is looked up from the live session and re-injected on `before_agent_start`. Task candidate entries are append-only and reconstructed from the active branch; reset/reopen append new revisions rather than mutating history. None of these entries mutates original assistant messages or workspace context files.
 
 ### Application-owned
 
 - recent workspace order and selected identities;
 - archive/restore metadata and UI preferences;
-- metadata schema v6 lifecycle/view/outcome records, project permission trust, typed appearance, enabled skill sources, and GitHub MCP enabled state;
+- metadata schema v8 lifecycle/view/outcome records, project permission trust, typed appearance, enabled skill sources, GitHub MCP enabled state, and per-chat durable Ask/Auto choice (never Full);
+- typed approval settings in `approval-modes.json` and bounded redacted records in `approval-decisions/v1/history.json`;
 - agent-tool sandbox policy in `sandbox-settings.json` (enable defaults on; network mode, domains, extra paths; extra paths also gate in-process `read`/`write`/`edit`; not Pi JSONL);
 - opaque credential-flow handles;
 - workspace retrieval indexes under application data;
@@ -105,6 +112,8 @@ Normal production state is rooted under Electron `userData`:
 ```text
 userData/
 ├── app-metadata.json
+├── approval-modes.json
+├── approval-decisions/v1/history.json
 ├── sandbox-settings.json
 ├── pi-agent/
 │   ├── sessions/

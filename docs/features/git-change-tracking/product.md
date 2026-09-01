@@ -9,7 +9,7 @@ This document defines planned behavior. No git-backed behavior exists in
 source yet; accepted [V3](../../archive/v3/product.md) change review remains
 the shipped truth.
 
-This feature may proceed independently of blocked V5 and pending V4. It must
+This feature may proceed independently of unaccepted V5 and pending V4. It must
 not absorb V4's signing/update/process-extraction contracts or V5's
 intelligence milestones, and it must not weaken the accepted V3 recovery
 contract while replacing its storage engine.
@@ -170,7 +170,7 @@ V3's three classes remain, now fully populated:
   bash; shadow capture observes bash effects after the fact and changes no
   containment claim.
 - [V5](../../version/v5/README.md) owns the backend-neutral host seam this
-  feature consumes for Codex/ACP run boundaries; V5 stays blocked, and this
+  feature consumes for Codex/ACP run boundaries; V5 remains unaccepted, and this
   add-on does not advance its milestones.
 - [Roadmap Phase E](../../version/roadmap-vnext.md) keeps worktrees, branch
   integration, and conflict reconciliation. This feature adds none of them.

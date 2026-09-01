@@ -44,13 +44,13 @@ Electron main is the composition root and may import application/runtime package
 
 The six `@pho-agent/*` packages are versioned together by the pinned `packages/pho-agent` gitlink to [`vietfood/pho-agent`](https://github.com/vietfood/pho-agent). They remain unaccepted until the redirected V5 foundation gate closes. `@pho-code/*` compatibility surfaces remain the product-facing boundary during the migration.
 
-## Agent packages (V5 M0, implemented but not accepted)
+## Agent packages (V5 candidate, implemented but not accepted)
 
-- `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Plan/Agent, skill, session-title, and GitHub MCP contracts. Matching files in `packages/protocol/src` are compatibility re-exports.
+- `packages/pho-agent/packages/protocol/src` owns host-neutral error/JSON helpers plus reusable Task, Plan/Agent, skill, session-title, GitHub MCP, and approval action/decision contracts. Matching files in `packages/protocol/src` are compatibility re-exports where the product uses the same vocabulary.
 - `packages/pho-agent/packages/host/src` owns normalized backend registration, descriptor/capability discovery, session and interaction routing, aggregate event identity, optional-operation rejection, and disposal without importing Node or a backend SDK.
 - `packages/pho-agent/packages/backend-codex/src` owns the experimental direct Codex app-server stdio/JSON-RPC adapter, bounded native item and interaction projection, and lazy adapter factory. Pho Code composes it experimentally without launching a process until a Codex session is chosen.
 - `packages/pho-agent/packages/backend-acp/src` owns the generic stable-v1 ACP adapter through the pinned official SDK. No Claude-compatible agent artifact is yet selected or packaged.
-- `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, the fixed reviewed GitHub MCP lifecycle, and tool-less session-title generation. It does not import Electron, React, or `@pho-code/*`.
+- `packages/pho-agent/packages/runtime/src` owns the Pi service seam, feature model/flattening, opaque-scope session registry, branch-aware Task projection/evidence/verification/completion features, context-prompt hook, Plan/ask-user/todo implementation, skill source/invocation primitives, path containment, the fixed reviewed GitHub MCP lifecycle, tool-less session-title generation, and the reusable exact-input approval controller/broker/reviewer lifecycle. It does not import Electron, React, or `@pho-code/*`.
 - `packages/pho-agent/packages/evals/src` owns append-only scenario/result records, source fingerprints, deterministic scoring, and cohort separation for harness evaluation.
 
 Pho Code still owns application identity, renderer contracts, metadata/settings policy, desktop adapters, resources/packaging, product-specific retrieval/web/sandbox/change review, and its wide `HarnessRuntime` facade.
@@ -69,6 +69,7 @@ Pho Code still owns application identity, renderer contracts, metadata/settings 
 - `resources.ts` — baked feature diagnostics.
 - `plan-agent.ts` — ask-user questionnaire types/bounds plus Plan/Agent mode, document, `todo` list, `execute_plan`, and commands (accepted).
 - `change-review.ts` — accepted V3 review/Approve/per-file Undo contracts.
+- `approval-modes.ts` — implemented-but-unaccepted Pho Code settings, session, request, history, and command projections over the shared Pho Agent approval values.
 
 `index.ts` is the public package surface. Runtime validation accompanies types; TypeScript alone is not an IPC boundary.
 
@@ -78,7 +79,7 @@ Pho Code still owns application identity, renderer contracts, metadata/settings 
 
 - `bootstrap.ts` implements `ApplicationService`, validates use-case identity/input, coordinates metadata and runtime, and maps errors.
 - `runtime-host.ts` owns the attach-once starting/ready/failed Pi connection, pre-attach event/config retention, and late-runtime disposal for window-first startup.
-- `metadata.ts` defines application metadata schema v7: recent-workspace order, backend-pinned selection and archive/view/outcome lifecycle, appearance (including installed UI/code font families and font smoothing), trusted projects, skill sources, and GitHub MCP enabled state. Missing backend identity from v6 and older records normalizes to Pi.
+- `metadata.ts` defines application metadata schema v8: recent-workspace order, backend-pinned selection and archive/view/outcome lifecycle, durable per-chat Ask/Auto approval choice, appearance (including installed UI/code font families and font smoothing), trusted projects, skill sources, and GitHub MCP enabled state. Missing backend identity from v6 and older records normalizes to Pi; Full is never persisted.
 - `session-catalog.ts` joins Pi session truth with application archive/attention state.
 - `index.ts` exports the application boundary.
 
@@ -105,6 +106,8 @@ Application depends on protocol and the `HarnessRuntime` interface. It does not 
 - `trash-feature.ts`, `recoverable-removal.ts`, `trash-target.ts`, `process-launch.ts` implement recoverable removal behind injected platform/process seams.
 - `plan-agent-feature.ts` supplies Pho Code tool-policy context to `@pho-agent/runtime/plan-agent`; the remaining compatibility modules re-export the shared `ask_user_question`, `todo`, Plan tool policy, `update_plan_document`, and Plan-only `execute_plan` implementation (accepted product behavior; V5 package ownership not yet accepted).
 - `sandbox-runtime.ts`, `sandbox-policy.ts`, `sandbox-settings.ts`, `sandbox-feature.ts`, `sandbox-permission.ts` wrap agent `bash` / `user_bash` with pinned `@anthropic-ai/sandbox-runtime` when Settings enables it (accepted agent-tool sandbox; default on; skip-ask; in-process `read`/`write`/`edit` policy; packaged engine/`rg` staging).
+- `approval-runtime.ts`, `approval-policy.ts`, `approval-permission.ts`, `approval-settings.ts`, and `approval-history.ts` adapt the shared Pho Agent controller to Pho Code invariants, permission/sandbox execution, reviewer evidence/model selection, typed migration/settings, and bounded redacted history.
+- `task-runtime.ts` adapts Task state to Pho Code session ownership, reviewed command-result verification, and authoritative session snapshots; Pi composition installs the reusable Task feature and a product-owned local evidence provider.
 - `cursor-sdk-policy.ts` fixes the baked Cursor provider policy (local-only runtime; hide Cursor models until a stored key or `CURSOR_API_KEY`). `runtime-plan-context.ts` keeps Cursor SDK tools inactive and out of Context prompt unless the live session model is Cursor.
 
 `createDefaultFeatureManifest` supplies stable base resources/factories. `createPhoCodeRuntime` appends service-bound inline features for `read_skill`, GitHub MCP, context-prompt injection, V3 change capture, and the agent-tool sandbox factory (bash wrap plus file-tool intercept while enabled). Both stages are source-selected and immutable to the user.
@@ -149,10 +152,10 @@ There is no PTY or terminal service in source. That work remains under the termi
 
 `apps/desktop/src/App.tsx` is the stateful shell composition:
 
-- bootstrap/settings/provider-account state;
+- bootstrap/settings/provider-account/approval state;
 - keyed conversation cache and per-chat live-run store;
 - per-workspace session catalogs and session switching;
-- prompt/image/model/thinking/host-dialog commands;
+- prompt/image/model/thinking/host-dialog and approval commands;
 - archive/restore/project removal and trust flows;
 - right-sidebar selection and V3 review hook.
 
@@ -165,10 +168,10 @@ Composite identity is `{workspaceId, sessionId}`; the current runtime uses the c
 `packages/ui/src` is presentation plus pure interaction helpers:
 
 - shell/navigation: `app-shell.tsx`, `app-sidebar.tsx`, project/session menus, resize/toggle controls, welcome/empty/loading surfaces;
-- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, ask-user questionnaire card, Plan document panel (accepted Plan/Agent);
+- conversation: `conversation.tsx`, `transcript.tsx`, composer, chat header, thinking/work log, tool rows, notification and host-dialog components, approval mode/request/review/Full-warning components, ask-user questionnaire card, Plan document panel (accepted Plan/Agent), and the unaccepted V5 Task candidate panel;
 - rich content: Markdown, code, Shiki, KaTeX integration, Mermaid, SVG, images, copy;
-- settings/accounts/skills/GitHub/archive/trust/sandbox dialogs;
-- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `change-review-window.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`;
+- settings/accounts/skills/GitHub/archive/trust/approval/boundary dialogs;
+- right sidebar: `right-sidebar.tsx`, `change-review-sheet.tsx`, `change-review-window.tsx`, `context-prompt-dialog.tsx`, `plan-document-panel.tsx`, `task-panel.tsx`;
 - design tokens/palettes in `theme.css` and `theme-palettes.css`, with helpers under `lib/` (`appearance-fonts.ts` applies size, installed family, and smoothing tokens).
 
 UI imports React and protocol only. It renders remote/tool/model content as untrusted data.

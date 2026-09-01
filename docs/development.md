@@ -4,7 +4,7 @@ For a change-specific verification workflow, use [`.agents/skills/test-pho-code`
 
 ## Current workspace
 
-The repository is a Bun TypeScript workspace with one Electron desktop app, three private Pho Agent packages from the pinned `packages/pho-agent` production submodule, and four Pho Code packages. See the accepted [`codebase map`](./architecture/codebase-map.md), the in-progress [`V5 M0 ownership record`](./version/v5/logs/2026-08-20-m0-harness-ownership-expansion.md), and [`current-state.md`](./current-state.md). The four `refs/*` reference submodules remain read-only; `packages/pho-agent` changes only when a task explicitly advances the reusable runtime.
+The repository is a Bun TypeScript workspace with one Electron desktop app, private Pho Agent packages from the pinned `packages/pho-agent` production submodule, and four Pho Code packages. See the accepted [`codebase map`](./architecture/codebase-map.md), the implemented/unaccepted [`V5 Task record`](./version/v5/logs/2026-09-01-m1-m4-task-intelligence-implementation.md), and [`current-state.md`](./current-state.md). The four `refs/*` reference submodules remain read-only; `packages/pho-agent` changes only when a task explicitly advances the reusable runtime.
 
 After a fresh clone, materialize the references with:
 
@@ -74,7 +74,8 @@ Run commands from the repository root:
 | `bun run typecheck` | Type-check protocol, runtime, application, renderer, preload, and main. |
 | `bun run lint` | Run repository lint rules without modifying files. |
 | `bun run test` | Run non-GUI unit and integration tests. Carries `--timeout 20000`; a narrow `bun test <paths>` must pass that flag itself, because `bunfig.toml` does not honour a test timeout and cold module loading can stall the lane past the 5 s default. |
-| `bun run eval:v5` | Run the frozen V5 M0 live deterministic development and holdout cohorts through Pho Code's isolated `harness-test/slice` runtime. `eval:v5:development` and `eval:v5:holdout` run one cohort. Results are append-only files in an owned temporary directory. |
+| `bun run eval:v5` | Run the V5 Task candidate's frozen deterministic mechanics cohorts (Task state, evidence selection, verification honesty, completion, recovery). `eval:v5:development` and `eval:v5:holdout` run one cohort. Results are append-only files in an owned temporary directory; this uses no provider and is not a model-quality claim. |
+| `bun run eval:v5:baseline` | Run the earlier M0 isolated `harness-test/slice` baseline cohort retained for historical comparison. |
 | `bun run test:desktop` | Build the Electron test target and run smoke, security, shutdown, chat, bounded Stop/Stop-all, session-lifecycle, host-UI, ask-user, permission, settings, credentials, OAuth, developer-mode, project-trust, change-review, and sandbox specs. |
 | `bun run package:mac` | Stage baked features, pinned sandbox-runtime, bundled `rg`, notices, `LICENSE`, and `EULA.md`, flatten production `node_modules`, and create an unsigned local macOS `.app` under `apps/desktop/release`. |
 | `bun run package:mac:proof` | Same staging, then a fail-closed Developer ID / hardened-runtime / notarized DMG+ZIP proof under `apps/desktop/release-proof`. Missing signing or notarization credentials write no proof artifact. The output is labeled `m0-proof`, not a V4 beta. |

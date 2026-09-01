@@ -110,4 +110,20 @@ describe("TaskPanel", () => {
     expect(markup).not.toContain("Accept disclosed gaps");
     expect(markup).not.toContain("Reset brief");
   });
+
+  test("requires the explicit reopen action before editing a completed brief", () => {
+    const completed: AgentTaskSnapshot = {
+      ...task,
+      brief: { ...task.brief!, status: "completed" },
+      completion: { ...task.completion!, status: "accepted_with_gaps", acceptedByOwnerAt: "later" },
+    };
+    const markup = renderToStaticMarkup(createElement(TaskPanel, {
+      task: completed,
+      onSave: () => undefined,
+      onReopen: () => undefined,
+    }));
+    expect(markup).toContain("Reopen");
+    expect(markup).not.toContain('aria-label="Edit Task Brief"');
+    expect(markup).not.toContain('data-testid="task-brief-editor"');
+  });
 });

@@ -2,7 +2,7 @@
 
 Owner-priority work that should happen **before adding more capability**. This is a triage inbox, not a fourth product owner.
 
-As of 2026-08-28 this queue is the front of the line: [V5](../version/v5/README.md) is **Blocked** until it is empty and the promoted add-ons are accepted, and [V4](../version/v4/README.md) remains **Pending** on Apple enrollment.
+This queue remains owner-priority work. The owner explicitly resumed the grouped V5 Task slice on 2026-09-01; that candidate now awaits real-model verification and remains unaccepted. [V4](../version/v4/README.md) remains independently **Pending** on Apple enrollment.
 
 Use this folder for defects, safety honesty, startup, and prerequisites that currently block a trustworthy daily driver. Do not park a new add-on here just because it is exciting.
 

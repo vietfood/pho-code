@@ -56,13 +56,13 @@ Current source ownership:
 
 | Layer | Location | Implemented behavior |
 | --- | --- | --- |
-| Agent protocol (V5 M0, unaccepted) | `packages/pho-agent/packages/protocol/src` | Host-neutral errors/JSON helpers and reusable Plan/Agent, skill, and GitHub MCP contracts |
-| Agent runtime (V5 M0, unaccepted) | `packages/pho-agent/packages/runtime/src` | Pi service seam, feature model, opaque-scope registry, Plan/ask-user/todo, skill primitives, context-prompt hook, path containment, and reviewed GitHub MCP lifecycle |
+| Agent protocol (V5 candidate, unaccepted) | `packages/pho-agent/packages/protocol/src` | Host-neutral errors/JSON helpers and reusable Task, Plan/Agent, skill, and GitHub MCP contracts |
+| Agent runtime (V5 candidate, unaccepted) | `packages/pho-agent/packages/runtime/src` | Pi service seam, feature model, opaque-scope registry, branch-aware Task state/evidence/verification/completion, Plan/ask-user/todo, skill primitives, context-prompt hook, path containment, and reviewed GitHub MCP lifecycle |
 | Agent evals (V5 M0, unaccepted) | `packages/pho-agent/packages/evals/src` | Append-only scenarios/results, source fingerprints, scoring, and cohort separation |
-| Protocol | `packages/protocol/src` | Version 1 product commands/events, workspace/session/run and catalog lifecycle, settings/accounts/input, reducers, V3 review contracts, and compatibility exports for shared contracts |
-| Runtime | `packages/runtime/src` | Pho Code Pi host/adapters; transcript, queues, host UI, product manifest/resources/settings/accounts, retrieval/web/sandbox/change review, and adapters over shared Plan/skills/MCP/context/session primitives |
+| Protocol | `packages/protocol/src` | Version 1 product commands/events, workspace/session/run and catalog lifecycle, settings/accounts/input, reducers, V3 review and V5 Task candidate contracts, and compatibility exports for shared contracts |
+| Runtime | `packages/runtime/src` | Pho Code Pi host/adapters; transcript, queues, host UI, product manifest/resources/settings/accounts, retrieval/web/sandbox/change review, and adapters over shared Task/Plan/skills/MCP/context/session primitives |
 | Application | `packages/application/src` | Input/identity validation, runtime delegation, metadata v6, catalog joins, archive/restore/removal tokens, typed settings/accounts, and V3 review-scope validation |
-| UI | `packages/ui/src` | Shell, keyed conversation presentation, rich untrusted content, composer/tools/dialogs/settings, right-sidebar host, context prompt, and implemented V3 review sheet |
+| UI | `packages/ui/src` | Shell, keyed conversation presentation, rich untrusted content, composer/tools/dialogs/settings, right-sidebar host, V5 Task candidate surface, context prompt, and implemented V3 review sheet |
 | Electron adapter | `apps/desktop/electron` | Native folder and image pickers, IPC result envelope, event fan-out, `nativeTheme` appearance, packaged resource/NODE_PATH wiring, bounded quit |
 | Renderer | `apps/desktop/src` | Stateful React composition, keyed conversation cache, live-run store updates, session switching/catalog projection, and V3 review hook |
 | Desktop tests | `apps/desktop/tests` | Smoke, security, shutdown, chat, session lifecycle, host UI, permissions, settings, credentials, OAuth, developer mode, project trust, change review, unit boundaries, and packaged Electron |

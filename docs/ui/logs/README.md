@@ -17,6 +17,7 @@ Each record names the surface, status and verification class, the owning plan, e
 - approval mode control, exact request card, automatic review activity, Full warning, and approval Settings → [`../../features/approval-modes/README.md`](../../features/approval-modes/README.md)
 - Pho-created child activity and the Agents surface → [`../../features/subagents/README.md`](../../features/subagents/README.md)
 - backend-neutral and external-backend surfaces → [`../../version/v5/README.md`](../../version/v5/README.md)
+- Task Brief, evidence, verification, and completion tile → [`../../version/v5/README.md`](../../version/v5/README.md) and the [Task UI log](./2026-09-01-change-v5-task-surface.md)
 
 When a change touches a shared surface owned elsewhere, cross-link both records. Do not rewrite an earlier log after learning more; write a new dated record and link the correction.
 

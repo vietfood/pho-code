@@ -2,7 +2,7 @@
 
 ## Status and use
 
-Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20; revised by owner direction 2026-08-26; **Blocked** by owner direction 2026-08-28. Slices B2b, the remaining B3b coverage, and B4 are held until the urgent queue is empty and the terminal and compaction add-ons are accepted; defects in already-shipped backend behavior may still be repaired without advancing a held slice. See the [hold record](./logs/2026-08-28-blocked-pending-other-workstreams.md). The earlier Pi-only Milestone 0 implementation and automated evidence remain historical evidence, but M0 acceptance is reopened. The backend-neutral foundation below now precedes the planned Task Brief, evidence, verification, and completion milestones. Planned commands, adapters, state, and UI do not exist until their owning slice lands and a dated log records verification.
+Owner-promoted implementation contract for **V5 — Pho Agent Foundation**, 2026-08-20; revised by owner direction 2026-08-26; held by owner direction 2026-08-28; explicitly resumed for grouped end-to-end Task implementation on 2026-09-01 because no real model is currently available. M1–M4 are implemented and machine-verified in the [dated record](./logs/2026-09-01-m1-m4-task-intelligence-implementation.md); the [owner handoff](./handoff.md) is the remaining Task acceptance gate. This resume supersedes the implementation hold for this slice only. V5 remains unaccepted, the earlier M0 acceptance remains reopened, external-backend gaps remain, and V4's independent hold is unchanged.
 
 Read before implementation:
 
@@ -44,7 +44,7 @@ Foundation slices:
 | B3b | Validate one fixed external Claude-compatible ACP agent and project only negotiated capabilities into Pho Code | Lazy `claude-agent-acp` production registration and owner-verified provider-backed desktop use in source; permission/resume and packaged evidence pending |
 | B4 | Capability-aware backend selection, cross-backend contract/evaluation fixtures, desktop verification, and acceptance review | Backend-pinned identity, metadata migration, composer Pi/Codex/Claude selection, focused automated desktop checks, and owner-verified ordinary Codex/Claude use in source; evaluations and acceptance pending |
 
-The older M1–M4 intelligence milestones remain deferred after B4. They may resume only after their contracts are reviewed for backend-neutral state ownership; no Pi custom-entry assumption automatically applies to Codex or ACP sessions.
+The owner resumed M1–M4 on 2026-09-01 after their contracts were reviewed for backend-neutral state ownership. Pi is the first native Task adapter; Codex and ACP do not advertise the capability, so no Pi custom-entry assumption crosses into those sessions.
 
 ### Baseline adapter contract
 
@@ -114,7 +114,7 @@ The repository already has useful layer separation, but the reusable and Pho Cod
 - `HarnessRuntime` exposes both general session operations and coding-product settings/review operations;
 - identity uses canonical workspace path as `workspaceId` throughout application/runtime/protocol;
 - tests prove Pho Code and the packaged app, but no consumer proves the reusable layer is independent of Pho Code;
-- there is no Task Brief, evidence-pack state, verification ledger, completion assessment, or frozen intelligence evaluation corpus.
+- the resumed M1–M4 candidate now provides Task Brief, evidence-pack state, verification ledger, completion assessment, and deterministic development/holdout fixtures; real-provider quality remains unverified until the owner handoff.
 
 M0 extracts the source/package boundary and reusable harness capabilities already accepted through Pho Code. Electron main remains the composition root and Pi remains in the same process. The future V4 process broker should later carry the whole resulting runtime graph without having to undo V5.
 

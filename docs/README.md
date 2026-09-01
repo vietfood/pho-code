@@ -14,7 +14,7 @@ Pho Code docs are grouped by ownership and kind of work, not by date.
 | [`features/`](./features/README.md) | Standalone add-ons (not a numbered product version) |
 | [`urgent/`](./urgent/README.md) | Owner-priority defects, safety, and startup work to do before more capability |
 | [`ui/`](./ui/README.md) | Conversation chrome: design, implementation, ideas, changes, feedback, and defect logs |
-| [`version/`](./version/README.md) | Promoted numbered product versions (V4 pending; V5 Pho Agent Foundation blocked) and later-release roadmap |
+| [`version/`](./version/README.md) | Promoted numbered product versions (V4 pending; V5 Pho Agent Foundation awaiting owner verification) and later-release roadmap |
 
 Living entry points that stay at this root:
 
