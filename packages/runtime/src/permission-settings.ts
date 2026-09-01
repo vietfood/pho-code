@@ -150,16 +150,14 @@ export function syncHarnessPermissionPolicy(
     const profile = existingProfile;
     const next = cloneJson(permission);
     changed = overlayPermission(next, HARNESS_ALWAYS_ALLOW_PERMISSION) || changed;
-    if (profile !== "custom") {
-      changed = overlayPermission(next, MANAGED_WEB_PERMISSION) || changed;
-      if (approvalControllerActive) {
-        changed = applyApprovalQuietSurfaces(next) || changed;
-      } else {
-        const restored = withoutApprovalQuietSurfaces(next, PROFILE_PRESETS[profile].current);
-        changed = !permissionPoliciesEquivalent(next, restored) || changed;
-        for (const key of Object.keys(next)) delete next[key];
-        Object.assign(next, restored);
-      }
+    changed = overlayPermission(next, MANAGED_WEB_PERMISSION) || changed;
+    if (approvalControllerActive) {
+      changed = applyApprovalQuietSurfaces(next) || changed;
+    } else {
+      const restored = withoutApprovalQuietSurfaces(next, PROFILE_PRESETS[profile].current);
+      changed = !permissionPoliciesEquivalent(next, restored) || changed;
+      for (const key of Object.keys(next)) delete next[key];
+      Object.assign(next, restored);
     }
     nextConfig.permission = next;
   }

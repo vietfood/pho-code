@@ -5,11 +5,13 @@
 Owner-approved standalone add-on, promoted 2026-09-01. Status is
 **In implementation**.
 
-This file defines the final product boundary. It is not a claim that the modes
-exist in source. Current Pho Code still uses managed permission profiles,
-`yoloMode`, the accepted agent-tool sandbox, and a manual permission dock. The
-delivery contract is [`implementation-plan.md`](./implementation-plan.md), and
-the research/promotion record is
+Pi Milestones 0–3 are implemented and machine-verified as of 2026-09-01, but
+the feature is not accepted until the owner completes the real-provider and
+desktop checks in [`handoff.md`](./handoff.md). External-backend mode mapping is
+still held with V5. The delivery contract is
+[`implementation-plan.md`](./implementation-plan.md), implementation evidence
+is [`logs/2026-09-01-m0-m3-pi-implementation.md`](./logs/2026-09-01-m0-m3-pi-implementation.md),
+and the research/promotion record is
 [`logs/2026-09-01-research-and-promotion.md`](./logs/2026-09-01-research-and-promotion.md).
 
 This add-on is not Plan/Agent, not V3 change review, not a replacement agent

@@ -12,6 +12,10 @@ Do not append execution evidence to the read-mostly implementation plan. Do not 
 
 V5 logs own `pho-agent` package extraction, Task Brief, evidence-pack, verification-ledger, completion, and evaluation evidence. UI behavior also receives a reciprocal record under [`../../../ui/logs/`](../../../ui/logs/README.md). Context-compaction implementation evidence remains under [`../../../features/compaction/logs/`](../../../features/compaction/logs/README.md). V4 release/process evidence remains under [`../../v4/logs/`](../../v4/logs/README.md).
 
+The approval-modes add-on's owner-directed reusable foundation in Pho Agent,
+without lifting the V5 hold, is recorded in
+[`2026-09-01-related-approval-foundation.md`](./2026-09-01-related-approval-foundation.md).
+
 Current M0 implementation evidence: [`2026-08-20-m0-harness-ownership-expansion.md`](./2026-08-20-m0-harness-ownership-expansion.md).
 
 Production repository extraction: [`2026-08-20-m0-pho-agent-submodule.md`](./2026-08-20-m0-pho-agent-submodule.md).

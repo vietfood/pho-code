@@ -14,6 +14,7 @@ Each record names the surface, status and verification class, the owning plan, e
 - Changes, Approve, conflict, and Undo → archived [`v3`](../../archive/v3/README.md)
 - PTY and Terminal product behaviour → [`../../features/terminal/README.md`](../../features/terminal/README.md)
 - Plan / Agent and the Plan document → archived [`plan-agent`](../../archive/features/plan-agent/README.md)
+- approval mode control, exact request card, automatic review activity, Full warning, and approval Settings → [`../../features/approval-modes/README.md`](../../features/approval-modes/README.md)
 - Pho-created child activity and the Agents surface → [`../../features/subagents/README.md`](../../features/subagents/README.md)
 - backend-neutral and external-backend surfaces → [`../../version/v5/README.md`](../../version/v5/README.md)
 

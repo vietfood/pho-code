@@ -4,7 +4,11 @@
 
 Owner-approved implementation contract for the
 [approval-modes add-on](./product.md), promoted 2026-09-01. Status is
-**In implementation**. No milestone in this plan is accepted yet.
+**In implementation**. Pi Milestones 0–3 are implemented and machine-verified
+as recorded in
+[`logs/2026-09-01-m0-m3-pi-implementation.md`](./logs/2026-09-01-m0-m3-pi-implementation.md),
+but no milestone in this plan is accepted yet. Milestone 4 remains held with V5;
+Milestone 5 still needs real-provider evaluation and owner acceptance.
 
 This plan targets the complete product. Milestones define dependency and review
 order; they do not reduce the final scope to a small first version.
@@ -527,7 +531,7 @@ not drift.
 | `packages/pho-agent/packages/runtime/src/approval-*` | Per-session controller, canonical fingerprinting, grants, reviewer lifecycle/circuit, cancellation, consume/revalidation, and Pi whole-action interception |
 | `packages/protocol/src/approval-modes.ts` | JSON-safe modes, settings, session/review/grant projections, validation, copy, bounds |
 | `packages/protocol/src/bridge.ts`, `events.ts`, `version.ts`, `index.ts` | Named commands/events/exports/version |
-| `packages/pho-agent/packages/protocol/src/backend.ts`, `packages/pho-agent/packages/host` | Held optional native mode capability/dispatch work; do not change while V5 is blocked |
+| `packages/pho-agent/packages/protocol/src/backend.ts`, `packages/pho-agent/packages/host` | Held optional native mode capability/dispatch work; do not change under this add-on while V5 remains unaccepted |
 | `packages/pho-agent/packages/backend-codex`, `packages/pho-agent/packages/backend-acp` | Held native mappings only; remain Ask-only during this Pi slice |
 | `packages/runtime/src/approval-policy.ts` | Pho Code product invariants, concrete effect normalization, base policy, and monotonic project restrictions injected into Pho Agent |
 | `packages/runtime/src/approval-settings.ts` | Typed persistence and legacy migration |

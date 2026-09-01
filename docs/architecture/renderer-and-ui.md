@@ -24,7 +24,7 @@ packages/ui components
 
 The renderer keeps four distinct classes of state:
 
-1. **Bootstrap and settings:** selected workspace/session, model catalog, feature diagnostics, appearance, permissions, skills, GitHub status, and provider accounts.
+1. **Bootstrap and settings:** selected workspace/session, model catalog, feature diagnostics, appearance, approval modes/boundary/migration/history controls, skills, GitHub status, and provider accounts.
 2. **Keyed conversation cache:** authoritative snapshots by normalized `{backendId, workspaceId, sessionId}`, selected key, drafts, and catalog projections. Missing backend identity means Pi for pre-V5 compatibility.
 3. **Live-run store:** high-frequency thinking/text/tool deltas keyed by composite session identity. The live transcript tail subscribes; settled turns and shell chrome do not rerender per token.
 4. **View state:** sidebar collapse/width, right-sidebar surface, settings/dialog visibility, focus, menus, and optimistic busy states.
@@ -55,7 +55,8 @@ The conversation is primary:
 - collapsed work log grouping thinking, tools, and pre-tool narration into narrative phases (each pre-tool narration heads a phase as prose with a terse tool-derived summary label above its indented entries; live, a new tool commits pending streaming text as a narration `RunWorkEntry`);
 - anchored or empty-session composer;
 - backend-advertised model/thinking controls, a separate Fast toggle when supported, usage controls, and prepared images;
-- permission/host interaction docks (Allow once, Allow for this session, No with optional reason);
+- permission/host interaction docks plus the separate exact approval-mode request card (Allow once, Allow for this session, No with optional reason);
+- one authoritative Ask/Auto/Full composer control, automatic-review activity, and a blocking process-first-use Full warning; unsupported backend modes are omitted rather than simulated;
 - live Working/Thinking shimmer labels and bounded error states.
 
 Live text uses conservative sanitized GFM. Expensive rich rendering waits until settle:
@@ -112,10 +113,12 @@ The floating Settings UI renders typed protocol snapshots:
 - GitHub MCP;
 - Skills and source trust;
 - Archived chats;
-- Permissions;
+- Approval modes (new-chat Ask/Auto default, explicit reviewer selection, decision history, Full enablement, and migration) plus active boundary;
 - Sandbox (accepted agent-tool sandbox add-on; default on — see [`../archive/features/sandbox`](../archive/features/sandbox/README.md)).
 
 Settings never renders a generic schema, path picker, font-file picker, package manager, feature marketplace, or MCP server editor. Credential fields are transient input and stored values never return to the renderer.
+
+The approval renderer is not an authorization source. It settles one typed request ID; runtime revalidates identity, policy generation, canonical input, and run state before dispatch. Reviewer prompts/reasoning and raw history do not enter high-frequency events. V3's owner-facing close action reads **Mark reviewed** to distinguish post-change ledger state from future-action approval.
 
 ## Accessibility and performance
 

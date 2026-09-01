@@ -22,6 +22,7 @@ The renderer receives snapshots/events and sends named intents. It never receive
 - JSON-safe request/result/event types;
 - normalized error codes;
 - bounded projections for accepted workspaces, sessions, runs, models, messages, tools, settings, credentials, queues, attachments, and features, plus V5's in-source backend descriptors, backend-pinned compatibility identity, backend-owned model/reasoning/Fast state, and text/tool-delta events;
+- the implemented-but-unaccepted approval-mode session/settings/request/history projections and strict validation bounds; reusable mode/decision values are re-exported from `@pho-agent/protocol`;
 - runtime validators and JSON-safety helpers that can run without Node or Electron.
 
 It does not import Node, Electron, React, Pi, MCP, the application, or the runtime.
@@ -42,6 +43,7 @@ The authoritative command registry is `packages/protocol/src/version.ts`; method
 - bootstrap, backend discovery, workspace recents/reorder, session catalog/snapshots, create/open/archive/restore/removal;
 - prompt, steer/follow-up, image preparation, abort, model/thinking/Fast, assistant rewrite, context prompt, host dialogs;
 - appearance, permissions/trust, skill sources, credentials/provider OAuth, GitHub MCP, and agent-tool sandbox Settings (`updateSandboxSettings`);
+- approval-mode Settings/session changes, exact owner settlement/retry, grant revocation, explicit legacy migration, and bounded history inspection;
 - workspace-reference search;
 - implemented V3 review/diff/Approve/per-file Undo commands.
 
@@ -95,6 +97,7 @@ The implemented event catalog in `packages/protocol/src/events.ts` covers:
 - provider authentication flow;
 - session activity and removal;
 - V3 `changeReviewUpdated` invalidation/summary events.
+- approval mode/review/request/grant/Full-reset events, keyed to their owning composite session and run where applicable.
 
 `controllerGeneration` is reserved in the envelope but is not currently populated by runtime; do not rely on it for ownership.
 
@@ -134,5 +137,6 @@ Accepted additions are promoted here; active proposals remain with their owner:
 - terminal commands and dedicated events are proposed under [`../features/terminal/`](../features/terminal/README.md) and do not exist in source;
 - `HostDialogKind` `"questionnaire"` and ask-user answer payloads are accepted structured host dialogs ([`../archive/features/plan-agent/`](../archive/features/plan-agent/README.md));
 - `setSessionMode`, `updateSessionPlanDocument`, and `executeSessionPlan` plus snapshot `plan` (including `todos`) and Plan-only `execute_plan` are accepted Plan/Agent commands.
+- approval-mode named commands/events and snapshot projections are implemented under [`../features/approval-modes/`](../features/approval-modes/README.md), but remain unaccepted pending its owner handoff; external backend projections advertise Ask only.
 
 Those plans must preserve named methods, JSON safety, bounded results, composite identity, and renderer non-authority.

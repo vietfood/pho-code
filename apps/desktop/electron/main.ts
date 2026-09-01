@@ -552,6 +552,7 @@ async function startPiRuntime(
       ...(rgPath ? { rgPath } : {}),
       ...(app.isPackaged ? { resourcesRoot: process.resourcesPath } : {}),
       deterministicTestModel: process.env.PHO_CODE_TEST_MODEL === "1",
+      ...(process.env.PHO_CODE_TEST_APPROVAL_MODES === "1" ? { approvalModes: true } : {}),
       useDefaultFeatureManifest: process.env.PHO_CODE_TEST_FEATURES === "1",
       testHostUi: process.env.PHO_CODE_TEST_HOST_UI === "1",
       testOAuthFlow: process.env.PHO_CODE_TEST_AUTH === "1",

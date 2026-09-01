@@ -14,6 +14,7 @@ plan.
 
 | Date | Record | Status |
 | --- | --- | --- |
+| 2026-09-01 | [`2026-09-01-m0-m3-pi-implementation.md`](./2026-09-01-m0-m3-pi-implementation.md) | Pi M0–M3 implemented and machine-verified; owner/provider acceptance pending |
 | 2026-09-01 | [`2026-09-01-research-and-promotion.md`](./2026-09-01-research-and-promotion.md) | Research complete; add-on promoted; implementation not started |
 
 ## Entry template
@@ -41,4 +42,3 @@ Related: <links>
 
 ## Blockers and handoff
 ```
-

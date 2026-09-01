@@ -22,6 +22,7 @@ test("Full access allows safe inspection, keeps invariant rm blocked, and moves 
   const env = {
     PHO_CODE_TEST_WORKSPACE: workspaceDir,
     PHO_CODE_TEST_MODEL: "1",
+    PHO_CODE_TEST_APPROVAL_MODES: "1",
     PHO_CODE_TEST_FEATURES: "1",
   };
 

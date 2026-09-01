@@ -42,6 +42,7 @@ test("packaged macOS app runs bundled FFF retrieval and Trash without Pi CLI", a
       env: {
         PHO_CODE_TEST_WORKSPACE: workspaceDir,
         PHO_CODE_TEST_MODEL: "1",
+        PHO_CODE_TEST_APPROVAL_MODES: "1",
         PHO_CODE_TEST_FEATURES: "1",
         PATH: pathWithoutPi(),
       },

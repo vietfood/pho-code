@@ -107,6 +107,7 @@ Expected development behavior:
 - desktop tests isolate `userData`, so a separate agent-directory override is needed only when a test intentionally exercises shared-scope disclosure;
 - GitHub MCP in Settings needs the pinned binary under gitignored `apps/desktop/resources`; run `bun run stage:github-mcp` once (or `bun run package:mac`). The running app never downloads it. After staging, restart development or turn the GitHub row off and on.
 - Settings → Sandbox defaults on and needs the pinned `rg` binary under the same resources tree; run `bun run stage:ripgrep` once (or `bun run package:mac`). Missing `rg` fails closed and refuses agent bash. GUI `PATH` does not need Homebrew `rg`. The running app never downloads it. Deterministic tests (`PHO_CODE_TEST_MODEL=1`) keep sandbox off unless `userData/sandbox-settings.json` opts in, so permission journeys stay unsandboxed.
+- Approval modes are enabled in normal production composition. Deterministic model tests opt in with `PHO_CODE_TEST_APPROVAL_MODES=1` so existing permission-dialog fixtures keep their accepted behavior; `apps/desktop/tests/developer.spec.ts` is the focused Full journey. Real Auto verification needs an explicit authenticated reviewer provider/model until automatic model selection has release evaluation evidence. See [`features/approval-modes/handoff.md`](./features/approval-modes/handoff.md).
 - Plan/Agent is in the default feature manifest. Isolated `PHO_CODE_TEST_MODEL=1` tests need `PHO_CODE_TEST_FEATURES=1` to load the factory. Exercise ask-back with `USE_ASK_USER` (`apps/desktop/tests/ask-user.spec.ts`). Plan vs Agent is the composer mode button (`composer-context-button`: Bot in Agent, ListTree in Plan; menu Mode + Images…). Plan option title states writes are off and shell is not sandboxed. `USE_WRITE` in Plan should not create files. `USE_PLAN_DOC` fills the Plan rail; Execute writes are V3-tracked. `USE_TODO` updates the same list in the transcript tool row and Plan rail (not the composer meta strip). Packaged evidence is the Plan/Agent journey in `apps/desktop/tests/packaged.spec.ts`.
 - Pho Code owns Pho Agent and embedded Pi. Codex and Claude ACP are optional external prerequisites. The fixed `codex` and `claude-agent-acp` commands must be compatible and visible on the Electron process `PATH`; Pho Code does not install, download, configure, authenticate, or update them. Both registrations are lazy, so normal Pi startup does not spawn either process. Codex `0.149.1` is the currently characterized build, but Pho Code does not require that exact version: a successful app-server initialization and the operations actually used are the compatibility boundary. Codex model choices come from App Server `model/list`; ACP model choices appear only when the session supplies a stable select configuration option categorized as `model`. Claude ACP has not yet received owner/provider verification.
 
@@ -119,6 +120,7 @@ Expected development behavior:
 | `PHO_CODE_TEST_MODE=background` | Headless Electron test launch |
 | `PHO_CODE_TEST_WORKSPACE` | Inject a directory as if it was chosen with the native picker (test-only) |
 | `PHO_CODE_TEST_MODEL=1` | Register the deterministic faux model and `harness_mark` tool |
+| `PHO_CODE_TEST_APPROVAL_MODES=1` | Enable the new Pi approval controller in deterministic tests; normal production enables it without this flag |
 | `PHO_CODE_TEST_AUTH=1` | Register the deterministic `pho-test-oauth` provider used by the Milestone 2 OAuth journey; do not combine with `PHO_CODE_TEST_MODEL=1` when checking the model picker |
 | `PHO_CODE_TEST_FEATURES=1` | Load the default baked-feature manifest in tests (permission package, Cursor SDK provider, recoverable Trash, pho-web, curated-skills identity, and the inline plan-agent factory); otherwise tests use an empty manifest |
 | `PHO_CODE_RESOURCES_DIR` | Override the staged resource root in source development/tests; packaged production ignores it and uses Electron `process.resourcesPath` |
@@ -246,6 +248,16 @@ Settings opens as a floating dialog over the conversation, with compact **Appear
 - A trusted workspace may contribute `.pi/extensions/pi-permission-system/config.json`. Detect/disclose that override before describing the global preset as effective.
 - Disable permission updates during an active run. After a successful idle write, reload/rebind through the runtime lifecycle instead of exposing a general feature Reload button.
 - `doublePressToConfirm` is TUI-only in permission-system `24.0.0`; do not debug the desktop single-select flow by changing it.
+- Approval-mode settings live under application data in `approval-modes.json`;
+  redacted history lives in `approval-decisions/v1/history.json`. Ask/Auto
+  per-chat choice is application metadata; Full and grants are memory-only.
+- A legacy Custom policy or an explicitly shared Pi root stays Ask-only until
+  the owner completes the typed migration. Do not force authorizer-chain edits
+  around that gate.
+- Permission-package asks are evidence, not the dispatch authority. Debug an
+  unexpected duplicate prompt by checking `pho-code-approval` and
+  `pho-code-sandbox` registration plus the whole-action broker, never by
+  converting package denies into allows.
 
 ## Desktop verification
 
