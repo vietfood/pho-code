@@ -4,13 +4,13 @@ Status: research only. These are possible numbered-version capabilities, not app
 
 The promotion queue and release grouping live in [`roadmap-vnext.md`](./roadmap-vnext.md). Promote one bounded outcome into `version/vN/product.md` and `version/vN/implementation-plan.md` before implementation.
 
-Task Brief, bounded evidence packs, an authoritative verification ledger, evidence-backed completion, and the private headless `pho-agent` package boundary were promoted on 2026-08-20 as [`V5 — Pho Agent Foundation`](./v5/README.md). They are no longer research backlog items. V5 explicitly defers generic memory, Pho Research, subagents, and long-job orchestration.
+Task Brief, bounded evidence packs, an authoritative verification ledger, evidence-backed completion, and the private headless `pho-agent` package boundary were promoted on 2026-08-20 as [`V5 — Pho Agent Foundation`](./v5/README.md). They are no longer research backlog items. V5 explicitly defers generic memory, Pho Research, subagents, and long-job orchestration. Bounded separate-session subagent delegation was independently promoted on 2026-09-01 as the [`subagents` add-on](../features/subagents/README.md); worktrees and broader orchestration remain research.
 
 ## Near-term candidates
 
 1. Session tree, fork, and clone over Pi-owned JSONL.
 2. Plan and Agent modes with structured questions and optional session todo state. **Accepted and archived 2026-08-18** as [`plan-agent`](../archive/features/plan-agent/README.md). Keep this line only as the backlog pointer; do not re-research it as a numbered v4.
-3. Scoped tasks and subagents with cancellation, ownership, and review.
+3. Scoped separate-session subagents with cancellation, ownership, and review. **Promoted 2026-09-01** as [`features/subagents`](../features/subagents/README.md). Keep worktrees, nesting, workflows, scheduling, and generic orchestration in the backlog.
 4. TypeScript-first language-server integration.
 5. Edit reliability beyond the accepted V3 change-review boundary.
 
@@ -32,7 +32,7 @@ Change review and recovery are accepted and archived as [`v3`](../archive/v3/pro
 - bounded transcript export and diagnostics;
 - usage warnings and cross-session memory with explicit privacy/staleness/correction rules (**generic memory remains deferred outside V5**);
 - conversation checkpoint/rewind after compaction UX exists;
-- optional advisor roles, only after subagent ownership is proven;
+- advanced advisor teams and recursive roles only after the promoted subagent ownership contract is accepted;
 - persistent evaluation kernels only with process, timeout, output, and tool-reentry controls.
 
 ## Desktop and remote ideas

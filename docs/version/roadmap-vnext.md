@@ -1,10 +1,10 @@
 # Pho Code future-release roadmap
 
-This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3. The bounded public-beta portion of Phase F is promoted as [V4 — Public Beta Foundation](./v4/README.md) and is **Pending** (held 2026-08-20) until Apple Developer Program enrollment. [V5 — Pho Agent Foundation](./v5/README.md) was promoted independently on 2026-08-20 without closing V4, and is **Blocked** (held 2026-08-28) behind the urgent queue and the promoted add-ons.
+This roadmap begins after v2. It preserves the standalone-product philosophy, but it is not a continuation of the v2 acceptance plan and is not a promise that every item ships in one release. The former “Milestone 5: advanced features” is split below because browser control, a terminal, subagent delegation, multi-agent worktrees, recovery tooling, and runtime isolation have different trust, lifecycle, and verification costs. Phase A is accepted as V3. The bounded session-delegation slice of Phase E is promoted as the standalone [subagent-orchestration add-on](../features/subagents/README.md); worktrees remain here. The bounded public-beta portion of Phase F is promoted as [V4 — Public Beta Foundation](./v4/README.md) and is **Pending** (held 2026-08-20) until Apple Developer Program enrollment. [V5 — Pho Agent Foundation](./v5/README.md) was promoted independently on 2026-08-20 without closing V4, and is **Blocked** (held 2026-08-28) behind the urgent queue and the promoted add-ons.
 
 V2 consists only of Milestones 0 through 4 and is accepted under [`archive/v2`](../archive/v2/README.md). Interoperable Codex/Cursor/Claude/Pi user skills, three Pho Code-authored skills, and a Settings-controlled read-only GitHub MCP with a persistent PAT closed Milestone 4. This file is now the promotion queue for later releases.
 
-UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan. Promoted add-ons that are not a numbered product version live under [`features`](../features/README.md).
+UI polish, accessibility, performance work, defect fixes, and owner-reviewed additions or refinements to Pho Code's text-only skill bundle may ship as v2.x maintenance when they preserve the accepted boundaries. A new executable capability, MCP server, remote mutation path, browser profile, PTY, subagent runtime, or process-isolation boundary must be promoted from this roadmap into its own implementation plan. The subagent runtime was promoted on 2026-09-01; implement only its bounded [product](../features/subagents/product.md) and [plan](../features/subagents/implementation-plan.md), not the remaining worktree phase. Promoted add-ons that are not a numbered product version live under [`features`](../features/README.md).
 
 ## Rules carried forward
 
@@ -84,18 +84,27 @@ Selected contract:
 
 Closing a panel must not silently terminate a running process. Application quit must bound graceful shutdown and report what could not be preserved.
 
-## Phase E: multi-agent and worktree workflows
+## Phase E: delegation promoted; multi-agent worktrees remain research
 
-Add orchestration only after single-agent review and recovery are dependable:
+The owner promoted bounded, separate-session delegation on 2026-09-01 as the
+standalone [`features/subagents`](../features/subagents/README.md) add-on. That
+contract owns Pho/Pi child identity, configured Pho-model choice, fresh context,
+separate permissions, concurrency, cancellation, continuation, transparency,
+lifecycle, and its narrow serialized Pi writer path. Codex/Claude retain native
+subagent ownership. Do not reimplement those concerns from this summary.
 
-- explicit subtask ownership, bounded agent concurrency, cancellation, and status;
-- separate session and permission state for every agent;
+The unpromoted remainder is worktree and integration orchestration:
+
 - worktree creation, branch naming, path ownership, conflict detection, integration preview, and recoverable cleanup;
 - no concurrent writes to the same owned files without an explicit reconciliation path;
-- a clear distinction between agent delegation, independent chats, and Pi session forks;
+- a clear distinction between promoted agent delegation, independent chats, Pi session forks, and worktree workers;
 - owner review before remote mutation, push, publication, or deployment.
 
-This phase must specify failure handling for partial worktree creation, child-process crashes, permission dialogs on background agents, application restart, and conflicting user edits. Worktree removal may use only a verified recoverable strategy; if Git itself requires irreversible cleanup, the operation must stop and explain the manual prerequisite rather than using `rm`.
+This remaining phase must specify failure handling for partial worktree creation,
+branch/path ownership, integration conflicts, application restart, and
+conflicting user edits. Worktree removal may use only a verified recoverable
+strategy; if Git itself requires irreversible cleanup, the operation must stop
+and explain the manual prerequisite rather than using `rm`.
 
 ## Phase F: runtime isolation and public distribution — promoted as V4 (pending)
 
