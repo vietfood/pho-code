@@ -37,6 +37,7 @@ A document may contain both current and planned sections. Each claim must make t
 | --- | --- | --- | --- |
 | Integrated terminal | In implementation; owner-approved 2026-08-16 | Owner-visible login shell in the selected workspace, ghostty-web in the right sidebar, PTY in Electron main | [`terminal/product.md`](./terminal/product.md), [`terminal/implementation-plan.md`](./terminal/implementation-plan.md) |
 | Context compaction | In implementation; owner-approved 2026-08-20 | Long chats keep a complete display transcript while Pi reduces active model context; lifecycle, idle-only manual control, and cancellation become visible | [`compaction/product.md`](./compaction/product.md), [`compaction/implementation-plan.md`](./compaction/implementation-plan.md) |
+| Approval modes and automatic review | In implementation; owner-approved 2026-09-01 | Per-chat Ask for approval, Approve for me, and Full access replace the owner-facing profile/YOLO mix while keeping containment, deterministic policy, and reviewer ownership explicit | [`approval-modes/product.md`](./approval-modes/product.md), [`approval-modes/implementation-plan.md`](./approval-modes/implementation-plan.md) |
 
 Closed add-ons live under [`archive/features`](../archive/features/README.md). Agent-tool sandbox was accepted 2026-08-17 and archived 2026-08-18; see [`archive/features/sandbox`](../archive/features/sandbox/README.md). Plan / Agent was accepted and archived 2026-08-18; see [`archive/features/plan-agent`](../archive/features/plan-agent/README.md).
 
